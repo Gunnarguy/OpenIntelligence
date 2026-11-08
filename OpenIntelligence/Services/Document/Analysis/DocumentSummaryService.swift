@@ -39,7 +39,12 @@ actor DocumentSummaryService {
 
     // MARK: - Configuration
 
-    nonisolated private static let summaryGenerationTimeoutSeconds: UInt64 = 12
+    /// 30 s from 5.8 (was 12). Up to 5,500 characters in and about 200 words out takes 13 to 15 s on an A18 Pro, so the
+    /// 12 s limit fired on 14 of the owner's imports in two days and each library got the extractive fallback instead
+    /// of a written overview. A file the import queue manages writes its overview after the import reads Complete
+    /// (`shouldDeferEnrichment`); the onboarding samples and a lone file imported with the app in front still wait for
+    /// it, now up to 30 s instead of 12.
+    nonisolated private static let summaryGenerationTimeoutSeconds: UInt64 = 30
 
     nonisolated private static let summaryInstructions = """
     You generate short document overview summaries for search indexing. Be concise, factual, and avoid commentary.

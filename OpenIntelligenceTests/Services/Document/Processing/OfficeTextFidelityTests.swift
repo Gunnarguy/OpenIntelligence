@@ -45,4 +45,17 @@ final class OfficeTextFidelityTests: XCTestCase {
     func testEntitiesAreDecoded() {
         XCTAssertEqual(DocumentProcessor.decodingXMLEntities("&#177; &#x2265; &amp;lt;"), "± ≥ &lt;")
     }
+
+    /// A spreadsheet keeps each cell in its column and its text, past a styled empty cell and a skipped column.
+    func testSpreadsheetCellsStayInTheirColumns() {
+        let sheet = """
+            <sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" s="2"/><c r="C1" t="s"><v>1</v></c></row>            <row r="2"><c r="A2" t="s"><v>2</v></c><c r="C2"><v>3</v></c></row></sheetData>
+            """
+        let text = DocumentProcessor().extractTextFromExcelSheet(sheet, sharedStrings: ["Name", "Dose", "DHA &amp; EPA"])
+        XCTAssertTrue(text.contains("Dose"), text)
+        XCTAssertFalse(text.contains("| 1 |"), text)
+        XCTAssertTrue(text.contains("DHA & EPA"), text)
+        XCTAssertEqual(DocumentProcessor.spreadsheetColumnIndex("A"), 0)
+        XCTAssertEqual(DocumentProcessor.spreadsheetColumnIndex("AA"), 26)
+    }
 }

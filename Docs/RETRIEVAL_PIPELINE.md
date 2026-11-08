@@ -386,7 +386,10 @@ Gate C counted an answer's number as grounded when the passages held it anywhere
 reads the passages' table rows ("ROW n:" lines and cell lines joined by " | ") and their labels (first cell); when some
 row's label shares a word with the question's subject, an answer value held only by rows about something else, and by no
 line outside a table, is counted as unverified. Questions no row is about, and values also stated in prose, are judged as
-before. `[evidence_level: test_verified, confidence: medium: the rate on correct answers is not measured]`
+before. A table none of whose row labels names the subject is read the other way round: each cell is about its row's
+label and its column's name ("ROW 2: Adults | DHA: 1-2 g" holds the DHA value), decided per table so that a column such
+as "Daily Dose" does not make every row about a question that says "daily dose" (2026-11-08).
+`[evidence_level: test_verified, confidence: medium: the rate on correct answers is not measured]`
 
 ## A retrieved table summary brings its table (added 2026-11-07, for 5.8)
 

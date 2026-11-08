@@ -1338,18 +1338,44 @@ a fixture's "3624" as "3024". Rotated, garbled and Vision-unreadable pages keep 
 - Word: `wordXMLWithInlineText` writes non-breaking hyphens, tabs, Symbol-font characters and superscript runs as text;
   `decodingXMLEntities` decodes entities in runs and table cells.
 - PowerPoint: a slide's table placeholder sits inside an `<a:p>`, so tables are kept; space-only runs are kept.
+- Spreadsheets: self-closing cells no longer swallow the next one, cells sit in the column their reference names, and entities are decoded.
 - HTML files are read as text (`WebPageFetchService.readableText(fromHTML:)`), not kept as markup.
 - Images load upright by their orientation metadata (`.applyOrientationProperty`).
+- Running lines: a running-line key (digits masked as "#") counts only with three or more letters and at least twice as
+  many letters as number groups, so lines of numbers and reference DOIs are not running headers. In body text a
+  citation-shaped line is furniture only when it ends in a page counter, and a DOI line only when it repeats; in a
+  heading or title both still are.
+- Text-layer words are collected on every Vision page with a good layer and carried through the layout pass; the
+  layout pass reads each Vision block from the words inside it when the readings agree, so a multi-column page's
+  reading-order text is the PDF's own (`LayoutAwareExtractor.extractWithLayout(from:pageNumber:textLayerWords:)`). A
+  word of four or more digits is split where its characters leave a gap over a quarter of their height
+  (`digitRunPieces`: PDFKit's string printed a contents page's "11 13 13 14" as "11131314").
+- A passage the token limit splits (`splitOversizedChunkByTokens`) repeats its table's Section Path, TABLE and HEADERS
+  lines in every part (`tableLabelLines`).
+- A table passage's 20 keywords put identifiers and measurements before nouns and verbs, deduplicated without regard to
+  case.
 - Measuring it: `ExtractionFidelityRecorder` (run with `TEST_RUNNER_OI_FIDELITY_DIR`) writes the stored passages of every
   PDF in a folder, and `scripts/extraction_fidelity.py <folder> <label>` scores them against `pdftotext -layout`
-  (number recall, word recall, invented numbers and words per 1,000).
-`[evidence_level: test_verified (OfficeTextFidelityTests, TablePassageFidelityTests), confidence: high]`
+  (number recall, word recall, the same for body text without lines printed on three or more pages, and invented
+  numbers and words per 1,000). The import's own labels ("[Part 2.1]" lines, "ROW 3:") are left out before scoring. On 8 real PDFs
+  (141 pages, 2026-11-08) body number recall went 0.898 before tonight's changes, 0.892 with them, 0.941 after the
+  fixes above; body word recall 0.967, 0.966, 0.972; invented numbers 53.2, 58.2, 24.9 per 1,000; all eight imports
+  594 s, 593 s, 632 s (`BenchmarkRuns/2026-11-08-extraction-fidelity/README.md`).
+- A text-layer reading replaces Vision's only when it keeps at least 80% of Vision's word count (some PDFs print no
+  space characters and space words by position, so their layer reads a line as one word), and only when the two are within 15% in length and a quarter apart by
+  character edit distance (spacing and case ignored), or, over 2,000 characters, share an in-order word sequence of 85%;
+  words are grouped into lines first, by half the median word height, then read left to right, and a paragraph's lines
+  are joined by line breaks so its running header is removed line by line.
+- A line printed word for word on most pages is a running line whatever its letters (`exactRunningLineKey`).
+`[evidence_level: test_verified (OfficeTextFidelityTests, TablePassageFidelityTests), measured (the fidelity runs), confidence: high]`
 
 ## A table passage keeps the same keywords on every import (added 2026-11-07, for 5.8)
 
 `DocumentProcessor.extractKeywordsFromStructuredElement` keeps at most 20 keywords for a table or list passage. Through
 5.7 it returned `Array(Set(keywords)).prefix(20)`, so each import kept a different 20 (a Set's order is seeded per
-process). It now keeps the first 20 in the order they appear. Keyword search also breaks equal `bm25` scores by id
+process). It now keeps the first 20 in the order they appear, identifiers and measurements before nouns and verbs, deduplicated
+without regard to case (on Xcode Cloud's simulators the word tagger read "ABC-101" as a noun, and its lowercase copies
+took every place). Keyword search also breaks equal `bm25` scores by id
 (`document_id`, `chunk_id`, `page_id`) in the query files `SQLiteFullTextService+Search.swift`, `+Chunks.swift` and
 `+Documents.swift`; the schema is unchanged, so nothing is reindexed.
 `[evidence_level: test_verified (StructuredKeywordOrderTests), code_verified; confidence: high]`

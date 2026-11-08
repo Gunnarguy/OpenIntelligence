@@ -95,7 +95,8 @@ final class HyDEService: @unchecked Sendable {
             }
 
             // Generate hypothetical document
-            let response = try await session.respond(to: prompt)
+            // Greedy, so one question searches with the same hypothetical passage every time (5.8).
+            let response = try await session.respond(to: prompt, options: GenerationOptions(samplingMode: .greedy))
             let hypotheticalDoc = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
 
             let elapsed = Date().timeIntervalSince(startTime)

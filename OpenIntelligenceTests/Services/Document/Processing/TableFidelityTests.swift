@@ -218,9 +218,11 @@ final class TableFidelityTests: XCTestCase {
         }
         // The header's text is not in any passage's body either (a passage that opens with it ranks for it).
         let bodies = chunks.map { Self.folded($0.text) }
-        XCTAssertFalse(
-            bodies.contains { $0.contains("int. j. test. sci.") },
-            "a passage still holds the running header's citation line")
+        for chunk in chunks where Self.folded(chunk.text).contains("int. j. test. sci.") {
+            print("HEADER-PASSAGE page \(chunk.metadata.pageNumber ?? 0) \(chunk.metadata.structureType ?? "") \(chunk.text.debugDescription)")
+        }
+        let holding = bodies.first { $0.contains("int. j. test. sci.") }
+        XCTAssertNil(holding, "a passage still holds the running header's citation line: \(holding ?? "")")
     }
 
     /// The context's line splitter keeps a stored row whole: what Standard's sentence extraction scores and packs for

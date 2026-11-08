@@ -104,17 +104,57 @@ extension DocumentProcessor {
         guard page.rotation == 0, let pageString = page.string, !pageString.isEmpty else { return [] }
         let crop = page.bounds(for: .cropBox)
         guard crop.width > 0, crop.height > 0 else { return [] }
-        var words: [TextLayerWord] = []
-        for word in pageString.split(whereSeparator: { $0.isWhitespace || $0.isNewline }) {
-            guard let selection = page.selection(for: NSRange(word.startIndex..<word.endIndex, in: pageString)) else { continue }
-            let bounds = selection.bounds(for: page)
-            guard bounds.width > 0, bounds.height > 0 else { continue }
-            let box = CGRect(
+        func normalized(_ bounds: CGRect) -> CGRect {
+            CGRect(
                 x: (bounds.minX - crop.minX) / crop.width, y: (bounds.minY - crop.minY) / crop.height,
                 width: bounds.width / crop.width, height: bounds.height / crop.height)
-            words.append(TextLayerWord(text: String(word), box: box))
+        }
+        var words: [TextLayerWord] = []
+        for word in pageString.split(whereSeparator: { $0.isWhitespace || $0.isNewline }) {
+            let range = NSRange(word.startIndex..<word.endIndex, in: pageString)
+            guard let selection = page.selection(for: range) else { continue }
+            let bounds = selection.bounds(for: page)
+            guard bounds.width > 0, bounds.height > 0 else { continue }
+            // A run of digits the page string prints without a space can be several numbers set apart on the page
+            // (a contents page's "11 13 13 14" came out as "11131314" on 2026-11-08). Split it where its characters
+            // leave a gap of more than a quarter of their height.
+            if word.count >= 4, word.allSatisfy(\.isNumber),
+                let pieces = Self.digitRunPieces(word, range: range, page: page, height: bounds.height), pieces.count > 1
+            {
+                words.append(contentsOf: pieces.map { TextLayerWord(text: $0.text, box: normalized($0.bounds)) })
+                continue
+            }
+            words.append(TextLayerWord(text: String(word), box: normalized(bounds)))
         }
         return words
+    }
+
+    /// A digit run cut where its characters leave a visible gap, with each piece's bounds; nil when a character has no
+    /// selection.
+    private static func digitRunPieces(_ word: Substring, range: NSRange, page: PDFPage, height: CGFloat)
+        -> [(text: String, bounds: CGRect)]?
+    {
+        let characters = Array(word)
+        guard characters.count == range.length else { return nil }
+        var boxes: [CGRect] = []
+        for offset in 0..<range.length {
+            guard let selection = page.selection(for: NSRange(location: range.location + offset, length: 1)) else { return nil }
+            boxes.append(selection.bounds(for: page))
+        }
+        var pieces: [(text: String, bounds: CGRect)] = []
+        var text = String(characters[0])
+        var box = boxes[0]
+        for index in 1..<characters.count {
+            if boxes[index].minX - boxes[index - 1].maxX > height * 0.25 {
+                pieces.append((text, box))
+                text = ""
+                box = boxes[index]
+            }
+            text.append(characters[index])
+            box = box.union(boxes[index])
+        }
+        pieces.append((text, box))
+        return pieces
     }
 
     func extractTextWithSpatialOrdering(from page: PDFPage) -> String? {

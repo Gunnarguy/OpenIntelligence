@@ -25,8 +25,11 @@ final class MacServicesTests: XCTestCase {
             PropertyListSerialization.propertyList(from: data, options: 0, format: nil) as? [String: Any])
     }
 
+    // The plist is read before `XCTUnwrap`: a skip thrown inside its autoclosure is reported as a failure (Xcode
+    // Cloud, 2026-11-08, where the repository's Info.plist is not beside the tests).
     private func services() throws -> [[String: Any]] {
-        try XCTUnwrap(sourceInfoPlist()["NSServices"] as? [[String: Any]])
+        let plist = try sourceInfoPlist()
+        return try XCTUnwrap(plist["NSServices"] as? [[String: Any]])
     }
 
     func testThreeServicesAreDeclaredAndShownWithoutBeingSwitchedOn() throws {
@@ -44,9 +47,11 @@ final class MacServicesTests: XCTestCase {
 
     /// Finder offers the file service for the same types the app opens.
     func testFileServiceTakesTheTypesTheAppOpens() throws {
-        let fileService = try XCTUnwrap(try services().first { $0["NSMessage"] as? String == "addFilesToLibrary" })
+        let declared = try services()
+        let plist = try sourceInfoPlist()
+        let fileService = try XCTUnwrap(declared.first { $0["NSMessage"] as? String == "addFilesToLibrary" })
         let sendFileTypes = try XCTUnwrap(fileService["NSSendFileTypes"] as? [String])
-        let documentTypes = try XCTUnwrap(sourceInfoPlist()["CFBundleDocumentTypes"] as? [[String: Any]])
+        let documentTypes = try XCTUnwrap(plist["CFBundleDocumentTypes"] as? [[String: Any]])
         let opened = documentTypes.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] }
         XCTAssertEqual(Set(sendFileTypes), Set(opened))
     }

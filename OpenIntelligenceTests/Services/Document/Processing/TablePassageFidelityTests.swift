@@ -285,4 +285,142 @@ final class TablePassageFidelityTests: XCTestCase {
         XCTAssertTrue(normalized.contains("120 80"), normalized)
         XCTAssertFalse(normalized.hasSuffix("42"), normalized)
     }
+
+    /// A long paragraph is taken from the text layer when most of its words match what Vision read.
+    func testALongParagraphAgreesByWords() {
+        let layer = String(repeating: "Supplemental intakes of zinc should be coupled with copper daily to prevent deficiency. ", count: 4)
+        var vision = layer.replacingOccurrences(of: "copper", with: "cooper")
+        XCTAssertTrue(StructuredDocumentParser.textLayerAgreesForParagraph(layer, withVision: vision))
+        vision = String(repeating: "Figure legends describe the mitochondrial pathway in neurons and glia today. ", count: 4)
+        XCTAssertFalse(StructuredDocumentParser.textLayerAgreesForParagraph(layer, withVision: vision))
+    }
+
+    /// The ll-ligature repair fixes "wil" and leaves real words alone in a document that trips it.
+    func testLigatureRepairLeavesRealWordsAlone() {
+        let text = "The patient wil folow the plan and wil alow rest. Paralysis was noted on filing. "
+            + "Smith et al found a 5 mil film. The colision was smal and overal minor, so it wil heal."
+        let repaired = OCRConfiguration.repairLLLigature(text)
+        XCTAssertTrue(repaired.contains("will follow"), repaired)
+        XCTAssertTrue(repaired.contains("Paralysis"), repaired)
+        XCTAssertTrue(repaired.contains("filing"), repaired)
+        XCTAssertTrue(repaired.contains("et al found"), repaired)
+        XCTAssertTrue(repaired.contains("5 mil film"), repaired)
+    }
+
+    /// Fact Check does not support a claim whose values belong to another table row.
+    func testFactCheckDoesNotSupportAnotherRowsValue() {
+        let table = "ROW 1: PhyCB/Spirulina | Suggested Daily Intake: 100-200 mg/15-30 g\nROW 3: DHA | Suggested Daily Intake: 1-2 g"
+        let claim = RAGVerificationResult.ClaimResult(
+            claim: "100-200 mg/15-30 g", verdict: .supported, confidence: 0.84, details: "", citations: [], resolvedEvidenceIds: [])
+        let checked = VerificationGateService.markingValuesFromOtherRows(
+            claim, query: "How much DHA is recommended?", passages: [table])
+        XCTAssertEqual(checked.verdict, .unsupported)
+        let right = RAGVerificationResult.ClaimResult(
+            claim: "DHA: 1-2 g a day", verdict: .supported, confidence: 0.9, details: "", citations: [], resolvedEvidenceIds: [])
+        XCTAssertEqual(
+            VerificationGateService.markingValuesFromOtherRows(right, query: "How much DHA is recommended?", passages: [table]).verdict,
+            .supported)
+    }
+
+    /// A line of numbers alone is not a running header, however often such lines appear (measured regression, 2026-11-08).
+    func testLinesOfNumbersAreNotRunningHeaders() {
+        let pages: [(page: Int, text: String)] = (1...4).map { ($0, "0.25 0.50 1.0\nBody text on page \($0).") }
+        XCTAssertFalse(DocumentProcessor.isRunningElement("0.25 0.50 1.0", runningKeys: DocumentProcessor.runningLineKeys(in: pages)))
+        // A reference line in a body is kept; only a heading is refused for looking like a citation.
+        XCTAssertEqual(DocumentProcessor.withoutRunningLines("Smith J. 2019, 21, 1-10.", runningKeys: []), "Smith J. 2019, 21, 1-10.")
+    }
+
+    /// Every reference's DOI has the same digit-masked key; a page of references is not a running footer.
+    func testReferenceDOIsAreNotRunningLines() {
+        let pages: [(page: Int, text: String)] = (1...4).map {
+            ($0, "doi:10.1080/14737175.20\($0)6.120491\($0)\nInt. J. Mol. Sci. 2020, 21, 3624 \($0) of 27\nBody \($0).")
+        }
+        let keys = DocumentProcessor.runningLineKeys(in: pages)
+        XCTAssertFalse(DocumentProcessor.isRunningElement("doi:10.1080/14737175.2016.1204914", runningKeys: keys))
+        XCTAssertTrue(DocumentProcessor.isRunningElement("Int. J. Mol. Sci. 2020, 21, 3624 9 of 27", runningKeys: keys))
+    }
+
+    /// A table passage split for the token limit keeps its label lines in every part.
+    func testTableLabelLinesAreSeparatedFromTheRows() {
+        let text = "[Part 2]\nTABLE: Leases\nHEADERS: Unit | notice | deposit\nROW 24: 24 | notice: 54 days | deposit: 2400 dollars"
+        let (labels, body) = DocumentProcessor.tableLabelLines(of: text)
+        XCTAssertEqual(labels, ["TABLE: Leases", "HEADERS: Unit | notice | deposit"])
+        XCTAssertEqual(body, "ROW 24: 24 | notice: 54 days | deposit: 2400 dollars")
+        XCTAssertTrue(DocumentProcessor.tableLabelLines(of: "Plain prose.\nMore.").labels.isEmpty)
+    }
+
+    /// A row's column names come out for the source lookup even in a part without its HEADERS line.
+    func testColumnNamesComeOutOfARowWithoutHeaders() {
+        let passage = "[Part 2]\nROW 24: 24 | notice: 54 days | deposit: 2400 dollars"
+        XCTAssertEqual(PassageLocator.withoutImportLabels(passage), "24 54 days 2400 dollars")
+    }
+
+    /// A text-layer reading cut short by its box, or with lines interleaved, is not the paragraph Vision read.
+    func testATruncatedOrScrambledParagraphIsNotTaken() {
+        let vision = "Supplemental intakes of zinc should be coupled with copper daily to prevent a deficiency in adults."
+        XCTAssertFalse(StructuredDocumentParser.textLayerAgreesForParagraph("Supplemental intakes of zinc should be", withVision: vision))
+        let scrambled = "Supplemental be coupled intakes with of copper zinc daily should to prevent adults a in deficiency."
+        XCTAssertFalse(StructuredDocumentParser.textLayerAgreesForParagraph(scrambled, withVision: vision))
+        XCTAssertTrue(StructuredDocumentParser.textLayerAgreesForParagraph(vision, withVision: vision.replacingOccurrences(of: "copper", with: "cooper")))
+        // A short line with two misread words is still the same line.
+        XCTAssertTrue(
+            StructuredDocumentParser.textLayerAgreesForParagraph(
+                "Int. J. Test. Sci. 2020, 21, 3624", withVision: "Int. J. lest. ocl. 2020, 21. 3624"))
+    }
+
+    /// The import's own "ROW n" labels are not a table's keywords.
+    func testRowLabelsAreNotKeywords() {
+        let rows = (1...25).map { "ROW \($0): Valve \($0) | Pressure: \($0 * 10) psi" }.joined(separator: "\n")
+        let keywords = DocumentProcessor().extractKeywordsFromStructuredElement(rows, type: "table")
+        XCTAssertFalse(keywords.contains { $0.hasPrefix("ROW") }, "\(keywords)")
+    }
+
+    /// A footer printed word for word on every page is a running line however few letters it has; a reference's DOI
+    /// is not, and a dashed page number is furniture.
+    func testExactRepeatedFootersAreRunningLines() {
+        let pages: [(page: Int, text: String)] = (1...4).map {
+            ($0, "doi:10.1001/jama.2019.21118\nVol. 12, No. 3, 2021\ndoi:10.1080/1473717\($0).2016.120491\($0)\nBody \($0).")
+        }
+        let keys = DocumentProcessor.runningLineKeys(in: pages)
+        XCTAssertTrue(DocumentProcessor.isRunningElement("doi:10.1001/jama.2019.21118", runningKeys: keys))
+        XCTAssertTrue(DocumentProcessor.isRunningElement("Vol. 12, No. 3, 2021", runningKeys: keys))
+        XCTAssertFalse(DocumentProcessor.isRunningElement("doi:10.1080/14737175.2016.1204914", runningKeys: keys))
+        XCTAssertTrue(DocumentProcessor.isRunningElement("- 12 -", runningKeys: []))
+    }
+
+    /// A part split again keeps its number.
+    func testAPartSplitAgainKeepsItsNumber() {
+        XCTAssertEqual(DocumentProcessor.partNumber(of: "[Part 2]\nTABLE: x"), "2")
+        XCTAssertEqual(DocumentProcessor.partNumber(of: "[Part 2.1]\nx"), "2.1")
+        XCTAssertNil(DocumentProcessor.partNumber(of: "TABLE: x"))
+        XCTAssertEqual(PassageLocator.withoutImportLabels("[Part 2.1]\nPlain cell"), "Plain cell")
+    }
+
+    /// In a table laid out the other way round (rows are groups, columns nutrients), a value in the DHA column is the
+    /// DHA value, even when another table has a row named DHA.
+    func testAColumnNamedForTheSubjectHoldsItsValue() {
+        let misplaced = VerificationGateService.valuesFromOtherRows(
+            question: "How much DHA is recommended?",
+            answerValues: NumericValueExtractor.mentions(inAnswer: "DHA: 1-2 g"),
+            passages: ["ROW 1: Adults | DHA: 1-2 g | EPA: 0.5 g", "ROW 1: DHA | Upper Limit: 3 g"])
+        XCTAssertTrue(misplaced.isEmpty, "\(misplaced)")
+    }
+
+    /// A column named like the question ("Daily Dose") does not make every row about it.
+    func testAColumnNamedLikeTheQuestionDoesNotGroundAnotherRow() {
+        let misplaced = VerificationGateService.valuesFromOtherRows(
+            question: "What daily dose of DHA is recommended?",
+            answerValues: NumericValueExtractor.mentions(inAnswer: "DHA: 100-200 mg/15-30 g"),
+            passages: ["ROW 1: PhyCB/Spirulina | Daily Dose: 100-200 mg/15-30 g\nROW 3: DHA | Daily Dose: 1-2 g"])
+        XCTAssertFalse(misplaced.isEmpty)
+    }
+
+    /// A text layer that prints no spaces between words is not taken over Vision's spaced reading.
+    func testATextLayerWithoutSpacesIsNotTaken() {
+        let vision = "which permits unrestricted use, distribution, and reproduction in any medium"
+        XCTAssertFalse(
+            StructuredDocumentParser.textLayerAgreesForParagraph(
+                "whichpermitsunrestricteduse,distribution,andreproductioninanymedium", withVision: vision))
+        XCTAssertFalse(StructuredDocumentParser.textLayerAgrees("Vitamin D2000IU", withVision: "Vitamin D 2000 IU"))
+    }
 }

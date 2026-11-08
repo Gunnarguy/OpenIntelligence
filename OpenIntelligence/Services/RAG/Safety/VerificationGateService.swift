@@ -396,14 +396,15 @@ actor VerificationGateService {
         // Amounts of money and dates the passages contradict, read with Apple's detector (5.7, `DetectedValueCheck`).
         let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.contextText })
         var claimResults: [RAGVerificationResult.ClaimResult] = []
+        let passageTexts = chunks.map { $0.chunk.contextText }
         for claimInput in claimInputs {
             let contradiction = await DetectedValueCheck.contradictions(
                 in: cleanClaimText(claimInput.claim), evidence: detectedEvidence
             ).first
-            claimResults.append(
-                evaluateClaim(
-                    claimInput, in: chunks, corpus: corpus, numericEvidence: numericEvidence,
-                    detectedContradiction: contradiction, query: query))
+            let result = evaluateClaim(
+                claimInput, in: chunks, corpus: corpus, numericEvidence: numericEvidence,
+                detectedContradiction: contradiction, query: query)
+            claimResults.append(Self.markingValuesFromOtherRows(result, query: query, passages: passageTexts))
         }
 
         let supportedCount = claimResults.filter { $0.verdict == .supported }.count
@@ -441,9 +442,23 @@ actor VerificationGateService {
         )
     }
 
-    /// Gate C: Numeric Sanity
-    /// If response contains numbers, verify they appear in source documents
-    /// This gate catches HALLUCINATED numbers - keep it strict!
+    /// A claim whose values the passages state only in another table row is not supported, however closely its text
+    /// matches (5.8): Fact Check marked "100-200 mg/15-30 g" Supported for "How much DHA is recommended?" because the
+    /// string is in the table, on the PhyCB/Spirulina row.
+    nonisolated static func markingValuesFromOtherRows(
+        _ result: RAGVerificationResult.ClaimResult, query: String, passages: [String]
+    ) -> RAGVerificationResult.ClaimResult {
+        guard result.verdict != .unsupported else { return result }
+        let values = NumericValueExtractor.mentions(inAnswer: result.claim).filter(NumericValueExtractor.isCountedByGate)
+        guard !values.isEmpty else { return result }
+        let misplaced = valuesFromOtherRows(question: query, answerValues: values, passages: passages)
+        guard !misplaced.isEmpty else { return result }
+        return RAGVerificationResult.ClaimResult(
+            claim: result.claim, verdict: .unsupported, confidence: min(result.confidence, 0.2),
+            details: "The passages give \(misplaced.prefix(3).joined(separator: ", ")) for another table row, not for what was asked",
+            citations: result.citations, resolvedEvidenceIds: result.resolvedEvidenceIds)
+    }
+
     /// The answer's values that the passages state only in table rows about something other than what the question
     /// asks, while another row is about it (5.8). A value counted as grounded wherever its digits appear: on 2026-11-07
     /// "How much DHA is recommended?" was answered "100-200 mg/15-30 g", which is in the table, on the
@@ -465,6 +480,7 @@ actor VerificationGateService {
                 line.replacingOccurrences(of: #"\s+(?=ROW \d+:)"#, with: "\n", options: .regularExpression)
                     .components(separatedBy: "\n")
             }
+            var passageRows: [(label: Set<String>, cells: [String])] = []
             for rawLine in rowLines {
                 let line = rawLine.trimmingCharacters(in: .whitespaces)
                 guard !line.isEmpty else { continue }
@@ -475,9 +491,27 @@ actor VerificationGateService {
                     otherLines.append(line)
                     continue
                 }
-                let label = body.components(separatedBy: " | ").first ?? body
+                let cells = body.components(separatedBy: " | ")
+                passageRows.append((RAGService.lookupWords(in: cells.first ?? body), cells))
+            }
+            // A table whose rows are named for the subject is read by its rows, as through 5.8's first version. One
+            // whose rows are not (rows are groups, columns are what is measured: "ROW 2: Adults | DHA: 1-2 g") is read
+            // by each cell's column name too (refuting review, 2026-11-08). Deciding per table keeps a column such as
+            // "Daily Dose" from making every row about a question that says "daily dose".
+            let byRows = passageRows.contains { !$0.label.isDisjoint(with: subject) }
+            for row in passageRows {
                 // The row's own cells only: "ROW 3:" would make every row number a value of the row.
-                rows.append((RAGService.lookupWords(in: label), NumericValueExtractor.evidence(from: [body])[0]))
+                if byRows {
+                    rows.append((row.label, NumericValueExtractor.evidence(from: [row.cells.joined(separator: " | ")])[0]))
+                    continue
+                }
+                for cell in row.cells {
+                    var about = row.label
+                    if let colon = cell.range(of: #"^[^:]{1,40}:\s"#, options: .regularExpression) {
+                        about.formUnion(RAGService.lookupWords(in: String(cell[colon])))
+                    }
+                    rows.append((about, NumericValueExtractor.evidence(from: [cell])[0]))
+                }
             }
         }
         guard rows.contains(where: { !$0.label.isDisjoint(with: subject) }) else { return [] }
@@ -495,6 +529,9 @@ actor VerificationGateService {
         return misplaced
     }
 
+    /// Gate C: Numeric Sanity
+    /// If response contains numbers, verify they appear in source documents
+    /// This gate catches HALLUCINATED numbers - keep it strict!
     private func runGateC(response: String, query: String = "", chunks: [RetrievedChunk]) async -> RAGVerificationResult.GateResult {
         // The numbers the answer states, read as values (NumericValueExtractor): "2.5 billion" is
         // compared as 2,500,000,000, and a number inside a name ("Qwen-2.5-3B") is matched as that

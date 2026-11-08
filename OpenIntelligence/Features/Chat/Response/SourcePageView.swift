@@ -156,7 +156,7 @@ nonisolated enum PassageLocator {
     static func withoutImportLabels(_ passage: String) -> String? {
         let wholeLines = ["HEADERS:", "TABLE:", "SOURCE:", "Section Path:", "[Specifications]"]
         // Anywhere in a line: a long table's parts are split again by words, which can run rows together.
-        let inline = [#"\[Part \d+\]\s*"#, #"\bROW \d+:\s*"#, #"\s\|\s"#]
+        let inline = [#"\[Part [0-9.]+\]\s*"#, #"\bROW \d+:\s*"#, #"\s\|\s"#]
         // A row names its later cells by column from 5.8 ("DHA | Daily Dose: 1-2 g"); the names are the passage's own
         // HEADERS line, which the file prints once, so they come out too.
         let columnNames: [String] = passage.components(separatedBy: .newlines)
@@ -177,6 +177,12 @@ nonisolated enum PassageLocator {
             if cleaned.range(of: #"\bROW \d+:"#, options: .regularExpression) != nil {
                 for name in columnNames {
                     cleaned = cleaned.replacingOccurrences(of: " | \(name): ", with: " | ")
+                }
+                // A part split from a table before 5.8's labels were repeated has no HEADERS line: any short name
+                // before a cell's colon is the import's.
+                if columnNames.isEmpty {
+                    cleaned = cleaned.replacingOccurrences(
+                        of: #" \| [^|:\n]{1,40}: "#, with: " | ", options: .regularExpression)
                 }
             }
             for label in inline {

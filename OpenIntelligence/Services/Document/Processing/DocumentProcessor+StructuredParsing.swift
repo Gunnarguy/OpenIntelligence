@@ -416,13 +416,15 @@ extension DocumentProcessor {
                     // ADAPTIVE: Skip pages that already have layoutText (PDFKit extraction)
                     // Only run Vision on pages with images that need layout detection
                     guard let pageImage = renderData.pageImage, renderData.layoutText == nil else { continue }
+                    let words = renderData.textLayerWords
 
                     group.addTask {
                         let pageNumber = pageIndex + 1
                         do {
                             let layoutResult = try await layoutExtractor.extractWithLayout(
                                 from: pageImage,
-                                pageNumber: pageNumber
+                                pageNumber: pageNumber,
+                                textLayerWords: words
                             )
                             return (batchOffset, layoutResult)
                         } catch {
@@ -462,13 +464,16 @@ extension DocumentProcessor {
                         }
                         return layoutResult.readingOrderText
                     }()
+                    // The page's text-layer words are carried over: rebuilt without them, every page the layout pass
+                    // read lost them, and with them the text-layer reading of its table cells (2026-11-08).
                     batchRenderData[i] = PageRenderData(
                         pageIndex: old.pageIndex,
                         pageImage: old.pageImage,
                         plainText: old.plainText,
                         layoutText: preferredLayoutText,
                         layoutTables: layoutResult.tables,
-                        preferHighResolutionStructure: old.preferHighResolutionStructure
+                        preferHighResolutionStructure: old.preferHighResolutionStructure,
+                        textLayerWords: old.textLayerWords
                     )
                 }
             }
@@ -1223,10 +1228,10 @@ extension DocumentProcessor {
                 layoutTables: [],
                 preferHighResolutionStructure: preferHighResolutionStructure
             )
-            // Every Vision page whose text layer is good keeps its words, so the cells of any table Vision finds are read
-            // from the page's own characters (5.8, `StructuredDocumentParser.textLayerText`). Limited at first to pages
-            // the complexity scan marked as tables; on the owner's iPhone on 2026-11-08 that scan missed the paper's
-            // Table 1, Vision found it anyway, and its "1-2 g" was stored as OCR read it, "1-28".
+            // Every Vision page whose text layer is good keeps its words, so what Vision finds there (table cells,
+            // paragraphs, the layout pass's blocks) is read from the page's own characters (5.8,
+            // `StructuredDocumentParser.textLayerText`). Limiting it to table-shaped pages saved no measurable time
+            // (eight PDFs: 593 s without the limit, 587 to 604 s with it, 2026-11-08) and left a plain page's text to OCR.
             if pageImage != nil, !documentTextLayerGarbled, !textLayerUnreadableByVision, hasText {
                 renderData.textLayerWords = textLayerWords(of: page)
             }
@@ -1404,8 +1409,8 @@ extension DocumentProcessor {
         let layoutText: String?  // Layout-aware extracted text
         let layoutTables: [TableRegion]
         let preferHighResolutionStructure: Bool
-        /// The text layer's words, for reading table cells from the page's own characters (5.8); empty when the layer is
-        /// garbled, unreadable to Vision, rotated, or the page shows no table.
+        /// The text layer's words, for reading what Vision finds from the page's own characters (5.8); empty when the
+        /// layer is garbled, unreadable to Vision or rotated, or the page is not read by Vision.
         var textLayerWords: [TextLayerWord] = []
     }
 

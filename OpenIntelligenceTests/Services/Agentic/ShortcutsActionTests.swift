@@ -13,6 +13,7 @@
 import AppIntents
 import PDFKit
 import UniformTypeIdentifiers
+import FoundationModels
 import XCTest
 
 @testable import OpenIntelligence
@@ -296,6 +297,11 @@ final class ShortcutsActionTests: XCTestCase {
     /// 3f449a74d54f8191a690c82195d5fbc9), as the engine records it on the answer.
     func testEachAnswerModeRunsInTheModeChosen() async throws {
         guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        // Deep Think and Maximum plan with Apple's model itself, whatever stand-in answers; Xcode Cloud's simulators
+        // have no model (ModelManagerError 1019, 2026-11-08).
+        guard case .available = SystemLanguageModel.default.availability else {
+            throw XCTSkip("Apple's model is not available here")
+        }
         onAPaidPlan()
         _ = try await addNote("The tamsin bike store code for the test flat is 2468, changed every autumn.")
         let model = StandInModel(answer: "The tamsin bike store code for the test flat is 2468.")

@@ -23,6 +23,10 @@ final class ExtractionFidelityRecorder: XCTestCase {
         guard let folderPath = environment["OI_FIDELITY_DIR"] else {
             throw XCTSkip("Set TEST_RUNNER_OI_FIDELITY_DIR to a folder of PDFs to record their stored passages")
         }
+        #if !targetEnvironment(simulator)
+            // It clears the import checkpoints, which on a Mac host are the real app's (refuting review, 2026-11-08).
+            throw XCTSkip("Runs in the iOS Simulator only")
+        #endif
         let folder = URL(fileURLWithPath: folderPath)
         let label = environment["OI_FIDELITY_LABEL"] ?? "run"
         let output = folder.appendingPathComponent(label, isDirectory: true)
@@ -33,13 +37,18 @@ final class ExtractionFidelityRecorder: XCTestCase {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         XCTAssertFalse(pdfs.isEmpty, "no PDF in \(folderPath)")
 
+        // Checkpoints are keyed by a file's name, size and bytes, not its folder, so an earlier run's are removed.
+        let checkpoints = AppSupportPaths.localCacheDir().appendingPathComponent("IngestionCheckpoints", isDirectory: true)
         for pdf in pdfs {
-            // A copy under a fresh name, so no checkpoint of an earlier run is loaded instead of parsed.
-            let copy = FileManager.default.temporaryDirectory.appendingPathComponent(
-                "fidelity-\(UUID().uuidString.prefix(8))-\(pdf.lastPathComponent)")
-            try? FileManager.default.removeItem(at: copy)
+            try? FileManager.default.removeItem(at: checkpoints)
+            // A copy in a fresh folder, under its own name: a random name put its digits in every passage's SOURCE
+            // line, which the score counted as invented numbers.
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "fidelity-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let copy = folder.appendingPathComponent(pdf.lastPathComponent)
             try FileManager.default.copyItem(at: pdf, to: copy)
-            defer { try? FileManager.default.removeItem(at: copy) }
+            defer { try? FileManager.default.removeItem(at: folder) }
 
             let started = Date()
             let processor = DocumentProcessor()

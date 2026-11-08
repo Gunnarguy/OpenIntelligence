@@ -128,6 +128,9 @@ actor SuggestedQuestionsService {
     var questionFillSettled: Set<UUID> = []
     /// Interrupted question runs per document this launch (5.8).
     var questionFillAttempts: [UUID: Int] = [:]
+    /// One tagger for every candidate topic (5.8): `isValidConceptualTopic` made a new `NLTagger` per candidate, part of
+    /// the 4.6 s before the first question model call on the owner's iPhone. Setting `string` resets it.
+    let topicTagger = NLTagger(tagSchemes: [.lexicalClass, .nameType])
 
     /// A bank deserves a second pass when the model can write questions now and never has for
     /// this library. Empty banks are the on-demand path's business, not this one's.

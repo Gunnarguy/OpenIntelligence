@@ -473,15 +473,23 @@ extension DocumentProcessor {
         return strings
     }
 
+    /// A spreadsheet column's zero-based index from its letters: "A" is 0, "Z" 25, "AA" 26.
+    nonisolated static func spreadsheetColumnIndex(_ letters: String) -> Int {
+        letters.unicodeScalars.reduce(0) { $0 * 26 + Int($1.value) - 64 } - 1
+    }
+
     /// Extract text from Excel worksheet, using shared strings for cell values.
     /// Handles cells with formulas (`<f>` before `<v>`), inline strings (`<is><t>`),
     /// and boolean/error types.
-    private func extractTextFromExcelSheet(_ xml: String, sharedStrings: [String]) -> String {
+    func extractTextFromExcelSheet(_ xml: String, sharedStrings: [String]) -> String {
         var rows: [[String]] = []
 
         let rowPattern = #"<row[^>]*>(.*?)</row>"#
         // More permissive cell pattern: captures type and looks for <v> OR <is><t> anywhere in cell
-        let cellPattern = #"<c\b([^>]*)>(.*?)</c>"#
+        // A styled empty cell is self-closing (`<c r="A1" s="2"/>`). Matched as "<c ...>" through the next "</c>" it
+        // swallowed the next cell, whose type was lost, so a shared-string index ("7") was stored instead of its text (5.8).
+        let cellPattern = #"<c\b([^>]*?)(?:/>|>(.*?)</c>)"#
+        let referencePattern = #"\br="([A-Z]+)[0-9]+""#
         let typePattern = #"t="([^"]*)""#
         let valuePattern = #"<v>([^<]*)</v>"#
         let inlinePattern = #"<t[^>]*>([^<]*)</t>"#
@@ -490,7 +498,8 @@ extension DocumentProcessor {
               let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: [.dotMatchesLineSeparators]),
               let typeRegex = try? NSRegularExpression(pattern: typePattern, options: []),
               let valueRegex = try? NSRegularExpression(pattern: valuePattern, options: []),
-              let inlineRegex = try? NSRegularExpression(pattern: inlinePattern, options: []) else {
+              let inlineRegex = try? NSRegularExpression(pattern: inlinePattern, options: []),
+              let referenceRegex = try? NSRegularExpression(pattern: referencePattern, options: []) else {
             return ""
         }
 
@@ -509,6 +518,14 @@ extension DocumentProcessor {
                 let attrs = attrsRange.map { String(rowContent[$0]) } ?? ""
                 let body = bodyRange.map { String(rowContent[$0]) } ?? ""
 
+                // Cells Excel leaves out (empty ones) are absent from the XML; a cell goes in its own column by its
+                // reference ("C5" is the third), so the next cells do not shift left under the wrong header (5.8).
+                if let referenceMatch = referenceRegex.firstMatch(in: attrs, range: NSRange(attrs.startIndex..., in: attrs)),
+                   let lettersRange = Range(referenceMatch.range(at: 1), in: attrs) {
+                    let column = Self.spreadsheetColumnIndex(String(attrs[lettersRange]))
+                    while currentRow.count < column { currentRow.append("") }
+                }
+
                 // Determine cell type
                 var cellType: String? = nil
                 if let typeMatch = typeRegex.firstMatch(in: attrs, options: [],
@@ -524,7 +541,7 @@ extension DocumentProcessor {
                     let value = String(body[vRange])
 
                     if cellType == "s", let index = Int(value), index < sharedStrings.count {
-                        currentRow.append(sharedStrings[index])
+                        currentRow.append(Self.decodingXMLEntities(sharedStrings[index]))
                     } else if cellType == "b" {
                         currentRow.append(value == "1" ? "TRUE" : "FALSE")
                     } else {
@@ -539,7 +556,7 @@ extension DocumentProcessor {
                             fragments.append(String(body[tRange]))
                         }
                     }
-                    currentRow.append(fragments.joined())
+                    currentRow.append(Self.decodingXMLEntities(fragments.joined()))
                 } else {
                     // Empty cell
                     currentRow.append("")

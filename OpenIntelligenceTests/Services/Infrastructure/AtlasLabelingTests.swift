@@ -249,8 +249,17 @@ final class AtlasLabelingTests: XCTestCase {
         XCTAssertFalse(labels.contains(""), "got \(labels)")
     }
 
+    /// Xcode Cloud's iOS 27 simulators have no English word classes (2026-11-08: every word came back untagged), and
+    /// these tests are about what the word classes decide.
+    private func requireEnglishWordClasses() throws {
+        try XCTSkipUnless(
+            NLTagger.availableTagSchemes(for: .word, language: .english).contains(.lexicalClass),
+            "no English word classes on this simulator")
+    }
+
     /// An adverb does not name an axis end: on the owner's iPhone one read "Blade & Gently".
     func testAnAdverbDoesNotNameAnAxisEnd() throws {
+        try requireEnglishWordClasses()
         var texts = Array(repeating: "Soak the handpiece in the enzymatic detergent.", count: 5)
         texts += Array(repeating: "The general reference section lists the standard parts.", count: 40)
         texts += Array(repeating: "Gently wipe the tray with a soft towel.", count: 5)
@@ -264,7 +273,7 @@ final class AtlasLabelingTests: XCTestCase {
     /// The word classes of a library's languages are asked for only where a language can have them, once a launch,
     /// and the wait has an end (5.7). Japanese has none, so it is not asked for. Whether the system loads Spanish here
     /// is printed, not assumed.
-    func testLoadingWordClassesAsksOnlyWhereTheyExistAndWaitsAtMostItsTimeout() async {
+    func testLoadingWordClassesAsksOnlyWhereTheyExistAndWaitsAtMostItsTimeout() async throws {
         let texts = [
             "Gently wipe the tray with a soft towel before you store it.",
             "自然言語処理の研究を進めるための基礎的な技術",
@@ -276,20 +285,23 @@ final class AtlasLabelingTests: XCTestCase {
         let elapsed = ContinuousClock.now - start
         print("WORD CLASSES AFTER LOADING: \(available.sorted()) in \(elapsed)")
 
-        XCTAssertTrue(available.contains("en"), "got \(available)")
         XCTAssertFalse(available.contains("ja"))
         XCTAssertLessThan(elapsed, .seconds(3))
         // Asked for once a launch: a second time nothing is asked for, so nothing is waited for.
         let again = ContinuousClock.now
         _ = await AtlasLabeling.loadWordClasses(for: texts, timeout: .seconds(2))
         XCTAssertLessThan(ContinuousClock.now - again, .seconds(1))
+        // English is checked last: Xcode Cloud's simulators have no English word classes to load.
+        try requireEnglishWordClasses()
+        XCTAssertTrue(available.contains("en"), "got \(available)")
     }
 
     /// A word is tagged where it stands in its passages, each in its own language: "tray" alone came back an adverb
     /// on macOS 27 and in a sentence a noun, and a library of instructions for use is often in several languages. A
     /// language the system has no word classes for keeps its words: in the iOS 27 Simulator (2026-10-16) Spanish and
     /// German had none, and on macOS 27 both did.
-    func testNamingTermsDropsWordsTheirPassagesUseAsAdverbs() {
+    func testNamingTermsDropsWordsTheirPassagesUseAsAdverbs() throws {
+        try requireEnglishWordClasses()
         let passages = [
             "Gently wipe the tray, then rinse the blade carefully.", "Rinse the blade gently under running water.",
             "Limpie suavemente la bandeja con una toalla limpia y seca.",

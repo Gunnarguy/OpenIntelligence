@@ -203,6 +203,30 @@ extension DocumentProcessor {
         return subChunks
     }
 
+    /// The number of a passage's opening "[Part n]" line, or nil.
+    nonisolated static func partNumber(of text: String) -> String? {
+        guard let first = text.split(separator: "\n", maxSplits: 1).first,
+            let match = first.range(of: #"^\[Part ([0-9.]+)\]$"#, options: .regularExpression)
+        else { return nil }
+        return String(first[match].dropFirst(6).dropLast())
+    }
+
+    /// A table passage's opening label lines (an optional "[Part n]" line, then Section Path, TABLE and HEADERS lines) and
+    /// the text after them; no labels when the passage has no HEADERS line.
+    nonisolated static func tableLabelLines(of text: String) -> (labels: [String], body: String) {
+        let lines = text.components(separatedBy: "\n")
+        var count = 0
+        for line in lines {
+            let isPartLine = count == 0 && line.hasPrefix("[Part ") && line.hasSuffix("]")
+            guard isPartLine || line.hasPrefix("Section Path:") || line.hasPrefix("TABLE:") || line.hasPrefix("HEADERS:")
+            else { break }
+            count += 1
+        }
+        let labels = lines.prefix(count).filter { !($0.hasPrefix("[Part ") && $0.hasSuffix("]")) }
+        guard labels.contains(where: { $0.hasPrefix("HEADERS:") }) else { return ([], text) }
+        return (Array(labels), lines.dropFirst(count).joined(separator: "\n"))
+    }
+
     /// Split a chunk using ACTUAL token counting (not word estimation)
     /// This is critical for technical content with abbreviations, codes, special chars
     private func splitOversizedChunkByTokens(_ chunk: ProcessedChunk) -> [ProcessedChunk] {
@@ -210,14 +234,28 @@ extension DocumentProcessor {
 
         // The parts are runs of the chunk's own text. Through 5.6 this split at every ".", "!", "?"
         // and line break and joined the pieces with ". ", which stored "$75. 50" for "$75.50".
-        let parts = OversizedChunkSplitter.parts(of: chunk.text, maxTokens: maxTokens, countTokens: countTokens)
+        // A table's passage opens with its Section Path, TABLE and HEADERS lines. Every part repeats them (5.8), as the
+        // row split in `splitOversizedAtomicChunk` does: a later part without HEADERS could not say which column a cell is
+        // in, and its rows' column names could not be taken out to place it in the file (a CSV's part 2 on Xcode Cloud,
+        // 2026-11-08).
+        let (labels, body) = Self.tableLabelLines(of: chunk.text)
+        let labelText = labels.joined(separator: "\n")
+        let bodyBudget = labels.isEmpty ? maxTokens : maxTokens - countTokens(labelText) - 2
+        let useLabels = !labels.isEmpty && bodyBudget > maxTokens / 2
+        let parts = OversizedChunkSplitter.parts(
+            of: useLabels ? body : chunk.text, maxTokens: useLabels ? bodyBudget : maxTokens, countTokens: countTokens)
         guard parts.count > 1 else {
             Log.warning("[DocumentProcessor] Token-based split produced no sub-chunks, returning original", category: .ingestion)
             return [chunk]
         }
 
+        // A part split again keeps its number ("[Part 2]" becomes "[Part 2.1]", "[Part 2.2]"), so no two passages of a
+        // table open alike.
+        let parentPart: String? = useLabels ? Self.partNumber(of: chunk.text) : nil
         let subChunks = parts.enumerated().map { index, part in
-            createSubChunk(from: chunk, text: "[Part \(index + 1)]\n" + part, index: index)
+            let marker = parentPart.map { "[Part \($0).\(index + 1)]" } ?? "[Part \(index + 1)]"
+            return createSubChunk(
+                from: chunk, text: marker + "\n" + (useLabels ? labelText + "\n" : "") + part, index: index)
         }
 
         // Final validation: ensure all sub-chunks are within limit
@@ -400,7 +438,11 @@ extension DocumentProcessor {
             let matches = regex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    keywords.append(String(text[range]).uppercased())
+                    let code = String(text[range]).uppercased()
+                    // "ROW 3" is the import's own row label, not the document's code (refuting review, 2026-11-08: a
+                    // 20-row table kept "ROW 1" to "ROW 20" as its keywords once codes were ordered first).
+                    if code.range(of: #"^ROW[-\s]?\d+$"#, options: .regularExpression) != nil { continue }
+                    keywords.append(code)
                 }
             }
         }
@@ -416,10 +458,14 @@ extension DocumentProcessor {
             }
         }
 
-        // Deduplicate in order of first appearance and keep the first 20 (5.8). `Array(Set(...)).prefix(20)` kept a
-        // different 20 of a table passage's keywords on every import, because a Set's order is seeded per process.
+        // Codes and measurements first, then nouns and verbs, each kind in order of first appearance; deduplicated
+        // without regard to case; the first 20 kept (5.8). `Array(Set(...)).prefix(20)` kept a different 20 on every
+        // import, because a Set's order is seeded per process. Where the word tagger reads "ABC-101" as a noun (it did
+        // on Xcode Cloud's simulators, 2026-11-08), its lowercase copies filled all 20 places before any code was added.
+        let words = keywords.filter { $0 == $0.lowercased() && $0.rangeOfCharacter(from: .decimalDigits) == nil }
+        let identifiers = keywords.filter { !($0 == $0.lowercased() && $0.rangeOfCharacter(from: .decimalDigits) == nil) }
         var seen = Set<String>()
-        return Array(keywords.filter { seen.insert($0).inserted }.prefix(20))
+        return Array((identifiers + words).filter { seen.insert($0.lowercased()).inserted }.prefix(20))
     }
 
     /// Extract text from PDF using PDFKit (native iOS framework) - Legacy method

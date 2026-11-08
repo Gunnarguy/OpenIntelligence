@@ -262,7 +262,8 @@ final class QueryRewriterService: @unchecked Sendable {
             guard let activeSession = session else {
                 return query
             }
-            let response = try await activeSession.respond(to: prompt)
+            // Greedy, so one question is clarified the same way every time and retrieves the same evidence (5.8).
+            let response = try await activeSession.respond(to: prompt, options: GenerationOptions(samplingMode: .greedy))
             let clarified = response.content
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "\"", with: "")

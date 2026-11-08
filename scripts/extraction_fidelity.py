@@ -9,7 +9,11 @@ Inputs: a folder of PDFs, each with `<name>.txt` from `pdftotext -layout <name>.
 
 Per file and in total:
   number recall   share of the text layer's numbers (ranges such as "1-2" are one number) found in the passages
+  body num rec    the same, leaving out lines printed on three or more pages (running headers and footers such as
+                  "Int. J. Mol. Sci. 2020, 21, 3624"), which the import drops on purpose; a fall in number recall that
+                  body recall does not show is furniture removal, not lost content
   word recall     share of the text layer's words (3+ letters) found in the passages
+  body word rec   the same without running lines
   invented numbers  numbers in the passages that the text layer never prints (misreads such as "1-28"), per 1,000
   invented words    words in the passages the text layer never prints, labels the import adds left out, per 1,000
 
@@ -50,19 +54,44 @@ def words(text: str) -> list[str]:
     return WORD.findall(fold(text))
 
 
+def body_text(source: str) -> str:
+    """The text layer without lines that repeat on three or more pages (`pdftotext` separates pages with a form feed)."""
+    pages = source.split("\f")
+    # Keyed with page numbers as "#", so "Int. J. Mol. Sci. 2020, 21, 3624  3 of 27" matches on every page.
+    def key(line: str) -> str:
+        return re.sub(r"\d+", "#", " ".join(line.split()))
+
+    seen = Counter()
+    for page in pages:
+        for k in {key(line) for line in page.splitlines() if line.strip()}:
+            seen[k] += 1
+    running = {k for k, n in seen.items() if n >= 3 and len(re.findall(r"[A-Za-z]", k)) >= 3}
+    return "\n".join(line for line in source.splitlines() if key(line) not in running)
+
+
+# Labels the import writes into passages, not source text: a split part's "[Part 2.1]" line and a row's "ROW 3:".
+IMPORT_LABELS = re.compile(r"^\[Part [0-9.]+\]$|\bROW \d+:\s*", re.MULTILINE)
+
+
 def score(source: str, passages: list[str]) -> dict:
-    stored = "\n".join(passages)
+    stored = IMPORT_LABELS.sub(" ", "\n".join(passages))
+    body = body_text(source)
+    body_numbers, body_words = Counter(numbers(body)), Counter(words(body))
     src_numbers, got_numbers = Counter(numbers(source)), Counter(numbers(stored))
     src_words, got_words = Counter(words(source)), Counter(words(stored))
     number_hits = sum(min(n, got_numbers[k]) for k, n in src_numbers.items())
+    body_hits = sum(min(n, got_numbers[k]) for k, n in body_numbers.items())
     word_hits = sum(min(n, got_words[k]) for k, n in src_words.items())
+    body_word_hits = sum(min(n, got_words[k]) for k, n in body_words.items())
     invented_numbers = [k for k in got_numbers if k not in src_numbers]
     invented_words = [k for k in got_words if k not in src_words and k not in IMPORT_WORDS]
     got_number_total = sum(got_numbers.values()) or 1
     got_word_total = sum(got_words.values()) or 1
     return {
         "number_recall": number_hits / (sum(src_numbers.values()) or 1),
+        "body_number_recall": body_hits / (sum(body_numbers.values()) or 1),
         "word_recall": word_hits / (sum(src_words.values()) or 1),
+        "body_word_recall": body_word_hits / (sum(body_words.values()) or 1),
         "invented_numbers_per_k": 1000 * sum(got_numbers[k] for k in invented_numbers) / got_number_total,
         "invented_words_per_k": 1000 * sum(got_words[k] for k in invented_words) / got_word_total,
         "invented_number_examples": sorted(invented_numbers, key=lambda k: -got_numbers[k])[:12],
@@ -98,14 +127,14 @@ def main() -> int:
     if not current:
         print(f"no records in {folder / args.label}")
         return 1
-    keys = ["number_recall", "word_recall", "invented_numbers_per_k", "invented_words_per_k", "seconds"]
-    print(f"{'file':42} {'num rec':>8} {'word rec':>8} {'inv num/k':>9} {'inv word/k':>10} {'s':>6}")
+    keys = ["number_recall", "body_number_recall", "word_recall", "body_word_recall", "invented_numbers_per_k", "invented_words_per_k", "seconds"]
+    print(f"{'file':42} {'num rec':>8} {'body num':>8} {'word rec':>8} {'body wrd':>8} {'inv num/k':>9} {'inv word/k':>10} {'s':>6}")
     totals = Counter()
     for name, r in current.items():
-        line = f"{name[:42]:42} {r['number_recall']:8.3f} {r['word_recall']:8.3f} {r['invented_numbers_per_k']:9.1f} {r['invented_words_per_k']:10.1f} {r['seconds']:6.1f}"
+        line = f"{name[:42]:42} {r['number_recall']:8.3f} {r['body_number_recall']:8.3f} {r['word_recall']:8.3f} {r['body_word_recall']:8.3f} {r['invented_numbers_per_k']:9.1f} {r['invented_words_per_k']:10.1f} {r['seconds']:6.1f}"
         if name in other:
             o = other[name]
-            line += f"   was {o['number_recall']:.3f} {o['word_recall']:.3f} {o['invented_numbers_per_k']:.1f} {o['invented_words_per_k']:.1f}"
+            line += f"   was {o['number_recall']:.3f} {o['body_number_recall']:.3f} {o['word_recall']:.3f} {o['body_word_recall']:.3f} {o['invented_numbers_per_k']:.1f} {o['invented_words_per_k']:.1f}"
         print(line)
         for k in keys:
             totals[k] += r[k]
@@ -113,7 +142,7 @@ def main() -> int:
             print("    invented numbers:", r["invented_number_examples"][: args.show])
             print("    invented words:  ", r["invented_word_examples"][: args.show])
     n = len(current)
-    print(f"{'MEAN':42} {totals['number_recall']/n:8.3f} {totals['word_recall']/n:8.3f} {totals['invented_numbers_per_k']/n:9.1f} {totals['invented_words_per_k']/n:10.1f} {totals['seconds']:6.1f}")
+    print(f"{'MEAN':42} {totals['number_recall']/n:8.3f} {totals['body_number_recall']/n:8.3f} {totals['word_recall']/n:8.3f} {totals['body_word_recall']/n:8.3f} {totals['invented_numbers_per_k']/n:9.1f} {totals['invented_words_per_k']/n:10.1f} {totals['seconds']:6.1f}")
     (folder / f"{args.label}.scores.json").write_text(json.dumps(current, indent=1))
     return 0
 

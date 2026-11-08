@@ -308,7 +308,11 @@ final class WatchedFolderPathTests: XCTestCase {
         try watcher.watch(folder, library: engine.containerService.activeContainerId)
         try write("", to: "watch-test-empty.txt")
         await watcher.check(engine: engine, documentLimit: .max)
-        try await waitFor("the queue to settle") { !engine.ingestionItems.contains { !$0.stage.isTerminal } }
+        // Its own item: the engine is shared by the host's tests, and on Xcode Cloud (2026-11-08) another test's item
+        // kept the whole queue from settling for the minute.
+        try await waitFor("the file's import to end") {
+            !engine.ingestionItems.contains { $0.url.lastPathComponent.contains("watch-test-empty") && !$0.stage.isTerminal }
+        }
         let queued = Set(engine.ingestionItems.map(\.id))
         await watcher.check(engine: engine, documentLimit: .max)
         XCTAssertTrue(Set(engine.ingestionItems.map(\.id)).isSubset(of: queued), "it was queued again")

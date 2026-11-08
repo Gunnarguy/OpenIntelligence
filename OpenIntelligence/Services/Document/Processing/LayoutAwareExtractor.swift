@@ -117,7 +117,13 @@ actor LayoutAwareExtractor {
     ///   - image: Rendered page image
     ///   - pageNumber: 1-indexed page number
     /// - Returns: Layout analysis with proper reading order
-    func extractWithLayout(from image: CIImage, pageNumber: Int) async throws -> LayoutAnalysisResult {
+    /// `textLayerWords` are the page's own words where its PDF text layer is good: each block Vision finds is read from
+    /// them when the two readings agree (5.8). On a page with a perfect text layer that the layout pass calls
+    /// multi-column, its reading-order text was OCR's, so a header read "Int. J. lest. ocl." on one page and "Int. J.
+    /// Test. Sci." on the next, and every misread was stored.
+    func extractWithLayout(from image: CIImage, pageNumber: Int, textLayerWords: [TextLayerWord] = []) async throws
+        -> LayoutAnalysisResult
+    {
         Log.info("[LayoutAwareExtractor] 🔍 Analyzing page \(pageNumber) layout (image: \(Int(image.extent.width))×\(Int(image.extent.height)))", category: .ingestion)
 
         // Report ANE activity to HUD (Vision uses Neural Engine for text recognition)
@@ -126,7 +132,16 @@ actor LayoutAwareExtractor {
         }
 
         // Step 1: Get all text blocks with bounding boxes using Vision
-        let blocks = try await recognizeTextBlocks(in: image, pageNumber: pageNumber)
+        var blocks = try await recognizeTextBlocks(in: image, pageNumber: pageNumber)
+        if !textLayerWords.isEmpty {
+            blocks = blocks.map { block in
+                guard let layer = StructuredDocumentParser.textLayerText(in: block.boundingBox, words: textLayerWords),
+                    StructuredDocumentParser.textLayerAgreesForParagraph(layer, withVision: block.text)
+                else { return block }
+                return TextBlock(
+                    text: layer, boundingBox: block.boundingBox, confidence: block.confidence, pageNumber: block.pageNumber)
+            }
+        }
 
         Log.debug("[LayoutAwareExtractor] Page \(pageNumber): Vision returned \(blocks.count) text blocks", category: .ingestion)
 

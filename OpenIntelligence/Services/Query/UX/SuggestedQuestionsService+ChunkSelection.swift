@@ -331,7 +331,7 @@ extension SuggestedQuestionsService {
         }
         
         // 6. Part-of-speech tagging with NLTagger to reject verbs, pronouns, prepositions, conjunctions, adverbs
-        let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType])
+        let tagger = topicTagger
         tagger.string = trimmed
         
         var hasVerb = false

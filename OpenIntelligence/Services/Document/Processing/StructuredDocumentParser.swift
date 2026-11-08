@@ -864,10 +864,24 @@ actor StructuredDocumentParser {
         }
 
         for paragraph in document.paragraphs {
-            var rawParagraphText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-            rawParagraphText = deconfuseCyrillicLatin(rawParagraphText)
-            rawParagraphText = fixReversedTextIfNeeded(rawParagraphText)
-            let (cleanedText, isLowQuality) = validateAndCleanOCR(rawParagraphText)
+            let visionText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            // A paragraph on a page with a good text layer is the page's own text when it is the same paragraph
+            // (5.8): on pages where Vision finds a table, every paragraph came from OCR at half resolution.
+            let cleanedText: String
+            let isLowQuality: Bool
+            if let words = textLayerWords, !words.isEmpty,
+                let layerText = Self.textLayerText(
+                    in: paragraph.boundingRegion.normalizedPath.boundingBox, words: words, lineSeparator: "\n"),
+                Self.textLayerAgreesForParagraph(layerText, withVision: visionText)
+            {
+                cleanedText = layerText
+                isLowQuality = false
+            } else {
+                var rawParagraphText = visionText
+                rawParagraphText = deconfuseCyrillicLatin(rawParagraphText)
+                rawParagraphText = fixReversedTextIfNeeded(rawParagraphText)
+                (cleanedText, isLowQuality) = validateAndCleanOCR(rawParagraphText)
+            }
 
             if !cleanedText.isEmpty && cleanedText.count > 10 {
                 for pattern in figurePatterns {
@@ -946,40 +960,116 @@ actor StructuredDocumentParser {
 
     /// The text-layer words whose centre lies in `box` (Vision's normalized coordinates, origin bottom left), in reading
     /// order: top line first, left to right. Nil when none does.
-    nonisolated static func textLayerText(in box: CGRect, words: [TextLayerWord]) -> String? {
+    /// The text-layer words inside `box`, line by line; a paragraph's lines are joined by line breaks (the running-line
+    /// cleanup works line by line, and a header joined to the first line by a space stayed in the passage), a cell's by
+    /// spaces.
+    nonisolated static func textLayerText(in box: CGRect, words: [TextLayerWord], lineSeparator: String = " ") -> String? {
         let inside = words.filter { box.contains(CGPoint(x: $0.box.midX, y: $0.box.midY)) }
         guard !inside.isEmpty else { return nil }
-        let lineTolerance = (inside.map(\.box.height).max() ?? 0) * 0.5
-        let ordered = inside.sorted { a, b in
-            if abs(a.box.midY - b.box.midY) > lineTolerance { return a.box.midY > b.box.midY }
-            return a.box.minX < b.box.minX
+        // Words are grouped into lines first (top to bottom, a word joining the line whose first word's middle is
+        // within half the median word height of its own), then each line is read left to right. Sorting by "different
+        // line, else further left" in one comparator is not a consistent order, so words near a line's edge could come
+        // out in a different order on different pages; and the tallest word's height (a drop cap) merged lines.
+        let heights = inside.map(\.box.height).sorted()
+        let lineTolerance = heights[heights.count / 2] * 0.5
+        var lines: [[TextLayerWord]] = []
+        for word in inside.sorted(by: { $0.box.midY > $1.box.midY }) {
+            if let first = lines.last?.first, abs(first.box.midY - word.box.midY) <= lineTolerance {
+                lines[lines.count - 1].append(word)
+            } else {
+                lines.append([word])
+            }
         }
-        return ordered.map(\.text).joined(separator: " ")
+        return lines.map { $0.sorted { $0.box.minX < $1.box.minX }.map(\.text).joined(separator: " ") }
+            .joined(separator: lineSeparator)
+    }
+
+    /// Characters compared by the agreement tests, as UTF-16 units: lowercased, spaces dropped, dashes as "-".
+    nonisolated private static func foldedForAgreement(_ text: String) -> [UInt16] {
+        Array(
+            text.lowercased()
+                .replacingOccurrences(of: "\u{2013}", with: "-").replacingOccurrences(of: "\u{2014}", with: "-")
+                .filter { !$0.isWhitespace }.utf16)
+    }
+
+    /// Whether two folded readings are within `limit` (a share of the longer one's length) by edit distance. Banded:
+    /// only cells within that distance of the diagonal are computed, which gives the same answer as the full table
+    /// at a fraction of its cost (a 2,000-character paragraph at a quarter: about 2 million cells instead of 4).
+    nonisolated private static func withinEditRatio(_ a: [UInt16], _ b: [UInt16], limit: Double) -> Bool {
+        if a == b { return true }
+        guard !a.isEmpty, !b.isEmpty else { return false }
+        let k = Int(limit * Double(max(a.count, b.count)))
+        guard abs(a.count - b.count) <= k else { return false }
+        let big = k + 1
+        var previous = [Int](repeating: big, count: b.count + 1)
+        var current = previous
+        for j in 0...min(b.count, k) { previous[j] = j }
+        for i in 1...a.count {
+            let low = max(1, i - k), high = min(b.count, i + k)
+            current[0] = i <= k ? i : big
+            if low > 1 { current[low - 1] = big }
+            var rowMinimum = current[0]
+            if low <= high {
+                for j in low...high {
+                    let substitution = previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1)
+                    let value = min(substitution, previous[j] + 1, current[j - 1] + 1)
+                    current[j] = min(value, big)
+                    rowMinimum = min(rowMinimum, current[j])
+                }
+            }
+            if high < b.count { current[high + 1] = big }
+            if rowMinimum > k { return false }
+            swap(&previous, &current)
+        }
+        return previous[b.count] <= k
     }
 
     /// Whether a cell's text-layer reading and Vision's reading are the same cell: their characters, case, spacing and
     /// dash forms ignored, at most half different by edit distance ("1-2g" against "1-28", "3624" against "3024").
     /// Vision's empty reading always yields to the text layer.
     nonisolated static func textLayerAgrees(_ layer: String, withVision vision: String) -> Bool {
-        func folded(_ text: String) -> [Character] {
-            Array(
-                text.lowercased()
-                    .replacingOccurrences(of: "\u{2013}", with: "-").replacingOccurrences(of: "\u{2014}", with: "-")
-                    .filter { !$0.isWhitespace })
-        }
-        let a = folded(layer), b = folded(vision)
+        let a = foldedForAgreement(layer), b = foldedForAgreement(vision)
         guard !a.isEmpty else { return false }
         guard !b.isEmpty else { return true }
-        if a == b { return true }
-        var previous = Array(0...b.count)
-        for i in 1...a.count {
-            var current = [i] + Array(repeating: 0, count: b.count)
-            for j in 1...b.count {
-                current[j] = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1))
-            }
-            previous = current
+        return keepsTheWords(layer, of: vision) && withinEditRatio(a, b, limit: 0.5)
+    }
+
+    /// Whether a text-layer reading has at least 80% as many words as Vision's. Some PDFs space words by position and
+    /// print no space characters, so their text layer reads a line as one word ("whichpermitsunrestricteduse,..."); the
+    /// agreement tests ignore spacing and took it over Vision's spaced reading (measured 2026-11-08: word recall fell
+    /// from 0.90 to 0.66 on one paper, 0.96 to 0.70 on another).
+    nonisolated private static func keepsTheWords(_ layer: String, of vision: String) -> Bool {
+        let visionWords = vision.split(whereSeparator: \.isWhitespace).count
+        guard visionWords >= 3 else { return true }
+        return Double(layer.split(whereSeparator: \.isWhitespace).count) >= 0.8 * Double(visionWords)
+    }
+
+    /// Whether a paragraph's or a line's text-layer reading is what Vision read, with nothing left out or reordered:
+    /// their characters (case, spacing and dash forms ignored) within 15% of each other in length and a quarter apart by
+    /// edit distance, so OCR's misreads ("Int. J. lest. ocl.") are corrected and a reading its box cut short, or with
+    /// lines interleaved, is refused (5.8; a word-set overlap let a truncated or scrambled reading through, refuting
+    /// review 2026-11-08). Over 2,000 characters, where the edit distance costs too much, an in-order word sequence of
+    /// at least 85% of the longer one's words. Under four characters, the cell test.
+    nonisolated static func textLayerAgreesForParagraph(_ layer: String, withVision vision: String) -> Bool {
+        let a = foldedForAgreement(layer), b = foldedForAgreement(vision)
+        guard a.count >= 4, b.count >= 4 else { return textLayerAgrees(layer, withVision: vision) }
+        guard keepsTheWords(layer, of: vision) else { return false }
+        guard Double(min(a.count, b.count)) >= 0.85 * Double(max(a.count, b.count)) else { return false }
+        if max(a.count, b.count) <= 2_000 { return withinEditRatio(a, b, limit: 0.25) }
+        func words(_ text: String) -> [Substring] {
+            text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
         }
-        return Double(previous[b.count]) / Double(max(a.count, b.count)) <= 0.5
+        let wa = words(layer), wb = words(vision)
+        guard !wa.isEmpty, !wb.isEmpty, wa.count <= 1_000, wb.count <= 1_000 else { return false }
+        var previous = [Int](repeating: 0, count: wb.count + 1)
+        var current = previous
+        for i in 1...wa.count {
+            for j in 1...wb.count {
+                current[j] = wa[i - 1] == wb[j - 1] ? previous[j - 1] + 1 : max(previous[j], current[j - 1])
+            }
+            swap(&previous, &current)
+        }
+        return Double(previous[wb.count]) >= 0.85 * Double(max(wa.count, wb.count))
     }
 
     /// The paragraph that captions a table: a line that starts "Table N" (or "Tab. N", "TABLE IV"), the nearest one above

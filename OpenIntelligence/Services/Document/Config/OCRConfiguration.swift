@@ -903,7 +903,7 @@ enum OCRConfiguration {
     ///
     /// This method first DETECTS the pattern (requiring ≥3 unambiguous indicators),
     /// then applies a curated word list where single-l is NEVER a valid English word.
-    private nonisolated static func repairLLLigature(_ text: String) -> String {
+    nonisolated static func repairLLLigature(_ text: String) -> String {
         guard text.count > 100 else { return text }
 
         // Phase 1: Detect if document has the systematic ll→l issue
@@ -939,7 +939,7 @@ enum OCRConfiguration {
         let wholeWordFixes: [(wrong: String, right: String)] = [
             ("wil", "will"),
             ("wel", "well"),
-            ("tel", "tell"),     // "tel" (archaeo mound) is vanishingly rare vs "tell"
+            // "tel" is not repaired: it is the usual abbreviation of telephone ("Tel: 555" read "Tell: 555").
             ("sel", "sell"),
             ("bel", "bell"),     // standalone "bel" (unit) extremely rare in general text
             ("cel", "cell"),
@@ -958,7 +958,6 @@ enum OCRConfiguration {
             ("bul", "bull"),
             ("hil", "hill"),
             ("kil", "kill"),
-            ("mil", "mill"),     // "mil" IS a unit, but "mill" is more common in general text
             ("dril", "drill"),
             ("gril", "grill"),
             ("spel", "spell"),
@@ -987,6 +986,9 @@ enum OCRConfiguration {
             )
         }
 
+        // Removed 2026-11-08 (extraction audit), because each wrong form is itself a word and so the repair changed
+        // correct text in any document that tripped the detector: "mil" (a unit), "filing", "paroling", "poling",
+        // "staling", and the stem "paral" ("paralysis" became "parallysis", "paralegal" "parallegal"; "paralel" stays).
         // Phase 2b: Stem replacements (prefix match, covers all inflections)
         // e.g., "alow" matches "alowed", "alowing", "alowance"
         let stemFixes: [(wrong: String, right: String)] = [
@@ -1027,7 +1029,6 @@ enum OCRConfiguration {
             ("counselor", "counsellor"),
             ("dweling", "dwelling"),
             ("exeling", "excelling"),
-            ("filing", "filling"),    // "filing" IS valid but in ll-ligature docs, likely "filling"
             ("fueling", "fuelling"),
             ("griling", "grilling"),
             ("halway", "hallway"),
@@ -1041,8 +1042,6 @@ enum OCRConfiguration {
             ("instalation", "installation"),
             ("kiling", "killing"),
             ("meling", "melling"),
-            ("paroling", "patrolling"),
-            ("poling", "polling"),
             ("polut", "pollut"),
             ("puling", "pulling"),
             ("recaling", "recalling"),
@@ -1054,7 +1053,6 @@ enum OCRConfiguration {
             ("smeling", "smelling"),
             ("speling", "spelling"),
             ("spiling", "spilling"),
-            ("staling", "stalling"),
             ("sweling", "swelling"),
             ("teling", "telling"),
             ("thril", "thrill"),
@@ -1091,7 +1089,6 @@ enum OCRConfiguration {
             ("guerilar", "guerillar"),
             ("halucin", "hallucin"),
             ("miscel", "miscell"),
-            ("paral", "parall"),
             ("rebelio", "rebellio"),
             ("surveilance", "surveillance"),
             ("vanila", "vanilla"),
@@ -1124,7 +1121,7 @@ enum OCRConfiguration {
         // "al rights" → "all rights", "al passengers" → "all passengers"
         // Safe because lowercase "al" before a lowercase word is almost never a name
         result = result.replacingOccurrences(
-            of: #"(?<![A-Za-z])al (?=[a-z])"#,
+            of: #"(?<![A-Za-z])(?<!et )al (?=[a-z])"#,  // not "et al" (5.8)
             with: "all ",
             options: .regularExpression
         )

@@ -671,17 +671,63 @@ extension DocumentProcessor {
         let pageCount = Set(pages.map(\.page)).count
         guard pageCount >= 2 else { return [] }
         var pagesByKey: [String: Set<Int>] = [:]
+        var pagesByLine: [String: Set<Int>] = [:]
         for element in pages {
             for line in element.text.components(separatedBy: .newlines) {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 guard trimmed.count >= 3, trimmed.count <= 120 else { continue }
                 pagesByKey[runningLineKey(trimmed), default: []].insert(element.page)
+                pagesByLine[exactRunningLineKey(trimmed), default: []].insert(element.page)
             }
         }
         let needed = max(2, (pageCount + 1) / 2)
         // Only lines that carry a number (a page number, a volume or year): a heading such as "WARNING" printed on every
         // page of a manual is content, and it repeats too.
-        return Set(pagesByKey.filter { $0.value.count >= needed && $0.key.contains("#") }.map(\.key))
+        // And words too: a line of numbers alone ("0.25 0.50 1.0") has the same key as every other line of numbers, so
+        // table lines printed one per line looked like a running header (measured 2026-11-08: number recall fell on 7
+        // of 8 PDFs until this was added).
+        // And at least twice as many letters as number groups: every reference's "doi:10.1080/14737175.2016.1204914"
+        // has the key "doi:##.####/########.####.#######", so a page of references looked like a running footer and
+        // every DOI was dropped (measured 2026-11-08 on a JAMA paper). "Page # of #" and "Int. J. Mol. Sci. #, #, #" pass.
+        // A line printed word for word, digits and all, on those pages is a running line whatever its letters: a
+        // journal's own "doi:10.1001/jama.2019.21118" or "Vol. 12, No. 3, 2021" on every page (refuting review,
+        // 2026-11-08). Its exact key matches that line only, so a reference to another article stays.
+        let masked = pagesByKey.filter { entry in
+            guard entry.value.count >= needed, entry.key.contains("#") else { return false }
+            let letters = entry.key.filter(\.isLetter).count
+            return letters >= 3 && letters >= 2 * Self.numberGroupCount(entry.key)
+        }
+        let exact = pagesByLine.filter { entry in
+            entry.value.count >= needed && entry.key.contains(where: \.isNumber) && entry.key.contains(where: \.isLetter)
+        }
+        return Set(masked.map(\.key)).union(exact.map(\.key))
+    }
+
+    /// A line's exact running-line key: its text as is, lowercased and with spaces collapsed, marked so it never equals
+    /// a digit-masked key.
+    nonisolated static func exactRunningLineKey(_ line: String) -> String {
+        "=" + line.lowercased().replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Whether a line is one of a document's running lines.
+    nonisolated static func isRunningLine(_ line: String, runningKeys: Set<String>) -> Bool {
+        runningKeys.contains(runningLineKey(line)) || runningKeys.contains(exactRunningLineKey(line))
+    }
+
+    /// How many runs of "#" a running-line key has.
+    nonisolated static func numberGroupCount(_ key: String) -> Int {
+        var count = 0
+        var inGroup = false
+        for character in key {
+            if character == "#" {
+                if !inGroup { count += 1 }
+                inGroup = true
+            } else {
+                inGroup = false
+            }
+        }
+        return count
     }
 
     /// The text without its running header and footer lines (a repeating key, or a page counter, running citation,
@@ -691,8 +737,8 @@ extension DocumentProcessor {
         let kept = lines.filter { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { return true }
-            return !(runningKeys.contains(runningLineKey(trimmed))
-                || isPageFurnitureLabel(trimmed, includingCutOffMastheads: false))
+            return !(isRunningLine(trimmed, runningKeys: runningKeys)
+                || isPageFurnitureLabel(trimmed, includingCutOffMastheads: false, includingCitations: false))
         }
         return kept.count == lines.count ? text : kept.joined(separator: "\n")
     }
@@ -705,7 +751,8 @@ extension DocumentProcessor {
             .filter { !$0.isEmpty }
         guard !lines.isEmpty else { return false }
         return lines.allSatisfy {
-            runningKeys.contains(runningLineKey($0)) || isPageFurnitureLabel($0, includingCutOffMastheads: false)
+            isRunningLine($0, runningKeys: runningKeys)
+                || isPageFurnitureLabel($0, includingCutOffMastheads: false, includingCitations: false)
         }
     }
 
@@ -714,17 +761,29 @@ extension DocumentProcessor {
     /// which ends in a word a heading never ends in ("International Journal of"). Such a line became a section title
     /// and then the title of every table after it: on 2026-11-07 a paper's page-1 masthead "International Journal of"
     /// was the title of its Table 1 on page 10, and of the passage the model was given for it.
-    nonisolated static func isPageFurnitureLabel(_ text: String, includingCutOffMastheads: Bool = true) -> Bool {
+    nonisolated static func isPageFurnitureLabel(
+        _ text: String, includingCutOffMastheads: Bool = true, includingCitations: Bool = true
+    ) -> Bool {
         let line = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !line.isEmpty else { return false }
-        let patterns = [
+        // A citation-shaped line ("Int. J. Mol. Sci. 2020, 21, 3624") and a DOI line are furniture as a heading or title.
+        // In body text they are usually a reference entry, so there only a citation that ends in a page counter
+        // ("... 3624 10 of 27") is; one that repeats is caught by its running-line key (measured 2026-11-08: dropping
+        // every such line cost a JAMA paper's reference DOIs).
+        let citation = line.range(
+            of: #"^[A-Z][A-Za-z]*\.?\s([A-Za-z]+\.?\s){0,5}(19|20)\d{2}[,;.]\s*\d+"#, options: .regularExpression) != nil
+        if citation,
+            includingCitations || line.range(of: #"(?i)\s\d+\s*(of|/)\s*\d+$"#, options: .regularExpression) != nil
+        {
+            return true
+        }
+        var patterns = [
             #"(?i)^(page\s*)?\d+\s*(of|/)\s*\d+$"#,
             #"(?i)^page\s+\d+$"#,
-            // A running journal citation, as printed or as OCR reads it ("Int. J. lest. ocl. 2020, 21. 3024").
-            #"^[A-Z][A-Za-z]*\.?\s([A-Za-z]+\.?\s){0,5}(19|20)\d{2}[,;.]\s*\d+"#,
-            #"(?i)^(doi:|https?://(dx\.)?doi\.org/)"#,
+            #"^[-\u2013\u2014]\s*\d{1,4}\s*[-\u2013\u2014]$"#,
             #"(?i)^(©|copyright\b|downloaded from\b)"#,
         ]
+        if includingCitations { patterns.append(#"(?i)^(doi:|https?://(dx\.)?doi\.org/)"#) }
         for pattern in patterns where line.range(of: pattern, options: .regularExpression) != nil {
             return true
         }
