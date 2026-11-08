@@ -41,6 +41,10 @@ struct ContentView: View {
     /// What could not be added of what was shared from another app's share sheet, and what was (5.7).
     @State private var sharedItemsMessage: SharedItemsMessage?
     @State private var selectedTab: Tab = .chat
+    /// Rebuilds the Chat tab's stack when Chat goes blank under its own tab (5.8, `checkChatStillShown`).
+    @State private var chatStackID = UUID()
+    @State private var chatOnScreen = false
+    @State private var chatRebuiltAt: Date?
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
     @State private var showOnboardingPlans = false
@@ -439,7 +443,13 @@ struct ContentView: View {
                 NavigationStack {
                     ChatScreen(ragService: ragService)
                         .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
+                        .onAppear { chatOnScreen = true }
+                        .onDisappear {
+                            chatOnScreen = false
+                            checkChatStillShown()
+                        }
                 }
+                .id(chatStackID)
             }
             .badge(chatAnswerNotice.unseenAnswers)
 
@@ -480,6 +490,31 @@ struct ContentView: View {
         }
         #if os(iOS)
             .tabBarMinimizeBehavior(.onScrollDown)
+        #endif
+    }
+
+    /// Chat went blank under its own tab on the owner's iPhone on 2026-11-05 and twice on 2026-11-07: a back chevron in
+    /// the bar where the new-chat button belongs, and after tapping it a white screen, with `chat.disappear` recorded
+    /// while Chat stayed the selected tab and no tab change. What pushes the chevron is not known (nothing in Chat
+    /// pushes a screen). When Chat disappears while it is still the selected tab, the app is in front and nothing is
+    /// presented over it, the Chat stack is built again and the journal records each tab's navigation depth (5.8).
+    private func checkChatStillShown() {
+        #if os(iOS)
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                guard !chatOnScreen, selectedTab == .chat, scenePhase == .active,
+                    !NavigationProbe.somethingIsPresented()
+                else { return }
+                // Once per 10 seconds at most, so a container that keeps dropping Chat cannot loop it.
+                if let last = chatRebuiltAt, Date().timeIntervalSince(last) < 10 {
+                    VerificationJournal.record("chat.blankRebuildSkipped", ["nav": NavigationProbe.summary()])
+                    return
+                }
+                chatRebuiltAt = Date()
+                VerificationJournal.record("chat.blankRebuilt", ["nav": NavigationProbe.summary()])
+                Log.warning("[ContentView] Chat disappeared under its own tab; rebuilding its stack", category: .ui)
+                chatStackID = UUID()
+            }
         #endif
     }
 
@@ -953,4 +988,38 @@ struct ScreenshotMode {
 
 #Preview {
     ContentView()
+}
+
+/// What the window's navigation looks like, for the journal (5.8): the stack depth of every navigation controller in
+/// order and the presented one, if any. No titles, so nothing from the user's documents.
+@MainActor
+enum NavigationProbe {
+    #if os(iOS)
+        private static var root: UIViewController? {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+            return (scene?.windows.first { $0.isKeyWindow } ?? scene?.windows.first)?.rootViewController
+        }
+
+        private static func navigationControllers(under controller: UIViewController) -> [UINavigationController] {
+            var found: [UINavigationController] = []
+            if let navigation = controller as? UINavigationController { found.append(navigation) }
+            for child in controller.children { found += navigationControllers(under: child) }
+            return found
+        }
+
+        static func somethingIsPresented() -> Bool { root?.presentedViewController != nil }
+
+        /// For example `depths=1,1,2,1,1 back=0,0,1,0,0 presented=none`.
+        static func summary() -> String {
+            guard let root else { return "noWindow" }
+            let navigations = navigationControllers(under: root)
+            let depths = navigations.map { "\($0.viewControllers.count)" }.joined(separator: ",")
+            let backs = navigations.map { $0.navigationBar.backItem == nil ? "0" : "1" }.joined(separator: ",")
+            let presented = root.presentedViewController.map { String(describing: type(of: $0)) } ?? "none"
+            return "depths=\(depths) back=\(backs) presented=\(presented)"
+        }
+    #else
+        static func summary() -> String { "n/a" }
+    #endif
 }

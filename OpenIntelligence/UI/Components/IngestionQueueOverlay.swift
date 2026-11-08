@@ -165,15 +165,24 @@ struct IngestionConsoleLogRow: View {
         return consoleEventTimeFormatter.string(from: event.timestamp)
     }
     
+    /// One color per stage, so the steps of an import read apart at a glance (5.8; until then every working stage used
+    /// the accent). The console is drawn dark (`IngestionConsoleView`), so `DSColors.readable` takes each color's bright
+    /// dark-mode, high-contrast form. Orange, green and red keep meaning paused, done and failed.
     private var stageColor: Color {
         switch event.stage {
         case .queued: return .secondary
         case .paused, .cancelled: return .orange
         case .complete: return .green
         case .failed: return .red
-        case .loading, .transcribing, .extracting, .chunking, .analyzing, .adapting,
-             .reindexing, .embedding, .indexing, .storing:
-            return DSColors.accent
+        case .loading: return .cyan
+        case .transcribing: return .brown
+        case .extracting: return .yellow
+        case .chunking: return .mint
+        case .embedding: return .purple
+        case .indexing: return .blue
+        case .storing: return .teal
+        case .analyzing: return .pink
+        case .adapting, .reindexing: return .indigo
         }
     }
     

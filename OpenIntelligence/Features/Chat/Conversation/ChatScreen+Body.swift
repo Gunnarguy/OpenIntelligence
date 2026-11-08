@@ -688,7 +688,7 @@ extension ChatScreen {
                 VerificationJournal.record(
                     "chat.appear",
                     ["messages": "\(messages.count)", "windows": "\(visibleWindowCount)",
-                        "engines": "\(RAGService.liveEngineCount)"])
+                        "engines": "\(RAGService.liveEngineCount)", "nav": NavigationProbe.summary()])
                 if VerificationJournal.isEnabled, Self.chatFirstShownAt == nil {
                     Self.chatFirstShownAt = Date()
                     VerificationJournal.record(
@@ -707,7 +707,7 @@ extension ChatScreen {
             }
             .onDisappear {
                 isAppeared = false
-                VerificationJournal.record("chat.disappear")
+                VerificationJournal.record("chat.disappear", ["nav": NavigationProbe.summary()])
             }
             // The Stop button on the answer's Live Activity (5.7, `StopLongAnswerIntent`): stops the
             // answer like the chat's own stop button, only if the Live Activity is the running one's.

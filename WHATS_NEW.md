@@ -24,6 +24,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **Deep Think checks every claim it lists.** Its Fact Check list read Not Checked for every claim, even under a Verified answer. Each claim is now checked against its sources, as Standard does, and the answer itself is unchanged. If none of the claims holds up, the badge says so instead of Verified.
 - **Deep Think searches side by side.** The five searches behind a Deep Think or Maximum answer used to run one after another. Now the first runs, then the rest two at a time, and the answer draws on exactly the same passages.
 - **iPhone stays upright.** Turned sideways, the iPhone app squeezed the chat into half the screen. It now stays in portrait on iPhone. iPad and Mac are unchanged.
+- **Chat comes back if it goes blank.** Chat could show a back arrow where the new-chat button belongs, and tapping it left a white screen. If Chat disappears while you're still on its tab, it now builds itself again within a second.
 
 ### Libraries
 - **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
@@ -35,6 +36,8 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **The app no longer stops responding at launch while iCloud catches up.** With libraries synced through iCloud, the window could freeze for a few seconds at launch while iCloud finished with one of the sync files. The app now waits for iCloud in the background.
 - **Rebuilding a library leaves your other devices alone.** A rebuild used to take each document out and put it back as a new copy, so another device signed in to iCloud took the old one as deleted, cleared that library and rebuilt it too, back and forth, and a document's file could be lost along the way. A rebuild now keeps every document as it is, and the library shows how far it has got, or that it's waiting for another library to finish first. Like an import, it shows on the Lock Screen and asks to keep going when you leave the app, and if the app is closed it starts again next time.
 - **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
+- **Every file you import gets its suggested questions.** If you switched libraries or tabs, or left the app, while the questions were being written, the run stopped and was saved as "no questions", so Chat said none were ready and a file could go without any for good. A stopped run now saves nothing, and Chat writes questions for any file that has none.
+- **The import log is in color.** Each step of an import has its own color in the processing log (reading, splitting, embedding, indexing, saving, analyzing), so you can tell them apart at a glance.
 
 ### Plans
 - **The plans screen shows the plan you have.** If your Lifetime came from a purchase before 5.5, the plans screen said Free and offered you plans you already had, while Plan & Usage said Lifetime. It says Lifetime now.

@@ -120,6 +120,15 @@ actor SuggestedQuestionsService {
     /// Containers whose template-only bank has already been offered to the model this launch.
     var bankRebuildAttempted: Set<UUID> = []
 
+    /// Documents whose import is writing their questions now; Chat leaves them to it (5.8).
+    var ingestionQuestionsInFlight: Set<UUID> = []
+    /// Documents Chat is writing questions for now, so a second refresh does not write them again (5.8).
+    var questionFillInFlight: Set<UUID> = []
+    /// Documents with a finished question run this launch, written or not (5.8).
+    var questionFillSettled: Set<UUID> = []
+    /// Interrupted question runs per document this launch (5.8).
+    var questionFillAttempts: [UUID: Int] = [:]
+
     /// A bank deserves a second pass when the model can write questions now and never has for
     /// this library. Empty banks are the on-demand path's business, not this one's.
     static func shouldRebuildBank(_ bank: [SuggestedQuestion], modelAvailable: Bool) -> Bool {

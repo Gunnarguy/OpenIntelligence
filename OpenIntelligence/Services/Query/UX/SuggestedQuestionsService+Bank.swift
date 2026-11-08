@@ -75,7 +75,17 @@ extension SuggestedQuestionsService {
         }
 
         Log.info("[SuggestedQuestions] Generating questions for '\(document.filename)' during ingestion...")
-        let questions = await generateQuestionsForDocumentOnly(document, chunks: chunks)
+        ingestionQuestionsInFlight.insert(document.id)
+        defer { ingestionQuestionsInFlight.remove(document.id) }
+        // A run cancelled or timed out (iOS ending the import's background task, the model busy) saves nothing, and
+        // Chat writes this file's questions when it next shows the library (`fillMissingQuestions`). Until 5.8 it was
+        // saved as "no questions" and nothing asked again (owner's iPhone, 2026-11-07).
+        guard let questions = await generateQuestionsForDocumentOnly(document, chunks: chunks) else {
+            Log.info(
+                "[SuggestedQuestions] Questions for '\(document.filename)' were interrupted during ingestion; nothing saved, Chat writes them later"
+            )
+            return
+        }
         Log.info("[SuggestedQuestions] Generated \(questions.count) questions for '\(document.filename)'. Merging into bank...")
         mergeIntoPersistedBank(newQuestions: questions, for: containerId)
     }
@@ -95,21 +105,25 @@ extension SuggestedQuestionsService {
     }
     #endif
 
+    /// The questions for one document, or nil when a model call was cancelled or timed out and nothing came of the
+    /// run: that is not the model's answer, so the caller saves nothing and the file is asked about again (5.8).
     private func generateQuestionsForDocumentOnly(
         _ document: Document,
         chunks: [DocumentChunk]
-    ) async -> [SuggestedQuestion] {
+    ) async -> [SuggestedQuestion]? {
         let diverseChunks = selectDiverseChunks(from: chunks, documents: [document], targetCount: 12)
         guard !diverseChunks.isEmpty else { return [] }
 
         var questions: [SuggestedQuestion] = []
+        var interrupted = false
 
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *), await isSystemLLMAvailable {
             let llmQuestions = await generateDirectlyWithLLM(
                 chunks: diverseChunks,
                 documents: [document],
-                avoidTexts: []
+                avoidTexts: [],
+                interrupted: &interrupted
             )
             if llmQuestions.count >= 2 {
                 questions = llmQuestions
@@ -125,7 +139,8 @@ extension SuggestedQuestionsService {
                     baseQuestions: contentQuestions,
                     chunks: diverseChunks,
                     documents: [document],
-                    avoidTexts: []
+                    avoidTexts: [],
+                    interrupted: &interrupted
                 )
                 // Fail closed. The header of this file promises that weak document-shaped prompts
                 // are dropped rather than padded, and until 2026-09-14 this line did the opposite:
@@ -133,7 +148,7 @@ extension SuggestedQuestionsService {
                 // where "What is the silicon?" came from. With the model present, its silence is
                 // the answer. The raw templates survive only below, for a device with no model.
                 questions = polishedQuestions
-                if questions.isEmpty {
+                if questions.isEmpty, !interrupted, !Task.isCancelled {
                     Log.info("[SuggestedQuestions] Model produced no grounded question for '\(document.filename)'; showing none rather than templates")
                 }
             } else {
@@ -157,7 +172,86 @@ extension SuggestedQuestionsService {
             )
         }
 
-        return mapped.filter { shouldSurfaceSuggestedQuestion($0) }
+        let surfaced = mapped.filter { shouldSurfaceSuggestedQuestion($0) }
+        if surfaced.isEmpty, interrupted || Task.isCancelled { return nil }
+        return surfaced
+    }
+
+    /// A cancelled task or a timed-out model call (5.8).
+    nonisolated static func isInterruption(_ error: Error) -> Bool {
+        error is CancellationError || error is TimeoutError || Task.isCancelled
+    }
+
+    /// The files that get questions written when Chat shows a library (5.8): those with none in the bank, whose
+    /// import is not still adding its own, that have not had a finished run this launch, and whose runs have not been
+    /// interrupted `maxInterruptedFillAttempts` times. A finished run that wrote none counts as finished: no
+    /// templates in place of the model's silence.
+    nonisolated static func documentsNeedingQuestions(
+        bankDocumentNames: Set<String>,
+        documents: [(id: UUID, name: String)],
+        skip: Set<UUID>,
+        interruptedAttempts: [UUID: Int]
+    ) -> [UUID] {
+        documents.filter { document in
+            !bankDocumentNames.contains(document.name) && !skip.contains(document.id)
+                && interruptedAttempts[document.id, default: 0] < maxInterruptedFillAttempts
+        }.map(\.id)
+    }
+
+    nonisolated static let maxInterruptedFillAttempts = 3
+    /// The most questions a library's bank keeps, spread across its files (`enforceBankDiversity`).
+    nonisolated static let maxBankSize = 25
+    /// Files written per refresh, so a large library fills over a few visits instead of holding the model for minutes.
+    nonisolated static let maxFilesFilledPerRefresh = 3
+
+    /// Writes questions for the files of `documents` that have none in `bank`, merges them into the saved bank and
+    /// returns it. Until 5.8 questions were written here only when the whole bank was empty, and every cancelled run
+    /// (a library switch, a tab change) saved an empty bank: a two-file library on the owner's iPhone showed none for a
+    /// minute on 2026-11-07, and a file whose import-time run was cancelled never got any.
+    private func fillMissingQuestions(
+        in bank: [SuggestedQuestion],
+        for containerId: UUID,
+        documents: [Document],
+        sampleChunks: [DocumentChunk]
+    ) async -> [SuggestedQuestion] {
+        // A full bank has no room: a library of more files than it holds questions keeps some files without any.
+        guard bank.count < Self.maxBankSize else { return bank }
+        let pendingImport = Set(RAGService.deferredEnrichments().map(\.document))
+        let skip = pendingImport.union(ingestionQuestionsInFlight).union(questionFillSettled).union(questionFillInFlight)
+        let missingIds = Set(
+            Self.documentsNeedingQuestions(
+                bankDocumentNames: Set(bank.compactMap { $0.relevantDocuments.first }),
+                documents: documents.map { (id: $0.id, name: displayDocumentName($0.filename)) },
+                skip: skip,
+                interruptedAttempts: questionFillAttempts
+            ))
+        let missing = Array(documents.filter { missingIds.contains($0.id) }.prefix(Self.maxFilesFilledPerRefresh))
+        guard !missing.isEmpty else { return bank }
+        if bank.isEmpty {
+            Log.info("[SuggestedQuestions] Bank is empty, generating initial set on-demand...")
+        } else {
+            Log.info("[SuggestedQuestions] \(missing.count) file(s) have no question in the bank; writing theirs")
+        }
+
+        var written: [SuggestedQuestion] = []
+        for document in missing {
+            guard !Task.isCancelled else { break }
+            let documentChunks = sampleChunks.filter { $0.documentId == document.id }
+            guard !documentChunks.isEmpty else { continue }
+            questionFillInFlight.insert(document.id)
+            let questions = await generateQuestionsForDocumentOnly(document, chunks: documentChunks)
+            questionFillInFlight.remove(document.id)
+            guard let questions else {
+                questionFillAttempts[document.id, default: 0] += 1
+                Log.info("[SuggestedQuestions] Questions for '\(document.filename)' were interrupted; nothing saved")
+                continue
+            }
+            questionFillSettled.insert(document.id)
+            written.append(contentsOf: questions)
+        }
+        guard !written.isEmpty else { return bank }
+        mergeIntoPersistedBank(newQuestions: written, for: containerId)
+        return loadQuestionBank(for: containerId)
     }
 
     private func mergeIntoPersistedBank(newQuestions: [SuggestedQuestion], for containerId: UUID) {
@@ -165,7 +259,7 @@ extension SuggestedQuestionsService {
         bank.append(contentsOf: newQuestions)
         bank = dedupeSuggestedQuestionsPreservingOrder(bank)
         bank = pruneNearDuplicateQuestions(bank)
-        bank = enforceBankDiversity(bank, maxCount: 25)
+        bank = enforceBankDiversity(bank, maxCount: Self.maxBankSize)
         saveQuestionBank(bank, for: containerId)
         invalidateCache(for: containerId)
     }
@@ -207,23 +301,26 @@ extension SuggestedQuestionsService {
         return selected
     }
 
+    /// Rebuilds a template-only bank with the model, or returns nil and saves nothing when a run was interrupted (5.8).
     private func generateInitialBank(
         for containerId: UUID,
         documents: [Document],
         sampleChunks: [DocumentChunk]
-    ) async -> [SuggestedQuestion] {
-        Log.info("[SuggestedQuestions] Bank is empty, generating initial set on-demand...")
+    ) async -> [SuggestedQuestion]? {
         var generated: [SuggestedQuestion] = []
         for doc in documents {
             let docChunks = sampleChunks.filter { $0.documentId == doc.id }
             if !docChunks.isEmpty {
-                let docQs = await generateQuestionsForDocumentOnly(doc, chunks: docChunks)
+                guard let docQs = await generateQuestionsForDocumentOnly(doc, chunks: docChunks) else {
+                    Log.info("[SuggestedQuestions] Rebuild interrupted at '\(doc.filename)'; the saved bank stays as it was")
+                    return nil
+                }
                 generated.append(contentsOf: docQs)
             }
         }
         let deduped = dedupeSuggestedQuestionsPreservingOrder(generated)
         let pruned = pruneNearDuplicateQuestions(deduped)
-        let bank = enforceBankDiversity(pruned, maxCount: 25)
+        let bank = enforceBankDiversity(pruned, maxCount: Self.maxBankSize)
         saveQuestionBank(bank, for: containerId)
         return bank
     }
@@ -293,9 +390,10 @@ extension SuggestedQuestionsService {
         // Load the bank from disk
         var bank = loadQuestionBank(for: containerId)
 
-        // Fallback: if bank is empty but we have documents, generate the initial bank on-demand
-        if bank.isEmpty && !documents.isEmpty && !sampleChunks.isEmpty {
-            bank = await generateInitialBank(for: containerId, documents: documents, sampleChunks: sampleChunks)
+        // Write questions for each file that has none yet (5.8; until then only for an empty bank).
+        if !documents.isEmpty && !sampleChunks.isEmpty {
+            bank = await fillMissingQuestions(
+                in: bank, for: containerId, documents: documents, sampleChunks: sampleChunks)
         }
 
         // A bank generated while the model was unavailable is all templates, and until 2026-09-14
@@ -312,7 +410,13 @@ extension SuggestedQuestionsService {
             // `generateInitialBank` has already saved the rebuilt bank, empty or not, so the
             // in-memory copy must agree with the disk: an empty rebuild means no chips, which is
             // the fail-closed contract, not a reason to keep serving the templates it replaced.
-            bank = await generateInitialBank(for: containerId, documents: documents, sampleChunks: sampleChunks)
+            if let rebuilt = await generateInitialBank(
+                for: containerId, documents: documents, sampleChunks: sampleChunks)
+            {
+                bank = rebuilt
+            } else {
+                bankRebuildAttempted.remove(containerId)
+            }
         }
         #endif
 

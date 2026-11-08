@@ -21,7 +21,8 @@ extension SuggestedQuestionsService {
         baseQuestions: [SuggestedQuestion],
         chunks: [DocumentChunk],
         documents: [Document],
-        avoidTexts: [String] = []
+        avoidTexts: [String] = [],
+        interrupted: inout Bool
     ) async -> [SuggestedQuestion] {
 
         guard await isSystemLLMAvailable else {
@@ -161,6 +162,8 @@ extension SuggestedQuestionsService {
             return deduped
 
         } catch {
+            // A cancelled or timed-out call is not the model's answer (5.8): the caller saves nothing for it.
+            if Self.isInterruption(error) { interrupted = true }
             Log.warning("[SuggestedQuestions] LLM rewrite failed: \(error.localizedDescription)")
             return []
         }
@@ -194,7 +197,8 @@ extension SuggestedQuestionsService {
     func generateDirectlyWithLLM(
         chunks: [DocumentChunk],
         documents: [Document],
-        avoidTexts: [String] = []
+        avoidTexts: [String] = [],
+        interrupted: inout Bool
     ) async -> [SuggestedQuestion] {
         guard await isSystemLLMAvailable else { return [] }
 
@@ -218,6 +222,11 @@ extension SuggestedQuestionsService {
 
         var index = 0
         while index < passages.count {
+            // A cancelled run stops here rather than asking the model for batches nobody will see (5.8).
+            if Task.isCancelled {
+                interrupted = true
+                break
+            }
             let batch = Array(passages[index..<min(index + batchSize, passages.count)])
             let batchStartIndex = index
             index += batchSize
@@ -311,6 +320,7 @@ extension SuggestedQuestionsService {
                 }
                 Log.info("[SuggestedQuestions] Batch starting at \(batchStartIndex) kept \(batchGains) questions after filtering")
             } catch {
+                if Self.isInterruption(error) { interrupted = true }
                 Log.warning("[SuggestedQuestions] Direct LLM generation failed for batch starting at \(batchStartIndex): \(error.localizedDescription)")
             }
         }

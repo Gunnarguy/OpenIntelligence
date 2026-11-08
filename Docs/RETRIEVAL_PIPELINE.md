@@ -356,7 +356,7 @@ in the order they are tried:
    Each question names the heading of its guide it was written from, pinned by
    `SampleQuestionHeadingsTests`.
 2. **Model-written questions**, per document, at ingestion for user documents and on demand for
-   a library whose bank is empty. Accepted only when at least two survive passage grounding.
+   each document with none in the bank (until 5.8, only for a library whose bank was empty; see "An interrupted run saves nothing" below). Accepted only when at least two survive passage grounding.
 3. **Template questions** from specifications, procedures, warnings, definitions and terms.
    Since 2026-09-14 these fail closed when the model is present: an empty model result shows no
    question rather than a raw template. They still ship on a device with no model, and a bank that
@@ -375,6 +375,10 @@ pass and only when the canonical file is also present.
 ## Development-build journal (added 2026-11-03)
 
 Debug builds only (`VerificationJournal`). `retrieval.graphPack` records each graph pack's tokens against its budget and the device's window, whether it fit (`withinBudget`) and whether it was cut (`truncated`), with the core and added passage counts. `vocabulary.learnedEntities` records the Vision-detected entities a library learned, as counts by kind (address, phone number, email, date, other), never the values. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift graph-packing block, ContainerVocabularyService.learnFromDetectedEntities]`
+
+## An interrupted suggested-questions run saves nothing (added 2026-11-07, for 5.8)
+
+On the owner's iPhone on 2026-11-07 a two-file import showed "No grounded suggestions are ready yet" for a minute, and one file would never have had any: its import-time run was cancelled when iOS ended the import's background task, six runs Chat started were cancelled by library and tab switches or timed out behind the other file's deferred enrichment, and each was logged as "Model produced no grounded question" and saved as an empty result. Now a `CancellationError`, a timeout or a cancelled task marks the run interrupted (`SuggestedQuestionsService.isInterruption`, the `interrupted:` argument of `generateDirectlyWithLLM` and `generateWithLLM`), and `generateQuestionsForDocumentOnly` returns nil for an interrupted run that wrote nothing. Nil is never saved: the import path returns, and a rebuild of a template-only bank keeps the saved bank and is tried again. `generateQuestions` calls `fillMissingQuestions`, which writes questions for the documents with none in the bank (`documentsNeedingQuestions`) and merges them in: never one whose import is still adding its own (`RAGService.deferredEnrichments`, `ingestionQuestionsInFlight`), one Chat is already writing (`questionFillInFlight`), one with a finished run this launch (`questionFillSettled`), or one interrupted three times this launch; at most three per refresh, and only while the bank holds fewer than its 25 questions (`maxBankSize`). A finished run that wrote none still saves none, so the fail-closed rule above holds. `[evidence_level: device_log_proven for the failure (pipeline_trace and journal, ~/Library/Developer/OpenIntelligence-evidence/2026-11-07_180251), test_verified for the selection (SuggestedQuestionsFillTests), confidence: high; device check pending]`
 
 ## Suggested questions wait for an answer (added 2026-11-04, for 5.8)
 
