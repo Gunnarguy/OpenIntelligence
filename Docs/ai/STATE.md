@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-11-08 about 11:40 PT (5.8 open. Overnight "go 10x" pass committed in f7c1b484; the 2026-11-08 morning
-ingestion-fidelity pass, measured on 8 real PDFs, is the second Status row.)
+Updated: 2026-11-09 about 04:20 PT (5.8 open. The night of 2026-11-08/09 measured and fixed PDF extraction against 515
+image-written checks and olmOCR-Bench; committed in 76237a9a, first Status row.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: f7c1b484
+Last verified commit: 76237a9a
 
 ## Objective
 
@@ -14,6 +14,7 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
 
 | What | Where it stands |
 |---|---|
+| Ingestion fidelity, night of 2026-11-08/09 (his "research the best methods, don't guess", "accuracy first, speed second", olmOCR-Bench download approved) | Measured two ways, record in `BenchmarkRuns/2026-11-08-extraction-fidelity/README.md`: (a) 515 checks written from the page images of his 8 PDFs (`scripts/ingestion_unit_tests.py <checks> <run>`; checks gitignored in `checks/`), (b) olmOCR-Bench's public set, 160 text PDFs plus 15 old scans, in `/private/tmp/olmocr-bench` (scorer `scripts/olmocr_bench_score.py`, a port of its `tests.py`). Recorder: `ExtractionFidelityRecorder` with `TEST_RUNNER_OI_FIDELITY_DIR/_LIST/_LABEL` on Simulator `ED53C10F-...`, built from `/private/tmp/oi-src` (rsync of the repo) into `/private/tmp/oi-build`; chain scripts `/private/tmp/olmocr-bench/chain*.sh`. Kept, each measured: coverage pass, text-layer tables (position grid), ligature repair, no-space pages to Vision, Marker's margin rule (now also on layout-text pages, with a body-text exception), footnotes last and sentence joins (not across lists or titles), 2x2 tiled scans and the faded-scan contrast gate, Office/CSV/web fixes, dedup keeps numbers, citation bound restated. Tried and not adopted, each measured: XY-Cut++ order, pdfplumber's grid (kept for `OI_TABLE_GRID=pdfplumber`), the pdffigures2 figure pass (`OI_FIGURES=on`), the fused rerank pool (`OI_RERANK_POOL=fused`), Apple's model transcribing scans. Eight PDFs: 389 checks (5.8 pushed) to 433 (after18; 0.841); public: headers_footers 0.405 to 0.627, tables 0.509 to 0.566, multi_column 0.549 to 0.562, long_tiny_text 0.692 to 0.688 (run-v6). A Fable refuting review of the whole diff found 14 issues; every one is fixed, measured or recorded. Row `41349a74d54f8126a26acda100d7acb8` In Progress |
 | Overnight 2026-11-07/08 (his "PROCEED: IMPLEMENT", "go 10x", "universal, not siloed"; he named `WorkspaceSyncService+LibrarySync.swift`) | Probe: "How much DHA is recommended?" (Library 8, paper `ijms-21-03624-2.pdf`, Table 1, DHA row "1-2 g") answered "1-28" / another row's "100-200 mg/15-30 g". Fixed at the general layer, each with tests (CHANGELOG `## 5.8`, 2026-11-07/08 entries): (1) `AnswerResponsivenessJudge` (on-device guided generation: full/partial/none, measured over 160 cases on the Mac in `BenchmarkRuns/2026-11-07-responsiveness/README.md`), Standard rewrites a non-full answer once (`RAGService+AnswerResponsiveness.swift`), extracted values judged none are set aside at all five lock sites, `answers:<verdict>` in the gating string, `VerificationOutcome` reads it; (2) tables: `RAGService.withTablesForSummaries` swaps a retrieved table summary for its table in Standard and every Deep Think search (fixes existing libraries), summaries list every row, rows name their columns (`namedRowCells`; highlighter strips them, `PassageLocator.withoutImportLabels`), `isPageFurnitureLabel` and `runningLineKeys`/`isRunningElement` keep page furniture out of titles and passages, `StructuredDocumentParser.tableCaption`/`numberedTableCaption` take the table's own caption; (3) Gate C counts a value held only by another table row as unverified (`valuesFromOtherRows`); (4) details card reads the badge's outcome (`SourceFidelityStatus.FidelityLevel.from`), no-passage answers carry `no_documents`; (5) summary-detail step uses only retrieved documents' summaries; (6) determinism: ordered keyword and expansion lists, FTS ties broken by id; (7) sync moves unreferenced files to `OrphanedDocuments/` for 30 days and skips the sweep while an import runs; (8) Library Settings claims corrected after a claim audit; (9) source chips keep identity; several comments corrected. A first badge-only fix showed "1-28" Verified on his phone and was reverted the same night. (10) table cells read from the PDF text layer when it agrees with Vision (`textLayerAgrees`); (11) wide tables' key-value pairs keep their row. **Not done:** "Quotes only" really model-free (his decision, row `40049a74d54f811ea077ef82be46545e`); Deep Think's uncited 0.5 score; the 5 Hz Chat clock |
 | Ingestion fidelity, 2026-11-08 morning (his "garbage in garbage out... no losses, only gains"; "absolute best practices") | Measured with `ExtractionFidelityRecorder` + `scripts/extraction_fidelity.py` on 8 PDFs (141 pages) from his Mac library, iOS 27 Simulator `ED53C10F-...` ("OI fidelity"), records and README in `BenchmarkRuns/2026-11-08-extraction-fidelity/`. Before (14d6cc67) vs after8 (this commit): body number recall 0.898 → 0.941, body word recall 0.967 → 0.972, invented numbers 53.2 → 24.9 per 1,000, all 8 imports 594 s → 632 s (6% slower, not profiled). The overnight changes first lost numbers on 7 of 8 files; fixed: running-line keys (letters vs number groups, exact repeats), body text keeps citations and DOIs, digit runs split by gap, text-layer words carried through the layout pass (they were dropped, so the DHA cell fix never ran on layout pages), the layout pass reads each Vision block from the text layer, a text layer without spaces is refused (80% word-count rule), banded edit distance, paragraph agreement by character edit distance. A refuting review found 10 defects, all fixed with tests (CHANGELOG 5.8, the 2026-11-08 [Ingestion] entries). Row `41249a74d54f816cb43ac42648d1f872` In Progress: closes when he re-imports the DHA paper on his iPhone and "How much DHA is recommended?" answers 1-2 g. Research survey (cited, ranked 10 changes): `BenchmarkRuns/2026-11-08-ingestion-research/ingestion_best_practices.md`. Probe: PDFKit `characterBounds(at:)` boxes have zero gaps between words and drift by one after a line break, so geometry-based word rebuilding needs a `CGPDFScanner` content-stream reader |
 | Decomposition of the three giant functions (2026-11-06 to 07, his "PROCEED: IMPLEMENT", "surgically") | **Done and pushed.** `queryInternal` 5,826 → 872 lines (80 steps), `addDocument` 1,438 → 410 (23), the PDF parser 1,652 → 17 steps; then their files split by job: `RAGService+QueryPipeline` → 6 files, `RAGService+Import` → 4, `DocumentProcessor+StructuredParsing` → 3 (`95cfe7ae`, `4b042ad6`, `227fae68`). Every step: verbatim move check, iOS Simulator + iOS device + macOS builds, golden recording identical before and after (`StandardPipelineGoldenTests` 35 items, `ImportGoldenTests` 32, `StructuredParsingGoldenTests` 13). Four Fable refuting reviews of all 80 Standard steps and the import review: no behavior change. The generation block (S6c) stays in `queryInternal` on purpose: its `#else` half is the device path no Simulator recorder can prove. Record: `BenchmarkRuns/2026-11-06-decomposition/PLAN.md`; Atlas section 22; `Docs/ai/FILE_MAP.md` |
@@ -36,6 +37,10 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
 
 ## Working Set
 
+- PDF extraction (2026-11-09): `Services/Document/Processing/StructuredDocumentParser.swift` (coverage pass, `marginalia`,
+  `withFootnotesLastAndSentencesJoined`, `tiledTextLines`, figure hook), `TextLayerTableDetector.swift`, `LigatureRepair.swift`,
+  `FigureRegionDetector.swift` (off), `DocumentProcessor+StructuredParsing.swift` (layout-text override, `marginalLines`); tests
+  `PageTextRepairTests.swift`, `FigureRegionDetectorTests.swift`; scorers `scripts/ingestion_unit_tests.py`, `scripts/olmocr_bench_score.py`.
 - `OpenIntelligence/Services/RAG/Orchestration/RAGService+Query{Pipeline,Preparation,Retrieval,Context,Answer,Exits}.swift`,
   `RAGService+{Import,ImportQueue,ImportEnrichment,IndexHealth}.swift`; `Services/Document/Processing/DocumentProcessor+{StructuredParsing,StructureChunks,StructureText}.swift`.
 - `OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift` (`executeMultiQuerySearch`), `+ReasoningChain.swift` (`routeChunksByTitle`).
@@ -43,6 +48,16 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
   `OpenIntelligenceTests/Services/Document/Processing/StructuredParsingGoldenTests.swift`; `scripts/golden_compare.py`, `scripts/golden_retrieval.py`.
 - Tooling (gitignored): `BenchmarkRuns/2026-11-06-decomposition/` (`extract_step.py` with exit/tail modes and `force_params`, `fast_batch.py`,
   `step_check.sh`, `commit_step.py`, `phase4_split.sh`), `BenchmarkRuns/2026-11-05-file-split/` (split tools; `split_type.py` now stamps the real date).
+
+## Verification (output read, 2026-11-09)
+
+- `xcodebuild test` (iOS 27 Simulator `ED53C10F-...`, from `/private/tmp/oi-src`) on PageTextRepair, FigureRegionDetector,
+  TablePassageFidelity, TableFidelity, OfficeTextFidelity, WebPageFetchService, OCRLanguageNarrowing,
+  IngestionFormatCoverage → 157 tests, 0 failures (`/private/tmp/olmocr-bench/units18.log`).
+- macOS `xcodebuild build` of the same tree → BUILD SUCCEEDED (`/private/tmp/olmocr-bench/macbuild.log`).
+- `ingestion_unit_tests.py` on run after18 → 433/515; `olmocr_bench_score.py` on run-v6 → as in Status. The full unit
+  suite was not run (local memory limits; Xcode Cloud `Tests (manual)` is the route).
+- `secret_scan.py` clean; `check_icloud_conflicts.sh` OK; `codemap.py check` 0 errors (new files unmapped, warnings only).
 
 ## Verification (output read, 2026-11-08)
 
@@ -74,13 +89,12 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
 
 ## Exact Next Action
 
-1. Ask him to re-import `ijms-21-03624-2.pdf` in Library 8 on the build installed 2026-11-08 11:16 PT and ask "How much DHA is
-   recommended?"; then `python3 scripts/phone_evidence.py --since "2026-11-08 11:16"` and read the stored ROW 3 (expect "DHA |
-   ... 1-2 g"), the answer and `answers:` in `answer.done`. A pass closes row `41249a74d54f816cb43ac42648d1f872`.
-2. Profile the 6% import slowdown: run `ExtractionFidelityRecorder` on `BL999.pdf` alone (47 s before, 62 s now) with
-   `xctrace record --template 'Time Profiler'` or timing logs around `textLayerWords(of:)`, `LayoutAwareExtractor` block reading
-   and `textLayerAgreesForParagraph`.
-3. Then the survey's ranked items, each measured by the fidelity recorder and the retrieval benchmark before shipping: first an
-   independent ground truth (olmOCR-Bench-style per-page checks instead of `pdftotext`), then context prefixes on the streamed
-   import paths and in BM25 title/section fields, the table title in every row passage; passage size vs MiniLM's 128-token
-   training (re-embeds libraries: his decision); a `CGPDFScanner` text engine as its own project.
+1. Ask him to re-import the PAH paper (`Determination_of_polycyclic_aromatic_hydrocarbons__PAHs__in_.pdf`) on his
+   iPhone with a build of 76237a9a or later and ask for BaP's retention time (37.24 min, Table 1); a pass plus the three
+   open checks below closes row `41349a74d54f8126a26acda100d7acb8`.
+2. Trace the three checks lost against after8 (`python3 scripts/ingestion_unit_tests.py
+   BenchmarkRuns/2026-11-08-extraction-fidelity/checks /private/tmp/oi-fidelity/pdfs/after18 --compare
+   /private/tmp/oi-fidelity/pdfs/after8 --show 300 | grep "was exact"`): CD004426 p26 and p28 cells lose their column
+   name; JAMA p3 is read by Vision ("lett") where after8 read its text layer.
+3. Then the ranked proposals in the morning report (passage size against MiniLM, which re-embeds libraries and is his
+   decision; Standard's token budget; scans storing text twice through Vision's false tables).
