@@ -51,8 +51,14 @@ extension DocumentProcessor {
         var currentSectionPath: [String] = []
 
         // Running headers and footers never become a passage, a title or a section (5.8).
+        // Lines the margin rule already left out count as printed on their page (`marginalLines`), once per page.
+        var marginalByPage: [Int: [String]] = [:]
+        for element in elements where !element.marginalLines.isEmpty && marginalByPage[element.pageNumber] == nil {
+            marginalByPage[element.pageNumber] = element.marginalLines
+        }
         let runningKeys = Self.runningLineKeys(
-            in: elements.filter { $0.elementType == "paragraph" || $0.elementType == "title" }.map { ($0.pageNumber, $0.text) })
+            in: elements.filter { $0.elementType == "paragraph" || $0.elementType == "title" }.map { ($0.pageNumber, $0.text) }
+                + marginalByPage.flatMap { page, lines in lines.map { (page, $0) } })
         var runningElementsDropped = 0
 
         for element in elements {

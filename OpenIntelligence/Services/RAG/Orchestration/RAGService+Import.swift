@@ -1395,17 +1395,8 @@ extension RAGService {
             // heading context in the embedding. This is THE key to making embeddings
             // discriminative — "[CarManual] [SPECIFICATIONS > Engine Oil] SAE 0W-20"
             // vs "[CarManual] [SPECIFICATIONS > Differential Gear Oil] SAE 75W/85"
-            let sectionContext: String
-            if let path = Self.trustedSectionDisplayPath(chunk.metadata.sectionPath), !path.isEmpty {
-                // Full hierarchical path: " [SPECIFICATIONS > Engine Oil]"
-                sectionContext = " [\(path.joined(separator: " > "))]"
-            } else if let title = Self.trustedSectionDisplayLabel(chunk.metadata.sectionTitle) {
-                // Fallback to just title
-                sectionContext = " [\(title)]"
-            } else {
-                sectionContext = ""
-            }
-            let contextualPrefix = docContext + sectionContext + " "
+            let contextualPrefix = Self.passagePrefix(
+                document: docContext, sectionPath: chunk.metadata.sectionPath, sectionTitle: chunk.metadata.sectionTitle)
             contextualPrefixes.append(contextualPrefix)
 
             // Embed with contextual prefix prepended (Anthropic's key insight)

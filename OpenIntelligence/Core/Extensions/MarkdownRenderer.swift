@@ -418,8 +418,7 @@ private struct MarkdownParser {
             body = trimmed
         }
 
-        return body
-            .components(separatedBy: "|")
+        return body.splitOnUnescapedPipes()
             .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 

@@ -906,7 +906,7 @@ actor IntelligentDocumentProcessor {
             if line.contains("\t") {
                 cells = line.components(separatedBy: "\t")
             } else if line.contains("|") {
-                cells = line.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+                cells = line.splitOnUnescapedPipes().map { $0.trimmingCharacters(in: .whitespaces) }
             } else {
                 // Try splitting on multiple spaces
                 cells = line.components(separatedBy: "  ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }

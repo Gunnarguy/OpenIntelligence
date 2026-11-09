@@ -607,15 +607,19 @@ actor RAGEngine {
             }
             let sanitizedContent = sanitizeForLanguageDetection(content)
 
-            // Jaccard word-overlap deduplication
+            // Jaccard word-overlap deduplication. Numbers of any length count, and a passage that states a number the
+            // kept one does not is never a duplicate (5.8, grounding audit 2026-11-08): words under three characters were
+            // left out, so "6" against "61" looked identical and the right value could be dropped for a look-alike.
             let contentWords = Set(
                 sanitizedContent.lowercased()
                     .split(separator: " ")
                     .map { $0.trimmingCharacters(in: CharacterSet.alphanumerics.inverted) }
-                    .filter { $0.count >= 3 }
+                    .filter { $0.count >= 3 || $0.contains(where: \.isNumber) }
             )
+            let contentNumbers = contentWords.filter { $0.contains(where: \.isNumber) }
             if contentWords.count >= 5 {
                 let isDuplicate = usedWordSets.contains { existingWords in
+                    guard contentNumbers.isSubset(of: existingWords) else { return false }
                     let intersection = contentWords.intersection(existingWords)
                     let union = contentWords.union(existingWords)
                     guard !union.isEmpty else { return false }

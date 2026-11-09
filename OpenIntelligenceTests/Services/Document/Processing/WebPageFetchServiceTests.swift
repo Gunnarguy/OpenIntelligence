@@ -66,8 +66,9 @@ final class WebPageFetchServiceTests: XCTestCase {
             - Hand wash the basket.
             - The drip tray is dishwasher safe.
 
-            Code | Meaning
-            E1 | Temperature sensor open circuit
+            | Code | Meaning |
+            | --- | --- |
+            | E1 | Temperature sensor open circuit |
             """
         )
     }

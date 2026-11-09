@@ -47,6 +47,12 @@ final class OCRLanguageNarrowingTests: XCTestCase {
         XCTAssertEqual(narrowed, ["en-US", "en-GB", "fr-FR"])
     }
 
+    func testASecondLanguageTheListDoesNotCoverKeepsAutomaticDetection() {
+        // English with real Arabic: narrowing to English turned detection off and the Arabic was lost (5.8).
+        XCTAssertNil(
+            OCRConfiguration.narrowedRecognitionLanguages(matching: profile(.english, 0.9, additional: [(.arabic, 0.3)])))
+    }
+
     func testATraceOfASecondLanguageIsNotEnoughToKeepItsModel() {
         // A stray French quotation in an English paper should not reload the French model.
         let narrowed = OCRConfiguration.narrowedRecognitionLanguages(

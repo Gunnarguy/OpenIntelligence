@@ -41,6 +41,9 @@ IMPORT_WORDS = set(
 
 def fold(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
+    # Thousands separators are a format, not a number: "187 341" (a thin space in JAMA's PDF), "187,341" and "187341" are
+    # one number. pdftotext keeps the space and the text layer does not, which counted as invented (2026-11-08).
+    text = re.sub(r"(?<=\d)[ \u2009\u202f,](?=\d{3}(?!\d))", "", text)
     for dash in ("–", "—", "−", "‐", "‑"):
         text = text.replace(dash, "-")
     return text.lower()

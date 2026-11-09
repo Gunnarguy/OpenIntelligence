@@ -139,15 +139,21 @@ extension RAGService {
             
             // 2. Embed Batch
             var textsToEmbed: [String] = []
-            let prefix = "\(doc.filename): "
+            // Each passage carries its document and section, as on the normal import path (5.8, `passagePrefix`).
+            let documentPrefix = buildContextualPrefix(filename: doc.filename)
+            let prefixes = processedChunks.indices.map { place in
+                Self.passagePrefix(
+                    document: documentPrefix, sectionPath: batchMetadata[place].sectionPath,
+                    sectionTitle: batchMetadata[place].sectionTitle)
+            }
             let embeddingWindow = containerEmbeddingService.maxSafeTokens
             var passagesAtTheWindow = 0
 
-            for chunk in processedChunks {
+            for (place, chunk) in processedChunks.enumerated() {
                 // See `embeddingText`: whole when it fits the model's window, never cut to a
                 // fixed number of characters.
                 let forEmbedding = Self.embeddingText(
-                    prefix: prefix, passage: chunk.text, window: embeddingWindow,
+                    prefix: prefixes[place], passage: chunk.text, window: embeddingWindow,
                     countTokens: { containerEmbeddingService.countTokens($0) })
                 if forEmbedding.reachesWindow { passagesAtTheWindow += 1 }
                 textsToEmbed.append(forEmbedding.text)
@@ -172,7 +178,7 @@ extension RAGService {
                     documentId: documentId,
                     content: chunk.text,
                     parentContent: chunk.parentText,
-                    contextualPrefix: prefix,
+                    contextualPrefix: prefixes[place],
                     embedding: embedding,
                     metadata: batchMetadata[place]
                 ))

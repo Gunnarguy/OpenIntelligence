@@ -697,15 +697,9 @@ extension RAGService {
                 )
 
                 for (idx, chunk) in chunksToReembed.enumerated() {
-                    let sectionContext: String
-                    if let path = Self.trustedSectionDisplayPath(chunk.metadata.sectionPath), !path.isEmpty {
-                        sectionContext = " [\(path.joined(separator: " > "))]"
-                    } else if let title = Self.trustedSectionDisplayLabel(chunk.metadata.sectionTitle) {
-                        sectionContext = " [\(title)]"
-                    } else {
-                        sectionContext = ""
-                    }
-                    let contextualPrefix = docContext + sectionContext + " "
+                    let contextualPrefix = Self.passagePrefix(
+                        document: docContext, sectionPath: chunk.metadata.sectionPath,
+                        sectionTitle: chunk.metadata.sectionTitle)
                     var textForEmbedding = contextualPrefix + translatedChunkTexts[idx]
 
                     let tokenCount = containerEmbeddingService.countTokens(textForEmbedding)

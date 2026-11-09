@@ -78,8 +78,13 @@ extension DocumentProcessor {
             return false
         }
 
+        // Scripts written without spaces (Chinese, Japanese, Korean, Thai, Lao, Khmer, Burmese) have long "words" and a
+        // large alphabet's entropy by nature: the word-length and entropy checks rejected every page of Apple's Chinese,
+        // Japanese and Korean license PDFs and 14 of 16 Thai ones, sending them to OCR, which changed characters
+        // (副本 became 本; measured 2026-11-08). For such text the language recognizer must be confident instead (5.8).
+        let unspacedScript = Self.isMostlyUnspacedScript(trimmed)
         let avgWordLength = Double(words.reduce(0) { $0 + $1.count }) / Double(words.count)
-        if avgWordLength < 1.0 || avgWordLength > 25.0 {
+        if !unspacedScript && (avgWordLength < 1.0 || avgWordLength > 25.0) {
             Log.debug("[DocumentProcessor] ❌ FAIL: Abnormal avg word length: \(String(format: "%.1f", avgWordLength))", category: .ingestion)
             return false
         }
@@ -106,7 +111,7 @@ extension DocumentProcessor {
 
         // If NL can't identify ANY language with >10% confidence, it's likely garbage
         let bestConfidence = languageHypotheses.values.max() ?? 0
-        if bestConfidence < 0.10 && trimmed.count > 50 {
+        if (bestConfidence < 0.10 || (unspacedScript && bestConfidence < 0.5)) && trimmed.count > 50 {
             Log.debug("[DocumentProcessor] ❌ FAIL: NLLanguageRecognizer can't identify language (best conf: \(String(format: "%.1f%%", bestConfidence * 100)))", category: .ingestion)
             return false
         }
@@ -114,7 +119,7 @@ extension DocumentProcessor {
         // === CHECK 5: Character entropy (randomness detection) ===
         // Works for all scripts — random bytes have high entropy regardless of language
         let entropy = calculateCharacterEntropy(trimmed)
-        if entropy > 6.0 {  // Raised from 5.5 to accommodate CJK (larger alphabet = higher natural entropy)
+        if entropy > 6.0 && !unspacedScript {  // Raised from 5.5 to accommodate CJK (larger alphabet = higher natural entropy)
             Log.debug("[DocumentProcessor] ❌ FAIL: High entropy (random-looking): \(String(format: "%.2f", entropy)) bits/char", category: .ingestion)
             return false
         }
@@ -156,7 +161,7 @@ extension DocumentProcessor {
             }
 
             let (cleaned, removedCount) = OCRConfiguration.filterGarbageText(
-                pageText,
+                LigatureRepair.repair(pageText),
                 revertIfTooAggressive: false
             )
             if removedCount > 0 {
@@ -600,8 +605,9 @@ extension DocumentProcessor {
             roughDocumentText = "" // PDFKit text is garbled — don't mine it for vocab
             Log.debug("[DocumentProcessor] Skipping dynamic vocabulary extraction (garbled text layer)", category: .ingestion)
         } else {
+            // Repaired first: a font that lost its ligatures would teach Vision "infuence" as a real word (5.8).
             roughDocumentText = (0..<min(pageCount, 50)).compactMap { i in
-                pdfDocument.page(at: i)?.string
+                pdfDocument.page(at: i)?.string.map(LigatureRepair.repair)
             }.joined(separator: "\n")
         }
 
@@ -694,7 +700,9 @@ extension DocumentProcessor {
                     // Simple pages (.directText, .spatialText) skip expensive image rendering entirely!
                     // EXCEPTION: If text layer is garbled (font substitution cipher), ALL pages need OCR
                     var pageImage: CIImage? = nil
-                    if documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
+                    // A text layer without spaces between its words is read by Vision (5.8).
+                    let lacksWordSpaces = !documentTextLayerGarbled && Self.textLayerLacksWordSpaces(pageString)
+                    if documentTextLayerGarbled || fidelityForcesVision || lacksWordSpaces || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
                         // Complex page - render and preprocess image with adaptive strategy
                         if renderScale > 5.0 {
                             Log.info("[DocumentProcessor] Page \(pageNumber): fine text risk \(Int((complexity?.fineTextRisk ?? 0) * 100))% → rendering at \(Int(72 * renderScale)) DPI", category: .ingestion)
@@ -719,7 +727,10 @@ extension DocumentProcessor {
                     // When text layer is garbled (font substitution cipher), NEVER trust PDFKit text
                     // If the page is mixed-mode scanned, also do not trust the incomplete native text layer
                     let isMixedMode = complexity?.isMixedModeScanned ?? false
-                    let textQualityOK = !documentTextLayerGarbled && !isMixedMode && hasText && isTextQualityAcceptable(pageString!)
+                    // A layer without word spaces is not good text: the page goes to OCR, not just to a render (refuting
+                    // review 2026-11-08: the render was made and then discarded for the run-together text).
+                    let textQualityOK = !documentTextLayerGarbled && !isMixedMode && hasText && !lacksWordSpaces
+                        && isTextQualityAcceptable(pageString!)
 
                     traceIngestionDecision(
                         pageNumber: pageNumber,

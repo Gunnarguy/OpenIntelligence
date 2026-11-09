@@ -1160,6 +1160,20 @@ extension RAGService {
 
     // MARK: - Contextual Retrieval Helper
 
+    /// The prefix every passage is embedded with: the document's (`buildContextualPrefix`) and its section path, or its
+    /// section title when it has no trusted path, then a space: "[CarManual] [SPECIFICATIONS > Engine Oil] ". One function
+    /// for the normal import and both streamed paths (5.8): the streamed paths embedded "<file name>: " alone, so a
+    /// passage of a PDF over 10 MB or a text file over 8 MB carried no section at all.
+    nonisolated static func passagePrefix(document: String, sectionPath: [String]?, sectionTitle: String?) -> String {
+        if let path = trustedSectionDisplayPath(sectionPath), !path.isEmpty {
+            return document + " [\(path.joined(separator: " > "))] "
+        }
+        if let title = trustedSectionDisplayLabel(sectionTitle) {
+            return document + " [\(title)] "
+        }
+        return document + " "
+    }
+
     /// Build contextual prefix for Anthropic's Contextual Retrieval technique.
     /// Prepending document context to chunks BEFORE embedding improves retrieval by 35-67%.
     /// The prefix captures document-level semantics that help the embedding model understand

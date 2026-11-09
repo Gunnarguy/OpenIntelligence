@@ -294,7 +294,14 @@ enum VisionOCRThrottle {
     /// - Parameter operation: The closure containing Vision operations
     /// - Returns: Whatever the operation returns
     /// - Throws: Re-throws any error from the operation
-    nonisolated static func perform<T: Sendable>(_ operation: @Sendable @escaping () throws -> T) async throws -> T {
+    ///
+    /// `@concurrent` (5.8): with approachable concurrency on (`SWIFT_APPROACHABLE_CONCURRENCY`, which turns on
+    /// NonisolatedNonsendingByDefault), a plain `nonisolated async` function runs on its caller's actor, so the blocking
+    /// Vision call held `LayoutAwareExtractor` for the whole OCR and its pages ran one at a time: on the owner's iPhone
+    /// (A18 Pro, 493 pages, 2026-11-03 to 11-08) every page's layout result in a group landed within 6 ms of the others,
+    /// while the structured parse, which does not block its actor, ran 2.7 pages at once. Running it on the concurrent
+    /// pool lets the throttle's own limit decide; the request and its pixels are unchanged.
+    @concurrent nonisolated static func perform<T: Sendable>(_ operation: @Sendable @escaping () throws -> T) async throws -> T {
         // Acquire slot via actor - Swift Concurrency propagates priority automatically
         await asyncVisionSemaphore.acquire()
 

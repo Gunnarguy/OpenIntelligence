@@ -624,12 +624,23 @@ extension DocumentProcessor {
                             }
 
                             // In hybrid mode: replace Vision paragraphs with layout-aware text
-                            // This fixes multi-column reading order issues
-                            if pageUsesHybridOverride && element.elementType == "paragraph" && !pageHasStructuredTables {
+                            // This fixes multi-column reading order issues. A figure (caption and labels, 5.8) is
+                            // replaced too: the layout text already holds its caption and every label, so keeping it
+                            // stored the caption twice (refuting review, 2026-11-08). On such a page the parser's
+                            // recovered text, margin rule and page order do not reach storage; the layout text is the
+                            // whole text layer in column order.
+                            if pageUsesHybridOverride
+                                && (element.elementType == "paragraph" || element.elementType == "figure")
+                                && !pageHasStructuredTables
+                            {
                                 if !usedLayoutForParagraph, let layout = layoutText, !layout.isEmpty {
-                                    // Use layout-aware text instead of Vision's paragraph
+                                    // Use layout-aware text instead of Vision's paragraph, without the running header
+                                    // and footer lines the parser's margin rule left out of this page (5.8): otherwise
+                                    // this page kept its header while every table page lost it, and with the header on
+                                    // one page only the cross-page rule no longer saw it repeat.
+                                    let layoutWithoutMargins = Self.withoutLines(layout, matching: structuredContent.marginalTexts)
                                     elements.append(StructuredElementWrapper(
-                                        text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        text: layoutWithoutMargins.trimmingCharacters(in: .whitespacesAndNewlines),
                                         elementType: "paragraph",
                                         pageNumber: pageNumber,
                                         isAtomicChunk: false,
@@ -696,7 +707,8 @@ extension DocumentProcessor {
                         if pageUsesHybridOverride && !pageHasStructuredTables && !usedLayoutForParagraph,
                            let layout = layoutText, !layout.isEmpty {
                             elements.append(StructuredElementWrapper(
-                                text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
+                                text: Self.withoutLines(layout, matching: structuredContent.marginalTexts)
+                                    .trimmingCharacters(in: .whitespacesAndNewlines),
                                 elementType: "paragraph",
                                 pageNumber: pageNumber,
                                 isAtomicChunk: false,
@@ -813,6 +825,15 @@ extension DocumentProcessor {
                                     "[DocumentProcessor] Page \(pageNumber): crop rescue promoted \(rescuePayload.tableCount) table(s), \(rescuePayload.listCount) list(s), \(rescuePayload.figureCount) figure region(s)",
                                     category: .ingestion
                                 )
+                            }
+                        }
+
+                        // The margin rule's lines for this page travel with its elements, for the cross-page rule (5.8).
+                        if !structuredContent.marginalTexts.isEmpty {
+                            elements = elements.map { element in
+                                var tagged = element
+                                tagged.marginalLines = structuredContent.marginalTexts
+                                return tagged
                             }
                         }
 
@@ -1144,9 +1165,15 @@ extension DocumentProcessor {
             if textLayerUnreadableByVision {
                 Log.info("[DocumentProcessor] Page \(pageNumber): read from its text layer, whose script Vision's text recognition does not read", category: .ingestion)
             }
+            // A text layer without spaces between its words is read by Vision, and its words are not used (5.8).
+            let lacksWordSpaces = !documentTextLayerGarbled && !textLayerUnreadableByVision
+                && Self.textLayerLacksWordSpaces(plainText)
+            if lacksWordSpaces {
+                Log.info("[DocumentProcessor] Page \(pageNumber): text layer prints no spaces between words, reading it with Vision", category: .ingestion)
+            }
             // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
             let needsVision = !textLayerUnreadableByVision
-                && (documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR)
+                && (documentTextLayerGarbled || fidelityForcesVision || lacksWordSpaces || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR)
             let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
             let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
             let preferHighResolutionStructure = shouldPreferHighResolutionStructure(
@@ -1211,7 +1238,8 @@ extension DocumentProcessor {
                 // orders a line's words left to right (`spatialLineBreak`).
                 let keepsPDFKitOrder = textLayerUnreadableByVision && OCRConfiguration.isMostlyRightToLeft(text)
                 let spatial = keepsPDFKitOrder ? nil : extractTextWithSpatialOrdering(from: page)
-                layoutText = spatial ?? text
+                // A font that lost its ligature glyphs ("gures", "de ned") is repaired here (5.8, `LigatureRepair`).
+                layoutText = LigatureRepair.repair(spatial ?? text)
                 Log.debug(
                     "[DocumentProcessor] Page \(pageNumber): strategy=\(strategy.description), "
                         + "Vision skipped, spatial extraction "
@@ -1232,8 +1260,8 @@ extension DocumentProcessor {
             // paragraphs, the layout pass's blocks) is read from the page's own characters (5.8,
             // `StructuredDocumentParser.textLayerText`). Limiting it to table-shaped pages saved no measurable time
             // (eight PDFs: 593 s without the limit, 587 to 604 s with it, 2026-11-08) and left a plain page's text to OCR.
-            if pageImage != nil, !documentTextLayerGarbled, !textLayerUnreadableByVision, hasText {
-                renderData.textLayerWords = textLayerWords(of: page)
+            if pageImage != nil, !documentTextLayerGarbled, !textLayerUnreadableByVision, !lacksWordSpaces, hasText {
+                renderData.textLayerWords = LigatureRepair.repair(words: textLayerWords(of: page))
             }
             batchRenderData.append(renderData)
         }

@@ -1335,7 +1335,16 @@ class HybridSearchService {
         )
 
         // ── BOOSTS ──────────────────────────────────────────────────────
-        let boostedResults = applyKeywordMatchBoost(query: originalQuery, results: fusedResults)
+        // The boosts re-sort by the vector score plus up to 0.20 over every fused result, so the reranker's pool is the
+        // boosted top K, not fusion's: the retrieval benchmark measured MRR falling from fusion to the boosted list,
+        // 0.708 to 0.635 in Standard (n=24) and 0.719 to 0.583 in Deep Think (n=66, `BenchmarkRuns/LEDGER.md`). Cutting
+        // the pool in fused order first was tried on 2026-11-08 and not adopted: the model-judged answer evaluation gave
+        // 0.40 correct with it and 0.45 without (20 cases, one build), and MRR before the reranker does not decide it,
+        // since the reranker reorders the pool; which passages the pool holds does. `OI_RERANK_POOL=fused` in the
+        // environment selects the fused cut, to measure its pool recall with the retrieval benchmark.
+        let cutsInFusedOrder = ProcessInfo.processInfo.environment["OI_RERANK_POOL"] == "fused"
+        let boostInput = cutsInFusedOrder ? Array(fusedResults.prefix(topK)) : fusedResults
+        let boostedResults = applyKeywordMatchBoost(query: originalQuery, results: boostInput)
         let structureBoostedResults = applyStructureTypeBoost(query: originalQuery, results: boostedResults)
         let anchorAdjustedResults = applyStateLookupAnchorBoost(query: originalQuery, results: structureBoostedResults)
 

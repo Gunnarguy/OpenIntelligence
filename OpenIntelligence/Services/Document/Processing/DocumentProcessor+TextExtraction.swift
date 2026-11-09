@@ -783,8 +783,7 @@ extension DocumentProcessor {
             trimmed.removeLast()
         }
 
-        return trimmed
-            .components(separatedBy: "|")
+        return trimmed.splitOnUnescapedPipes()
             .map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 
@@ -1756,4 +1755,31 @@ extension DocumentProcessor {
         return trimmed
     }
 
+}
+
+extension String {
+    /// The cells of a pipe-table row: split at "|" not preceded by a backslash, with "\|" turned back into "|" (5.8:
+    /// table writers escape a pipe inside a cell, so "A|B" in a cell no longer splits the row).
+    nonisolated func splitOnUnescapedPipes() -> [String] {
+        var cells: [String] = []
+        var current = ""
+        var escaped = false
+        for character in self {
+            if escaped {
+                if character != "|" { current.append("\\") }
+                current.append(character)
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "|" {
+                cells.append(current)
+                current = ""
+            } else {
+                current.append(character)
+            }
+        }
+        if escaped { current.append("\\") }
+        cells.append(current)
+        return cells
+    }
 }

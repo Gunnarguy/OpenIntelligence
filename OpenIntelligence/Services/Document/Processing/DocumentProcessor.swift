@@ -155,6 +155,38 @@ class DocumentProcessor {
     /// Check if GPU acceleration is available
     static var isGPUAccelerated: Bool { metalDevice != nil }
 
+    /// The 99th minus the 1st percentile of the image's luminance (0 to 1), from a 64-bin CIAreaHistogram of a
+    /// downscaled copy; nil when it cannot be measured.
+    static func brightnessSpread(of image: CIImage) -> Double? {
+        let extent = image.extent
+        guard extent.width > 0, extent.height > 0, extent.width.isFinite else { return nil }
+        let scale = min(1, 512 / max(extent.width, extent.height))
+        let small = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let gray = small.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.0])
+        let bins = 64
+        let histogram = gray.applyingFilter(
+            "CIAreaHistogram",
+            parameters: [kCIInputExtentKey: CIVector(cgRect: gray.extent), "inputCount": bins, "inputScale": 1.0])
+        var data = [Float](repeating: 0, count: bins * 4)
+        Self.gpuContext.render(
+            histogram, toBitmap: &data, rowBytes: bins * 4 * MemoryLayout<Float>.size,
+            bounds: CGRect(x: 0, y: 0, width: bins, height: 1), format: .RGBAf, colorSpace: nil)
+        let counts = (0..<bins).map { Double(data[$0 * 4]) }
+        let total = counts.reduce(0, +)
+        guard total > 0 else { return nil }
+        func percentile(_ p: Double) -> Double {
+            var running = 0.0
+            for (index, count) in counts.enumerated() {
+                running += count
+                if running >= p * total { return (Double(index) + 0.5) / Double(bins) }
+            }
+            return 1
+        }
+        // The 1st and 99th percentiles: on a clean page with little ink the 5th is still paper, so the spread read near 0
+        // and a clean page was stretched (refuting review, 2026-11-08).
+        return percentile(0.99) - percentile(0.01)
+    }
+
     /// Adaptive GPU-accelerated image preprocessing for improved OCR accuracy.
     /// Selects preprocessing strategy based on page characteristics, then applies
     /// the appropriate CIFilter chain using Metal-backed Core Image.
@@ -173,6 +205,26 @@ class DocumentProcessor {
     ) -> CIImage {
         // Skip if GPU not available
         guard Self.metalDevice != nil else { return image }
+
+        // A faded page without a text layer: stretch its contrast and drop colour, nothing else (5.8). Measured on this
+        // Mac on 2026-11-08 on a degraded synthetic scan: words read 0.01 untouched, 0.41 with CIColorControls contrast 1.8
+        // and saturation 0, 0.11 binarized; Liebl and Burghardt 2020 (arXiv 2008.02777) found grayscale beats binarized
+        // input for OCR. Gated on the 1st-to-99th percentile brightness spanning under half the range.
+        // `OI_SCAN_CONTRAST=off` in the environment turns it off, to compare on one build.
+        if !hasNativeTextLayer, ProcessInfo.processInfo.environment["OI_SCAN_CONTRAST"] != "off",
+            let spread = Self.brightnessSpread(of: image), spread < 0.5,
+            let filter = CIFilter(name: "CIColorControls")
+        {
+            filter.setValue(image, forKey: kCIInputImageKey)
+            filter.setValue(1.8, forKey: kCIInputContrastKey)
+            filter.setValue(0.0, forKey: kCIInputSaturationKey)
+            if let output = filter.outputImage?.cropped(to: image.extent),
+                let cg = Self.gpuContext.createCGImage(output, from: output.extent)
+            {
+                Log.info("[DocumentProcessor] Faded page (brightness spread \(String(format: "%.2f", spread))): contrast stretched", category: .ingestion)
+                return CIImage(cgImage: cg)
+            }
+        }
 
         let strategy = AdaptivePreprocessor.selectStrategy(
             textQuality: textQuality,
@@ -354,6 +406,10 @@ class DocumentProcessor {
         let extractionSource: String?
         let qualityScore: Double?
         let imageAnalysis: AnalyzedImage?
+        /// The running header and footer lines the parser's margin rule left out of this element's page (5.8). Not
+        /// text of the element: the cross-page running-line rule counts them as printed on the page, so a header the
+        /// margin rule removed on some pages is still seen to repeat and is removed on the pages it missed.
+        var marginalLines: [String] = []
 
         nonisolated init(
             text: String,

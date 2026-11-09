@@ -170,6 +170,11 @@ enum OCRConfiguration {
         // of error this function refuses to make.
         let narrowed = recognitionLanguages.filter { prefixes.contains(languagePrefix($0)) }
         guard !narrowed.isEmpty else { return nil }
+        // A detected language outside the curated list keeps Vision's own detection (5.8): narrowing turned automatic
+        // detection off and dropped it, so an English and Japanese PDF read its Japanese at a character error rate of
+        // 0.95 instead of 0.19, and an English and Arabic one its Arabic at 0.93 instead of 0.82 (measured 2026-11-08).
+        let covered = Set(narrowed.map(languagePrefix))
+        guard prefixes.isSubset(of: covered) else { return nil }
 
         return narrowed
     }
@@ -439,17 +444,31 @@ enum OCRConfiguration {
             return (true, nil)
         }
 
-        // Latin-script languages where Cyrillic/non-ASCII detection is valid
-        let latinScriptLanguages: Set<NLLanguage> = [
-            .english, .french, .german, .spanish, .portuguese,
-            .italian, .dutch, .swedish, .danish, .norwegian,
-            .finnish, .polish, .czech, .romanian, .hungarian,
-            .turkish, .indonesian, .malay, .vietnamese,
-            .catalan, .croatian, .slovak
-        ]
-
         let isLatin = latinScriptLanguages.contains(dominant)
         return (isLatin, dominant)
+    }
+
+    /// Latin-script languages where Cyrillic/non-ASCII detection is valid
+    private static let latinScriptLanguages: Set<NLLanguage> = [
+        .english, .french, .german, .spanish, .portuguese,
+        .italian, .dutch, .swedish, .danish, .norwegian,
+        .finnish, .polish, .czech, .romanian, .hungarian,
+        .turkish, .indonesian, .malay, .vietnamese,
+        .catalan, .croatian, .slovak,
+    ]
+
+    /// Whether a line reads as a real language written in a non-Latin script: NLLanguageRecognizer's top guess for the
+    /// line alone has at least 0.5 confidence and is not a Latin-script language (5.8). Lines of Greek, Hebrew, Arabic,
+    /// Russian, Chinese, Japanese and Hindi inside an English document were deleted as misreads (measured 2026-11-08:
+    /// nine of nine quotations, titles and names), because the rules below judged them by the document's script.
+    private static func isCoherentNonLatinLine(_ line: String) -> Bool {
+        languageRecognizerLock.lock()
+        languageRecognizer.reset()
+        languageRecognizer.processString(line)
+        let top = languageRecognizer.languageHypotheses(withMaximum: 1).max { $0.value < $1.value }
+        languageRecognizerLock.unlock()
+        guard let top, top.value >= 0.5 else { return false }
+        return !latinScriptLanguages.contains(top.key)
     }
 
     /// Check if a single line of OCR output is garbage.
@@ -510,22 +529,27 @@ enum OCRConfiguration {
         // These rules detect Vision misreads where Latin is confused with Cyrillic.
         // They MUST NOT fire for legitimate Russian, Ukrainian, etc. documents.
         if isLatinDocument {
-            // Rule 1: Cyrillic in a Latin document = Vision misread rotated text
+            // Rule 1: Cyrillic and Latin letters inside one word = Vision misread rotated text ("Сатеgоrу"). A line
+            // with Russian words beside English ones ("Война и мир (War and Peace)") is not a misread (5.8).
             if cyrillicCount > 0 && latinCount > 0 {
                 let cyrillicRatio = Double(cyrillicCount) / Double(totalChars)
-                if cyrillicRatio > 0.10 {
+                let mixesInsideAWord = trimmed.split(whereSeparator: { !$0.isLetter }).contains { word in
+                    let scalars = word.unicodeScalars
+                    let hasLatin = scalars.contains { (0x0041...0x005A).contains($0.value) || (0x0061...0x007A).contains($0.value) }
+                    let hasCyrillic = scalars.contains { cyrillicRange.contains($0.value) || cyrillicSupplementRange.contains($0.value) }
+                    return hasLatin && hasCyrillic
+                }
+                if cyrillicRatio > 0.10 && mixesInsideAWord {
                     return true
                 }
             }
 
-            // Rule 2: Purely Cyrillic block in a Latin document = misread
-            if cyrillicCount > 3 && latinCount == 0 && digitCount == 0 {
-                return true
-            }
-
-            // Rule 4: High non-ASCII ratio in a Latin document
+            // Rules 2 and 4 spare a line that reads as a real non-Latin language (5.8, `isCoherentNonLatinLine`).
             let nonAsciiRatio = 1.0 - (Double(asciiCount) / Double(totalChars))
-            if nonAsciiRatio > 0.40 && totalChars > 8 {
+            let suspicious = (cyrillicCount > 3 && latinCount == 0 && digitCount == 0) || (nonAsciiRatio > 0.40 && totalChars > 8)
+            if suspicious && !isCoherentNonLatinLine(trimmed) {
+                // Rule 2: Purely Cyrillic block in a Latin document = misread
+                // Rule 4: High non-ASCII ratio in a Latin document
                 return true
             }
         }
@@ -730,7 +754,7 @@ enum OCRConfiguration {
         //    which is the universal pattern for word-wrap hyphenation.
         //    Preserves intentional hyphens like "self-contained" (no newline).
         result = result.replacingOccurrences(
-            of: #"([a-zA-Z])\-\s*\n\s*([a-z])"#,
+            of: #"(\p{L})\-\s*\n\s*(\p{Ll})"#,
             with: "$1$2",
             options: .regularExpression
         )
@@ -1200,9 +1224,11 @@ enum OCRConfiguration {
 
             // 4. Clean TOC leader dots (reformat, don't remove)
             //    "Fuel requirements .........  1-2" → "Fuel requirements 1-2"
-            if trimmed.contains("...") {
+            // Leaders are four or more dots, spaced or not; an ellipsis ("[...]", "and so on...") is text and stays
+            // (5.8: every "..." was replaced by a space, olmOCR-Bench multi_column, 2026-11-08).
+            if trimmed.range(of: #"(\.\s?){4,}"#, options: .regularExpression) != nil {
                 let cleaned = trimmed.replacingOccurrences(
-                    of: #"\.{2,}"#,
+                    of: #"(\.\s?){4,}"#,
                     with: " ",
                     options: .regularExpression
                 )

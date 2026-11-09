@@ -398,7 +398,7 @@ extension RAGService {
         documentProcessor.richProgressHandler = nil
 
         let holdsRecords = state.totalRecords != nil
-        let prefix = "\(filename): "
+        let documentPrefix = buildContextualPrefix(filename: filename)
         let embeddingWindow = containerEmbeddingService.maxSafeTokens
         let totalBytes = max(1, reader.count)
 
@@ -459,9 +459,13 @@ extension RAGService {
             var textsToEmbed: [String] = []
             textsToEmbed.reserveCapacity(processedChunks.count)
             var passagesAtTheWindow = 0
-            for chunk in processedChunks {
+            // Each passage carries its document and section, as on the normal import path (5.8, `passagePrefix`).
+            let prefixes = metadata.map {
+                Self.passagePrefix(document: documentPrefix, sectionPath: $0.sectionPath, sectionTitle: $0.sectionTitle)
+            }
+            for (index, chunk) in processedChunks.enumerated() {
                 let forEmbedding = Self.embeddingText(
-                    prefix: prefix, passage: chunk.text, window: embeddingWindow,
+                    prefix: prefixes[index], passage: chunk.text, window: embeddingWindow,
                     countTokens: { containerEmbeddingService.countTokens($0) })
                 if forEmbedding.reachesWindow { passagesAtTheWindow += 1 }
                 textsToEmbed.append(forEmbedding.text)
@@ -546,7 +550,7 @@ extension RAGService {
                         documentId: state.documentId,
                         content: processedChunks[index].text,
                         parentContent: processedChunks[index].parentText,
-                        contextualPrefix: prefix,
+                        contextualPrefix: prefixes[index],
                         embedding: embeddings[index],
                         metadata: metadata[index]
                     ))

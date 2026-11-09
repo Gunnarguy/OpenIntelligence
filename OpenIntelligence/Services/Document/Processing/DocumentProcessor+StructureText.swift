@@ -654,10 +654,25 @@ extension DocumentProcessor {
         )
     }
 
+    /// A line folded for comparison: compatibility forms decomposed, dashes and minus as "-", curly quotes straight. Keys
+    /// were taken from an element's raw text and compared with its normalized lines, so a footer printed with an en
+    /// dash ("Biochemical Society Transactions (2021) 49 541–550") never matched itself and stayed in 16 passages and 10
+    /// section paths (5.8, measured 2026-11-08).
+    nonisolated private static func foldedForRunningKey(_ line: String) -> String {
+        var folded = line.precomposedStringWithCompatibilityMapping.lowercased()
+        for dash in ["\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}", "\u{2212}"] {
+            folded = folded.replacingOccurrences(of: dash, with: "-")
+        }
+        for (curly, straight) in [("\u{2018}", "'"), ("\u{2019}", "'"), ("\u{201C}", "\""), ("\u{201D}", "\"")] {
+            folded = folded.replacingOccurrences(of: curly, with: straight)
+        }
+        return folded
+    }
+
     /// Keep retrieval metadata conservative: a bad heading hurts ranking more than a missing one.
     /// A line's key for finding lines that repeat page after page: lowercased, digits as "#", spacing squeezed.
     nonisolated static func runningLineKey(_ line: String) -> String {
-        line.lowercased()
+        foldedForRunningKey(line)
             .replacingOccurrences(of: #"[0-9]"#, with: "#", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
@@ -697,17 +712,97 @@ extension DocumentProcessor {
             let letters = entry.key.filter(\.isLetter).count
             return letters >= 3 && letters >= 2 * Self.numberGroupCount(entry.key)
         }
+        // A bare web address on those pages ("www.impactjournals.com/oncotarget", "frontiersin.org") is a running footer
+        // too, number or not (5.8).
+        // A bare web address on those pages ("www.impactjournals.com/oncotarget", "frontiersin.org") is a running footer
+        // too, number or not (5.8).
         let exact = pagesByLine.filter { entry in
-            entry.value.count >= needed && entry.key.contains(where: \.isNumber) && entry.key.contains(where: \.isLetter)
+            guard entry.value.count >= needed, entry.key.contains(where: \.isLetter) else { return false }
+            return entry.key.contains(where: \.isNumber) || Self.isBareWebAddress(String(entry.key.dropFirst()))
         }
         return Set(masked.map(\.key)).union(exact.map(\.key))
+    }
+
+    /// `text` without the lines that are, folded, a line of one of `blocks` (each block split at its line breaks): the
+    /// running header and footer lines a page's margin rule found, taken out of that page's layout text (5.8).
+    nonisolated static func withoutLines(_ text: String, matching blocks: [String]) -> String {
+        func key(_ line: String) -> String {
+            foldedForRunningKey(line).replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+        }
+        let removed = Set(blocks.flatMap { $0.components(separatedBy: .newlines) }.map(key).filter { $0.count >= 3 })
+        guard !removed.isEmpty else { return text }
+        return text.components(separatedBy: .newlines).filter { !removed.contains(key($0)) }.joined(separator: "\n")
     }
 
     /// A line's exact running-line key: its text as is, lowercased and with spaces collapsed, marked so it never equals
     /// a digit-masked key.
     nonisolated static func exactRunningLineKey(_ line: String) -> String {
-        "=" + line.lowercased().replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        "=" + foldedForRunningKey(line).replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Whether a scalar belongs to a script written without spaces between words: Thai, Lao, Burmese, Khmer, Japanese
+    /// kana, Chinese and Korean.
+    nonisolated static func isUnspacedScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x0E00...0x0EFF, 0x1000...0x109F, 0x1780...0x17FF, 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF,
+            0xAC00...0xD7AF, 0xF900...0xFAFF:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether over 30% of a text's letters are in a script written without spaces (5.8).
+    nonisolated static func isMostlyUnspacedScript(_ text: String) -> Bool {
+        var letters = 0
+        var unspaced = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            letters += 1
+            if isUnspacedScriptScalar(scalar) { unspaced += 1 }
+        }
+        return letters >= 20 && Double(unspaced) > Double(letters) * 0.3
+    }
+
+    /// Whether a page's text layer prints its words without spaces between them (5.8). Some PDFs place every word by
+    /// position and print no space character, so PDFKit reads a line as one token ("portantroleinthisregulat"). Measured
+    /// 2026-11-08 on eight PDFs: on two of them 25 to 80% of each page's letters were in tokens of 18 or more letters,
+    /// on the other six at most 13.5% (reference pages with long identifiers), most under 3%. Over 20% the page is read by
+    /// Vision and its text-layer words are not used, so neither a paragraph nor a table takes run-together text.
+    nonisolated static func textLayerLacksWordSpaces(_ text: String?) -> Bool {
+        guard let text else { return false }
+        var letters = 0
+        var longLetters = 0
+        // Scripts written without spaces (Chinese, Japanese, Thai, Lao, Khmer, Burmese) and nucleotide sequences
+        // ("ACGTTGCA...") are long tokens by nature, not run-together words (refuting review, 2026-11-08).
+        func unspacedScript(_ scalar: Unicode.Scalar) -> Bool {
+            switch scalar.value {
+            case 0x0E00...0x0EFF, 0x1000...0x109F, 0x1780...0x17FF, 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF,
+                0xAC00...0xD7AF, 0xF900...0xFAFF:
+                return true
+            default:
+                return false
+            }
+        }
+        for token in text.split(whereSeparator: \.isWhitespace) {
+            let count = token.reduce(0) { $0 + ($1.isLetter ? 1 : 0) }
+            letters += count
+            guard count >= 18, !token.contains("/"), !token.contains("@"), !token.lowercased().contains("www") else {
+                continue
+            }
+            if token.unicodeScalars.contains(where: unspacedScript) { continue }
+            if token.uppercased().allSatisfy({ "ACGTUN".contains($0) || !$0.isLetter }) { continue }
+            longLetters += count
+        }
+        return letters >= 200 && Double(longLetters) > Double(letters) * 0.2
+    }
+
+    /// Whether a line is a web address and nothing else: no space, a dot followed by a known top-level domain.
+    nonisolated static func isBareWebAddress(_ line: String) -> Bool {
+        line.range(
+            of: #"^(https?://)?(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|edu|gov|int|io|info|co\.uk|ac\.uk)(/\S*)?$"#,
+            options: .regularExpression) != nil
     }
 
     /// Whether a line is one of a document's running lines.

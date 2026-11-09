@@ -113,8 +113,13 @@ extension DocumentProcessor {
         for word in pageString.split(whereSeparator: { $0.isWhitespace || $0.isNewline }) {
             let range = NSRange(word.startIndex..<word.endIndex, in: pageString)
             guard let selection = page.selection(for: range) else { continue }
-            let bounds = selection.bounds(for: page)
+            var bounds = selection.bounds(for: page)
             guard bounds.width > 0, bounds.height > 0 else { continue }
+            // A selection can report a box far wider than its characters (ijms page 1: "2020" 168 points wide, its centre
+            // past the paragraph's edge, so the date was stored as "21 May"; 2026-11-08). Clamped to a width no glyph run
+            // reaches: its height for every character.
+            let widest = bounds.height * CGFloat(max(word.count, 1))
+            if bounds.width > widest { bounds.size.width = bounds.height * 0.6 * CGFloat(max(word.count, 1)) }
             // A run of digits the page string prints without a space can be several numbers set apart on the page
             // (a contents page's "11 13 13 14" came out as "11131314" on 2026-11-08). Split it where its characters
             // leave a gap of more than a quarter of their height.
@@ -126,7 +131,12 @@ extension DocumentProcessor {
             }
             words.append(TextLayerWord(text: String(word), box: normalized(bounds)))
         }
-        return words
+        let size = crop.size
+        return words.map { word in
+            var sized = word
+            sized.pageSize = size
+            return sized
+        }
     }
 
     /// A digit run cut where its characters leave a visible gap, with each piece's bounds; nil when a character has no

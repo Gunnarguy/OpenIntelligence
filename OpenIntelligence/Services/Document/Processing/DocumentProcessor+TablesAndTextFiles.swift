@@ -5,22 +5,23 @@
 //  Part of DocumentProcessor, moved from DocumentProcessor.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
-import Foundation
-import os
+import Compression
+import CoreImage
 import CryptoKit
+import Foundation
+import Metal
 import NaturalLanguage
 import PDFKit
+import Tokenizers
 import UniformTypeIdentifiers
 import Vision
-import CoreImage
-import Metal
-import Tokenizers
-import Compression
+import os
+
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 #if canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 extension DocumentProcessor {
@@ -56,13 +57,15 @@ extension DocumentProcessor {
 
     /// Detect tables in OCR observations using grid alignment analysis
     /// Returns detected tables and remaining non-table observations
-    func detectTables(from observations: [VNRecognizedTextObservation]) -> (tables: [DetectedTable], remaining: [VNRecognizedTextObservation]) {
+    func detectTables(
+        from observations: [VNRecognizedTextObservation]
+    ) -> (tables: [DetectedTable], remaining: [VNRecognizedTextObservation]) {
         guard observations.count >= 4 else {
             return ([], observations)
         }
 
         // Group observations by Y position (rows)
-        let lineThreshold: CGFloat = 0.02 // 2% of page height = same row
+        let lineThreshold: CGFloat = 0.02  // 2% of page height = same row
         var rows: [[VNRecognizedTextObservation]] = []
         var currentRow: [VNRecognizedTextObservation] = []
         var lastY: CGFloat = -1
@@ -119,7 +122,9 @@ extension DocumentProcessor {
                             row.compactMap { cell -> String? in
                                 let analysis = ConfidenceVerifier.analyze(cell)
                                 if analysis.isUncertain && analysis.containsNumericData {
-                                    Log.warning("[DocumentProcessor] ⚠️ Uncertain table value: '\(analysis.text)' (conf: \(String(format: "%.0f%%", analysis.confidence * 100))). Alternatives: \(analysis.alternatives.map { "\($0.text)(\(String(format: "%.0f%%", $0.confidence * 100)))" }.joined(separator: ", "))", category: .ingestion)
+                                    Log.warning(
+                                        "[DocumentProcessor] ⚠️ Uncertain table value: '\(analysis.text)' (conf: \(String(format: "%.0f%%", analysis.confidence * 100))). Alternatives: \(analysis.alternatives.map { "\($0.text)(\(String(format: "%.0f%%", $0.confidence * 100)))" }.joined(separator: ", "))",
+                                        category: .ingestion)
                                 }
                                 return analysis.text.isEmpty ? nil : analysis.text
                             }
@@ -132,11 +137,12 @@ extension DocumentProcessor {
                         let minY = allObs.map { $0.boundingBox.minY }.min() ?? 0
                         let maxY = allObs.map { $0.boundingBox.maxY }.max() ?? 1
 
-                        tables.append(DetectedTable(
-                            rows: textRows,
-                            boundingBox: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
-                            confidence: Float(tableRows.count) / Float(max(1, rows.count))
-                        ))
+                        tables.append(
+                            DetectedTable(
+                                rows: textRows,
+                                boundingBox: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+                                confidence: Float(tableRows.count) / Float(max(1, rows.count))
+                            ))
 
                         // Mark these observations as table content
                         for row in tableRows {
@@ -145,7 +151,9 @@ extension DocumentProcessor {
                             }
                         }
 
-                        Log.debug("[DocumentProcessor] Detected table: \(tableRows.count) rows × \(columnCount) columns", category: .ingestion)
+                        Log.debug(
+                            "[DocumentProcessor] Detected table: \(tableRows.count) rows × \(columnCount) columns",
+                            category: .ingestion)
                     }
                 }
 
@@ -167,7 +175,7 @@ extension DocumentProcessor {
 
         // Get X positions of first row as reference
         let referenceXs = rows[0].map { $0.boundingBox.midX }
-        let alignmentThreshold: CGFloat = 0.05 // 5% tolerance
+        let alignmentThreshold: CGFloat = 0.05  // 5% tolerance
 
         for row in rows.dropFirst() {
             let rowXs = row.map { $0.boundingBox.midX }
@@ -195,11 +203,11 @@ extension DocumentProcessor {
     func normalizationProfile(for documentType: DocumentType) -> OCRConfiguration.TextNormalizationProfile {
         switch documentType {
         case .text, .markdown, .rtf,
-             .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
-             .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code,
-             .csv,
-               .word, .excel, .powerpoint, .pages, .numbers, .keynote,
-             .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+            .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
+            .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code,
+            .csv,
+            .word, .excel, .powerpoint, .pages, .numbers, .keynote,
+            .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
             return .authoredText
 
         default:
@@ -267,7 +275,8 @@ extension DocumentProcessor {
             let littleEndian = zerosAtOdd >= zerosAtEven
             let encoding: String.Encoding = littleEndian ? .utf16LittleEndian : .utf16BigEndian
             if let result = accepted(String(data: data, encoding: encoding), "UTF-16"),
-                !result.text.unicodeScalars.prefix(1_000).contains("\u{0}") {
+                !result.text.unicodeScalars.prefix(1_000).contains("\u{0}")
+            {
                 return result
             }
         }
@@ -281,7 +290,8 @@ extension DocumentProcessor {
             usedLossyConversion: &usedLossyConversion)
         if detected != 0, !usedLossyConversion.boolValue,
             let result = accepted(
-                converted as String?, String.localizedName(of: String.Encoding(rawValue: detected))) {
+                converted as String?, String.localizedName(of: String.Encoding(rawValue: detected)))
+        {
             return result
         }
 
@@ -444,30 +454,25 @@ extension DocumentProcessor {
     /// Handles: quoted fields, embedded delimiters, embedded newlines,
     /// escaped quotes (""), multiple delimiter types (comma, tab, semicolon, pipe)
     func extractTextFromCSV(url: URL) throws -> String {
-        // Try multiple encodings for robustness
-        let csvContent: String
-        if let utf8 = try? String(contentsOf: url, encoding: .utf8) {
-            csvContent = utf8
-        } else if let latin1 = try? String(contentsOf: url, encoding: .isoLatin1) {
-            Log.info("[DocumentProcessor] CSV: Using Latin-1 encoding (UTF-8 failed)", category: .ingestion)
-            csvContent = latin1
-        } else if let win1252 = try? String(contentsOf: url, encoding: .windowsCP1252) {
-            Log.info("[DocumentProcessor] CSV: Using Windows-1252 encoding", category: .ingestion)
-            csvContent = win1252
-        } else {
-            throw DocumentProcessingError.unsupportedEncoding
+        // The encoding is found the way every other text file's is (5.8). A file that was not UTF-8 was read as
+        // Latin-1, which never fails, so a Windows-1252 "€5" was stored with a control character for the euro sign
+        // and a UTF-16 export was read as Latin-1 letters with zero bytes between them.
+        if (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize == 0 {
+            throw DocumentProcessingError.emptyDocument
         }
+        let csvContent = try readTextFileWithFallbackEncodings(url: url, purpose: "CSV file")
 
         guard !csvContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw DocumentProcessingError.emptyDocument
         }
 
-        // Detect delimiter from first line (tab > semicolon > pipe > comma)
-        let delimiter = detectCSVDelimiter(csvContent)
-        Log.debug("[DocumentProcessor] CSV delimiter detected: '\(delimiter == "\t" ? "TAB" : String(delimiter))'", category: .ingestion)
+        let delimiter = Self.csvDelimiter(csvContent)
+        Log.debug(
+            "[DocumentProcessor] CSV delimiter detected: '\(delimiter == "\t" ? "TAB" : String(delimiter))'",
+            category: .ingestion)
 
         // Parse using RFC 4180 state machine
-        let rows = parseCSVRows(csvContent, delimiter: delimiter)
+        let rows = Self.csvRows(csvContent, delimiter: delimiter)
 
         guard !rows.isEmpty else {
             throw DocumentProcessingError.emptyDocument
@@ -481,131 +486,99 @@ extension DocumentProcessor {
         return formattedPipeTableText(from: rows)
     }
 
-    /// Detect CSV delimiter by analyzing the first few lines
-    /// Priority: tab > semicolon > pipe > comma (avoids false positives from commas in text)
-    private func detectCSVDelimiter(_ content: String) -> Character {
-        // Take first 5 lines (not parsed, just split by raw newline for detection)
-        let sampleLines = content.components(separatedBy: .newlines).prefix(5)
-        let sample = sampleLines.joined(separator: "\n")
-
-        let tabCount = sample.filter { $0 == "\t" }.count
-        let semiCount = sample.filter { $0 == ";" }.count
-        let pipeCount = sample.filter { $0 == "|" }.count
-        let commaCount = sample.filter { $0 == "," }.count
-
-        // Tab is unambiguous — if present, it's almost always the delimiter
-        if tabCount >= sampleLines.count - 1 && tabCount > 0 {
-            return "\t"
+    /// The delimiter a CSV file uses: of comma, semicolon, tab and pipe, the one that splits the most of the first 20
+    /// records into the same number of fields (more than one), counting only delimiters outside quoted fields; a tie
+    /// goes to more fields, then to the order above (5.8). The character found most often in the first five lines
+    /// won before, quotes or not, so a semicolon file with decimal commas ("Price;Qty\n1,50;2\n2,75;3") or a comma
+    /// file whose notes held tabs was split on the wrong character.
+    nonisolated static func csvDelimiter(_ content: String) -> Character {
+        let sample = String(content.prefix(65_536))
+        var best: (delimiter: Character, records: Int, fields: Int) = (",", 0, 0)
+        for delimiter in [",", ";", "\t", "|"] as [Character] {
+            var frequency: [Int: Int] = [:]
+            for row in csvRows(sample, delimiter: delimiter, maxRecords: 20) { frequency[row.count, default: 0] += 1 }
+            guard let mode = frequency.max(by: { ($0.value, $0.key) < ($1.value, $1.key) }), mode.key > 1 else {
+                continue
+            }
+            if (mode.value, mode.key) > (best.records, best.fields) { best = (delimiter, mode.value, mode.key) }
         }
-
-        // Pick the most frequent delimiter that appears consistently across lines
-        let candidates: [(Character, Int)] = [
-            ("\t", tabCount),
-            (";", semiCount),
-            ("|", pipeCount),
-            (",", commaCount)
-        ]
-
-        // Delimiter should appear at least once per line — pick the one with most consistent count
-        if let best = candidates.max(by: { $0.1 < $1.1 }), best.1 > 0 {
-            return best.0
-        }
-
-        return "," // Default
+        return best.delimiter
     }
 
     /// RFC 4180 CSV parser — handles quoted fields, embedded delimiters, embedded newlines, escaped quotes
-    /// Returns array of rows, each row is an array of field values
-    private func parseCSVRows(_ content: String, delimiter: Character) -> [[String]] {
+    /// Returns array of rows, each row is an array of field values, at most `maxRecords` of them.
+    ///
+    /// A quote opens a quoted field only where the field starts (after spaces at most), as RFC 4180 has it (5.8). A
+    /// quote anywhere opened one, so in `TV,55" screen,499` every delimiter and line end after the inch mark, up to
+    /// the next quote in the file, was read as text and the rows between became one cell. The text is read by
+    /// Unicode scalar: Swift reads "\r\n" as one Character, equal to neither "\r" nor "\n", so every row of a file
+    /// with Windows line ends ran into the next.
+    nonisolated static func csvRows(_ content: String, delimiter: Character, maxRecords: Int = .max) -> [[String]] {
+        guard let separator = delimiter.unicodeScalars.first else { return [] }
+        let scalars = content.unicodeScalars
         var rows: [[String]] = []
         var currentRow: [String] = []
-        var currentField = ""
+        var currentField = String.UnicodeScalarView()
         var inQuotes = false
-        var i = content.startIndex
 
-        while i < content.endIndex {
-            let char = content[i]
+        func endField() {
+            currentRow.append(String(currentField).trimmingCharacters(in: .whitespaces))
+            currentField = String.UnicodeScalarView()
+        }
+        func endRow() {
+            endField()
+            if !currentRow.allSatisfy({ $0.isEmpty }) { rows.append(currentRow) }
+            currentRow = []
+        }
+
+        var i = scalars.startIndex
+        while i < scalars.endIndex, rows.count < maxRecords {
+            let scalar = scalars[i]
+            let next = scalars.index(after: i)
 
             if inQuotes {
-                if char == "\"" {
-                    // Look ahead: is this an escaped quote ("") or end of quoted field?
-                    let next = content.index(after: i)
-                    if next < content.endIndex && content[next] == "\"" {
+                if scalar == "\"" {
+                    if next < scalars.endIndex && scalars[next] == "\"" {
                         // Escaped quote — add literal quote and skip both
                         currentField.append("\"")
-                        i = content.index(after: next)
-                        continue
+                        i = scalars.index(after: next)
                     } else {
-                        // End of quoted field
+                        // End of quoted field; anything up to the delimiter is kept as written
                         inQuotes = false
-                        i = content.index(after: i)
-                        continue
+                        i = next
                     }
                 } else {
                     // Inside quotes — everything is literal (including delimiters and newlines)
-                    currentField.append(char)
-                    i = content.index(after: i)
+                    currentField.append(scalar)
+                    i = next
+                }
+                continue
+            }
+
+            if scalar == "\"" && currentField.allSatisfy({ $0 == " " || ($0 == "\t" && separator != "\t") }) {
+                // Start of quoted field
+                currentField = String.UnicodeScalarView()
+                inQuotes = true
+            } else if scalar == separator {
+                endField()
+            } else if scalar == "\r" {
+                // \r\n or a bare \r ends the row
+                endRow()
+                if next < scalars.endIndex && scalars[next] == "\n" {
+                    i = scalars.index(after: next)
                     continue
                 }
+            } else if scalar == "\n" {
+                endRow()
+            } else {
+                currentField.append(scalar)
             }
-
-            // Not in quotes
-            if char == "\"" {
-                // Start of quoted field (should be at field start, but be permissive)
-                inQuotes = true
-                i = content.index(after: i)
-                continue
-            }
-
-            if char == delimiter {
-                // End of field
-                currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
-                currentField = ""
-                i = content.index(after: i)
-                continue
-            }
-
-            if char == "\r" {
-                // Handle \r\n and bare \r
-                let next = content.index(after: i)
-                if next < content.endIndex && content[next] == "\n" {
-                    i = content.index(after: next)
-                } else {
-                    i = content.index(after: i)
-                }
-                // End of row
-                currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
-                if !currentRow.allSatisfy({ $0.isEmpty }) {
-                    rows.append(currentRow)
-                }
-                currentRow = []
-                currentField = ""
-                continue
-            }
-
-            if char == "\n" {
-                // End of row
-                currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
-                if !currentRow.allSatisfy({ $0.isEmpty }) {
-                    rows.append(currentRow)
-                }
-                currentRow = []
-                currentField = ""
-                i = content.index(after: i)
-                continue
-            }
-
-            // Regular character
-            currentField.append(char)
-            i = content.index(after: i)
+            i = next
         }
 
         // Don't forget the last field/row
-        if !currentField.isEmpty || !currentRow.isEmpty {
-            currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
-            if !currentRow.allSatisfy({ $0.isEmpty }) {
-                rows.append(currentRow)
-            }
+        if rows.count < maxRecords && (!currentField.isEmpty || !currentRow.isEmpty) {
+            endRow()
         }
 
         return rows

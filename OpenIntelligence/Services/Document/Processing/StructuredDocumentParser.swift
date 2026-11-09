@@ -500,6 +500,10 @@ struct StructuredPageContent: Sendable {
     let rawText: String  // Fallback plain text
     let qualityScore: Double  // 0.0-1.0, how much content was captured vs raw text
     let figureReferences: [String]  // Detected figure/diagram references
+    /// Running headers and footers the margin rule left out of `elements` (5.8). Text read some other way for the same
+    /// page (the layout text that replaces paragraphs in hybrid mode) has these lines taken out too, so a header is
+    /// removed on every page or on none, and the cross-page running-line rule still sees it repeat.
+    var marginalTexts: [String] = []
 
     nonisolated var hasStructuredContent: Bool {
         elements.contains { element in
@@ -568,6 +572,9 @@ struct StructuredPageContent: Sendable {
 struct TextLayerWord: Sendable, Equatable {
     let text: String
     let box: CGRect
+    /// The page's size in points (its crop box), so a tolerance stated in points (pdfplumber's 1 and 3) can be applied
+    /// to the normalized box; zero when not known.
+    var pageSize: CGSize = .zero
 }
 
 @available(iOS 26.0, *)
@@ -588,6 +595,7 @@ actor StructuredDocumentParser {
         let tableCount: Int
         let listCount: Int
         let figureCount: Int
+        var marginalTexts: [String] = []
     }
 
     /// Dynamic custom words for the current document being processed.
@@ -722,6 +730,11 @@ actor StructuredDocumentParser {
             Locale.Language(identifier: $0)
         }
 
+        // A page without a text layer (a scan) is also read in quarters, for the text the whole-page reading misses (5.8).
+        let tiledLines: [TextLayerWord] =
+            (textLayerWords?.isEmpty ?? true) && Self.tilesScans
+            ? await tiledTextLines(on: fullResImageCG() ?? structureCG, customWords: customWords) : []
+
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
         let configuredRequest = request
         let structuredSnapshot: StructuredDocumentSnapshot? = try await VisionOCRThrottle.performAsync { [self] in
@@ -730,7 +743,7 @@ actor StructuredDocumentParser {
                 return nil
             }
 
-            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber, sourceImage: preferFullResolution ? image : structureImage, textLayerWords: textLayerWords)
+            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber, sourceImage: preferFullResolution ? image : structureImage, textLayerWords: textLayerWords, tiledLines: tiledLines)
         }
 
         guard let structuredSnapshot else {
@@ -813,14 +826,30 @@ actor StructuredDocumentParser {
             elements: elements,
             rawText: rawText,
             qualityScore: qualityScore,
-            figureReferences: figureReferences
+            figureReferences: figureReferences,
+            marginalTexts: structuredSnapshot.marginalTexts
         )
     }
 
-    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int, sourceImage: CIImage, textLayerWords: [TextLayerWord]? = nil) async -> StructuredDocumentSnapshot {
+    /// The caption-anchored figure pass is off unless `OI_FIGURES=on` is in the environment. Measured 2026-11-09 on the
+    /// owner's eight PDFs: it found 9 figures and every stored passage was identical with it on and off (those pages'
+    /// text reaches storage through the layout text), so nothing showed it helping, and a refuting review found ways it
+    /// can take a running header or a sentence about a figure into a figure passage. It stays for measurement.
+    nonisolated static var detectsFigures: Bool { ProcessInfo.processInfo.environment["OI_FIGURES"] == "on" }
+
+    /// `OI_TILE_SCANS=off` in the environment turns the quartered reading of scans off, to compare on one build.
+    nonisolated static var tilesScans: Bool { ProcessInfo.processInfo.environment["OI_TILE_SCANS"] != "off" }
+
+    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int, sourceImage: CIImage, textLayerWords: [TextLayerWord]? = nil, tiledLines: [TextLayerWord] = []) async -> StructuredDocumentSnapshot {
         var elements: [StructuredElement] = []
         var figureReferences: [String] = []
-        let figureCount = 0
+        var figureCount = 0
+
+        // Each element's box, and which elements are Vision's reading-order text (the title and paragraphs), so tables,
+        // lists and recovered text can be put back where they sit on the page (5.8, `inPageOrder`).
+        var elementBoxes: [CGRect?] = []
+        var flowElements = Set<Int>()
+        var layerTableElements = Set<Int>()
 
         var pageTitle: String? = nil
         if let title = document.title {
@@ -832,6 +861,8 @@ actor StructuredDocumentParser {
                 let finalTitle = isLowQuality ? "[OCR unclear] \(cleanedTitle)" : cleanedTitle
                 pageTitle = finalTitle
                 elements.append(.title(text: finalTitle, pageNumber: pageNumber))
+                elementBoxes.append(title.boundingRegion.normalizedPath.boundingBox)
+                flowElements.insert(elements.count - 1)
                 Log.debug("[StructuredDocumentParser] Found title: \(cleanedTitle.prefix(50))...\(isLowQuality ? " (low quality)" : "")", category: .ingestion)
             }
         }
@@ -847,36 +878,133 @@ actor StructuredDocumentParser {
         let captionCandidates: [(text: String, box: CGRect)] = document.paragraphs.map {
             ($0.transcript, $0.boundingRegion.normalizedPath.boundingBox)
         }
-        for table in document.tables {
+        // Tables from where the text layer's words sit (5.8, `TextLayerTableDetector`), on a page with a good text layer.
+        // A table Vision found that holds its region (at least 70% as many cells as the word runs inside it) is kept and
+        // its words are left out of the search, so a table beside it is not merged into it; one that holds a fragment
+        // (JAMA Psychiatry's full-page Table 1 as two columns) is replaced by the table its words make, and paragraphs
+        // and lists inside a found table are its cells read as prose, so they are dropped.
+        var layerTables: [TextLayerTableDetector.Table] = []
+        var replacedVisionTables = Set<Int>()
+        if let words = textLayerWords, !words.isEmpty {
+            var keptBoxes: [CGRect] = []
+            var weakTables: [(index: Int, box: CGRect)] = []
+            for (index, table) in document.tables.enumerated() {
+                let box = table.boundingRegion.normalizedPath.boundingBox
+                let runs = TextLayerTableDetector.segmentCount(in: box, words: words)
+                let cells = Set(table.rows.flatMap { $0 }.map { "\($0.rowRange):\($0.columnRange)" }).count
+                if Double(cells) >= Double(runs) * 0.7 { keptBoxes.append(box) } else { weakTables.append((index, box)) }
+            }
+            // Prose paragraphs are not searched either (12 or more words, under a quarter of them numbers): justified
+            // text has wide word gaps, and the PAH paper's right column became four columns of a 9-column table beside
+            // its Table 1 (after10, 2026-11-08). Paragraphs of numbers stay in: a table Vision read as paragraphs.
+            for paragraph in document.paragraphs {
+                let tokens = paragraph.transcript.split(whereSeparator: \.isWhitespace)
+                let numeric = tokens.filter { $0.contains(where: \.isNumber) }.count
+                if tokens.count >= 12, Double(numeric) < Double(tokens.count) * 0.25 {
+                    keptBoxes.append(paragraph.boundingRegion.normalizedPath.boundingBox)
+                }
+            }
+            let free = words.filter { word in
+                !keptBoxes.contains { $0.contains(CGPoint(x: word.box.midX, y: word.box.midY)) }
+            }
+            layerTables = TextLayerTableDetector.tables(in: free)
+            for weak in weakTables where layerTables.contains(where: { $0.box.intersects(weak.box) }) {
+                replacedVisionTables.insert(weak.index)
+            }
+        }
+        // A paragraph or list inside a found table is dropped only when the table's text has 80% of its words: then it
+        // is the table's cells read as prose. Otherwise it is text beside the table and stays.
+        let layerTableTokens = layerTables.map { table in
+            Self.coverageTokens(((table.header ?? []) + table.rows.flatMap { $0 }).joined(separator: " "))
+        }
+        func insideLayerTable(_ box: CGRect, text: String) -> Bool {
+            let centre = CGPoint(x: box.midX, y: box.midY)
+            let tokens = Self.coverageTokens(text)
+            return layerTables.indices.contains { index in
+                guard layerTables[index].box.insetBy(dx: -0.004, dy: -0.004).contains(centre) else { return false }
+                guard !tokens.isEmpty else { return true }
+                return Double(tokens.filter(layerTableTokens[index].contains).count) >= Double(tokens.count) * 0.8
+            }
+        }
+
+        for (index, table) in document.tables.enumerated() where !replacedVisionTables.contains(index) {
             let ownCaption = Self.tableCaption(
                 tableBox: table.boundingRegion.normalizedPath.boundingBox, paragraphs: captionCandidates)
             let tableData = parseTable(table, pageNumber: pageNumber, caption: ownCaption ?? pageTitle, textLayerWords: textLayerWords)
             elements.append(.table(tableData))
+            elementBoxes.append(table.boundingRegion.normalizedPath.boundingBox)
             Log.debug("[StructuredDocumentParser] Found table with \(tableData.rows.count) rows on page \(pageNumber)", category: .ingestion)
         }
+        for found in layerTables {
+            let caption = Self.tableCaption(tableBox: found.box, paragraphs: captionCandidates) ?? pageTitle
+            func normalized(_ row: [String]) -> [String] {
+                row.map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
+            }
+            let header = found.header.map(normalized)
+            let rows = (header.map { [$0] } ?? []) + found.rows.map(normalized)
+            elements.append(.table(TableData(pageNumber: pageNumber, rows: rows, headerRow: header, caption: caption, detectedEntities: [])))
+            elementBoxes.append(found.box)
+            layerTableElements.insert(elements.count - 1)
+            Log.info(
+                "[StructuredDocumentParser] Page \(pageNumber): table of \(found.rows.count) rows and \(found.rows.first?.count ?? 0) columns read from the text layer's word positions",
+                category: .ingestion)
+        }
 
-        for list in document.lists {
+        for list in document.lists
+        where !insideLayerTable(list.boundingRegion.normalizedPath.boundingBox, text: list.items.map(\.content.text.transcript).joined(separator: " ")) {
             let items = parseList(list)
             if !items.isEmpty {
                 elements.append(.list(items: items, pageNumber: pageNumber))
+                elementBoxes.append(list.boundingRegion.normalizedPath.boundingBox)
                 Log.debug("[StructuredDocumentParser] Found list with \(items.count) items on page \(pageNumber)", category: .ingestion)
             }
         }
 
-        for paragraph in document.paragraphs {
+        // A paragraph's text-layer reading leaves out words inside a table (5.8): a paragraph box that overlapped Table 3
+        // of the PAH paper took its values into the sentence ("individual com-1.64 pound").
+        let tableBoxes = document.tables.enumerated().filter { !replacedVisionTables.contains($0.offset) }
+            .map { $0.element.boundingRegion.normalizedPath.boundingBox } + layerTables.map(\.box)
+        let paragraphWords = textLayerWords?.filter { word in
+            let centre = CGPoint(x: word.box.midX, y: word.box.midY)
+            return !tableBoxes.contains { $0.contains(centre) }
+        }
+        // Which element each Vision paragraph became, for the figure pass below.
+        var paragraphElementIndex = [Int?](repeating: nil, count: document.paragraphs.count)
+        for (paragraphIndex, paragraph) in document.paragraphs.enumerated()
+        where !insideLayerTable(paragraph.boundingRegion.normalizedPath.boundingBox, text: paragraph.transcript) {
             let visionText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             // A paragraph on a page with a good text layer is the page's own text when it is the same paragraph
             // (5.8): on pages where Vision finds a table, every paragraph came from OCR at half resolution.
             let cleanedText: String
             let isLowQuality: Bool
-            if let words = textLayerWords, !words.isEmpty,
+            if let words = paragraphWords, !words.isEmpty,
                 let layerText = Self.textLayerText(
                     in: paragraph.boundingRegion.normalizedPath.boundingBox, words: words, lineSeparator: "\n"),
                 Self.textLayerAgreesForParagraph(layerText, withVision: visionText)
             {
                 cleanedText = layerText
                 isLowQuality = false
+                // Words Vision read in this paragraph that the text-layer reading lacks (diagnostic, 2026-11-08: "the
+                // school" went missing from a two-column page whose Vision paragraph had it).
+                let layerTokens = Self.coverageTokens(layerText)
+                let missing = Self.coverageTokens(visionText).subtracting(layerTokens)
+                if missing.count >= 2 {
+                    Log.debug(
+                        "[StructuredDocumentParser] Page \(pageNumber): text-layer reading of a paragraph lacks Vision's \(missing.sorted().prefix(6).joined(separator: ", "))",
+                        category: .ingestion)
+                }
             } else {
+                // Diagnostic (2026-11-08): on a page with a text layer, why Vision's reading was kept.
+                if let words = paragraphWords, !words.isEmpty,
+                    let layer = Self.textLayerText(
+                        in: paragraph.boundingRegion.normalizedPath.boundingBox, words: words, lineSeparator: "\n")
+                {
+                    let onlyLayer = Self.coverageTokens(layer).subtracting(Self.coverageTokens(visionText))
+                    let onlyVision = Self.coverageTokens(visionText).subtracting(Self.coverageTokens(layer))
+                    Log.debug(
+                        "[StructuredDocumentParser] Page \(pageNumber): kept Vision's paragraph over the text layer (\(layer.count) vs \(visionText.count) characters; layer only: \(onlyLayer.sorted().prefix(5).joined(separator: " ")); Vision only: \(onlyVision.sorted().prefix(5).joined(separator: " ")))",
+                        category: .ingestion)
+                }
                 var rawParagraphText = visionText
                 rawParagraphText = deconfuseCyrillicLatin(rawParagraphText)
                 rawParagraphText = fixReversedTextIfNeeded(rawParagraphText)
@@ -900,9 +1028,96 @@ actor StructuredDocumentParser {
 
                 let finalText = isLowQuality ? "[OCR quality: low] \(cleanedText)" : cleanedText
                 elements.append(.paragraph(text: finalText, pageNumber: pageNumber))
+                elementBoxes.append(paragraph.boundingRegion.normalizedPath.boundingBox)
+                flowElements.insert(elements.count - 1)
+                paragraphElementIndex[paragraphIndex] = elements.count - 1
+            }
+        }
+
+        // Figures by their captions (5.8, `FigureRegionDetector`, ported from pdffigures2): a "Figure N." caption's
+        // figure is the region between it and the nearest body text, and the labels Vision read there as paragraphs
+        // ("UnSg4.73, P<.001") are the figure's own text. The caption becomes a figure passage at the caption's place,
+        // its labels the text layer's lines in that region, and the paragraphs inside the region are left out.
+        var droppedByFigure = Set<Int>()
+        if Self.detectsFigures, let words = textLayerWords, !words.isEmpty {
+            // Body also holds the page title and any block in the margin zones the margin rule uses (top 8%, bottom
+            // 13%), so a figure's region stops below a running header rather than taking it in as a label (refuting
+            // review, 2026-11-08).
+            let marginBlocks = captionCandidates.map(\.box).filter { $0.minY >= 0.92 || $0.maxY <= 0.13 }
+            let bodyBoxes = tableBoxes
+                + document.lists.map { $0.boundingRegion.normalizedPath.boundingBox }
+                + captionCandidates.filter { FigureRegionDetector.isProse($0.text) }.map(\.box)
+                + marginBlocks
+                + [document.title?.boundingRegion.normalizedPath.boundingBox].compactMap { $0 }
+            let figures = FigureRegionDetector.detect(paragraphs: captionCandidates, bodyBoxes: bodyBoxes, words: words)
+            for figure in figures {
+                guard let captionElement = paragraphElementIndex[figure.captionParagraphIndex] else { continue }
+                let captionText = elements[captionElement].textForEmbedding
+                let description = figure.labels.isEmpty
+                    ? captionText : "\(captionText)\nLABELS: \(figure.labels.joined(separator: " | "))"
+                elements[captionElement] = .figure(description: description, pageNumber: pageNumber)
+                elementBoxes[captionElement] = figure.region.union(captionCandidates[figure.captionParagraphIndex].box)
+                for index in figure.paragraphIndices {
+                    if let element = paragraphElementIndex[index], element != captionElement { droppedByFigure.insert(element) }
+                }
+                figureCount += 1
+            }
+            if !figures.isEmpty {
+                Log.info(
+                    "[StructuredDocumentParser] Page \(pageNumber): \(figures.count) figure(s) by caption, \(droppedByFigure.count) label paragraph(s) folded into them",
+                    category: .ingestion)
             }
         }
         
+        // Text that no title, table, list or paragraph holds (5.8). Vision's document reading can leave a region out of
+        // every container: the PAH paper's borderless Table 1 (48 rows beside its own continuation on page 4) was in none,
+        // so every number in it was dropped while the page scored 100%, before and after the 2026-11-08 work. Every word
+        // the page prints now reaches a passage: the text layer's words on a page with a good one, else Vision's lines.
+        // A word is held only when an element's box holds it and that element's stored text says it: Vision drew a
+        // paragraph box over the PAH paper's whole Table 1 whose text was only the column headers, so a box test alone
+        // still dropped every number in it.
+        let coveredRegions: [CoveredRegion] = elements.indices.compactMap { index in
+            // A paragraph folded into a figure holds nothing: a word only it said comes back as recovered text.
+            guard !droppedByFigure.contains(index) else { return nil }
+            let box = elementBoxes[index] ?? (index == 0 ? document.title?.boundingRegion.normalizedPath.boundingBox : nil)
+            guard let box else { return nil }
+            var region = CoveredRegion(box: box, words: Self.coverageTokens(elements[index].textForEmbedding))
+            region.allowsMisreads = !layerTableElements.contains(index)
+            return region
+        }
+        let residualItems: [TextLayerWord]
+        if let words = textLayerWords, !words.isEmpty {
+            residualItems = words
+        } else if !tiledLines.isEmpty {
+            residualItems = tiledLines
+        } else {
+            // Lines Vision is more than half sure of: on JAMA's pages without a usable text layer, the lines Vision left out
+            // of every container were mostly table headers it misread ("#n= 124U41 ... ISMDIa", after11, 2026-11-08).
+            residualItems = document.text.lines.compactMap { line in
+                guard let best = line.topCandidates(1).first, best.confidence > 0.5 else { return nil }
+                let text = best.string
+                guard !text.isEmpty else { return nil }
+                return TextLayerWord(text: text, box: line.boundingBox.cgRect)
+            }
+        }
+        let fromTextLayer = textLayerWords?.isEmpty == false
+        for block in Self.uncoveredBlocks(items: residualItems, regions: coveredRegions) {
+            let text: String
+            if fromTextLayer {
+                text = block.text
+            } else {
+                var raw = deconfuseCyrillicLatin(block.text)
+                raw = fixReversedTextIfNeeded(raw)
+                text = validateAndCleanOCR(raw).0
+            }
+            guard text.count > 3 else { continue }
+            elements.append(.paragraph(text: text, pageNumber: pageNumber))
+            elementBoxes.append(block.box)
+            Log.info(
+                "[StructuredDocumentParser] Page \(pageNumber): kept \(text.split(whereSeparator: \.isWhitespace).count) words no container held (\(fromTextLayer ? "text layer" : "Vision lines"))",
+                category: .ingestion)
+        }
+
         // Multi-Modal Figure Extraction (OS 27)
         // Check for graphical regions/figures extracted by DocumentObservation
         // (Mocking .figures accessor for OS 27 Vision SDK update)
@@ -940,13 +1155,32 @@ actor StructuredDocumentParser {
         */
         #endif
 
+        // Running headers and footers by position (Marker's MarginaliaProcessor, ported): a single page has no repeats to
+        // find them by.
+        let marginal = Self.marginalia(elements: elements, boxes: elementBoxes)
+        if !marginal.isEmpty {
+            Log.info("[StructuredDocumentParser] Page \(pageNumber): left out \(marginal.count) running header or footer block(s) by position", category: .ingestion)
+        }
+        let keptIndices = elements.indices.filter { !marginal.contains($0) && !droppedByFigure.contains($0) }
+        let keptElements = keptIndices.map { elements[$0] }
+        let keptBoxes = keptIndices.map { elementBoxes[$0] }
+        let keptFlow = Set(keptIndices.enumerated().filter { flowElements.contains($0.element) }.map(\.offset))
+        // Vision's reading order, other elements placed by position (`inPageOrder`). A port of XY-Cut++'s geometric
+        // parts was measured against it on 2026-11-08 and taken out: olmOCR-Bench multi_column 0.556 against 0.562, and
+        // on the owner's eight PDFs it split a sentence that Vision's order kept whole.
+        let pageOrder = Self.inPageOrderIndices(boxes: keptBoxes, flow: keptFlow)
+        let ordered = Self.withFootnotesLastAndSentencesJoined(
+            order: pageOrder, elements: keptElements, boxes: keptBoxes, words: textLayerWords ?? []
+        ).map { keptElements[$0] }
+
         return StructuredDocumentSnapshot(
-            elements: elements,
+            elements: ordered,
             figureReferences: figureReferences,
             rawText: document.text.transcript,
             tableCount: document.tables.count,
             listCount: document.lists.count,
-            figureCount: figureCount
+            figureCount: figureCount,
+            marginalTexts: marginal.sorted().map { elements[$0].textForEmbedding }
         )
     }
 
@@ -964,7 +1198,11 @@ actor StructuredDocumentParser {
     /// cleanup works line by line, and a header joined to the first line by a space stayed in the passage), a cell's by
     /// spaces.
     nonisolated static func textLayerText(in box: CGRect, words: [TextLayerWord], lineSeparator: String = " ") -> String? {
-        let inside = words.filter { box.contains(CGPoint(x: $0.box.midX, y: $0.box.midY)) }
+        // A word belongs to the box its first characters are in: a point half its height in from its left edge, so a
+        // word whose box runs past the right edge of its line still counts (5.8).
+        let inside = words.filter {
+            box.contains(CGPoint(x: $0.box.minX + min($0.box.width, $0.box.height) / 2, y: $0.box.midY))
+        }
         guard !inside.isEmpty else { return nil }
         // Words are grouped into lines first (top to bottom, a word joining the line whose first word's middle is
         // within half the median word height of its own), then each line is read left to right. Sorting by "different
@@ -982,6 +1220,305 @@ actor StructuredDocumentParser {
         }
         return lines.map { $0.sorted { $0.box.minX < $1.box.minX }.map(\.text).joined(separator: " ") }
             .joined(separator: lineSeparator)
+    }
+
+    /// The text of `items` (words or lines with Vision-normalized boxes, origin bottom left) whose centre lies in no box of
+    /// `covered`, as blocks in reading order (5.8). Items are grouped into rows by their middle (within half the median
+    /// height); a row is cut into cells where a gap exceeds 1.2 times that height, and a row of two or more cells is
+    /// written "a | b | c" so a borderless table keeps each value on its row label's line. Rows join a block while they
+    /// overlap it horizontally and sit within 2.5 heights of its last row. A row cell of 8 or more words is prose, so a
+    /// row holding prose and anything else is split into its cells (two columns of running text side by side).
+    nonisolated static func uncoveredBlocks(items: [TextLayerWord], covered: [CGRect]) -> [(text: String, box: CGRect)] {
+        uncoveredBlocks(items: items, regions: covered.map { CoveredRegion(box: $0, words: nil) })
+    }
+
+    /// An element's box and the words its stored text holds (nil: everything in the box).
+    struct CoveredRegion: Sendable {
+        let box: CGRect
+        let words: Set<String>?
+        /// Whether the region's text came from Vision's reading, so a few words it lacks are misreads of words it kept.
+        /// A table read from the text layer has the exact words and holds only those (2026-11-08).
+        var allowsMisreads = true
+    }
+
+    /// The tokens coverage compares by: lowercased runs of letters and digits.
+    nonisolated static func coverageTokens(_ text: String) -> Set<String> {
+        // Folded as stored text is (`normalizeExtractedText`): a table cell stores "10³" as "10^3" and "ﬁ" as "fi", and
+        // a raw word compared unfolded was counted unheld and stored a second time (refuting review, 2026-11-08).
+        let folded = OCRConfiguration.markingScriptsAndFractions(text).precomposedStringWithCompatibilityMapping
+        return Set(folded.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+    }
+
+    nonisolated static func uncoveredBlocks(items: [TextLayerWord], regions: [CoveredRegion]) -> [(text: String, box: CGRect)] {
+        let margin: CGFloat = 0.004
+        // The point a word belongs by, as in `textLayerText`: half its height in from its left edge. A word is held when
+        // a region's box holds that point and the region's text has its tokens (half of them, for a line of several).
+        // A region whose text has 80% or more of the words in its box holds them all: the rest are OCR's misreads of
+        // words it did keep, not text it lost.
+        let items = items.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+        func anchor(_ item: TextLayerWord) -> CGPoint {
+            CGPoint(x: item.box.minX + min(item.box.width, item.box.height) / 2, y: item.box.midY)
+        }
+        func says(_ region: CoveredRegion, _ item: TextLayerWord) -> Bool {
+            guard let words = region.words else { return true }
+            let tokens = coverageTokens(item.text)
+            guard !tokens.isEmpty else { return true }
+            return Double(tokens.filter(words.contains).count) >= Double(tokens.count) * 0.5
+        }
+        let wholeRegions: [Bool] = regions.map { region in
+            let inside = items.filter { region.box.insetBy(dx: -margin, dy: -margin).contains(anchor($0)) }
+            guard !inside.isEmpty else { return true }
+            guard region.allowsMisreads else { return false }
+            return Double(inside.filter { says(region, $0) }.count) >= Double(inside.count) * 0.8
+        }
+        let loose = items.filter { item in
+            let point = anchor(item)
+            return !regions.indices.contains { index in
+                regions[index].box.insetBy(dx: -margin, dy: -margin).contains(point)
+                    && (wholeRegions[index] || says(regions[index], item))
+            }
+        }
+        guard !loose.isEmpty else { return [] }
+        let heights = loose.map(\.box.height).sorted()
+        let height = max(heights[heights.count / 2], 0.002)
+
+        struct Cell { var text: String; var box: CGRect }
+        var rows: [[TextLayerWord]] = []
+        for item in loose.sorted(by: { $0.box.midY > $1.box.midY }) {
+            if let first = rows.last?.first, abs(first.box.midY - item.box.midY) <= height * 0.5 {
+                rows[rows.count - 1].append(item)
+            } else {
+                rows.append([item])
+            }
+        }
+        var cellRows: [[Cell]] = []
+        for row in rows {
+            var cells: [Cell] = []
+            for item in row.sorted(by: { $0.box.minX < $1.box.minX }) {
+                if var last = cells.last, item.box.minX - last.box.maxX <= height * 1.2 {
+                    last.text += " " + item.text
+                    last.box = last.box.union(item.box)
+                    cells[cells.count - 1] = last
+                } else {
+                    cells.append(Cell(text: item.text, box: item.box))
+                }
+            }
+            if cells.count > 1, cells.contains(where: { $0.text.split(separator: " ").count >= 8 }) {
+                cellRows.append(contentsOf: cells.map { [$0] })
+            } else {
+                cellRows.append(cells)
+            }
+        }
+
+        struct Block { var rows: [[Cell]]; var box: CGRect }
+        var blocks: [Block] = []
+        for row in cellRows {
+            let rowBox = row.dropFirst().reduce(row[0].box) { $0.union($1.box) }
+            if let index = blocks.lastIndex(where: { block in
+                block.box.minX < rowBox.maxX && rowBox.minX < block.box.maxX
+                    && block.box.minY - rowBox.maxY <= height * 2.5
+            }) {
+                blocks[index].rows.append(row)
+                blocks[index].box = blocks[index].box.union(rowBox)
+            } else {
+                blocks.append(Block(rows: [row], box: rowBox))
+            }
+        }
+        return blocks.map { block in
+            (block.rows.map { row in row.map(\.text).joined(separator: row.count > 1 ? " | " : "") }.joined(separator: "\n"), block.box)
+        }
+    }
+
+    /// The elements that are running headers or footers by their position alone, as Marker's MarginaliaProcessor decides
+    /// it (datalab-to/marker, marker/processors/marginalia.py, master 71dd5fd7, Apache-2.0; validated by its authors on
+    /// olmOCR-Bench; read 2026-11-08). A paragraph or title is one when all hold: it lies entirely in the top 8% of the
+    /// page and above all body text, or entirely in the bottom 13% and below all body text; it is at most 3.5% of the
+    /// page tall; its text is at most 150 characters; the page has at least two text blocks and some body. Body is the
+    /// text blocks (paragraphs, titles, lists) not entirely inside either zone. Tables and lists are never marginalia.
+    /// `OI_MARGINALIA=off` in the environment turns it off, to compare on one build (2026-11-08).
+    nonisolated static func marginalia(elements: [StructuredElement], boxes: [CGRect?]) -> Set<Int> {
+        guard ProcessInfo.processInfo.environment["OI_MARGINALIA"] != "off", elements.count == boxes.count else { return [] }
+        func isText(_ element: StructuredElement) -> Bool {
+            switch element {
+            case .paragraph, .title, .list: return true
+            default: return false
+            }
+        }
+        func isEligible(_ element: StructuredElement) -> Bool {
+            switch element {
+            case .paragraph, .title: return true
+            default: return false
+            }
+        }
+        // Fractions of the page from the top: (top edge, bottom edge).
+        func span(_ box: CGRect) -> (top: Double, bottom: Double) { (1 - Double(box.maxY), 1 - Double(box.minY)) }
+        let textBlocks = elements.indices.filter { isText(elements[$0]) && boxes[$0] != nil }
+        guard textBlocks.count >= 2 else { return [] }
+        let headerZone = 0.08, footerZone = 0.13
+        let body = textBlocks.filter { index in
+            let s = span(boxes[index]!)
+            return !(s.bottom <= headerZone || s.top >= 1 - footerZone)
+        }
+        guard !body.isEmpty else { return [] }
+        let bodyTop = body.map { span(boxes[$0]!).top }.min()!
+        let bodyBottom = body.map { span(boxes[$0]!).bottom }.max()!
+        var out = Set<Int>()
+        for index in textBlocks where isEligible(elements[index]) {
+            let s = span(boxes[index]!)
+            guard s.bottom - s.top <= 0.035 else { continue }
+            let text = elements[index].textForEmbedding.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty, text.count <= 150 else { continue }
+            // Body text that reaches the margin zone is not a header or footer: a block that ends mid-sentence (in a
+            // comma or a hyphen) or runs to 15 words or more. A lowercase last letter is no sign: running titles end in
+            // one ("Frontiers in Bioengineering and Biotechnology"). Marker labels its blocks with a layout model first;
+            // this port sees every paragraph, and the last two lines of a column ("Growth of B. lactis HN019 was
+            // assessed ... conditions of pH,", fbioe p7, after17) were taken for a footer.
+            if text.range(of: #"[,\-\u00AD]\s*$"#, options: .regularExpression) != nil
+                || text.split(whereSeparator: \.isWhitespace).count >= 15
+            {
+                continue
+            }
+            let isHeader = s.bottom <= headerZone && s.bottom <= bodyTop
+            let isFooter = s.top >= 1 - footerZone && s.top >= bodyBottom
+            if isHeader || isFooter { out.insert(index) }
+        }
+        return out
+    }
+
+    /// A page's elements in reading order (5.8). Vision's title and paragraphs come in its reading order and stay in it;
+    /// every other element (a table, a list, recovered text) goes before the first of them that sits below it in a
+    /// column it overlaps, or at the end when none does. They were emitted tables first, then lists, then paragraphs, so
+    /// a table took the section of whatever paragraph came before it on the previous page.
+    nonisolated static func inPageOrder<Element>(_ elements: [Element], boxes: [CGRect?], flow: Set<Int>) -> [Element] {
+        guard elements.count == boxes.count else { return elements }
+        return inPageOrderIndices(boxes: boxes, flow: flow).map { elements[$0] }
+    }
+
+    /// `inPageOrder` as indices.
+    nonisolated static func inPageOrderIndices(boxes: [CGRect?], flow: Set<Int>) -> [Int] {
+        let elements = boxes
+        var ordered: [Int] = elements.indices.filter { flow.contains($0) }
+        func sharesColumn(_ a: CGRect, _ b: CGRect) -> Bool { a.minX < b.maxX && b.minX < a.maxX }
+        // Top of the page first, so two elements placed before the same paragraph keep their own order (refuting
+        // review, 2026-11-08: a list above a table came out after it).
+        let placed = elements.indices.filter { !flow.contains($0) }
+            .sorted { (boxes[$0]?.midY ?? -1) > (boxes[$1]?.midY ?? -1) }
+        for index in placed {
+            guard let box = boxes[index] else {
+                ordered.append(index)
+                continue
+            }
+            if let position = ordered.firstIndex(where: { other in
+                guard flow.contains(other), let otherBox = boxes[other] else { return false }
+                return sharesColumn(otherBox, box) && otherBox.midY < box.midY
+            }) {
+                ordered.insert(index, at: position)
+            } else if let position = ordered.lastIndex(where: { other in
+                guard let otherBox = boxes[other] else { return false }
+                return sharesColumn(otherBox, box) && otherBox.midY > box.midY
+            }) {
+                // Nothing below it in its column (a table at the foot of the left column): after the last element
+                // above it there, not after the whole page.
+                ordered.insert(index, at: position + 1)
+            } else {
+                ordered.append(index)
+            }
+        }
+        return ordered
+    }
+
+    /// The page's order with footnotes after its body and a sentence that a caption, figure or table interrupts put
+    /// back together (5.8, 2026-11-08). No open tool publishes a footnote detector without a trained
+    /// layout model; the rule is assembled from published pieces: body font size as the most common text-layer word
+    /// height when it covers over half the words (pdffigures2 `DocumentLayout`), a footnote's words smaller than that
+    /// (pdffigures2 `RegionClassifier.SmallFont`; 0.9 of the body height is inferred from LaTeX's 8/10, 9/11 and 10/12
+    /// pt footnote sizes), a leading note mark (GROBID's `^(\d+\.?\s)`, plus *, †, ‡, §, ¶), and the lowest text in its
+    /// column; footnotes go after the page's body, as Marker (`push_footnotes_to_bottom`) and PaddleX do. A paragraph
+    /// that ends mid-sentence is followed by the next body paragraph that continues it, skipping what interrupted it
+    /// (docling `predict_merges`: the first ends in a lowercase letter, comma or hyphen; the next starts with a letter,
+    /// widened to an opening bracket or a digit, "(CTR)").
+    nonisolated static func withFootnotesLastAndSentencesJoined(
+        order: [Int], elements: [StructuredElement], boxes: [CGRect?], words: [TextLayerWord]
+    ) -> [Int] {
+        guard elements.count == boxes.count, order.count == elements.count else { return order }
+        func paragraphText(_ index: Int) -> String? {
+            if case .paragraph(let text, _) = elements[index] { return text }
+            return nil
+        }
+        // Footnotes need font sizes, which only a text layer gives.
+        var footnotes = Set<Int>()
+        let heights = words.map { Double($0.box.height) }
+        if heights.count >= 50 {
+            let rounded = heights.map { ($0 * 2000).rounded() }
+            let counts = Dictionary(grouping: rounded, by: { $0 }).mapValues(\.count)
+            if let (mode, count) = counts.max(by: { $0.value < $1.value }), Double(count) > Double(heights.count) / 2 {
+                let body = mode / 2000
+                let marker = try? NSRegularExpression(pattern: #"^\s*(\d{1,3}\.?\s|[*\u2020\u2021\u00A7\u00B6]+\s?)"#)
+                for index in order {
+                    guard let text = paragraphText(index), let box = boxes[index] else { continue }
+                    let ns = text as NSString
+                    guard marker?.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) != nil else { continue }
+                    let inside = words.filter { box.contains(CGPoint(x: $0.box.midX, y: $0.box.midY)) }
+                    guard inside.count >= 3 else { continue }
+                    let sizes = inside.map { Double($0.box.height) }.sorted()
+                    guard sizes[sizes.count / 2] <= body * 0.9 else { continue }
+                    // Lowest in its column: nothing else with text sits below it there.
+                    let lowest = !order.contains { other in
+                        guard other != index, let otherBox = boxes[other] else { return false }
+                        return otherBox.minX < box.maxX && box.minX < otherBox.maxX && otherBox.midY < box.minY
+                    }
+                    if lowest { footnotes.insert(index) }
+                }
+            }
+        }
+        var sequence = order.filter { !footnotes.contains($0) }
+
+        // Join a sentence across what interrupts it.
+        let unfinished = try? NSRegularExpression(pattern: #"[\p{Ll},\-\u00AD]\s*$"#)
+        let continues = try? NSRegularExpression(pattern: #"^\s*[\p{L}(\[0-9]"#)
+        func matches(_ regex: NSRegularExpression?, _ text: String) -> Bool {
+            regex?.firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
+        }
+        // A caption is an interruption too (pdffigures2 `CaptionDetector`: "Figure", "Fig.", "Table" and a number).
+        let caption = try? NSRegularExpression(
+            pattern: #"^\s*(Figure|FIGURE|Fig\.?|FIG\.?|Table|TABLE)\s*([1-9][0-9]*|[IVX]+|[A-D]\.[1-9][0-9]*)\b"#)
+        func isBody(_ index: Int) -> Bool {
+            guard let text = paragraphText(index) else { return false }
+            return !matches(caption, text)
+        }
+        // What can interrupt a sentence: a table, a figure, a caption. A list or a title is not: a list follows the
+        // sentence that introduces it ("as follows"), and a title starts a section, so a body paragraph after either
+        // stays after it (refuting review, 2026-11-08).
+        func isInterruption(_ index: Int) -> Bool {
+            switch elements[index] {
+            case .table, .figure: return true
+            case .paragraph(let text, _): return matches(caption, text)
+            default: return false
+            }
+        }
+        var position = 0
+        while position < sequence.count - 1 {
+            let current = sequence[position]
+            guard isBody(current), let text = paragraphText(current), matches(unfinished, text),
+                isInterruption(sequence[position + 1])
+            else {
+                position += 1
+                continue
+            }
+            // The next body paragraph after the interruption, reached across interruptions only.
+            guard
+                let next = sequence[(position + 1)...].firstIndex(where: { !isInterruption($0) }),
+                isBody(sequence[next]),
+                let nextText = paragraphText(sequence[next]), matches(continues, nextText)
+            else {
+                position += 1
+                continue
+            }
+            let moved = sequence.remove(at: next)
+            sequence.insert(moved, at: position + 1)
+            position += 1
+        }
+        return sequence + order.filter { footnotes.contains($0) }
     }
 
     /// Characters compared by the agreement tests, as UTF-16 units: lowercased, spaces dropped, dashes as "-".
@@ -1107,9 +1644,25 @@ actor StructuredDocumentParser {
         var totalCellCount = 0
         var cellsFromTextLayer = 0
 
+        // Cells are placed by the row and column ranges Vision gives them, not by their order in a row (5.8). A label or
+        // value that spans rows ("DBA" and "45.13" over its two ion transitions) was in the first row only, so the second
+        // row's cells moved left one column each ("Retention time (min): 144" for a precursor ion of 144). A cell that
+        // spans rows is written in every row it covers; one that spans columns in its first column, except in the first
+        // row, whose spanning headers ("Medium" over 1, 2 and 3) name every column under them.
+        var seenCells = Set<String>()
+        var placedCells: [DocumentObservation.Container.Table.Cell] = []
         for row in table.rows {
-            var cellTexts: [String] = []
             for cell in row {
+                let key = "\(cell.rowRange.lowerBound)-\(cell.rowRange.upperBound):\(cell.columnRange.lowerBound)-\(cell.columnRange.upperBound)"
+                if seenCells.insert(key).inserted { placedCells.append(cell) }
+            }
+        }
+        let rowCount = (placedCells.map(\.rowRange.upperBound).max() ?? -1) + 1
+        let columnCount = (placedCells.map(\.columnRange.upperBound).max() ?? -1) + 1
+        var grid = Array(repeating: Array(repeating: "", count: max(columnCount, 0)), count: max(rowCount, 0))
+
+        for cell in placedCells {
+            do {
                 var text = normalizeTableCellText(cell.content.text.transcript)
                 totalCellCount += 1
                 // A page with a good text layer gives the cell's exact characters (5.8): Vision reads them off the
@@ -1140,15 +1693,25 @@ actor StructuredDocumentParser {
                     }
                 }
 
-                cellTexts.append(text)
+                for rowIndex in cell.rowRange where rowIndex < rowCount {
+                    // A cell over every column of the first row is the table's title, not a header for each column
+                    // (refuting review, 2026-11-08): it stays in its first column.
+                    let spansEveryColumn = cell.columnRange.count >= columnCount && columnCount > 1
+                    let columns =
+                        rowIndex == 0 && !spansEveryColumn ? Array(cell.columnRange) : [cell.columnRange.lowerBound]
+                    for columnIndex in columns where columnIndex < columnCount {
+                        grid[rowIndex][columnIndex] = text
+                    }
+                }
 
                 // ENHANCEMENT: Extract detected data from Vision's DataDetection
                 // This automatically finds emails, phone numbers, dates, URLs, etc.
                 let cellEntities = extractDetectedData(from: cell.content.text)
                 detectedEntities.append(contentsOf: cellEntities)
             }
-            rows.append(cellTexts)
         }
+        // A row Vision returned with no cells at all is not a row of the table.
+        rows = grid.filter { row in row.contains { !$0.isEmpty } }
 
         if cellsFromTextLayer > 0 {
             Log.info("[StructuredDocumentParser] Table on page \(pageNumber): \(cellsFromTextLayer) of \(totalCellCount) cells read from the text layer", category: .ingestion)
@@ -1622,6 +2185,85 @@ actor StructuredDocumentParser {
     }
 
     // MARK: - RecognizeTextRequest Fallback (Robust OCR)
+
+    /// The page's text lines read in four overlapping quarters (2 x 2, 8% overlap) with no minimum text height, mapped to
+    /// the page's normalized coordinates (origin bottom left), duplicates from the overlaps removed (5.8). Measured on this
+    /// Mac on 2026-11-08 (synthetic pages, RecognizeDocumentsRequest revision 1): Vision reads 3 to 4.5 point print at
+    /// 0 to 0.33 of its words from the whole page at any resolution, and at 0.92 to 1.00 from quarters
+    /// (`BenchmarkRuns/2026-11-08-extraction-fidelity`, small-text research). SAHI's sliced inference is the published
+    /// precedent (Akyon et al., ICIP 2022, arXiv 2202.06934). Used on pages without a text layer, as the coverage
+    /// pass's source of lines.
+    private func tiledTextLines(on image: CGImage, customWords: [String]) async -> [TextLayerWord] {
+        let overlap: CGFloat = 0.08
+        let half = 0.5 + overlap / 2
+        let tiles = [
+            NormalizedRect(x: 0, y: 0, width: half, height: half),
+            NormalizedRect(x: 1 - half, y: 0, width: half, height: half),
+            NormalizedRect(x: 0, y: 1 - half, width: half, height: half),
+            NormalizedRect(x: 1 - half, y: 1 - half, width: half, height: half),
+        ]
+        var lines: [(text: String, box: CGRect, confidence: Float)] = []
+        for tile in tiles {
+            var request = RecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            request.automaticallyDetectsLanguage = true
+            request.minimumTextHeightFraction = 0.0
+            request.recognitionLanguages = OCRConfiguration.recognitionLanguages.compactMap { Locale.Language(identifier: $0) }
+            request.customWords = customWords
+            request.regionOfInterest = tile
+            let configured = request
+            guard
+                let observations = try? await VisionOCRThrottle.performAsync({
+                    try await configured.perform(on: image)
+                })
+            else { continue }
+            for observation in observations {
+                guard let best = observation.topCandidates(1).first, best.confidence > 0.5, !best.string.isEmpty else { continue }
+                let box = observation.boundingBox.toImageCoordinates(from: tile, imageSize: CGSize(width: 1, height: 1))
+                lines.append((best.string, box, best.confidence))
+            }
+        }
+        // A line crossing the middle is read in two pieces, one from each side's quarters: pieces on one line that meet
+        // inside the overlap strip are joined, the words both read in the strip once (refuting review, 2026-11-08).
+        let seam = 0.5
+        var merged: [(text: String, box: CGRect, confidence: Float)] = []
+        var used = Set<Int>()
+        for (i, left) in lines.enumerated() where !used.contains(i) && left.box.maxX > seam && left.box.minX < seam - overlap / 2 {
+            guard
+                let j = lines.indices.first(where: { j in
+                    let right = lines[j].box
+                    return j != i && !used.contains(j) && right.minX < seam && right.maxX > seam + overlap / 2
+                        && min(left.box.maxY, right.maxY) - max(left.box.minY, right.minY)
+                            > 0.5 * min(left.box.height, right.height)
+                })
+            else { continue }
+            let leftWords = left.text.split(separator: " ").map(String.init)
+            let rightWords = lines[j].text.split(separator: " ").map(String.init)
+            var shared = 0
+            for size in stride(from: min(leftWords.count, rightWords.count), through: 1, by: -1)
+            where Array(leftWords.suffix(size)) == Array(rightWords.prefix(size)) {
+                shared = size
+                break
+            }
+            let text = (leftWords + rightWords.dropFirst(shared)).joined(separator: " ")
+            merged.append((text, left.box.union(lines[j].box), min(left.confidence, lines[j].confidence)))
+            used.insert(i)
+            used.insert(j)
+        }
+        lines = merged + lines.enumerated().filter { !used.contains($0.offset) }.map(\.element)
+        // A line read twice where quarters overlap: the one with more characters is kept.
+        var kept: [(text: String, box: CGRect, confidence: Float)] = []
+        for line in lines.sorted(by: { $0.text.count > $1.text.count }) {
+            let duplicate = kept.contains { other in
+                let intersection = other.box.intersection(line.box)
+                guard !intersection.isNull else { return false }
+                return intersection.width * intersection.height >= 0.5 * line.box.width * line.box.height
+            }
+            if !duplicate { kept.append(line) }
+        }
+        return kept.map { TextLayerWord(text: $0.text, box: $0.box) }
+    }
 
     /// Use RecognizeTextRequest as a fallback when RecognizeDocumentsRequest fails
     /// or produces low-quality results. RecognizeTextRequest is more robust for:

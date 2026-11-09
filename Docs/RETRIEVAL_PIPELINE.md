@@ -431,6 +431,28 @@ precision lookup's two (the full run happens), the end of a Deep Think or Maximu
 `buildReliabilityFallbackResponse`, whose gating string now carries the verdict).
 `[evidence_level: measured (Mac probe), test_verified (AnswerResponsivenessJudgeTests, VerificationOutcomeTests), confidence: medium; the iPhone's verdicts not yet read]`
 
+## Look-alike numbers are not duplicates, and the reranker's pool was measured (added 2026-11-08, for 5.8)
+
+- **Pool cut before the boosts: tried, not adopted** (`HybridSearchService`, the FTS5 path). The boosts (keyword
+  match, structure type, state-lookup anchor) re-sort by the vector score plus up to 0.20 over every fused result before
+  the top-K cut, so the reranker's pool is the boosted top K; the retrieval benchmark measured MRR falling from the
+  fused list to the boosted one, 0.708 to 0.635 in Standard (n=24) and 0.719 to 0.583 in Deep Think (n=66,
+  `BenchmarkRuns/LEDGER.md`). Cutting in fused order first was measured on 2026-11-08 with the model-judged
+  `AnswerQualityEvaluationTests` on one build: 0.40 correct with it, 0.45 without (20 cases; one case apart, within
+  the run-to-run spread). MRR before the reranker does not decide it, since the reranker reorders its pool; the pool's
+  recall does, which the retrieval benchmark measures. The default is unchanged; `OI_RERANK_POOL=fused` selects the
+  fused cut for that measurement.
+- **Deduplication keeps numbers** (`RAGEngine`, context assembly). Words under three characters were left out of the
+  Jaccard comparison, so "6" against "61" looked identical. Numbers of any length now count, and a passage that states
+  a number the kept passage does not is never a duplicate.
+- **The citation bound follows rescued sentences** (`RAGService+QueryContext`, `+SentenceExtraction`). Sentences
+  rescued after the context was built came after the "Cite only sources S1 to Sn" line; the line is restated after
+  them (`withCitationBound`).
+
+`[evidence_level: code_verified, measured (the MRR figures, BenchmarkRuns/LEDGER.md; the answer evaluation, logs
+eval-newpool and eval-oldpool of 2026-11-09 recorded in BenchmarkRuns/2026-11-08-extraction-fidelity/README.md);
+confidence: low for the pool question: n=20, one run each]`
+
 ## Suggested questions wait for an answer (added 2026-11-04, for 5.8)
 
 `SuggestedQuestionsService` calls `AnswerModelPriority.waitWhileAnswering` before each model call, outside its 10 and 12 s timeouts, so suggestions are written after an answer, not during it. On the owner's iPhone on 2026-11-04 six suggestion requests ran during one Deep Think answer and its calls waited 3.7 to 13.3 s for their first word. Which questions are suggested does not change. `[evidence_level: code_verified, confidence: high, evidence_source: SuggestedQuestionsService.swift; his iPhone trace 2026-11-04]`

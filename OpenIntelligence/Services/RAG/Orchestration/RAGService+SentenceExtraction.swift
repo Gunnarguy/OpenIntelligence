@@ -646,6 +646,15 @@ extension RAGService {
         )
     }
 
+    /// `context` with its "Cite only ..." line (written by `RAGEngine` after the packed sources) removed and restated at
+    /// the end for `sources` sources (5.8): sources rescued after the packed block are numbered past its bound.
+    nonisolated static func withCitationBound(_ context: String, sources: Int) -> String {
+        let stripped = context.replacingOccurrences(
+            of: #"\n\nCite only (source S1|sources S1 to S\d+)\."#, with: "", options: .regularExpression)
+        guard sources > 0 else { return stripped }
+        return stripped + (sources == 1 ? "\n\nCite only source S1." : "\n\nCite only sources S1 to S\(sources).")
+    }
+
     /// The candidates the whole-chunk assembler did not reach, which is what the needle rescue reads. It packs in
     /// rank order, skipping near-duplicates, and stops at the first passage that does not fit, so these are the ones
     /// after where it stopped: the ones the budget cut, and any near-duplicates skipped after the last one packed. A

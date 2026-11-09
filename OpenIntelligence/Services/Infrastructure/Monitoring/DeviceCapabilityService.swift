@@ -900,7 +900,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
         return Self.simulatorComputeUnits
         #else
         if isBackgroundCPUSafeIngestionActive {
-            return .cpuOnly
+            return Self.backgroundComputeUnits
         }
 
         return Self.coreMLComputeUnits(for: activeGPUExecutionProfile)
@@ -915,6 +915,14 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// import refuses empty vectors (`EmbeddingVectorCheck`), so without this every import in the
     /// Simulator would stop, and libraries built there can now be searched by meaning.
     nonisolated static let simulatorComputeUnits: MLComputeUnits = .cpuOnly
+
+    /// Core ML units in a background import that has no GPU grant: the CPU and the Neural Engine (5.8). It was the CPU
+    /// alone, but iOS 27 opens the Neural Engine to a backgrounded app that holds
+    /// `com.apple.developer.background-tasks.continued-processing.inference` ("any Neural Engine access while your app is
+    /// in the background, regardless of whether it's running a continued background task", Apple's entitlement page,
+    /// fetched 2026-11-08), which the app has since 2026-11-05. Measured 2026-11-08 on an M3 Pro: the embedding model at
+    /// 512 tokens took 12.6 ms on the CPU and 7.7 ms on CPU and Neural Engine. The GPU stays off here, as before.
+    nonisolated static let backgroundComputeUnits: MLComputeUnits = .cpuAndNeuralEngine
 
     /// Core ML compute units for a profile.
     ///
@@ -944,7 +952,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
         return Self.simulatorComputeUnits
         #else
         if isBackgroundCPUSafeIngestionActive {
-            return .cpuOnly
+            return Self.backgroundComputeUnits
         }
 
         guard cachedTier != .unsupported else {

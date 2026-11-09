@@ -46,10 +46,13 @@ flowchart TD
     PRIME --> PHASE1{Phase -1: one sample page read by OCR. Jaccard under 0.15, or numbers that fail the SHX check?}
     PHASE1 -- Yes, every page --> E
     PHASE1 -- No --> HYB[Document level: hybrid mode if over 60% of 5 sampled pages hold good text, else OCR mode]
-    HYB --> C{Per page: marked for OCR, a scan under text, or a hard page?}
-    C -- No --> D[PDFKit text layer, read by word position]
+    HYB --> C{Per page: marked for OCR, a scan under text, a hard page, or a text layer without word spaces?}
+    C -- No --> D[PDFKit text layer, read by word position, lost ligatures restored]
     C -- Yes --> E[Vision RecognizeDocumentsRequest at 360 or 432 DPI, RecognizeTextRequest fallback]
-    E -- Hybrid mode only --> LAE[LayoutAwareExtractor: columns, and its text replaces Vision's paragraphs]
+    E -- Good text layer --> TLT[Cells and paragraphs read from the text layer; tables from word positions where Vision's hold a fragment]
+    TLT --> COV[Coverage pass: words no element's text holds become passages; elements in page order]
+    COV --> G
+    E -- Hybrid mode only --> LAE[LayoutAwareExtractor: columns; on a page with no table its text replaces Vision's paragraphs and figures, and the coverage pass output with them]
     LAE --> G
     B -- Text/Markdown --> F[Direct Text Read]
     B -- Image --> IMG[Structured parse, labels, OCR, codes, a description the model writes]
@@ -90,7 +93,7 @@ flowchart TD
     S1 --> SKIP{Already completed?}
     SKIP -- Yes --> NEXT_BATCH{More Pages?}
     SKIP -- No --> S2[Extract Chunks: the batch's text and pages appended to FTS5 first]
-    S2 --> S3[Vectorize Batch, with a bare file name prefix]
+    S2 --> S3[Vectorize Batch, each passage with its file and section prefix]
     PROFILE --> S3
     S3 --> S4[Store Batch: vector DB, then FTS5 rows per passage]
     S4 --> S5[Call db.persist & Update ingestion_state.json]
@@ -132,7 +135,7 @@ Read in the working tree on 2026-10-20 (`b868fc0` plus the 5.7 work in progress)
 4. **The embedder.** The library's provider, or `coreml_sentence_embedding` at 384 dimensions when the library names none. When that provider can't be loaded, `EmbeddingService.forProvider` falls back to the Core ML copy of MiniLM and last to `NLEmbedding` at 512 (EmbeddingService.swift:209-237). `addDocument` then records the stand-in on the library and **clears the library's vectors** (`invalidateVectorStore(for:clearStorage: true)`, RAGService+Import.swift:497-545).
 5. **File type**, from the extension (`detectDocumentType`, DocumentProcessor.swift:723-847).
 6. **The chunk-size pre-scan**, when the library's `autoAdaptDimension` is on, as it is for a new library (KnowledgeContainer.swift:172, 226). Before each import, the first 10 pages of a PDF, or the first 10,000 characters of a file that reads as UTF-8 text, give a plan of 280 to 420 words with 50 to 70 words of overlap, saved on the library as an `.auto` chunking directive (RAGService+Import.swift:618-648, RAGService+SelfTuning.swift:89-108, AdaptiveEmbeddingOptimizer.swift:288-338). Step 10 clamps it to 260 and 50 (§6).
-7. **Very large files leave here.** A PDF over 10 MB goes to `importLargePDFStreamed` (batches of 15 pages) and a text, Markdown or JSON Lines file over 8 MB to `importLargeTextStreamed` (pieces of about 2 MB), and each does the rest itself (RAGService+Import.swift:233-274, §5). Both embed each passage with a bare `"<file name>: "` prefix and no section, and neither writes an overview passage, content tags, Spotlight entries or the library's vocabulary. Both write suggested questions and end with the library analysis (RAGService+Streaming.swift:142, 286, RAGService+TextStreaming.swift:350, 401, RAGService+Import.swift:250, 272).
+7. **Very large files leave here.** A PDF over 10 MB goes to `importLargePDFStreamed` (batches of 15 pages) and a text, Markdown or JSON Lines file over 8 MB to `importLargeTextStreamed` (pieces of about 2 MB), and each does the rest itself (RAGService+Import.swift:233-274, §5). Both embed each passage with its file and section prefix, as the normal path does (`RAGService.passagePrefix`; until 2026-11-08 a bare `"<file name>: "` with no section), and neither writes an overview passage, content tags, Spotlight entries or the library's vocabulary. Both write suggested questions and end with the library analysis (RAGService+Streaming.swift:142, 286, RAGService+TextStreaming.swift:350, 401, RAGService+Import.swift:250, 272).
 8. **Read the text**, by type (§2). First, `processDocument` reads an XML file over 50 MB with a streaming SAX parser that returns its own passages and stores their joined text, with no page rows, so steps 9 to 12 do not run for it (DocumentProcessor+Import.swift:95-178). It refuses any other file over 500 MB (`fileTooLarge`, DocumentProcessor+Import.swift:189-193), and since that size is the whole file's (:81), a PDF over 500 MB, which takes the streamed path, is refused at its first batch. (Corrected 2026-11-04: that last clause is 5.6. The guard now applies only when `pageRange == nil`; a PDF read in page ranges by `importLargePDFStreamed` never holds the whole file as text, so it is not measured against 500 MB, and the diagram's edge from the streamed path to the refusal was removed. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor+Import.swift:181-192]`)
    - **PDF.** The OCR languages are first narrowed from the text layer of the first 50 pages (`detectDocumentRecognitionLanguagesIfNeeded`, DocumentProcessor+PDFText.swift:384-399, called at DocumentProcessor+StructuredParsing.swift:46). The custom words Vision gets are the universal list only (`OCRConfiguration.universalCustomWords`, set at DocumentProcessor+Import.swift:73 and passed at DocumentProcessor+StructuredParsing.swift:105). The document's own vocabulary is mined only in `extractTextFromPDFWithPages` (DocumentProcessor+PDFText.swift:609), which is called from the branch for systems before 26 (DocumentProcessor+StructuredParsing.swift:54), which no supported OS takes (the deployment target is 26.0), and from the PDF case of `extractTextWithPageInfo` (DocumentProcessor+TextExtraction.swift:54), and no caller hands that function a PDF (DocumentProcessor+Import.swift:211-232, DocumentProcessor+ImagesAndOCR.swift:280-283). Phase -1 then looks at three sample pages, runs OCR on the one with the most text in a script Vision reads, and calls the text layer scrambled when the two sets of words have a Jaccard similarity under 0.15, or, under 0.45, when the layer holds five or more number tokens and those match under 0.25 (the SHX check). A scrambled layer sends every page to Vision (DocumentProcessor+StructuredParsing.swift:260-388). Next a document-level test picks hybrid mode, when the layer is not scrambled and more than 60% of up to five sampled pages hold over 100 characters of acceptable text, and OCR mode otherwise (`pdfHasGoodNativeText`, DocumentProcessor+StructuredParsing.swift:67-87, 121). Each page is then classified (`PageComplexityAnalyzer`: direct text, spatial text, or one of three OCR levels) and read from its text layer by word position, or with Vision when the classifier picks OCR, finds a scan under a text layer, or picks spatial text for a page with tables, dense numbers, more than one column, a complex layout, list or header patterns, low text coverage or fine print (DocumentProcessor.swift:276-303, DocumentProcessor+StructuredParsing.swift:1114-1199, PageComplexityAnalyzer.swift:1260-1266). Vision is `RecognizeDocumentsRequest` on the page rendered at 360 DPI, or at 432 DPI for a page with fine print, tables, columns, dense numbers, a complex layout, strong headers or little text, and for every page of a scrambled text layer, with `RecognizeTextRequest` when the structured parse caught under 30% of the words (DocumentProcessor.swift:236-260, StructuredDocumentParser.swift:688-790). In hybrid mode `LayoutAwareExtractor` also reads each Vision page for columns and reading order, and on a page with no structured table, unless it is a scan under a text layer, its text replaces Vision's paragraphs (DocumentProcessor+StructuredParsing.swift:396-433, 589-636, 689-692, 839-840). Repeated headers and footers are removed (DocumentProcessor+PDFText.swift:211, DocumentProcessor+StructuredParsing.swift:1328), and pictures in the PDF are described by the on-device model (`analyzeEmbeddedImages`, DocumentProcessor+StructuredParsing.swift:1321, DocumentProcessor+ImagesAndOCR.swift:33-80).
    - **Photo.** The structured parse, then an `[Image: <type>]` line, the classifier's top five labels, the recognised text with any barcode or QR code first, and a `Description:` line that the on-device model (`SystemLanguageModel.default`) writes (DocumentProcessor+ImagesAndOCR.swift:467-528, ImageUnderstandingService.swift:1166-1201). **So a photo's passages hold words that are not in the picture.**
@@ -261,7 +264,7 @@ The "Ingest Webpage" action (`IngestURLIntent`) handed its web address to `enque
 
 `WebPageFetchService` (`Services/Document/Extraction/WebPageFetchService.swift`) is the download. It makes a GET to the address, following the site's own redirects (so the request can end at another host than the one typed), on an ephemeral `URLSession` that accepts no cookies and uses no cache. It accepts only `http` and `https`, and asks for an `http` address as `https`, because the app has no transport-security exception and plain `http` would be refused before reaching the site. The status is checked before the body is read, the read stops at 20 MB, a web page's markup is held to 5 MB (its text is found with regular expressions over the whole page), and the whole request is given 25 seconds, since a background action has about 30. What comes back becomes a file in the imported-documents folder, which is then queued like a picked file:
 
-- **A web page** (`text/html` or `application/xhtml+xml`) becomes a Markdown file named by the page's title, with `Source:` and `Saved:` lines under the title. `readableText(fromHTML:)` removes comments and the `script`, `style`, `noscript`, `svg`, `template`, `iframe`, `head`, `nav`, `footer`, `button` and `select` elements, writes headings as `#` lines, list items as `- ` lines and table rows as cells joined by ` | `, strips the remaining tags (only what starts like a tag, so "p < 0.05" keeps its "<"), and decodes numeric entities and the named ones in its table (the markup five, punctuation, currency, common symbols, the Latin-1 letters and a few Greek letters; HTML defines about 2,200, and one it does not know is left as written). The page is read with the character set the response names, or the one its own `<meta>` tag names, or UTF-8; bytes that fit none are replaced and that is logged. Scripts are not run, so a page that draws its text with JavaScript yields little or nothing: under 40 characters of text the fetch fails with "The page has no readable text without running its scripts."
+- **A web page** (`text/html` or `application/xhtml+xml`) becomes a Markdown file named by the page's title, with `Source:` and `Saved:` lines under the title. `readableText(fromHTML:)` removes comments and the `script`, `style`, `noscript`, `svg`, `template`, `iframe`, `head`, `nav`, `footer` and `select` elements and hidden ones (a `<button>`'s label and a `<summary>` are kept since 5.8, as text a reader sees), writes headings as `#` lines, list items as `- ` lines and a table as a pipe table with a header separator after its first row and its caption on the line before (a cell spanning columns is repeated in each, so later cells stay under their headers; a literal `|` in a cell is escaped), strips the remaining tags (only what starts like a tag, so "p < 0.05" keeps its "<"), and decodes numeric entities and the named ones in its table (the markup five, punctuation, currency, common symbols, the Latin-1 letters and a few Greek letters; HTML defines about 2,200, and one it does not know is left as written). The page is read with the character set the response names, or the one its own `<meta>` tag names, or UTF-8; bytes that fit none are replaced and that is logged. Scripts are not run, so a page that draws its text with JavaScript yields little or nothing: under 40 characters of text the fetch fails with "The page has no readable text without running its scripts."
 - **A link straight to a file** the import path reads (PDF, plain text, Markdown, CSV, JSON, JSON Lines, by the response's type) is saved as that file.
 - **Anything else**, a status outside 200 to 299, or a body over 20 MB fails with a message that names the reason, and the action throws it instead of reporting success.
 
@@ -1368,6 +1371,121 @@ a fixture's "3624" as "3024". Rotated, garbled and Vision-unreadable pages keep 
   are joined by line breaks so its running header is removed line by line.
 - A line printed word for word on most pages is a running line whatever its letters (`exactRunningLineKey`).
 `[evidence_level: test_verified (OfficeTextFidelityTests, TablePassageFidelityTests), measured (the fidelity runs), confidence: high]`
+
+## Text Vision put in no container is kept (added 2026-11-08, for 5.8)
+
+Measured with 515 checks written from the page images of eight PDFs (141 pages) from the owner's library, in the
+form of olmOCR-Bench (a span is present on its page, running furniture is absent, span A is read before span B, a
+table cell sits on its row label's line with its column named): `scripts/ingestion_unit_tests.py <checks> <run>`. The
+checks quote the papers and stay in the gitignored `BenchmarkRuns/2026-11-08-extraction-fidelity/checks/`.
+`pdftotext`, the reference `extraction_fidelity.py` uses, is itself an extractor; on BL999 it prints "infuence" and
+"diferent" too.
+
+- **Coverage pass** (`StructuredDocumentParser.uncoveredBlocks`). Vision's document reading can leave a region out of
+  every title, table, list and paragraph: the PAH paper's 48-row Table 1 was in no stored passage before or after the
+  earlier 5.8 work. Not every word is guaranteed: a recovered block of 3 characters or fewer is dropped, a Vision
+  region whose text has 80% of the words in its box counts as holding the rest, and coverage compares tokens, so a
+  number a table's own row labels also print ("7" beside "Row 7") counts as held. A word is held only when an emitted element's box holds it (by a point half its height in from its
+  left edge) and that element's stored text has it; a box whose text has 80% of the words inside it holds them all, so
+  an OCR misread is not recovered twice. Loose words are grouped into rows (half the median height) and cells (gaps
+  over 1.2 heights); a row of several cells is written "a | b | c".
+- **Tables from word positions** (`TextLayerTableDetector`, a heuristic related to the text strategy of pdfplumber and
+  Camelot's stream mode, not a port of either; its thresholds were set on the eight PDFs). Rows are
+  lines, cells are runs of words less than 0.9 heights apart, columns are the vertical strips no cell crosses on the
+  lines with nearly the most cells. A table needs 4 body rows of 3 or more cells and numbers in a quarter of its
+  cells. A segment of 6 or more words over a quarter of the page wide is a cell only when it starts inside the table's
+  extent (otherwise it is the page's other column); an edge column filled in under 15% of rows is dropped; a wrapped
+  line joins the row above only as a value without a label, or as a label that starts in lower case or follows one
+  left unfinished. A Vision table that holds under 70% as many cells as the word runs in its box is replaced by the
+  detector's table; one that holds its region is kept and its words are left out of the search.
+- **Vision cells on a grid** (`parseTable`): cells are placed by `rowRange` and `columnRange`. A cell over several rows
+  is written in each; one over several columns in its first column, except in the first row, whose spanning headers
+  name each column (a title over every column stays in the first).
+- **Lost ligatures** (`LigatureRepair`). A font without ToUnicode entries for its ligature glyphs makes PDFKit drop
+  them, read them as "f" or as a space. A word is filled or two pieces joined only when the result is in Apple's
+  word lexicon for the page's language (`NLEmbedding.wordEmbedding(for:)`) and the broken form is not, the token has 4+
+  letters and is lower case, and the page shows at least two distinct repairs that will apply. Applied to text-layer
+  words, direct page text, page texts before the garbage filter, and the text mined for Vision's custom words.
+- **Text layers without spaces** (`DocumentProcessor.textLayerLacksWordSpaces`): over 20% of a page's letters in
+  tokens of 18+ letters (scripts written without spaces and nucleotide sequences excepted) sends the page to Vision
+  and withholds its text-layer words.
+- **Running lines**: keys fold compatibility forms, dashes and quotes (an en dash kept a footer from matching its
+  normalized line); a bare web address on half the pages is a running line. (A page-number trim, 3-word titles
+  on 60% of pages and web addresses on 3 pages were tried the same night and taken out: the refuting review showed they
+  stop "Smith et al. 12" from being a running line and delete repeated real headings and support addresses.)
+- **Page order** (`StructuredDocumentParser.inPageOrder`): Vision's paragraph order, with tables, lists and recovered
+  text placed before the first paragraph below them in their column, else after the last above them there. A port of
+  XY-Cut++'s geometric parts (recursive XY-cut, cross-layout masking; arXiv 2504.10258, authors' and PaddleX code,
+  Apache-2.0) was measured against it and removed the same night: olmOCR-Bench multi_column 0.556 against Vision's
+  0.562 (40 PDFs, 153 checks), and on the owner's eight PDFs it put a paragraph inside a sentence Vision kept whole.
+  The paper's pre-mask needs a layout model's labels; Vision's own order comes from a trained model.
+- **Office and web formats** (2026-11-08 night, `DocumentProcessor+MediaAndOffice.swift`,
+  `+TablesAndTextFiles.swift`, `WebPageFetchService.readableText(fromHTML:)`): line breaks in Word and PowerPoint runs,
+  table cells with several paragraphs or a "|" (escaped, read back by `String.splitOnUnescapedPipes`), Excel number
+  formats and dates (`SpreadsheetNumberStyles`), shared strings, sheet order and names, Word text boxes, moved text,
+  headings and list numbers (`WordParagraphStyles`), CSV encoding, quoting, delimiter and line ends, and HTML tables,
+  lists, preformatted text, scripts and hidden elements. Each has a string-fixture test in `OfficeTextFidelityTests`.
+- **Other scripts** (2026-11-08 night): the garbage filter (`OCRConfiguration.isGarbageText`) keeps a line of Greek,
+  Hebrew, Arabic, Russian, Chinese, Japanese or Hindi inside a Latin-script document when NLLanguageRecognizer reads the
+  line alone as a non-Latin language with at least 0.5 confidence, and calls mixed Cyrillic and Latin a misread only
+  inside one word (nine of nine such lines were deleted before). Text in scripts written without spaces skips the
+  word-length and entropy checks of `isTextQualityAcceptable` and needs 0.5 language confidence instead (Chinese,
+  Japanese and Korean text layers were rejected and read by OCR). A detected language outside the curated OCR list
+  keeps Vision's automatic detection (`narrowedRecognitionLanguages`). Line-end hyphen repair works in any script.
+- **Footnotes and interrupted sentences** (`StructuredDocumentParser.withFootnotesLastAndSentencesJoined`): on a page
+  with a text layer, a paragraph that starts with a note mark, is set in smaller type than the body (0.9 of the most
+  common word height) and is the lowest text in its column goes after the page's body (Marker, PaddleX). A paragraph
+  ending mid-sentence is followed by the next body paragraph that continues it, skipping captions, tables, lists and
+  figures between them (docling's rule). Sources and constants are in the function's comment.
+- **Running headers and footers by position** (`StructuredDocumentParser.marginalia`), a port of Marker's
+  MarginaliaProcessor (Apache-2.0, validated by its authors on olmOCR-Bench): a paragraph or title entirely in the top 8%
+  above all body text, or the bottom 13% below it, at most 3.5% of the page tall and 150 characters, on a page with two
+  or more text blocks, is left out. It works on a single page, where repetition cannot. A block that ends in a comma or
+  a hyphen, or runs to 15 words or more, is body text reaching the zone and is kept (Marker labels blocks with a layout
+  model first; without one, a column's last two lines were taken for a footer on fbioe p7, 2026-11-09).
+- **Scans read in quarters** (`StructuredDocumentParser.tiledTextLines`): a page without a text layer is also read as
+  four overlapping quarters (8% overlap, no minimum text height), boxes mapped back from the region of interest (probed
+  on this Mac: a word drawn at 0.75, 0.875 maps to 0.75, 0.877), lines crossing the middle joined; the lines feed the
+  coverage pass. Measured on synthetic pages: 3 to 4.5 point print read at 0 to 0.33 of its words whole and 0.92 to
+  1.00 in quarters (SAHI, arXiv 2202.06934, is the published precedent).
+- **Faded scans** (`DocumentProcessor.brightnessSpread`): a page without a text layer whose 1st-to-99th percentile
+  brightness spans under half the range gets contrast 1.8 and saturation 0 and nothing else (measured on a degraded
+  synthetic scan: words 0.01 untouched, 0.41 stretched, 0.11 binarized).
+- **Tables' grids** from the heuristic's own grid (rows are lines, columns the strips no cell crosses, a header printed
+  on several lines joined per column). A port of pdfplumber's "text" strategy with its defaults
+  (`TextLayerTableDetector.pdfplumberGrid`: columns where 3 or more words share a left edge, right edge or centre within
+  1 point, rows at every line, edges within 3 points snapped) is kept for comparison (`OI_TABLE_GRID=pdfplumber`):
+  measured 2026-11-08 it tied on olmOCR-Bench's tables (128 checks each) and lost on the eight PDFs (413 against 433
+  of 515 checks; the PAH paper's table checks 36 against 53 of 60).
+- Paragraph readings leave out words inside a table box; a word box wider than its height per character is clamped.
+- **Figures by their captions** (`FigureRegionDetector`, a port of pdffigures2's caption detector and region proposals,
+  Apache-2.0, commit 3d7ad46). A paragraph that is a "Figure N." caption by pdffigures2's rules marks a figure; its
+  region runs from the caption to the nearest body text above it (else below), and body is prose paragraphs (8 or more
+  words, under a quarter numbers, or 20 or more words), tables, lists, the page title and blocks in the margin zones.
+  The caption becomes one figure passage, "caption" then "LABELS: line | line", the labels being the text layer's lines
+  in the region; Vision's paragraphs inside the region are left out (their words are in the labels, and a word only
+  they had comes back through the coverage pass). Not ported: pdffigures2's font tests and its graphics-based rules,
+  which need the PDF's font identity and drawing operators; so a figure with no text inside it is not found, and only a
+  page with a text layer is searched. **Off by default** (`OI_FIGURES=on` turns it on): on the owner's eight PDFs it
+  found 9 figures and every stored passage was the same with it on and off (2026-11-09, runs after15 and after15nofig),
+  because those pages' text reaches storage through the layout text; nothing has shown it helping yet.
+- **Where this does not reach storage.** In hybrid mode, on a page with no table, `LayoutAwareExtractor`'s text (the
+  whole text layer in column order) replaces every paragraph and figure the parser returns
+  (DocumentProcessor+StructuredParsing.swift, `pageUsesHybridOverride`). On those pages the coverage pass, page order,
+  footnote order and figures do not apply; nothing is lost, since the layout text is the whole layer. The margin rule
+  does apply: the lines it found on that page are taken out of the layout text (`StructuredPageContent.marginalTexts`,
+  `DocumentProcessor.withoutLines`). Without that, a header the rule removed on every table page stayed on the other
+  pages, appeared on too few pages for the cross-page running-line rule, and opened a passage (TableFidelityTests,
+  2026-11-09). The lines the margin rule left out also travel with the page's elements
+  (`StructuredElementWrapper.marginalLines`) and the cross-page rule counts them as printed there, so a header removed
+  by position on some pages is still seen to repeat and is removed on the pages the margin rule missed (stripping alone
+  lost one such check on BST, run after16). A figure there is replaced with the paragraphs,
+  since the layout text holds its caption and labels (kept, it stored the caption twice).
+- The streamed import paths embed each passage with its document and section prefix (`RAGService.passagePrefix`), as
+  the normal path does; they used "<file>: ".
+
+`[evidence_level: test_verified (PageTextRepairTests), measured (BenchmarkRuns/2026-11-08-extraction-fidelity, runs
+after9 and later), confidence: medium: thresholds set on eight mostly English papers]`
 
 ## A table passage keeps the same keywords on every import (added 2026-11-07, for 5.8)
 

@@ -556,6 +556,11 @@ extension RAGService {
                         droppedChunks.indices.contains($0) ? droppedChunks[$0] : nil
                     }
                     assembledContext += "\n---\n" + rescueResult.context
+                    // The packed block ended with "Cite only sources S1 to Sn", and the rescued sources are numbered
+                    // after n, so the model was told not to cite evidence it was given (grounding audit 2026-11-08).
+                    // The bound is restated after the rescued block with the real total.
+                    assembledContext = Self.withCitationBound(
+                        assembledContext, sources: assembled.used + rescueResult.usedSourceIndices.count)
                     Log.info(
                         "[RAG] Needle rescue: +\(rescueResult.sentencesIncluded) sentences from \(rescueResult.sourcesUsed) dropped chunks (\(rescueResult.context.count) chars)",
                         category: .retrieval)
