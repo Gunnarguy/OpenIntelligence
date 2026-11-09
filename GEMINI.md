@@ -2,6 +2,10 @@
 
 When operating via Google Gemini or the Antigravity IDE/desktop app (2.0+), adhere strictly to these operational guardrails.
 
+**First, what all of it is for:** the Purpose section at the top of `AGENTS.md` (the same text is the
+always-on rule `.agents/rules/02-purpose.md`). Its source is `Docs/ai/PURPOSE.md`; check every plan
+against the owner's rules there.
+
 ## Antigravity 2.0 wiring (read this first)
 This workspace is pre-configured for Antigravity's native customization system:
 

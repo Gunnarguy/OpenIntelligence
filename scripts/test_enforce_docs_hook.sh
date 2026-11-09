@@ -263,6 +263,22 @@ stage "CHANGELOG.md" "${CL_GOOD}
 $(printf '%s\n' "$FILLER" | sed 's/^/- **[General]** /')"
 check pass "REGRESSION: a tagged changelog addition larger than a pipe buffer passes"
 
+# The purpose block (2026-11-09): a hand-edited copy is refused, the synced set passes.
+new_index
+stage_real "Docs/ai/PURPOSE.md"
+stage_real "CLAUDE.md"
+stage_real ".agents/rules/02-purpose.md"
+stage "AGENTS.md" "$(sed 's/Commercial use only/Commercial use mostly/' AGENTS.md)"
+check fail "a hand-edited copy of the purpose block is refused" "differs from Docs/ai/PURPOSE.md in: AGENTS.md"
+
+new_index
+stage_real "Docs/ai/PURPOSE.md"
+stage_real "CLAUDE.md"
+stage_real "AGENTS.md"
+stage_real ".agents/rules/02-purpose.md"
+stage "CHANGELOG.md" "$CL_GOOD"
+check pass "the purpose block copied by sync_purpose.py passes"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -35,6 +35,40 @@ RESOLVER="$REPO_ROOT/scripts/required_docs.sh"
 # for code that no longer exists.
 staged="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)"
 [ -n "$staged" ] || exit 0
+# The two copy checks below run on every commit, before the Swift-only gate: both guard documents
+# that change without any Swift (moved here 2026-11-09, when a docs-only commit was found to skip them).
+# ---------------------------------------------------------------------------
+# Docs/EdgeToEdge/EDGE_TO_EDGE_FULL.md is its preamble plus the 17 chapter files,
+# byte for byte (2026-11-06). Edits made to one copy and not the other had left
+# the two disagreeing on 13 identifiers. Runs only when that folder is staged.
+# ---------------------------------------------------------------------------
+if [ -f "$REPO_ROOT/scripts/build_edge_to_edge_full.py" ] \
+   && printf '%s\n' "$staged" | grep -q '^Docs/EdgeToEdge/'; then
+  if ! E2E_OUT="$(python3 "$REPO_ROOT/scripts/build_edge_to_edge_full.py" --check 2>&1)"; then
+    echo "======================================================================"
+    echo "$E2E_OUT"
+    echo "======================================================================"
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# The app's purpose and the owner's rules live in Docs/ai/PURPOSE.md, and
+# scripts/sync_purpose.py copies that block into CLAUDE.md, AGENTS.md and
+# .agents/rules/02-purpose.md, the files each agent loads at session start
+# (2026-11-09). A copy edited by hand would let one agent work to different
+# rules from the others, so a staged copy that differs from the source is refused.
+# ---------------------------------------------------------------------------
+if [ -f "$REPO_ROOT/scripts/sync_purpose.py" ] \
+   && printf '%s\n' "$staged" | grep -qE '^(Docs/ai/PURPOSE\.md|CLAUDE\.md|AGENTS\.md|\.agents/rules/02-purpose\.md)$'; then
+  if ! PURPOSE_OUT="$(cd "$REPO_ROOT" && python3 scripts/sync_purpose.py --check --staged 2>&1)"; then
+    echo "======================================================================"
+    echo "$PURPOSE_OUT"
+    echo "======================================================================"
+    exit 1
+  fi
+fi
+
 # Swift source, or the App Store copy: the two kinds of path scripts/required_docs.sh maps.
 printf '%s\n' "$staged" | grep -qE '\.swift$|^fastlane/metadata(-ios)?/' || exit 0
 
@@ -223,21 +257,6 @@ if [ -f "$REPO_ROOT/scripts/verify_doc_claims.py" ] \
     echo "======================================================================"
     echo "Documentation claims no longer match source."
     echo "$CLAIM_OUT"
-    echo "======================================================================"
-    exit 1
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# Docs/EdgeToEdge/EDGE_TO_EDGE_FULL.md is its preamble plus the 17 chapter files,
-# byte for byte (2026-11-06). Edits made to one copy and not the other had left
-# the two disagreeing on 13 identifiers. Runs only when that folder is staged.
-# ---------------------------------------------------------------------------
-if [ -f "$REPO_ROOT/scripts/build_edge_to_edge_full.py" ] \
-   && git diff --cached --name-only | grep -q '^Docs/EdgeToEdge/'; then
-  if ! E2E_OUT="$(python3 "$REPO_ROOT/scripts/build_edge_to_edge_full.py" --check 2>&1)"; then
-    echo "======================================================================"
-    echo "$E2E_OUT"
     echo "======================================================================"
     exit 1
   fi

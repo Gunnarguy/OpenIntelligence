@@ -14,6 +14,53 @@ Its rule 15 is the loading rule, restated under "Where things live" below.
 `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` overrides both. Read it before any audit
 or documentation pass.
 
+The section below is what every piece of work here serves. It is generated from `Docs/ai/PURPOSE.md`
+(edit it there, then run `python3 scripts/sync_purpose.py --write`).
+
+<!-- purpose:begin -->
+## Purpose: what this app is, and the owner's rules
+
+OpenIntelligence is a private research librarian for the documents people own. You import any
+document, of any size, quality or file type, from a one-page text file to a 1,000-page research
+paper full of tables and figures. The app reads it as carefully as a person would, organizes,
+imports and embeds it correctly, and then answers questions about it: one document or a library of
+50 documents of 50 pages each. Answers come only from what the documents say, extracted
+surgically, with the exact passage each one came from. It works offline: in airplane mode
+everything works. The network is used only to import a file that is not on the device and, when
+the user consents, to send the final answer's generation to Apple Private Cloud Compute. It exists
+because most document AI makes people upload their files first, which is the whole problem when the
+files are medical, legal, financial, or simply theirs. It is a paid App Store app with a Pro tier,
+and its repository is public under MIT, so people can check it.
+
+The owner's rules, in his words (dated quotes in `Docs/ai/PURPOSE.md`). When two conflict, the
+earlier one wins. Check every plan against them, and say so when a request or a plan breaks one.
+
+1. **Commercial use only.** Bundle nothing that is not cleared for commercial use: check a model's
+   weights licence and the terms of the data it was trained on, and every library and asset. The
+   app earns money, so a non-commercial dependency is a defect, whatever its weights tag says.
+2. **Offline and private by construction.** Ingestion, indexing, retrieval, ranking and on-device
+   answers work with no network at all. Nothing else may need one; routing changes go through the
+   hard-boundary files and the owner's approval.
+3. **Accuracy first, speed second.** Take a measured accuracy gain even when it costs time. Make
+   things faster only through changes that leave answers as accurate, as complete and as well cited;
+   Deep Think and Maximum never get shallower to get quicker.
+4. **Fidelity on any document.** A 1950s typewritten scan and a table-rich research paper with
+   figures must both be read, organized and understood. Losing text, a table cell or a number at
+   import is the worst kind of defect, because nothing later can recover it.
+5. **Honest answers.** Cite the passage. When the documents do not hold the answer, say so instead
+   of guessing. Name defects plainly in release notes and copy; the honesty is the product.
+6. **Universal fixes.** This is a general RAG engine. A bad answer is a probe for a general defect:
+   fix the layer that caused it and measure on every benchmark set, never patch one file or one
+   question type.
+7. **Make it work.** A clear refusal of the owner's own file is still a failure. Build the
+   capability, using Apple's frameworks.
+8. **Apple's models and hardware, used fully.** Generation uses Apple's Foundation Models. Use the
+   Neural Engine, GPU, Vision and the system surfaces (Share Sheet, Siri, Shortcuts, App Intents)
+   to their full extent. Third-party models are limited to the embedder and the reranker.
+9. **Find the better way yourself.** Research current published methods and measure them here
+   before guessing. The owner should not have to be the one who suspects there is a better way.
+<!-- purpose:end -->
+
 ## Before your first action
 
 1. **Builds fail here for a non-obvious reason.** The repo lives in iCloud-synced `~/Documents`.
@@ -43,17 +90,13 @@ or documentation pass.
 ## Non-negotiables
 
 - **Never answer "I don't know" about something installed on this machine or published on the web.**
-  A knowledge cutoff is a reason to look, not a reason to shrug. Xcode, the SDKs, the simulators and
-  every framework are on disk: `find`, `strings`, `plutil` and `--help` answer questions about them
-  in seconds. For anything Apple ships or documents, check the local install first and
-  `developer.apple.com` second. Telling the user to go look themselves, when the artifact is on
-  their own machine, is the failure this rule exists to prevent — it happened on 2026-08-18 with the
-  Xcode 27 Instruments templates, which took one `find` to enumerate.
+  A knowledge cutoff is a reason to look. Xcode, the SDKs, the simulators and every framework are on
+  disk (`find`, `strings`, `plutil`, `--help`); check the local install first, `developer.apple.com`
+  second, and never send the owner to look up what is on his own machine.
 - Never run destructive git commands. Never `git add .`. Never delete docs.
 - **Never delete a benchmark run directory.** `BenchmarkRuns/*` is gitignored, so a deleted run is
-  gone permanently, and its `results.jsonl` is the only auditable evidence behind whatever
-  `LEDGER.md` claims about it. On 2026-08-19 three directories were deleted during tidying and took
-  with them the raw data behind a figure the ledger still cites. Tidy the ledger, never the runs.
+  gone permanently, and its `results.jsonl` is the only evidence behind what `LEDGER.md` claims
+  about it. Tidy the ledger, never the runs.
 - Never claim a command passed unless you ran it and read the output.
 - Every architecture or documentation claim carries `[evidence_level: ..., confidence: ...]`.
 - Do not present a conceptual relationship as an exact code linkage.
@@ -69,49 +112,31 @@ or documentation pass.
   1. It loses or corrupts user data.
   2. It makes an advertised capability not work.
   3. It blocks the build from shipping at all.
-  Everything else — quality improvements, performance, features, tooling, test coverage — is
-  `Future Backlog` unless the user explicitly pulls it in. Finding a bug is not the same as
-  scheduling it, and conflating those is what makes a release scope grow every time work gets done.
+  Everything else (quality, performance, features, tooling, test coverage) is `Future Backlog`
+  unless the user pulls it in; finding a bug is not scheduling it.
 - **Fixed is not closed.** A row moves to `Completed` only when its behaviour is verified where the
   defect appeared, which for this app usually means on device. Suite-green closes nothing. Say what
   would close a row at the moment you claim it is fixed.
-- **`Status` tracks the work; `Shipped On` tracks reach.** Decided 2026-08-28. A verified fix that is
-  live on one platform is `Completed` with `Shipped On` naming that platform, not held open because
-  the other platform has not had a release. The platforms diverged on 2026-08-26 — macOS reached
-  5.0.2 while iOS is on 5.0 — and before the property existed such a row had no honest state:
-  `Completed` lied to an iPhone user, `In Progress` lied to a Mac user. Leaving `Shipped On` empty
-  means *not recorded*, never *not shipped*.
+- **`Status` tracks the work; `Shipped On` tracks reach** (decided 2026-08-28). A verified fix live on
+  one platform is `Completed` with `Shipped On` naming that platform; an empty `Shipped On` means
+  *not recorded*, never *not shipped*. Detail in the `notion-roadmap` skill.
 
 ## Commands
 
-Verified in this repository:
+Verified in this repository (build and test from `Docs/ai/RUNBOOK.md`, which records what has and
+has not been re-verified):
 
 ```bash
 python3 .codex/skills/route-openintelligence-work/scripts/repoos_router.py preflight --task "..." --path <path>
-```
-
-```bash
 python3 scripts/secret_scan.py
-```
-
-```bash
 scripts/check_icloud_conflicts.sh
-```
-
-```bash
 python3 .claude/codemap/codemap.py check
-```
-
-Build and test, from `Docs/ai/RUNBOOK.md`, which records what has and has not been re-verified:
-
-```bash
+python3 scripts/sync_purpose.py --check
 bash scripts/build_simulator_smoke.sh
 ```
 
-Xcode 27.0 (`27A266a`, Swift 6.4) is the installed release at `/Applications/Xcode.app` and is
-what `xcode-select` points at; `/Applications/Xcode-beta.app` was removed on 2026-09-10.
-Scheme `OpenIntelligence`, test target
-`OpenIntelligenceTests`. `xcodebuild test` needs an explicit iOS 27 simulator destination and a
+Xcode 27.0 (`27A266a`, Swift 6.4) at `/Applications/Xcode.app` is what `xcode-select` points at.
+Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`. `xcodebuild test` needs an explicit iOS 27 simulator destination and a
 `-derivedDataPath` outside `~/Documents`; the exact invocation is in the runbook's `## Test` section.
 
 ## Where things live
@@ -137,17 +162,12 @@ Load these on demand. Do not read the documentation set by default. Every task r
 the superseding protocol and `Docs/ai/ARCHITECTURE.md`; the preflight names the rest. Read large
 files by section (`grep -n '^## ' <file>`, then that range), never whole: `CHANGELOG.md` (only its
 first numbered section is the open release), `Docs/ai/RUNBOOK.md`, `Docs/ai/DECISIONS.md`, the Atlas,
-`Docs/INGESTION_PIPELINE.md`. `RAGService` and `AgenticOrchestrator` are split by job into extension
-files (`RAGService+Import.swift`, `AgenticOrchestrator+ReasoningChain.swift`, ...; the map is in
-`Docs/ai/FILE_MAP.md`), every one of them under 2,000 lines. Standard's `queryInternal` (872 lines, in
-`RAGService+QueryPipeline.swift`) calls about 80 step methods spread over `RAGService+QueryPreparation.swift`, `+QueryRetrieval.swift`,
-`+QueryContext.swift`, `+QueryAnswer.swift` and `+QueryExits.swift`, and `addDocument` (410 lines, in `RAGService+Import.swift`) has its
-queue in `+ImportQueue.swift`, its enrichment in `+ImportEnrichment.swift` and its index checks in `+IndexHealth.swift`: find the symbol
-with `grep -n` and read that range. An old `RAGService.swift:N` citation resolves with `python3 scripts/split_linemap.py`.
-Fifteen more large files (ChatScreen, DocumentProcessor, SettingsView, WorkspaceSyncService and the rest) were split the
-same way that night; the list and what went where is `Docs/ai/FILE_MAP.md`. Moving code
-between files here can change which declaration a call reaches, or a member's actor isolation, with the build still
-green: read the procedure at the end of `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md` before doing it again.
+`Docs/INGESTION_PIPELINE.md`. `RAGService`, `AgenticOrchestrator` and fifteen more large types are split by
+job into extension files under 2,000 lines each (`RAGService+Import.swift`, `+QueryPipeline.swift`, ...);
+`Docs/ai/FILE_MAP.md` says which file holds what. Find a symbol with `grep -n` and read that range; an old
+`RAGService.swift:N` citation resolves with `python3 scripts/split_linemap.py`. Moving code between files can
+change which declaration a call reaches, or a member's actor isolation, with the build still green: read the
+procedure at the end of `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md` before doing it again.
 
 ## Context governance
 

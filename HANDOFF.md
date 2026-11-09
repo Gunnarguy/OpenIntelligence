@@ -10,6 +10,8 @@ stale in 14 places. Its unique facts moved to their homes (`Docs/ai/RUNBOOK.md`,
 
 ## Reading order
 
+0. The Purpose section at the top of `AGENTS.md` (source `Docs/ai/PURPOSE.md`): what the app is for and
+   the owner's rules. Every plan is checked against it.
 1. `AGENTS.md`, then the "Before your first action" and "Non-negotiables" sections of `CLAUDE.md`.
    Read those two sections whatever your tool is: they carry project rules `AGENTS.md` does not.
 2. `Docs/ai/STATE.md`, whole. Current objective, release status, constraints, exact next action.

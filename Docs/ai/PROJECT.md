@@ -17,38 +17,10 @@ first, which is the whole problem when those files are medical, legal, financial
 
 `[evidence_level: code_verified, confidence: high, evidence_source: README.md, Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md]`
 
-## What good means (the owner's standing rules, added 2026-11-09)
+## What good means
 
-These are the owner's own words, collected from sessions between 2026-10-06 and 2026-11-09. Until
-this date they lived only in one agent's private memory, so other agents never saw them. Any change
-is judged against them.
-
-1. **Fidelity on any document.** "absolute, ridiculous level of fidelity. like if i upload a document
-   from the 1950s hand scanned back then vs a HIIIIGHYL complex, table rich with figures research
-   paper, it should be able to organize it all and understand it all" (2026-11-08).
-2. **Accuracy first, speed second.** "the main core absolute purpose of this app is to be accurate
-   number one and then fast as number two"; "I don't mind if it has to take longer" (2026-11-08).
-   Deep Think and Maximum may get faster only through changes that leave answers as accurate, as
-   long and as well cited: "I also don't want deep think or maximum to get dumber or less verbose"
-   (2026-11-07).
-3. **Universal fixes, never per document.** "its imperative that this is a universal rag engine ...
-   not specific to anything xyz" (2026-11-08). A bad answer is a probe for a general defect, and a
-   change is measured on every benchmark set, not on the file that exposed it.
-4. **Make it work.** "make it work, dont just make it not work lol, it has to. employ the absolute
-   best methods to do this using apples frameworks please" (2026-10-09). A clear refusal of the
-   owner's own file is still a failure.
-5. **Apple's models and hardware, used fully.** "yes I'm sticking to apple models for this app"
-   (2026-10-06) for generation; the Neural Engine, GPU, Vision, Foundation Models and the system
-   surfaces are to be used to their full extent ("full unlocking and utilization of the hardware and
-   Apple frameworks", 2026-10-10). Open-source models in the app are limited to the embedder and the
-   reranker.
-6. **Commercial use only.** "absolutely don't use anything that's not approved for commercial use
-   because I'm literally making money off of this app" (2026-11-09). This covers every bundled model
-   (its weights' licence and the terms of the data it was trained on), library and asset. Check both
-   before proposing anything; a permissive weights tag alone is not enough when the model card names
-   non-commercial training data.
-
-`[evidence_level: owner_statement, confidence: exact quotes, evidence_source: the dated sessions above, recorded in Claude Code auto memory for this repository]`
+The owner's standing rules, in his words, live in `Docs/ai/PURPOSE.md` (moved there 2026-11-09, the
+day they were first written down, so every agent loads one copy). Judge any change against them.
 
 ## Users
 
