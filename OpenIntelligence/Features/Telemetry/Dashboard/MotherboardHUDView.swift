@@ -1293,12 +1293,25 @@ private struct SiliconLegend: View {
         /// them on top of the welcome screen, where they read as a debug overlay.
         private var isWelcomeScreenVisible = false
         private var hudEnabled = true
-        /// True while the app shows a sheet, a cover or an alert (5.7). The legend floats in a window
+        /// True while the app shows a sheet, a cover, an alert or a menu (5.7). The legend floats in a window
         /// above the app's, so over a sheet it covered the sheet's buttons and took their taps: on
         /// 2026-10-15 it sat on the Opened File sheet's Don't Add. UIKit announces no presentation, so
-        /// the app's windows are looked at twice a second.
+        /// the app's windows are looked at ten times a second (5.8; twice a second before, so a menu opened and
+        /// the legend vanished up to half a second later).
         private var isSomethingPresented = false
         private var presentationTimer: Timer?
+        /// The fade running now, so a quick open and close reverses it instead of jumping.
+        private var visibilityAnimator: UIViewPropertyAnimator?
+
+        /// How the legend steps aside and comes back (5.8): a fade with a slight shrink, instead of vanishing in one
+        /// frame (the owner, 2026-11-10, opening Chat's menu: "it's like sudden"). The fade out is quicker than the
+        /// fade in, so it clears a menu as the menu opens.
+        enum StepAside {
+            static let hideSeconds: TimeInterval = 0.18
+            static let showSeconds: TimeInterval = 0.28
+            static let hiddenScale: CGFloat = 0.94
+            static let checkInterval: TimeInterval = 0.1
+        }
 
         /// Called by the root view whenever the welcome screen appears or closes.
         func setWelcomeScreenVisible(_ visible: Bool) {
@@ -1307,13 +1320,53 @@ private struct SiliconLegend: View {
         }
 
         private func applyVisibility() {
-            window?.isHidden = !hudEnabled || isWelcomeScreenVisible || isSomethingPresented
-            publishPlacement()
+            guard let window else { return }
+            let shown = isLegendShown
+            // Published first, so a card that sits under the legend moves as the fade starts.
+            HUDLegendPlacement.shared.visibleBox = shown ? window.frame.insetBy(dx: margin, dy: margin) : nil
+            let content = window.rootViewController?.view
+            // Reduce Motion keeps the fade and drops the shrink.
+            let hiddenTransform =
+                UIAccessibility.isReduceMotionEnabled
+                ? CGAffineTransform.identity : CGAffineTransform(scaleX: StepAside.hiddenScale, y: StepAside.hiddenScale)
+            visibilityAnimator?.stopAnimation(true)
+            if shown {
+                if window.isHidden {
+                    window.alpha = 0
+                    content?.transform = hiddenTransform
+                    window.isHidden = false
+                }
+                let animator = UIViewPropertyAnimator(duration: StepAside.showSeconds, curve: .easeOut) {
+                    window.alpha = 1
+                    content?.transform = .identity
+                }
+                animator.startAnimation()
+                visibilityAnimator = animator
+            } else {
+                guard !window.isHidden else { return }
+                // A hidden window takes no taps, but it only becomes hidden when the fade ends; until then it stops
+                // taking them, so a tap on the menu under it reaches the menu.
+                window.isUserInteractionEnabled = false
+                let animator = UIViewPropertyAnimator(duration: StepAside.hideSeconds, curve: .easeIn) {
+                    window.alpha = 0
+                    content?.transform = hiddenTransform
+                }
+                animator.addCompletion { [weak self] position in
+                    guard position == .end, let self, let window = self.window, window.alpha == 0 else { return }
+                    window.isHidden = true
+                }
+                animator.startAnimation()
+                visibilityAnimator = animator
+            }
+            if shown { window.isUserInteractionEnabled = true }
         }
+
+        /// Whether the legend should be on screen now; during a fade out it is already false.
+        private var isLegendShown: Bool { hudEnabled && !isWelcomeScreenVisible && !isSomethingPresented }
 
         /// Tells `HUDLegendPlacement` where the visible box is, so a card at the top of the screen can sit under it.
         private func publishPlacement() {
-            guard let w = window, !w.isHidden else {
+            guard let w = window, isLegendShown else {
                 HUDLegendPlacement.shared.visibleBox = nil
                 return
             }
@@ -1322,7 +1375,7 @@ private struct SiliconLegend: View {
 
         private func watchPresentations() {
             presentationTimer?.invalidate()
-            presentationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            presentationTimer = Timer.scheduledTimer(withTimeInterval: StepAside.checkInterval, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.checkPresentations() }
             }
         }
