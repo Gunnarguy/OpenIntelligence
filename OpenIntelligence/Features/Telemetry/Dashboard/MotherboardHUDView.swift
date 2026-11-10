@@ -708,6 +708,7 @@ private struct FloatingTapticIndicator: View {
         .background(
             Capsule()
                 .fill(Color.black.opacity(SiliconLegend.backingOpacity))
+                .background(Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark))
                 .overlay(
                     Capsule()
                         .strokeBorder(hapticColor.opacity(0.3 * glowMultiplier), lineWidth: 1)
@@ -734,9 +735,11 @@ private struct FloatingTapticIndicator: View {
 /// now has a solid backing with white text and full-strength component colors, and its sizes follow Dynamic
 /// Type up to `maximumScale`, past which an overlay that floats over every screen would cover it.
 private struct SiliconLegend: View {
-    /// The backing behind every piece of the X-Ray's text: dark enough for white and the component colors to
-    /// pass the contrast audit in light and dark appearance.
-    static let backingOpacity: Double = 0.9
+    /// The tint over the blurred backing behind every piece of the X-Ray's text. It was 0.9 black alone, set for the
+    /// 2026-10-15 contrast audit; the owner asked for it more see-through (2026-11-10), so the backing is a dark blur
+    /// (`backingMaterial`) under 0.55 black: the blur evens out what shows through, so white text and the component
+    /// colors keep their contrast.
+    static let backingOpacity: Double = 0.55
     /// The most the X-Ray grows with Dynamic Type (about the AX2 size).
     static let maximumScale: CGFloat = 1.8
 
@@ -990,6 +993,10 @@ private struct SiliconLegend: View {
         .background(
             RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(Color.black.opacity(Self.backingOpacity))
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                        .fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
@@ -1040,6 +1047,10 @@ private struct SiliconLegend: View {
         .background(
             RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(Color.black.opacity(Self.backingOpacity))
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                        .fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .strokeBorder(Color.accentColor, lineWidth: 1))
@@ -1114,6 +1125,16 @@ private struct SiliconLegend: View {
 
         private func applyVisibility() {
             window?.isHidden = !hudEnabled || isWelcomeScreenVisible || isSomethingPresented
+            publishPlacement()
+        }
+
+        /// Tells `HUDLegendPlacement` where the visible box is, so a card at the top of the screen can sit under it.
+        private func publishPlacement() {
+            guard let w = window, !w.isHidden else {
+                HUDLegendPlacement.shared.visibleBox = nil
+                return
+            }
+            HUDLegendPlacement.shared.visibleBox = w.frame.insetBy(dx: margin, dy: margin)
         }
 
         private func watchPresentations() {
@@ -1217,6 +1238,7 @@ private struct SiliconLegend: View {
         private func reassertFrame() {
             guard !isDragging, let w = window, let scene = w.windowScene else { return }
             w.frame = targetFrame(contentSize: lastContentSize, in: scene)
+            publishPlacement()
         }
 
         /// Frame derived from the PERSISTED center (never from the window's
@@ -1255,6 +1277,7 @@ private struct SiliconLegend: View {
                 guard let scene = w.windowScene else { return }
                 w.frame = targetFrame(contentSize: size, in: scene)
             }
+            publishPlacement()
         }
 
         @objc private func handlePan(_ g: UIPanGestureRecognizer) {
@@ -1284,7 +1307,16 @@ private struct SiliconLegend: View {
             // Retires the one-time "Drag me" hint. Set here rather than on gesture start so
             // it only counts once the legend has actually moved and been placed.
             UserDefaults.standard.set(true, forKey: "hudHasBeenDragged")
+            publishPlacement()
         }
+    }
+
+    /// Where the floating X-Ray legend's box is on screen, in window coordinates, or nil while it is hidden (5.8). The
+    /// "Setting up search" card reads it and moves below a legend parked at the top, which covered the card on the
+    /// owner's iPhone on 2026-11-10.
+    @Observable final class HUDLegendPlacement {
+        static let shared = HUDLegendPlacement()
+        var visibleBox: CGRect?
     }
 
     /// Root of the mini floating window: display-only; dragging is handled by the

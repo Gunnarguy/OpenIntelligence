@@ -45,6 +45,8 @@ struct ContentView: View {
     @State private var chatStackID = UUID()
     @State private var chatOnScreen = false
     @State private var chatRebuiltAt: Date?
+    /// Where the top of the "Setting up search" card's overlay is on screen, so the card can sit under the X-Ray legend.
+    @State private var setupCardOverlayTop: CGFloat = 0
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
     @State private var showOnboardingPlans = false
@@ -191,7 +193,12 @@ struct ContentView: View {
         .overlay(alignment: .top) {
             if !screenshotMode.isEnabled {
                 RerankerSetupCard()
-                    .padding(.top, DSSpacing.sm)
+                    .padding(.top, setupCardTopPadding)
+                    .animation(.snappy, value: setupCardTopPadding)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
+                        // The card's own top, less the padding it was given, is where the overlay starts.
+                        setupCardOverlayTop = top - setupCardTopPadding
+                    }
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
@@ -502,6 +509,18 @@ struct ContentView: View {
         #if os(iOS)
             .tabBarMinimizeBehavior(.onScrollDown)
         #endif
+    }
+
+    /// The card's distance from the top of its overlay: below the X-Ray legend when the legend sits in the top part of
+    /// the screen (5.8; on the owner's iPhone on 2026-11-10 a legend parked at the top covered the card), else the usual
+    /// small gap.
+    private var setupCardTopPadding: CGFloat {
+        #if canImport(UIKit)
+            if let box = HUDLegendPlacement.shared.visibleBox, box.minY < setupCardOverlayTop + 160 {
+                return max(DSSpacing.sm, box.maxY - setupCardOverlayTop + DSSpacing.sm)
+            }
+        #endif
+        return DSSpacing.sm
     }
 
     /// Chat went blank under its own tab on the owner's iPhone on 2026-11-05 and twice on 2026-11-07: a back chevron in

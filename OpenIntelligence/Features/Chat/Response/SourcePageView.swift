@@ -248,23 +248,70 @@ nonisolated enum PassageLocator {
     }
 }
 
-/// The page and, when its text layer holds the passage, the passage's selection on it (5.7).
+/// The page and, when the PDF's text holds the passage, the passage's selection (5.7; `PassageFinder` since 5.8).
 enum PassageReveal {
-    static func target(in document: PDFDocument, pageIndex: Int, passage: String) -> (page: PDFPage, selection: PDFSelection?)? {
+    /// The cited page first; then the page before it, the page and the page after, read as one text, so a passage
+    /// that runs over a page edge is selected on both pages. Through 5.8's first builds this searched the page's text
+    /// word by word with only spacing and case allowed to differ, so a typographic dash, a symbol run into the next
+    /// word or a table's import labels left the page with no highlight (the owner's iPhone, 2026-11-10).
+    /// Every highlight is returned: the passage's place and, when it was not found whole, each of its lines or cells
+    /// found near it (`PassageFinder.places`). Empty when the PDF's text does not hold it.
+    static func target(in document: PDFDocument, pageIndex: Int, passage: String) -> (page: PDFPage, selections: [PDFSelection])? {
         guard document.pageCount > 0 else { return nil }
         let index = min(max(pageIndex, 0), document.pageCount - 1)
         guard let page = document.page(at: index) else { return nil }
-        guard let text = page.string, let range = PassageLocator.range(of: passage, in: text),
-            let selection = page.selection(for: range)
-        else { return (page, nil) }
-        return (page, selection)
+        if let text = page.string, let place = PassageFinder.locate(passage, in: text), place.method == .whole,
+            let selection = page.selection(for: place.range)
+        {
+            return (page, [selection])
+        }
+        let window = PageWindow(document: document, around: index)
+        let selections = PassageFinder.places(passage, in: window.text).compactMap {
+            window.selection(for: $0, in: document)
+        }
+        return (page, selections)
+    }
+
+    /// Up to three pages' text read as one, with where each page starts in it.
+    struct PageWindow {
+        private(set) var text = ""
+        private(set) var pages: [(index: Int, start: Int, length: Int)] = []
+
+        init(document: PDFDocument, around index: Int) {
+            for pageIndex in max(0, index - 1)...min(document.pageCount - 1, index + 1) {
+                let pageText = document.page(at: pageIndex)?.string ?? ""
+                let start = (text as NSString).length
+                pages.append((pageIndex, start, (pageText as NSString).length))
+                text += pageText + "\n"
+            }
+        }
+
+        /// The page and the character on it where a place in `text` falls; the line break added between pages
+        /// belongs to the page before it.
+        func position(of offset: Int) -> (index: Int, character: Int)? {
+            guard let page = pages.last(where: { $0.start <= offset }) else { return nil }
+            return (page.index, min(offset - page.start, max(page.length - 1, 0)))
+        }
+
+        func selection(for range: NSRange, in document: PDFDocument) -> PDFSelection? {
+            guard range.length > 0, let start = position(of: range.location),
+                let end = position(of: range.location + range.length - 1),
+                let startPage = document.page(at: start.index), let endPage = document.page(at: end.index)
+            else { return nil }
+            return document.selection(
+                from: startPage, atCharacterIndex: start.character, to: endPage, atCharacterIndex: end.character)
+        }
     }
 }
 
 /// A PDF view that goes to a passage's page and highlights the passage. Before its first layout it has nothing to
 /// scroll, so it goes there once it has a size.
-final class RevealingPDFView: PDFView {
+final class RevealingPDFView: PDFView, @preconcurrency PDFPageOverlayViewProvider {
     private var reveal: (() -> Void)?
+    /// The passage's boxes per page, drawn by `PassageMarkPageView` over each page that has one (5.8).
+    private var markBoxes: [PDFPage: [CGRect]] = [:]
+    /// A scanned page's line tints, which PDFKit cannot draw without a text layer.
+    private var markLines: [PDFPage: [CGRect]] = [:]
     /// The passage it highlights, so the same text is not found twice and a longer copy of it is found again.
     private(set) var shownPassage: String?
 
@@ -288,13 +335,26 @@ final class RevealingPDFView: PDFView {
         shownPassage = passage
         reveal = { [weak self] in
             guard let self else { return }
-            VerificationJournal.record("citation.highlight", ["found": "\(target.selection != nil)"])
-            if let selection = target.selection {
-                selection.color = .systemYellow
-                self.highlightedSelections = [selection]
-                self.go(to: selection)
+            VerificationJournal.record(
+                "citation.highlight", ["found": "\(!target.selections.isEmpty)", "pieces": "\(target.selections.count)"])
+            if let first = target.selections.first {
+                // The lines in the app's accent color, and a box drawn in around each piece (5.8): the flat yellow
+                // marker matched nothing else in the app.
+                for selection in target.selections {
+                    selection.color = PassageMarkStyle.accent.withAlphaComponent(PassageMarkStyle.lineTintOpacity)
+                }
+                self.highlightedSelections = target.selections
+                self.markBoxes = PassageMarkStyle.boxes(for: target.selections)
+                // Set again so PDFKit asks for the pages' overlays, now that there are boxes to draw.
+                self.pageOverlayViewProvider = nil
+                self.pageOverlayViewProvider = self
+                self.go(to: first)
             } else if self.highlightedSelections == nil {
                 self.go(to: target.page)
+                // A scanned page has no text to select: Vision reads it and the passage's lines are marked (5.8).
+                if (target.page.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.markScannedPage(target.page, passage: passage)
+                }
             }
         }
         revealOnce()
@@ -313,6 +373,26 @@ final class RevealingPDFView: PDFView {
             revealOnce()
         }
     #endif
+
+    func pdfView(_ view: PDFView, overlayViewFor page: PDFPage) -> PassageMarkPlatformView? {
+        // A turned page's space does not match the view's; its lines keep their tint, without a box.
+        guard let boxes = markBoxes[page], !boxes.isEmpty, page.rotation == 0 else { return nil }
+        return PassageMarkPageView(boxes: boxes, lines: markLines[page] ?? [], pageBox: page.bounds(for: view.displayBox))
+    }
+
+    private func markScannedPage(_ page: PDFPage, passage: String) {
+        guard page.rotation == 0, let image = ScannedPageMarks.image(of: page, box: displayBox) else { return }
+        let pageBox = page.bounds(for: displayBox)
+        Task { @MainActor [weak self] in
+            let marks = await ScannedPageMarks.marks(for: passage, in: image, pageBox: pageBox)
+            VerificationJournal.record("citation.highlight", ["found": "\(!marks.boxes.isEmpty)", "scan": "true"])
+            guard let self, !marks.boxes.isEmpty, self.shownPassage == passage else { return }
+            self.markBoxes = [page: marks.boxes]
+            self.markLines = [page: marks.lines]
+            self.pageOverlayViewProvider = nil
+            self.pageOverlayViewProvider = self
+        }
+    }
 
     private func revealOnce() {
         guard bounds.width > 0, bounds.height > 0, let reveal else { return }

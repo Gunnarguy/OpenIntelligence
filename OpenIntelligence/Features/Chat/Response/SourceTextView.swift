@@ -98,6 +98,11 @@ nonisolated struct SourceLookup: Equatable, Sendable {
                 return SourceLookup(match: .partial, text: text, range: range)
             }
         }
+        // Where it is, whatever the dashes, quotes, spacing and labels (5.8, `PassageFinder`): still "in part", since its
+        // words are not all there exactly. A text past a few million characters is searched word by word only.
+        if (text as NSString).length <= 3_000_000, let place = PassageFinder.locate(passage, in: text) {
+            return SourceLookup(match: .partial, text: text, range: place.range)
+        }
         if let range = PassageLocator.range(of: unlabeled ?? passage, in: text) {
             return SourceLookup(match: .partial, text: text, range: range)
         }
@@ -223,6 +228,10 @@ struct SourceTextView: View {
             ScrollViewReader { reader in
                 ScrollView {
                     VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                        // A cited image shows itself with the passage boxed where Vision reads it (5.8).
+                        if SourceImageMarkView.imageExtensions.contains(document.fileURL.pathExtension.lowercased()) {
+                            SourceImageMarkView(url: document.fileURL, passage: shownPassage ?? passage)
+                        }
                         if let text = result.text, let range = result.range {
                             excerpt(.around(range, in: text, radius: radius))
                         } else {
@@ -265,10 +274,7 @@ struct SourceTextView: View {
         Text(verbatim: part.passage)
             .foregroundStyle(DSColors.primaryText)
             .padding(DSSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                    .fill(Color.yellow.opacity(0.32))
-            )
+            .background(PassageMarkBackground())
             .textSelection(.enabled)
             .id(Self.passageAnchor)
             .accessibilityLabel(Text("Highlighted passage: \(part.passage)"))

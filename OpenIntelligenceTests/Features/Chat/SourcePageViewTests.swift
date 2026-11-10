@@ -117,7 +117,7 @@ final class PassageLocatorTests: XCTestCase {
                     in: document, pageIndex: 1, passage: "Soak the handpiece for 15 minutes in an enzymatic solution."))
 
             XCTAssertEqual(document.index(for: target.page), 1)
-            XCTAssertEqual(target.selection?.string?.contains("15 minutes"), true)
+            XCTAssertEqual(target.selections.first?.string?.contains("15 minutes"), true)
         }
 
         func testGoesToThePageWithoutASelectionWhenItsTextDoesNotHoldThePassage() throws {
@@ -127,7 +127,7 @@ final class PassageLocatorTests: XCTestCase {
                 PassageReveal.target(in: document, pageIndex: 1, passage: "Soak the handpiece for 15 minutes in an enzymatic solution."))
 
             XCTAssertEqual(document.index(for: target.page), 1)
-            XCTAssertNil(target.selection)
+            XCTAssertTrue(target.selections.isEmpty)
         }
 
         /// A page number past the end, from a file that changed since its import, opens the last page.
@@ -180,7 +180,8 @@ final class PassageLocatorTests: XCTestCase {
             }
 
             view.show("Soak the handpiece for 15 minutes in an enzymatic solution. Rinse it u...", pageIndex: 1)
-            XCTAssertTrue(highlighted().hasSuffix("enzymatic solution."))
+            // The cut-short copy is marked to the cut, rounded out to the whole word (5.8, `PassageFinder`).
+            XCTAssertTrue(highlighted().hasSuffix("Rinse it under"), highlighted())
 
             view.show(whole, pageIndex: 1)
             XCTAssertTrue(highlighted().hasSuffix("for one minute."))

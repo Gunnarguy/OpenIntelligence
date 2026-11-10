@@ -127,7 +127,7 @@
       {"id": "SourcePageTarget", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/SourcePageView.swift", "line": 95, "match": "struct SourcePageTarget: Identifiable {", "status": "VERIFIED"},
       {"id": "PassageLocator", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/SourcePageView.swift", "line": 119, "match": "nonisolated enum PassageLocator {", "status": "VERIFIED"},
       {"id": "PassageReveal", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/SourcePageView.swift", "line": 232, "match": "enum PassageReveal {", "status": "VERIFIED"},
-      {"id": "RevealingPDFView", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/SourcePageView.swift", "line": 246, "match": "final class RevealingPDFView: PDFView {", "status": "VERIFIED"},
+      {"id": "RevealingPDFView", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/SourcePageView.swift", "line": 309, "match": "final class RevealingPDFView: PDFView, @preconcurrency PDFPageOverlayViewProvider {", "status": "VERIFIED"},
       {"id": "test:ReviewPromptServiceTests", "kind": "test", "path": "OpenIntelligenceTests/App/ReviewPromptServiceTests.swift", "line": 7, "match": "final class ReviewPromptServiceTests: XCTestCase {", "status": "VERIFIED"},
       {"id": "test:FactCheckQuoteTests", "kind": "test", "path": "OpenIntelligenceTests/Core/FactCheckQuoteTests.swift", "line": 12, "match": "final class FactCheckQuoteTests: XCTestCase {", "status": "VERIFIED"},
       {"id": "test:StructuredAnswerTests", "kind": "test", "path": "OpenIntelligenceTests/Core/Models/StructuredAnswerTests.swift", "line": 5, "match": "final class StructuredAnswerTests: XCTestCase {", "status": "VERIFIED"},
