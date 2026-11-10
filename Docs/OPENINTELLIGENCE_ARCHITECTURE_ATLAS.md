@@ -724,7 +724,10 @@ supposed to be agentic.
   install 20.8 to 59.7 s (journal `reranker.load`, eight launches). The cache is per installed binary, so each
   development build compiles again and a release user sees the card once per update. `RerankerWarmup` holds iOS
   background time around the load (`RerankerSetupBackgroundTime`, about 30 s, journal `reranker.backgroundTimeExpired`
-  when taken back); a launch cannot start a continued-processing task, which Apple allows only from a person's action.
+  when taken back) and shows setup in the Dynamic Island and on the Lock Screen (`SearchSetupLiveActivity`, the answer's
+  Live Activity with `isSetup`, started as the app leaves the front, ended when it returns); a launch cannot start a
+  continued-processing task, which Apple allows only from a person's action. The X-Ray legend fades aside while the
+  card shows (`FloatingLegendWindowManager.isSetupCardShown`).
   `[evidence_level: measured (device journal), code_verified, confidence: medium]`
 - **Fact Check in Deep Think and Maximum (5.8, 2026-11-07).** After the displayed text is fixed, `RAGService.factCheckedAgenticAnswer`
   checks each claim the structured answer lists with `VerificationGateService.claimVerdicts` (Gate B's per-claim check) and

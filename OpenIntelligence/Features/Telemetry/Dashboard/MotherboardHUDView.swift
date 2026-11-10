@@ -1299,6 +1299,10 @@ private struct SiliconLegend: View {
         /// the app's windows are looked at ten times a second (5.8; twice a second before, so a menu opened and
         /// the legend vanished up to half a second later).
         private var isSomethingPresented = false
+        /// True while the "Setting up search" card is up (5.8). The legend steps aside for it the way it does for a
+        /// menu, and comes back when the card goes: on the owner's iPhone on 2026-11-10 a legend parked at the top
+        /// sat on the card twice, once after a fix that moved the card below it.
+        private var isSetupCardShown = false
         private var presentationTimer: Timer?
         /// The fade running now, so a quick open and close reverses it instead of jumping.
         private var visibilityAnimator: UIViewPropertyAnimator?
@@ -1322,8 +1326,6 @@ private struct SiliconLegend: View {
         private func applyVisibility() {
             guard let window else { return }
             let shown = isLegendShown
-            // Published first, so a card that sits under the legend moves as the fade starts.
-            HUDLegendPlacement.shared.visibleBox = shown ? window.frame.insetBy(dx: margin, dy: margin) : nil
             let content = window.rootViewController?.view
             // Reduce Motion keeps the fade and drops the shrink.
             let hiddenTransform =
@@ -1362,15 +1364,8 @@ private struct SiliconLegend: View {
         }
 
         /// Whether the legend should be on screen now; during a fade out it is already false.
-        private var isLegendShown: Bool { hudEnabled && !isWelcomeScreenVisible && !isSomethingPresented }
-
-        /// Tells `HUDLegendPlacement` where the visible box is, so a card at the top of the screen can sit under it.
-        private func publishPlacement() {
-            guard let w = window, isLegendShown else {
-                HUDLegendPlacement.shared.visibleBox = nil
-                return
-            }
-            HUDLegendPlacement.shared.visibleBox = w.frame.insetBy(dx: margin, dy: margin)
+        private var isLegendShown: Bool {
+            hudEnabled && !isWelcomeScreenVisible && !isSomethingPresented && !isSetupCardShown
         }
 
         private func watchPresentations() {
@@ -1416,6 +1411,18 @@ private struct SiliconLegend: View {
             window = w
             applyVisibility()
             watchPresentations()
+
+            // The setup card's "Search is ready" counts as the card being up, so the legend comes back once it goes.
+            RerankerSetupStatus.shared.$isPreparing
+                .combineLatest(RerankerSetupStatus.shared.$justFinished)
+                .map { $0 || $1 }
+                .removeDuplicates()
+                .receive(on: RunLoop.main)
+                .sink { [weak self] shown in
+                    self?.isSetupCardShown = shown
+                    self?.applyVisibility()
+                }
+                .store(in: &cancellables)
 
             let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
             host.view.addGestureRecognizer(pan)
@@ -1474,7 +1481,6 @@ private struct SiliconLegend: View {
         private func reassertFrame() {
             guard !isDragging, let w = window, let scene = w.windowScene else { return }
             w.frame = targetFrame(contentSize: lastContentSize, in: scene)
-            publishPlacement()
         }
 
         /// Frame derived from the PERSISTED center (never from the window's
@@ -1513,7 +1519,6 @@ private struct SiliconLegend: View {
                 guard let scene = w.windowScene else { return }
                 w.frame = targetFrame(contentSize: size, in: scene)
             }
-            publishPlacement()
         }
 
         @objc private func handlePan(_ g: UIPanGestureRecognizer) {
@@ -1543,16 +1548,7 @@ private struct SiliconLegend: View {
             // Retires the one-time "Drag me" hint. Set here rather than on gesture start so
             // it only counts once the legend has actually moved and been placed.
             UserDefaults.standard.set(true, forKey: "hudHasBeenDragged")
-            publishPlacement()
         }
-    }
-
-    /// Where the floating X-Ray legend's box is on screen, in window coordinates, or nil while it is hidden (5.8). The
-    /// "Setting up search" card reads it and moves below a legend parked at the top, which covered the card on the
-    /// owner's iPhone on 2026-11-10.
-    @Observable final class HUDLegendPlacement {
-        static let shared = HUDLegendPlacement()
-        var visibleBox: CGRect?
     }
 
     /// Root of the mini floating window: display-only; dragging is handled by the

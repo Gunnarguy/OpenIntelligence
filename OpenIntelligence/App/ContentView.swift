@@ -45,8 +45,6 @@ struct ContentView: View {
     @State private var chatStackID = UUID()
     @State private var chatOnScreen = false
     @State private var chatRebuiltAt: Date?
-    /// Where the top of the "Setting up search" card's overlay is on screen, so the card can sit under the X-Ray legend.
-    @State private var setupCardOverlayTop: CGFloat = 0
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
     @State private var showOnboardingPlans = false
@@ -118,6 +116,12 @@ struct ContentView: View {
             }
         }
         .tint(appAccentColor)
+        #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+            // The widgets and Live Activities draw in this color too (5.8), read from the app group.
+            .onChange(of: settingsStore.appAccentColorHex, initial: true) { _, chosen in
+                LiveActivityTint.share(chosen: chosen)
+            }
+        #endif
         .task {
             // The first check of a launch, once the library list has had a moment to load. No scene change fires
             // at launch.
@@ -192,15 +196,10 @@ struct ContentView: View {
         // The one-time "Setting up search" card, on every tab, while the reranker compiles after an install (5.8).
         .overlay(alignment: .top) {
             if !screenshotMode.isEnabled {
+                // The X-Ray legend steps aside while this card is up (`FloatingLegendWindowManager`), so the card
+                // keeps one place at the top.
                 RerankerSetupCard()
-                    .padding(.top, setupCardTopPadding)
-                    .animation(.snappy, value: setupCardTopPadding)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
-                        // Measured outside the padding, so this is where the overlay starts, whatever the padding.
-                        // Until 5.8's fix it subtracted the padding a second time, and the card landed on the legend
-                        // (the owner's iPhone, 2026-11-10).
-                        setupCardOverlayTop = top
-                    }
+                    .padding(.top, DSSpacing.sm)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
@@ -511,18 +510,6 @@ struct ContentView: View {
         #if os(iOS)
             .tabBarMinimizeBehavior(.onScrollDown)
         #endif
-    }
-
-    /// The card's distance from the top of its overlay: below the X-Ray legend when the legend sits in the top part of
-    /// the screen (5.8; on the owner's iPhone on 2026-11-10 a legend parked at the top covered the card), else the usual
-    /// small gap.
-    private var setupCardTopPadding: CGFloat {
-        #if canImport(UIKit)
-            if let box = HUDLegendPlacement.shared.visibleBox, box.minY < setupCardOverlayTop + 160 {
-                return max(DSSpacing.sm, box.maxY - setupCardOverlayTop + DSSpacing.sm)
-            }
-        #endif
-        return DSSpacing.sm
     }
 
     /// Chat went blank under its own tab on the owner's iPhone on 2026-11-05 and twice on 2026-11-07: a back chevron in
@@ -1082,7 +1069,10 @@ enum NavigationProbe {
                         (index < tabNames.count ? tabNames[index] : "tab\(index)", controller)
                     }
                     : tabs.tabs.enumerated().map { index, tab in
-                        ("\(index < tabNames.count ? tabNames[index] : "tab\(index)")[\(tab.identifier.prefix(16))]", tab.viewController)
+                        (
+                            "\(index < tabNames.count ? tabNames[index] : "tab\(index)")[\(tab.identifier.prefix(16))]",
+                            tab.viewController
+                        )
                     }
                 let named = entries.map { entry in
                     let depth =

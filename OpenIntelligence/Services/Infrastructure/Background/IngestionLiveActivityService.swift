@@ -224,7 +224,8 @@
                 presentationProfile: presentationProfile(for: device),
                 processingMode: processingMode(for: device),
                 thermalBucket: IngestionLiveActivityThermalBucket(
-                    processInfoState: ProcessInfo.processInfo.thermalState)
+                    processInfoState: ProcessInfo.processInfo.thermalState),
+                tintHex: LiveActivityTint.currentHex()
             )
 
             endCurrentActivity(finalState: finalState)
@@ -330,7 +331,8 @@
                     performanceSummary(for: device, thermalBucket: thermalBucket), maxLength: 40),
                 presentationProfile: presentationProfile(for: device),
                 processingMode: processingMode(for: device),
-                thermalBucket: thermalBucket
+                thermalBucket: thermalBucket,
+                tintHex: LiveActivityTint.currentHex()
             )
         }
 

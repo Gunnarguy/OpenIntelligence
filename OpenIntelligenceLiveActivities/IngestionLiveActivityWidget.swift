@@ -8,7 +8,7 @@ struct IngestionLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: IngestionLiveActivityAttributes.self) { context in
             IngestionLiveActivityLockScreenView(context: context)
-                .activityBackgroundTint(lockScreenTint(for: context.state.processingMode))
+                .activityBackgroundTint(LiveActivityTint.color(hex: context.state.tintHex).opacity(0.22))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(OpenIntelligenceDeepLink.ingestionQueueURL)
         } dynamicIsland: { context in
@@ -33,26 +33,16 @@ struct IngestionLiveActivityWidget: Widget {
             }
             .contentMargins(.all, 16, for: .expanded)
             .contentMargins(.trailing, 10, for: .expanded)
-            .keylineTint(keylineTint(for: context.state.processingMode))
+            .keylineTint(keylineTint(for: context.state))
             .widgetURL(OpenIntelligenceDeepLink.ingestionQueueURL)
         }
         .supplementalActivityFamilies([.small, .medium])
     }
 
-    private func lockScreenTint(for mode: IngestionLiveActivityProcessingMode) -> Color {
-        switch mode {
-        case .eco: return Color.green.opacity(0.22)
-        case .balanced: return Color.cyan.opacity(0.24)
-        case .turbo: return Color.orange.opacity(0.24)
-        }
-    }
-
-    private func keylineTint(for mode: IngestionLiveActivityProcessingMode) -> Color {
-        switch mode {
-        case .eco: return .green
-        case .balanced: return .cyan
-        case .turbo: return .orange
-        }
+    /// The app's accent color, sent by the app with each state (5.8; green, cyan or orange by processing mode before,
+    /// whose name the card still shows).
+    private func keylineTint(for state: IngestionLiveActivityAttributes.ContentState) -> Color {
+        LiveActivityTint.color(hex: state.tintHex)
     }
 
     private func expandedHeader(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
@@ -91,7 +81,7 @@ struct IngestionLiveActivityWidget: Widget {
     private func expandedQueue(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             ProgressView(value: context.state.progress, total: 1.0)
-                .tint(keylineTint(for: context.state.processingMode))
+                .tint(keylineTint(for: context.state))
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -136,10 +126,10 @@ struct IngestionLiveActivityWidget: Widget {
     private func compactLeading(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
         ZStack {
             Circle()
-                .fill(keylineTint(for: context.state.processingMode).opacity(0.18))
+                .fill(keylineTint(for: context.state).opacity(0.18))
             Image(systemName: "doc.badge.gearshape")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(keylineTint(for: context.state.processingMode))
+                .foregroundStyle(keylineTint(for: context.state))
         }
         .frame(width: 24, height: 24)
         .accessibilityLabel("Document ingestion in progress")
@@ -160,7 +150,7 @@ struct IngestionLiveActivityWidget: Widget {
     private func minimalView(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
         ZStack {
             Circle()
-                .fill(keylineTint(for: context.state.processingMode).opacity(0.18))
+                .fill(keylineTint(for: context.state).opacity(0.18))
             Text("\(max(1, context.state.activeCount))")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
         }
@@ -176,13 +166,7 @@ private struct IngestionLiveActivityLockScreenView: View {
     @Environment(\.isActivityFullscreen) private var isActivityFullscreen
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
-    private var tint: Color {
-        switch context.state.processingMode {
-        case .eco: return .green
-        case .balanced: return .cyan
-        case .turbo: return .orange
-        }
-    }
+    private var tint: Color { LiveActivityTint.color(hex: context.state.tintHex) }
 
     var body: some View {
         switch activityFamily {
@@ -370,16 +354,17 @@ struct QueryLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: QueryLiveActivityAttributes.self) { context in
             QueryLiveActivityLockScreenView(state: context.state, sessionID: context.attributes.sessionID)
-                .activityBackgroundTint(Color.purple.opacity(0.22))
+                .activityBackgroundTint(LiveActivityTint.color(hex: context.state.tintHex).opacity(0.22))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(Self.chatURL)
         } dynamicIsland: { context in
             let paused = QueryLiveActivityStyle.isPaused(context.state)
+            let tint = LiveActivityTint.color(hex: context.state.tintHex)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Label(context.state.title, systemImage: QueryLiveActivityStyle.symbol(context.state))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(tint)
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -396,15 +381,15 @@ struct QueryLiveActivityWidget: Widget {
                             .lineLimit(1)
                         HStack(spacing: 10) {
                             ProgressView(value: context.state.progress, total: 1.0)
-                                .tint(paused ? Color.secondary : Color.purple)
-                            if context.state.finished != true {
-                                // Stops the answer and keeps what is written (5.7).
+                                .tint(paused ? Color.secondary : tint)
+                            if context.state.finished != true, context.state.isSetup != true {
+                                // Stops the answer and keeps what is written (5.7). Search setup has nothing to stop.
                                 Button(intent: StopLongAnswerIntent(sessionID: context.attributes.sessionID)) {
                                     Image(systemName: "stop.fill")
                                         .font(.caption2.weight(.bold))
                                 }
                                 .buttonBorderShape(.circle)
-                                .tint(.purple)
+                                .tint(tint)
                                 .accessibilityLabel("Stop")
                             }
                         }
@@ -412,16 +397,16 @@ struct QueryLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 Image(systemName: QueryLiveActivityStyle.symbol(context.state))
-                    .foregroundStyle(paused ? Color.secondary : Color.purple)
+                    .foregroundStyle(paused ? Color.secondary : tint)
             } compactTrailing: {
                 Text(paused ? "Paused" : "\(QueryLiveActivityStyle.percent(context.state))%")
                     .font(.caption2.monospacedDigit())
                     .contentTransition(.numericText())
             } minimal: {
                 Image(systemName: QueryLiveActivityStyle.symbol(context.state))
-                    .foregroundStyle(paused ? Color.secondary : Color.purple)
+                    .foregroundStyle(paused ? Color.secondary : tint)
             }
-            .keylineTint(.purple)
+            .keylineTint(tint)
             .widgetURL(Self.chatURL)
         }
         .supplementalActivityFamilies([.small, .medium])
@@ -438,7 +423,8 @@ private enum QueryLiveActivityStyle {
 
     static func symbol(_ state: QueryLiveActivityAttributes.ContentState) -> String {
         if state.finished == true { return "checkmark.circle.fill" }
-        return isPaused(state) ? "pause.circle.fill" : "brain.head.profile"
+        if isPaused(state) { return "pause.circle.fill" }
+        return state.isSetup == true ? "magnifyingglass" : "brain.head.profile"
     }
 
     static func percent(_ state: QueryLiveActivityAttributes.ContentState) -> Int {
@@ -457,11 +443,12 @@ private struct QueryLiveActivityLockScreenView: View {
 
     var body: some View {
         let paused = QueryLiveActivityStyle.isPaused(state)
+        let tint = LiveActivityTint.color(hex: state.tintHex)
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: QueryLiveActivityStyle.symbol(state))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(paused ? Color.secondary : Color.purple)
+                    .foregroundStyle(paused ? Color.secondary : tint)
                 Text(state.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -470,13 +457,13 @@ private struct QueryLiveActivityLockScreenView: View {
                     .font(.caption.weight(.medium).monospacedDigit())
                     .foregroundStyle(.secondary)
                 // Stops the answer and keeps what is written (5.7). Not in the watch's small layout.
-                if state.finished != true, activityFamily != .small {
+                if state.finished != true, state.isSetup != true, activityFamily != .small {
                     Button(intent: StopLongAnswerIntent(sessionID: sessionID)) {
                         Image(systemName: "stop.fill")
                             .font(.caption2.weight(.bold))
                     }
                     .buttonBorderShape(.circle)
-                    .tint(.purple)
+                    .tint(tint)
                     .accessibilityLabel("Stop")
                 }
             }
@@ -485,7 +472,7 @@ private struct QueryLiveActivityLockScreenView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             ProgressView(value: state.progress, total: 1.0)
-                .tint(paused ? Color.secondary : Color.purple)
+                .tint(paused ? Color.secondary : tint)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -619,7 +606,7 @@ struct QuickActionsWidgetView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Image(systemName: Self.askSymbol)
                     .font(.title2)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(LiveActivityTint.shared)
                 Spacer(minLength: 0)
                 Text("Ask your documents")
                     .font(.headline)
@@ -642,9 +629,9 @@ struct QuickActionsWidgetView: View {
                 Text(title)
                     .font(.caption.weight(.semibold))
             }
-            .foregroundStyle(.purple)
+            .foregroundStyle(LiveActivityTint.shared)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.purple.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(LiveActivityTint.shared.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 }
@@ -770,7 +757,7 @@ struct LibraryWidgetView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Image(systemName: "books.vertical")
                     .font(.title2)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(LiveActivityTint.shared)
                 Spacer(minLength: 0)
                 Text("Open OpenIntelligence to show your library here.")
                     .font(.caption)
@@ -784,7 +771,7 @@ struct LibraryWidgetView: View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: "books.vertical")
                 .font(.title2)
-                .foregroundStyle(.purple)
+                .foregroundStyle(LiveActivityTint.shared)
             Spacer(minLength: 0)
             Text(snapshot.libraryName)
                 .font(.headline)
@@ -794,7 +781,7 @@ struct LibraryWidgetView: View {
                 .foregroundStyle(.secondary)
             Label("Ask", systemImage: "bubble.left.and.text.bubble.right")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.purple)
+                .foregroundStyle(LiveActivityTint.shared)
         }
     }
 

@@ -39,13 +39,21 @@ final class RerankerSetupStatus: ObservableObject {
     /// How long "Search is ready" stays.
     nonisolated static let readyShownSeconds: Double = 2.5
 
+    /// What setup's Live Activity is told (5.8).
+    enum LiveEvent { case started, finished, paused }
+    /// Set at launch by the app to its setup Live Activity (`SearchSetupLiveActivity`), which lives in the app target:
+    /// this type is also compiled into the engine framework, which has no Live Activities.
+    var onLiveEvent: ((LiveEvent) -> Void)?
+
     func setPreparing(_ preparing: Bool) {
         guard isPreparing != preparing else { return }
         isPreparing = preparing
         if preparing {
             startedAt = Date().addingTimeInterval(-Self.showAfterSeconds)
             justFinished = false
+            onLiveEvent?(.started)
         } else {
+            onLiveEvent?(.finished)
             startedAt = nil
             justFinished = true
             Task { @MainActor [weak self] in
@@ -127,6 +135,7 @@ nonisolated enum RerankerWarmup {
             guard identifier != .invalid else { return }
             if expired {
                 VerificationJournal.record("reranker.backgroundTimeExpired", .failed)
+                RerankerSetupStatus.shared.onLiveEvent?(.paused)
             }
             UIApplication.shared.endBackgroundTask(identifier)
             identifier = .invalid

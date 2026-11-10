@@ -89,7 +89,8 @@
             let state =
                 paused
                 ? QueryLiveActivityAttributes.ContentState(
-                    progress: latest.progress, title: "Paused", subtitle: "Tap to resume.")
+                    progress: latest.progress, title: "Paused", subtitle: "Tap to resume.",
+                    tintHex: LiveActivityTint.currentHex())
                 : latest
             lastUpdateAt = Date()
             VerificationJournal.record("liveactivity.answer.paused", ["paused": "\(paused)"])
@@ -124,12 +125,15 @@
                 progress: success ? 1 : latest.progress,
                 title: success ? "Answer ready" : "Stopped",
                 subtitle: success ? "Open OpenIntelligence to read it." : "The answer did not finish.",
-                finished: true)
+                finished: true, tintHex: LiveActivityTint.currentHex())
             Task {
                 await activity.end(
                     ActivityContent(state: final, staleDate: nil), dismissalPolicy: .after(.now + 300))
             }
         }
+
+        /// Whether an answer is running, so search setup's Live Activity stands aside for it (5.8).
+        var isAnswerRunning: Bool { isRunning }
 
         /// Whether `sessionID` names the Live Activity of the answer still running. The Stop button
         /// (`StopLongAnswerIntent`) stops the chat only then, so a Stop tapped on an ended answer's
@@ -189,7 +193,121 @@
             return QueryLiveActivityAttributes.ContentState(
                 progress: fraction.isFinite ? min(max(fraction, 0), 1) : 0,
                 title: shownTitle.isEmpty ? "Answering your question" : shownTitle,
-                subtitle: cut(subtitle, 120))
+                subtitle: cut(subtitle, 120), tintHex: LiveActivityTint.currentHex())
+        }
+    }
+
+    /// The reranker's first setup after an update, in the Dynamic Island and on the Lock Screen (5.8), on the answer's
+    /// Live Activity with `isSetup`. Asked for by the owner on 2026-11-10 after leaving the app during setup showed
+    /// nothing.
+    ///
+    /// ActivityKit starts one only for an app in front, so it starts as the app is about to leave the front while setup
+    /// runs; in the app the "Setting up search" card says the same, so it ends when the app comes back. The bar is the
+    /// card's estimate (`RerankerSetupStatus.estimatedProgress`), updated every 3 s while the app has background time.
+    /// When iOS takes that time back it reads "Paused", "Open OpenIntelligence to finish." (the app is suspended and
+    /// setup goes on when it is opened); when setup ends it reads "Search is ready" for a minute. An answer's Live
+    /// Activity takes precedence: a question asked during setup waits for it inside its own.
+    @available(iOS 17.0, *)
+    @MainActor
+    final class SearchSetupLiveActivity {
+        static let shared = SearchSetupLiveActivity()
+
+        private static let title = "Setting up search"
+        private static let subtitle = "Once after an update, about a minute."
+        private static let updateInterval: Duration = .seconds(3)
+
+        private var activity: Activity<QueryLiveActivityAttributes>?
+        private var ticker: Task<Void, Never>?
+        private var isPaused = false
+        private var observers: [NSObjectProtocol] = []
+
+        private init() {
+            let center = NotificationCenter.default
+            observers.append(
+                center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: nil) { _ in
+                    MainActor.assumeIsolated { SearchSetupLiveActivity.shared.startIfPreparing() }
+                })
+            observers.append(
+                center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { _ in
+                    MainActor.assumeIsolated { SearchSetupLiveActivity.shared.endNow() }
+                })
+        }
+
+        /// Called when setup starts showing, so the observers above are in place before the app can leave the front.
+        func watch() {}
+
+        private func state(progress: Double? = nil, title: String = SearchSetupLiveActivity.title,
+            subtitle: String = SearchSetupLiveActivity.subtitle, finished: Bool? = nil
+        ) -> QueryLiveActivityAttributes.ContentState {
+            let estimate = RerankerSetupStatus.estimatedProgress(
+                startedAt: RerankerSetupStatus.shared.startedAt, now: Date())
+            return QueryLiveActivityAttributes.ContentState(
+                progress: progress ?? estimate, title: title, subtitle: subtitle, finished: finished, isSetup: true,
+                tintHex: LiveActivityTint.currentHex())
+        }
+
+        private func startIfPreparing() {
+            guard RerankerSetupStatus.shared.isPreparing, activity == nil,
+                !QueryLiveActivityService.shared.isAnswerRunning,
+                ActivityAuthorizationInfo().areActivitiesEnabled,
+                !ProcessInfo.processInfo.isiOSAppOnMac
+            else { return }
+            isPaused = false
+            do {
+                activity = try Activity.request(
+                    attributes: QueryLiveActivityAttributes(sessionID: UUID()),
+                    content: ActivityContent(state: state(), staleDate: Date().addingTimeInterval(120)),
+                    pushType: nil)
+                VerificationJournal.record("liveactivity.setup.start", .ok)
+                ticker?.cancel()
+                ticker = Task { [weak self] in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: Self.updateInterval)
+                        guard let self, let activity = self.activity, !self.isPaused else { return }
+                        await activity.update(
+                            ActivityContent(state: self.state(), staleDate: Date().addingTimeInterval(120)))
+                    }
+                }
+            } catch {
+                VerificationJournal.record(
+                    "liveactivity.setup.start", .failed, ["error": String(describing: type(of: error))])
+            }
+        }
+
+        /// iOS took the background time back: setup is suspended with the app until it is opened.
+        func paused() {
+            guard let activity, !isPaused else { return }
+            isPaused = true
+            ticker?.cancel()
+            let content = ActivityContent(
+                state: state(title: "Paused", subtitle: "Open OpenIntelligence to finish."),
+                staleDate: Date().addingTimeInterval(15 * 60))
+            VerificationJournal.record("liveactivity.setup.paused")
+            Task { await activity.update(content) }
+        }
+
+        /// Setup ended. In the background the Live Activity reads "Search is ready" for a minute; in front it is
+        /// already gone.
+        func finished() {
+            ticker?.cancel()
+            guard let activity else { return }
+            self.activity = nil
+            let content = ActivityContent(
+                state: state(progress: 1, title: "Search is ready", subtitle: "Questions are answered at full speed.",
+                    finished: true),
+                staleDate: nil)
+            VerificationJournal.record("liveactivity.setup.end", .ok)
+            Task { await activity.end(content, dismissalPolicy: .after(.now + 60)) }
+        }
+
+        /// The app is in front again, where the card shows setup: end every setup Live Activity at once.
+        private func endNow() {
+            ticker?.cancel()
+            activity = nil
+            isPaused = false
+            for leftover in Activity<QueryLiveActivityAttributes>.activities where leftover.content.state.isSetup == true {
+                Task { await leftover.end(nil, dismissalPolicy: .immediate) }
+            }
         }
     }
 #endif

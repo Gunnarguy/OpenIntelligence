@@ -162,6 +162,15 @@ struct OpenIntelligenceApp: App {
     private func configureQueryRuntimeBridge() {
         #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
             QueryLiveActivityService.shared.endLeftovers()
+            // Search setup's Live Activity (5.8): the status type is compiled into the engine framework too, which
+            // has no Live Activities, so the app hands it this.
+            RerankerSetupStatus.shared.onLiveEvent = { event in
+                switch event {
+                case .started: SearchSetupLiveActivity.shared.watch()
+                case .finished: SearchSetupLiveActivity.shared.finished()
+                case .paused: SearchSetupLiveActivity.shared.paused()
+                }
+            }
         #endif
         QueryRuntimeBridge.shared.configureContinuedQueryHandler = { run, expiration in
             BackgroundTaskService.shared.configureContinuedQuery(
