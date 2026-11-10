@@ -84,7 +84,8 @@ extension UnifiedMetricsBar {
             }
             .frame(height: 21)
             .contentShape(Rectangle())
-            .gesture(
+            // High priority, so the chat's scroll view does not take the same drag and move the screen with it.
+            .highPriorityGesture(
                 DragGesture(coordinateSpace: .global)
                     .onChanged { val in
                         if !isDragging {
@@ -97,7 +98,7 @@ extension UnifiedMetricsBar {
                         dragOffset = val.translation.height
                     }
                     .onEnded { val in
-                        baseHeight = max(150, baseHeight + val.translation.height)
+                        baseHeight = Self.clampedPanelHeight(baseHeight + val.translation.height)
                         dragOffset = 0
                         isDragging = false
                     }
@@ -119,21 +120,37 @@ extension UnifiedMetricsBar {
                     }
             }
         )
-        .frame(height: baseHeight > 0 ? max(150, baseHeight + dragOffset) : nil)
+        // A dragged panel is exactly the height dragged to, and the card around it follows. Until 5.8 the card sat in a
+        // frame that grew to all the space Chat offered: dragging up shrank the panel inside a card that kept its size,
+        // so the panel slid to the card's middle with a blank band above it, and dragging down pushed the screen
+        // (the owner's iPhone, 2026-11-10). Before any drag it sizes itself, up to the same limit as before.
+        .frame(height: baseHeight > 0 ? Self.clampedPanelHeight(baseHeight + dragOffset) : nil, alignment: .top)
+        .frame(maxHeight: baseHeight > 0 ? nil : Self.panelHeightLimit, alignment: .top)
+        // The bar's springs do not run while the finger moves the panel, so it tracks the finger with no lag.
+        .transaction { transaction in
+            if isDragging { transaction.animation = nil }
+        }
         // Auto-reset manual height when system finishes processing so it can auto-size the new tools section
         .onChange(of: isProcessing) {
             baseHeight = 0
             isDragging = false
         }
-        #if os(iOS)
-        .frame(maxHeight: 1000) // Massive expansion limit for demos without triggering UIScreen deprecation warnings
-        #else
-        .frame(maxHeight: 650)
-        #endif
         .padding(DSSpacing.md)
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .padding(.top, DSSpacing.xs)
+    }
+
+    #if os(iOS)
+        static let panelHeightLimit: CGFloat = 1000
+    #else
+        static let panelHeightLimit: CGFloat = 650
+    #endif
+
+    /// A dragged height kept between 150 points and the limit the panel had before any drag.
+    static func clampedPanelHeight(_ height: CGFloat) -> CGFloat {
+        guard height.isFinite else { return 150 }
+        return min(panelHeightLimit, max(150, height))
     }
 
     // MARK: - Section: Library Context (NEW)
