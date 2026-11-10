@@ -27,9 +27,19 @@ final class XRayPlacementTests: XCTestCase {
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPhone17,5"), .iPhone16e)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPhone19,3"), .iPhone18ProMax)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPhone19,7"), .iPhone18ProMax)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,3"), .iPadPro)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,1"), .iPadMini)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,8"), .iPadAir)
+        // iPad sizes, by Xcode 27's Simulator device profiles: 16,4 and 17,2 are 11-inch, 16,6 and 17,4 are 13-inch.
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,3"), .iPadPro11)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,4"), .iPadPro11)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,6"), .iPadPro13)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,2"), .iPadPro11)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,4"), .iPadPro13)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,8"), .iPadAir11)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,11"), .iPadAir13)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,3"), .iPadAir11)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,5"), .iPadAir13)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,9"), .iPadAir11)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,11"), .iPadAir13)
     }
 
     /// iPhone Duo's insides are not mapped, so it draws nothing rather than an outline in the wrong place.
@@ -42,15 +52,43 @@ final class XRayPlacementTests: XCTestCase {
         }
     }
 
-    /// Where Apple's images do not show the chip, the outline is the logic board; iPads have no Taptic Engine.
-    func testBoardAndChipSourcesAreRecorded() {
-        XCTAssertEqual(DeviceComponentLayout.iPhone17Pro.socPlacement?.source, .chip)
-        XCTAssertEqual(DeviceComponentLayout.iPhone18Pro.socPlacement?.source, .chip)
-        XCTAssertEqual(DeviceComponentLayout.iPhoneAir.socPlacement?.source, .board)
-        XCTAssertEqual(DeviceComponentLayout.iPhone16Pro.socPlacement?.source, .board)
-        XCTAssertEqual(DeviceComponentLayout.iPadPro.socPlacement?.source, .board)
-        XCTAssertNil(DeviceComponentLayout.iPadPro.tapticRect)
+    /// Where the chip was measured, and nothing where it was not: no estimate is ever drawn. iPads have no Taptic Engine.
+    func testChipsAreWhereTheyWereMeasured() throws {
+        // 16 Pro Max (iFixit chip ID fitted on 5 screw holes of the CT): left column, a third of the way down.
+        let proMax = try XCTUnwrap(DeviceComponentLayout.iPhone16ProMax.socPlacement)
+        XCTAssertLessThan(proMax.rect.maxX, 0.35)
+        XCTAssertGreaterThan(proMax.rect.minY, 0.25)
+        // iPhone Air: in the camera plateau at the top, not the lower band.
+        let air = try XCTUnwrap(DeviceComponentLayout.iPhoneAir.socPlacement)
+        XCTAssertLessThan(air.rect.maxY, 0.2)
+        // 17 Pro: right of centre, about a third of the way down (the plate under the display is the NAND, left of it).
+        let pro17 = try XCTUnwrap(DeviceComponentLayout.iPhone17Pro.socPlacement)
+        XCTAssertGreaterThan(pro17.rect.minX, 0.3)
+        // iPad mini: in the right-hand board column, below the middle.
+        let mini = try XCTUnwrap(DeviceComponentLayout.iPadMini.socPlacement)
+        XCTAssertGreaterThan(mini.rect.minX, 0.7)
+        XCTAssertGreaterThan(mini.rect.minY, 0.5)
+        // No photo of the chip on these boards: no outline at all.
+        XCTAssertNil(DeviceComponentLayout.iPadProM1M2.socPlacement)
+        XCTAssertNil(DeviceComponentLayout.iPadAirM1.socPlacement)
+        XCTAssertNil(DeviceComponentLayout.iPadPro13.tapticRect)
         XCTAssertNotNil(DeviceComponentLayout.iPhone17.tapticRect)
+    }
+
+    /// Two independent passes measured these from different images; the code's value must sit within 0.02 of both.
+    func testPlacementsAgreeWithTheSecondPass() throws {
+        let second: [(DeviceComponentLayout, CGRect)] = [
+            (.iPhone18Pro, DeviceComponentLayout.displayRect(x: 0.29...0.50, y: 0.29...0.40)),
+            (.iPhone18ProMax, DeviceComponentLayout.displayRect(x: 0.35...0.54, y: 0.27...0.37)),
+            (.iPadPro13, DeviceComponentLayout.displayRect(x: 0.467...0.605, y: 0.424...0.529)),
+            (.iPadMini, DeviceComponentLayout.displayRect(x: 0.77...0.89, y: 0.59...0.66)),
+            (.iPhone16e, DeviceComponentLayout.displayRect(x: 0.09...0.28, y: 0.39...0.51)),
+        ]
+        for (layout, other) in second {
+            let rect = try XCTUnwrap(layout.socPlacement?.rect, layout.displayName)
+            XCTAssertEqual(rect.midX, other.midX, accuracy: 0.02, layout.displayName)
+            XCTAssertEqual(rect.midY, other.midY, accuracy: 0.02, layout.displayName)
+        }
     }
 
     /// Every outline lies inside the display.
@@ -60,7 +98,7 @@ final class XRayPlacementTests: XCTestCase {
         let layouts: [DeviceComponentLayout] = [
             .iPhone15Pro, .iPhone15ProMax, .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax, .iPhone16e,
             .iPhone17, .iPhoneAir, .iPhone17e, .iPhone17Pro, .iPhone17ProMax, .iPhone18Pro, .iPhone18ProMax,
-            .iPadMini, .iPadAir, .iPadPro, .iPadProM1M2, .iPadAirM1,
+            .iPadMini, .iPadAir11, .iPadAir13, .iPadPro11, .iPadPro13,
         ]
         for layout in layouts {
             let name = layout.displayName

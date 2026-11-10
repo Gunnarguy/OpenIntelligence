@@ -719,6 +719,10 @@ supposed to be agentic.
   development builds; `AgenticOrchestrator.executeMultiQuerySearch` reads it for the blend weights. Record:
   `BenchmarkRuns/2026-11-10-rule-audit/README.md`; detail in `Docs/RETRIEVAL_PIPELINE.md`, "Every rule after the
   reranker, measured". `[evidence_level: test_verified (AnswerFloorTests), measured (Simulator benchmark), confidence: medium]`
+- **The reranker's setup card waits 3 seconds (5.8, 2026-11-10).** `RerankerSetupStatus.showAfterSeconds` is 3 (was 1):
+  on the owner's iPhone a load from the Neural Engine's compiled cache took 0.46 s and 1.52 s, and a first load after an
+  install 20.8 to 59.7 s (journal `reranker.load`, eight launches). The cache is per installed binary, so each
+  development build compiles again and a release user sees the card once per update. `[evidence_level: measured (device journal), code_verified, confidence: medium]`
 - **Fact Check in Deep Think and Maximum (5.8, 2026-11-07).** After the displayed text is fixed, `RAGService.factCheckedAgenticAnswer`
   checks each claim the structured answer lists with `VerificationGateService.claimVerdicts` (Gate B's per-claim check) and
   `StructuredAnswer.withClaimVerdicts` fills in only the verdicts; until then every claim read Not Checked.

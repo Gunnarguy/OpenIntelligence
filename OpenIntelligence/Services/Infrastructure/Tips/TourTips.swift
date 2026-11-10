@@ -119,7 +119,7 @@ enum TourStep: String, CaseIterable, Sendable {
         case .privateCloud: "Private Cloud Compute is Apple's server for questions too big for the device. Choose never, or when it may be used. Your documents are searched on your device either way."
         case .glossary: "What each word in the app means, in plain words, for when a screen uses one you don't know."
         case .technicalDetails: "Shows the metrics bar, passage counts and badges under each answer, for when you want the numbers."
-        case .xray: "The outline is where the chip sits under the screen, purple for the Neural Engine, cyan for the GPU, orange for the CPU; on iPhone the bottom one is the Taptic Engine. Unknown spots show the logic board."
+        case .xray: "The outline is where the chip sits under the screen, purple for the Neural Engine, cyan for the GPU, orange for the CPU; on iPhone the bottom one is the Taptic Engine."
         case .siri: "Siri and Shortcuts can ask a question, search your documents and add to a library, without opening the app."
         case .menuBar: "A question box in the Mac's menu bar, one click away from any app."
         case .redeemCode: "Redeem an offer or gift code here."

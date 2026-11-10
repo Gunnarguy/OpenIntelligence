@@ -30,8 +30,10 @@ final class RerankerSetupStatus: ObservableObject {
     /// When the load began (a second before the card showed), for the card's estimated progress.
     private(set) var startedAt: Date?
 
-    /// How long a load runs before the app says so.
-    nonisolated static let showAfterSeconds: Double = 1
+    /// How long a load runs before the app says so. 3 s (5.8, 2026-11-10): on the owner's iPhone a load from the
+    /// compiled cache took 0.46 s and 1.52 s, and a first load after an install 20.8 to 59.7 s (journal
+    /// `reranker.load`, eight launches, 2026-11-09 and 10), so at 1 s a cached launch could flash the card.
+    nonisolated static let showAfterSeconds: Double = 3
     /// What the card's bar estimates the first load at: the slower of the two measurements above.
     nonisolated static let expectedSeconds: Double = 50
     /// How long "Search is ready" stays.

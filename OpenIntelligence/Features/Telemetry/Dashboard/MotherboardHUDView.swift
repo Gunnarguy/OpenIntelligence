@@ -6,10 +6,10 @@
 //  Neural Engine are all on one die about a centimetre across, so there is one outline for the chip and one for the
 //  Taptic Engine.
 //
-//  Since 5.8 every position comes from Apple's Self Service Repair images (support.apple.com articles named on each
-//  layout), fetched 2026-11-10. Where Apple's images show the logic board but not the chip on it, the outline is the
-//  board and is labelled so; no chip spot is guessed. Model identifiers from Apple's support pages and the EveryMac
-//  identifier list, fetched 2026-11-10.
+//  Since 5.8 every chip outline is the chip package itself, measured from teardown photos fitted by screw holes onto
+//  Apple's Self Service Repair images and X-ray or CT scans of the same model (sources on each layout), 2026-11-10.
+//  A model whose chip could not be measured gets no chip outline; no spot is guessed. Model identifiers from Apple's
+//  support pages, the EveryMac identifier list and Xcode 27's Simulator device profiles, fetched 2026-11-10.
 //
 
 import Combine
@@ -21,21 +21,14 @@ import SwiftUI
 
 // MARK: - Device Layout Configuration
 
-/// What an X-Ray outline marks: the chip package itself, or the logic board it sits on.
-nonisolated enum PlacementSource: Equatable, Sendable {
-    /// The outline is the chip package (the A-series or M-series chip).
-    case chip
-    /// The chip's exact spot on this model is not known, so the outline is the logic board that holds it.
-    case board
-}
-
-/// How sure a measured position is.
+/// How sure a measured chip position is. A model whose chip could not be measured has no placement at all, so the
+/// X-Ray never draws an estimate (owner, 2026-11-10: "no approximations").
 nonisolated enum PlacementConfidence: Equatable, Sendable {
+    /// A chip photo fitted by its screw holes onto an image of this exact model, checked against a second source.
     case high
+    /// Fitted the same way on a sister model whose board is shown to be the same (shared screw pattern or an
+    /// identical Apple repair image), or on one source only.
     case medium
-    case low
-    /// No image of this model's insides was found; the spot is the generic one the X-Ray used before 5.8.
-    case unsourced
 }
 
 /// One outline on the X-Ray.
@@ -45,7 +38,6 @@ nonisolated enum PlacementConfidence: Equatable, Sendable {
 /// `DeviceComponentLayout.displayRect(x:y:)`.
 nonisolated struct ComponentPlacement: Equatable, Sendable {
     let rect: CGRect
-    let source: PlacementSource
     let confidence: PlacementConfidence
     /// Where the position was measured: Apple support article ids (support.apple.com/<id>) or a teardown.
     let reference: String
@@ -68,15 +60,19 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
     case iPhone17ProMax
     case iPhone18Pro
     case iPhone18ProMax
-    /// iPad mini with A17 Pro or A20 Pro.
+    /// iPad mini with A17 Pro. The A20 Pro mini (on sale 2026-11-06) has a different board and is not mapped yet.
     case iPadMini
-    /// iPad Air with M2 or later.
-    case iPadAir
-    /// iPad Pro with M4 or M5.
-    case iPadPro
-    /// iPad Pro with M1 or M2: no source for its insides.
+    /// iPad Air 11-inch with M2, M3 or M4.
+    case iPadAir11
+    /// iPad Air 13-inch with M2, M3 or M4.
+    case iPadAir13
+    /// iPad Pro 11-inch with M4 or M5.
+    case iPadPro11
+    /// iPad Pro 13-inch with M4 or M5.
+    case iPadPro13
+    /// iPad Pro with M1 or M2: no photo of the chip on its board was found, so no chip outline.
     case iPadProM1M2
-    /// iPad Air with M1: no source for its insides.
+    /// iPad Air with M1: no photo of the chip on its board was found, so no chip outline.
     case iPadAirM1
     /// Anything else, including iPhone Duo (iPhone19,4), whose insides are not mapped yet. Shows no outline.
     case unknown
@@ -144,12 +140,20 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case (13, 4...11): return .iPadProM1M2  // iPad Pro M1
         case (13, 16...17): return .iPadAirM1  // iPad Air M1
         case (14, 3...6): return .iPadProM1M2  // iPad Pro M2
-        case (14, 8...11): return .iPadAir  // iPad Air M2
-        case (15, 3...6): return .iPadAir  // iPad Air M3 (identifiers not verified against a primary source)
+        // Sizes from Xcode 27's Simulator device profiles (modelIdentifier): 14,9 / 14,11 the iPad Air 11- and 13-inch
+        // M2, 15,3 / 15,5 the M3, 16,9 / 16,11 the M4; 16,4 / 16,6 the iPad Pro 11- and 13-inch M4, 17,2 / 17,4 the M5.
+        // Each profile is the cellular model; its Wi-Fi model is the identifier one below.
+        case (14, 8...9): return .iPadAir11  // iPad Air 11-inch M2
+        case (14, 10...11): return .iPadAir13  // iPad Air 13-inch M2
+        case (15, 3...4): return .iPadAir11  // iPad Air 11-inch M3
+        case (15, 5...6): return .iPadAir13  // iPad Air 13-inch M3
         case (16, 1...2): return .iPadMini  // iPad mini A17 Pro
-        case (16, 3...6): return .iPadPro  // iPad Pro M4
-        case (16, 8...11): return .iPadAir  // iPad Air M4
-        case (17, 1...4): return .iPadPro  // iPad Pro M5
+        case (16, 3...4): return .iPadPro11  // iPad Pro 11-inch M4
+        case (16, 5...6): return .iPadPro13  // iPad Pro 13-inch M4
+        case (16, 8...9): return .iPadAir11  // iPad Air 11-inch M4
+        case (16, 10...11): return .iPadAir13  // iPad Air 13-inch M4
+        case (17, 1...2): return .iPadPro11  // iPad Pro 11-inch M5
+        case (17, 3...4): return .iPadPro13  // iPad Pro 13-inch M5
         default: return .unknown
         }
     }
@@ -182,8 +186,10 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case .iPhone18Pro: return "iPhone 18 Pro"
         case .iPhone18ProMax: return "iPhone 18 Pro Max"
         case .iPadMini: return "iPad mini"
-        case .iPadAir: return "iPad Air"
-        case .iPadPro: return "iPad Pro"
+        case .iPadAir11: return "iPad Air 11-inch"
+        case .iPadAir13: return "iPad Air 13-inch"
+        case .iPadPro11: return "iPad Pro 11-inch"
+        case .iPadPro13: return "iPad Pro 13-inch"
         case .iPadProM1M2: return "iPad Pro"
         case .iPadAirM1: return "iPad Air"
         case .unknown: return "Unknown Device"
@@ -224,104 +230,101 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 
-    /// Where the chip is, or the logic board when the chip's spot on that board is not known. Nil draws nothing.
+    /// Where the chip package is, measured. Nil draws no chip outline: unknown models, and the three iPads on which no
+    /// photo of the chip on its board could be found.
     ///
-    /// Measured on Apple's Self Service Repair locator images (the article ids are in each `reference`), fetched
-    /// 2026-11-10. The iPad entries are approximate: Apple publishes no logic-board image for them, so they mark the
-    /// column the board occupies, never a chip.
+    /// Method (5.8, 2026-11-10): a teardown photo of the bare board with the chip identified (iFixit Chip ID, IPBrain,
+    /// ChargerLab, TechInsights), fitted by its screw holes onto a whole-device image of the same model whose outline is
+    /// measured (Apple's Self Service Repair images by article id, support.apple.com/<id>; iFixit, Lumafield and
+    /// Creative Electron X-ray and CT scans). Values are fractions of the device outline, front view (looking at the
+    /// display), portrait, USB-C at the bottom; back-view images are mirrored. Each was fitted twice, by independent
+    /// passes, and the two agree within 0.01 wherever both measured; the overlays are in
+    /// `BenchmarkRuns/2026-11-10-xray-chip-positions/`.
     var socPlacement: ComponentPlacement? {
         switch self {
         case .iPhone15Pro:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.08...0.33, y: 0.30...0.50), source: .chip, confidence: .low,
-                reference: "Apple 104882, 104885; board x 0.04-0.36, y 0.17-0.62")
+                rect: Self.displayRect(x: 0.10...0.37, y: 0.33...0.42), confidence: .high,
+                reference: "iFixit 15 Pro Max chip ID fitted to Apple 104873 internal view; same board on the X-ray")
         case .iPhone15ProMax:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.10...0.33, y: 0.30...0.54), source: .chip, confidence: .low,
-                reference: "Apple 104927")
+                rect: Self.displayRect(x: 0.10...0.34, y: 0.32...0.41), confidence: .high,
+                reference: "iFixit 15 Pro Max chip ID fitted to the iFixit X-ray (4 holes, misses <= 9 px)")
         case .iPhone16:
-            // The board is a band across the top (x 0.05-0.65, y 0.03-0.25) and a column down the left; the column
-            // is outlined. The chip on it is not located.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.03...0.22, y: 0.03...0.70), source: .board, confidence: .medium,
-                reference: "Apple 120643")
+                rect: Self.displayRect(x: 0.33...0.51, y: 0.18...0.29), confidence: .high,
+                reference: "iFixit 16 chip ID fitted to the iFixit iPhone 16 CT (4 holes, misses <= 14 px)")
         case .iPhone16Plus:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.03...0.22, y: 0.03...0.70), source: .board, confidence: .medium,
-                reference: "Apple 120672")
+                rect: Self.displayRect(x: 0.32...0.48, y: 0.17...0.27), confidence: .high,
+                reference: "iFixit 16 chip ID fitted to the iFixit 16 Plus CT (4 holes, misses <= 9 px)")
         case .iPhone16Pro:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.05...0.35, y: 0.20...0.66), source: .board, confidence: .medium,
-                reference: "Apple 120812")
+                rect: Self.displayRect(x: 0.10...0.33, y: 0.32...0.41), confidence: .high,
+                reference: "iFixit 16 Pro chip ID fitted to the iFixit 16 Pro CT (misses <= 3.4 px)")
         case .iPhone16ProMax:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.05...0.35, y: 0.20...0.66), source: .board, confidence: .medium,
-                reference: "Apple 120829; board taken as the 16 Pro's")
+                rect: Self.displayRect(x: 0.09...0.31, y: 0.29...0.38), confidence: .high,
+                reference: "iFixit 16 Pro chip ID fitted to the iFixit 16 Pro Max CT (5 holes, misses <= 5 px)")
         case .iPhone16e:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.06...0.29, y: 0.20...0.65), source: .board, confidence: .medium,
-                reference: "Apple 121696")
+                rect: Self.displayRect(x: 0.081...0.269, y: 0.372...0.490), confidence: .high,
+                reference: "iFixit 16e chip ID fitted to the iFixit/Lumafield CT by 4 screw holes (back view, mirrored)"
+            )
         case .iPhone17e:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.06...0.29, y: 0.20...0.65), source: .board, confidence: .medium,
-                reference: "Apple 125950; board taken as the 16e's")
+                rect: Self.displayRect(x: 0.11...0.30, y: 0.39...0.51), confidence: .medium,
+                reference: "ChargerLab A19 board photo fitted to Apple 125954 by 5 holes (misses <= 5.7 px)")
         case .iPhone17:
-            // A column down the left plus a band across the top; the column is outlined.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.02...0.24, y: 0.14...0.64), source: .board, confidence: .medium,
-                reference: "Apple 123042, 123045")
+                rect: Self.displayRect(x: 0.35...0.52, y: 0.17...0.30), confidence: .medium,
+                reference: "IPBrain A19 board photo fitted to Apple 123042 by 3 holes (misses <= 1.8 px)")
         case .iPhoneAir:
-            // The whole board sits under the camera area at the top. The chip on it is not located.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.05...0.96, y: 0.10...0.27), source: .board, confidence: .medium,
-                reference: "Apple 123061, 123063")
+                rect: Self.displayRect(x: 0.414...0.631, y: 0.115...0.192), confidence: .high,
+                reference:
+                    "iFixit Air chip ID fitted to the iFixit radiograph (5 holes); Apple 123061 board within 1.5 pt")
         case .iPhone17Pro:
-            // Confidence low to medium. Board x 0.06-0.95, y 0.20-0.40.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.30...0.52, y: 0.24...0.36), source: .chip, confidence: .low,
-                reference: "Apple 123375, 123372; iFixit CT scan")
+                rect: Self.displayRect(x: 0.357...0.535, y: 0.265...0.374), confidence: .high,
+                reference: "iFixit 17 Pro chip ID fitted to Apple 123375 by 6 points (misses <= 5 px); iFixit CT agrees"
+            )
         case .iPhone17ProMax:
-            // Board x 0.14-0.97, y 0.19-0.36 (Apple 123395, 123392). The chip is assumed to sit where it does on the
-            // 17 Pro.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.30...0.52, y: 0.24...0.36), source: .chip, confidence: .low,
-                reference: "Apple 123395, 123392; chip assumed at the 17 Pro's spot")
+                rect: Self.displayRect(x: 0.410...0.574, y: 0.248...0.348), confidence: .high,
+                reference: "iFixit 17 Pro chip ID fitted to Apple 123395 (misses <= 5 px; same board as the 17 Pro)")
         case .iPhone18Pro:
-            // Confidence medium to high: the chip's cooling mesh shows in Apple's image.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.27...0.51, y: 0.28...0.40), source: .chip, confidence: .medium,
-                reference: "Apple 127411; iFixit teardown")
+                rect: Self.displayRect(x: 0.286...0.501, y: 0.294...0.406), confidence: .high,
+                reference:
+                    "iFixit 18 Pro no-battery photo fitted to Apple 127411 (misses <= 1.5 px); Apple's mesh square")
         case .iPhone18ProMax:
-            // Scaled from the 18 Pro. Board main block x 0.15-0.50, y 0.20-0.36.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.22...0.45, y: 0.22...0.34), source: .chip, confidence: .low,
-                reference: "Apple 127646, 127639; chip scaled from the 18 Pro")
-        case .iPadPro:
-            // APPROXIMATE: no Apple logic-board image exists for iPad. Front view, portrait, USB-C at the bottom.
+                rect: Self.displayRect(x: 0.347...0.541, y: 0.269...0.371), confidence: .high,
+                reference:
+                    "iFixit 18 Pro Max no-battery photo fitted to Apple 127646 (misses <= 2.5 px); Apple's mesh square")
+        case .iPadPro13:
+            // The M5 board is taken as the M4's: Apple serves the identical internal view on both (121282, 125192).
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.37...0.58, y: 0.16...0.89), source: .board, confidence: .low,
-                reference: "approximate, no Apple board image")
-        case .iPadAir:
-            // APPROXIMATE, as for iPad Pro.
+                rect: Self.displayRect(x: 0.476...0.602, y: 0.426...0.522), confidence: .high,
+                reference: "Creative Electron M4 X-ray ball grid; iFixit Chip ID 172901 fitted by 12 holes agrees")
+        case .iPadPro11:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.74...0.95, y: 0.14...0.87), source: .board, confidence: .low,
-                reference: "approximate, no Apple board image")
+                rect: Self.displayRect(x: 0.463...0.631, y: 0.419...0.538), confidence: .medium,
+                reference: "13-inch fit carried over: Apple's 11- and 13-inch internal views share 7 board screws")
+        case .iPadAir13:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.80...0.94, y: 0.46...0.56), confidence: .high,
+                reference: "iFixit M2 X-ray; iFixit board photo fitted to Apple 121276 by 4 screws agrees within 0.012")
+        case .iPadAir11:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.78...0.93, y: 0.48...0.59), confidence: .medium,
+                reference: "TechInsights M2 board photo fitted to Apple 121273 by 4 points (misses <= 1.7 px)")
         case .iPadMini:
-            // APPROXIMATE, as for iPad Pro.
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.72...0.96, y: 0.16...0.99), source: .board, confidence: .low,
-                reference: "approximate, no Apple board image")
-        case .iPadProM1M2:
-            // Position not sourced: the generic iPad Pro spot used before 5.8, kept and labelled approximate.
-            return ComponentPlacement(
-                rect: CGRect(x: 0.42, y: 0.44, width: 0.16, height: 0.12), source: .chip, confidence: .unsourced,
-                reference: "position not sourced")
-        case .iPadAirM1:
-            // Position not sourced: the generic iPad Air spot used before 5.8, kept and labelled approximate.
-            return ComponentPlacement(
-                rect: CGRect(x: 0.40, y: 0.44, width: 0.20, height: 0.12), source: .chip, confidence: .unsourced,
-                reference: "position not sourced")
-        case .unknown:
+                rect: Self.displayRect(x: 0.755...0.888, y: 0.578...0.654), confidence: .medium,
+                reference: "iFixit Chip ID 178389 fitted to Apple 122362 (8 constraints); mini 6 X-ray agrees")
+        case .iPadProM1M2, .iPadAirM1, .unknown:
             return nil
         }
     }
@@ -337,16 +340,16 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case .iPhone16: return Self.displayRect(x: 0.06...0.26, y: 0.76...0.95)  // Apple 120643
         case .iPhone16Plus: return Self.displayRect(x: 0.06...0.23, y: 0.70...0.88)  // Apple 120672
         case .iPhone16Pro: return Self.displayRect(x: 0.12...0.42, y: 0.87...0.95)  // Apple 120812
-        case .iPhone16ProMax: return Self.displayRect(x: 0.18...0.47, y: 0.87...0.98)  // Apple 120829
-        case .iPhone16e: return Self.displayRect(x: 0.06...0.29, y: 0.85...0.99)  // Apple 121696
-        case .iPhone17e: return Self.displayRect(x: 0.06...0.33, y: 0.80...0.93)  // Apple 125950
-        case .iPhone17: return Self.displayRect(x: 0.01...0.24, y: 0.76...0.93)  // Apple 123042
-        case .iPhoneAir: return Self.displayRect(x: 0.14...0.41, y: 0.82...0.90)  // Apple 123061
-        case .iPhone17Pro: return Self.displayRect(x: 0.53...0.99, y: 0.87...0.96)  // Apple 123375
-        case .iPhone17ProMax: return Self.displayRect(x: 0.54...0.92, y: 0.88...0.96)  // Apple 123395
+        case .iPhone16ProMax: return Self.displayRect(x: 0.15...0.38, y: 0.87...0.93)  // iFixit 16 Pro Max CT, labelled
+        case .iPhone16e: return Self.displayRect(x: 0.071...0.283, y: 0.832...0.911)  // iFixit/Lumafield CT
+        case .iPhone17e: return Self.displayRect(x: 0.12...0.31, y: 0.83...0.91)  // Apple 125954, labelled
+        case .iPhone17: return Self.displayRect(x: 0.09...0.21, y: 0.82...0.95)  // Apple 123042; IPBrain photo labels it
+        case .iPhoneAir: return Self.displayRect(x: 0.145...0.367, y: 0.865...0.941)  // Apple 123061, iFixit radiograph
+        case .iPhone17Pro: return Self.displayRect(x: 0.599...0.861, y: 0.882...0.940)  // Apple 123375, iFixit CT
+        case .iPhone17ProMax: return Self.displayRect(x: 0.609...0.863, y: 0.894...0.955)  // Apple 123395
         case .iPhone18Pro: return Self.displayRect(x: 0.58...0.92, y: 0.88...0.94)  // Apple 127411
         case .iPhone18ProMax: return Self.displayRect(x: 0.55...0.91, y: 0.89...0.96)  // Apple 127646
-        case .iPadMini, .iPadAir, .iPadPro, .iPadProM1M2, .iPadAirM1, .unknown: return nil
+        case .iPadMini, .iPadAir11, .iPadAir13, .iPadPro11, .iPadPro13, .iPadProM1M2, .iPadAirM1, .unknown: return nil
         }
     }
 }
@@ -526,18 +529,9 @@ struct HardwareXRayOverlay: View {
         }
     }
 
-    /// The label beside the chip outline: the chip's name when the outline is the chip, the board otherwise.
+    /// The label beside the chip outline: the chip's name. Every outline drawn is the chip package itself.
     private var socLabel: String {
-        guard let placement = layout.socPlacement else { return "" }
-        // "approximate" wherever the place is an estimate (low confidence or no source), so the label never claims
-        // more than the repair images show (refuting review, 2026-11-10).
-        let approximate = placement.confidence == .low || placement.confidence == .unsourced
-        switch placement.source {
-        case .board:
-            return approximate ? "Logic board, \(layout.chipName) inside, approximate" : "Logic board, \(layout.chipName) inside"
-        case .chip:
-            return approximate ? "\(layout.chipName), approximate" : layout.chipName
-        }
+        layout.socPlacement == nil ? "" : layout.chipName
     }
 
     #if canImport(UIKit)
@@ -625,13 +619,12 @@ struct HardwareXRayOverlay: View {
 
                 ZStack {
                     // The chip outline shows whenever the HUD is on: faint while idle, brighter as the chip works.
-                    if let socFrame = frames.soc, let placement = layout.socPlacement {
+                    if let socFrame = frames.soc {
                         GlowingSoCBorder(
                             frame: socFrame,
                             color: dominantColor,
                             intensity: totalIntensity,
                             glowMultiplier: settings.hudGlowIntensity,  // User-controlled
-                            source: placement.source,
                             label: socLabel,
                             containerSize: geometry.size
                         )
@@ -681,7 +674,8 @@ struct HardwareXRayOverlay: View {
                 #if canImport(UIKit)
                     // A turn that keeps the size (landscape left to right, a half turn) changes no geometry, so the
                     // device's own orientation change places the outlines again once the interface has turned.
-                    .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                    .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) {
+                        _ in
                         let overlayFrame = geometry.frame(in: .global)
                         Task { @MainActor in refreshFrames(overlayFrame: overlayFrame) }
                     }
@@ -705,13 +699,23 @@ struct HardwareXRayOverlay: View {
 private enum XRayOutlineStyle {
     static let lineWidth: CGFloat = 1
     static let chipCornerRadius: CGFloat = 4
-    static let boardCornerRadius: CGFloat = 10
-    static let idleOpacity: Double = 0.25
+    /// Hidden at idle (the owner, 2026-11-10: the label and outline should go away); it fades in with work.
+    static let idleOpacity: Double = 0
     static let busyOpacity: Double = 0.9
     static let maximumFill: Double = 0.06
     /// The Glow Intensity slider's default (`SettingsStore.hudGlowIntensity`): at it the outline runs from
     /// `idleOpacity` to `busyOpacity`; the slider scales that up or down.
     static let defaultGlow: Double = 0.6
+
+    /// Activity in tenths: the telemetry changes many times a second, and easing toward every reading restarted the
+    /// animation each time, which read as choppy on the owner's iPhone (2026-11-10).
+    static func level(_ intensity: Double) -> Double {
+        (min(1.0, max(0.0, intensity.isFinite ? intensity : 0)) * 10).rounded() / 10
+    }
+
+    /// Activity that shows the outline's label; it stays up `labelHoldSeconds` after the chip goes quiet.
+    static let labelThreshold: Double = 0.05
+    static let labelHoldSeconds: Double = 2
 
     /// The outline's opacity for an activity level and the user's Glow Intensity, never NaN.
     static func opacity(intensity: Double, glow: Double) -> Double {
@@ -723,26 +727,26 @@ private enum XRayOutlineStyle {
 
 // MARK: - Chip outline
 
-/// A hairline outline where the chip (or its logic board) is, with a small label beside it.
+/// A hairline outline where the chip is, with a small label beside it.
 private struct GlowingSoCBorder: View {
     let frame: CGRect
     let color: Color
     let intensity: Double
     var glowMultiplier: Double = 0.6
-    let source: PlacementSource
     let label: String
     let containerSize: CGSize
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var labelShown = false
 
-    private var cornerRadius: CGFloat {
-        source == .chip ? XRayOutlineStyle.chipCornerRadius : XRayOutlineStyle.boardCornerRadius
-    }
+    private var cornerRadius: CGFloat { XRayOutlineStyle.chipCornerRadius }
+    private var level: Double { XRayOutlineStyle.level(intensity) }
+    private var isActive: Bool { intensity.isFinite && intensity > XRayOutlineStyle.labelThreshold }
     private var outlineOpacity: Double {
-        XRayOutlineStyle.opacity(intensity: intensity, glow: glowMultiplier)
+        XRayOutlineStyle.opacity(intensity: level, glow: glowMultiplier)
     }
     private var fillOpacity: Double {
-        min(XRayOutlineStyle.maximumFill, XRayOutlineStyle.maximumFill * min(1.0, max(0.0, intensity)))
+        min(XRayOutlineStyle.maximumFill, XRayOutlineStyle.maximumFill * level)
     }
 
     /// The label sits just above the outline, or just below it when the outline starts too near the top.
@@ -772,13 +776,26 @@ private struct GlowingSoCBorder: View {
                 Color.clear
                     .frame(width: 1, height: 1)
                     .overlay(alignment: .leading) {
-                        XRayOutlineLabel(text: label, color: color, opacity: max(0.6 * min(1, glowMultiplier / 0.6), outlineOpacity))
-                            .fixedSize()
+                        XRayOutlineLabel(
+                            text: label, color: color, opacity: max(0.6 * min(1, glowMultiplier / 0.6), outlineOpacity)
+                        )
+                        .fixedSize()
                     }
                     .position(x: labelMinX, y: labelCenterY)
+                    .opacity(labelShown ? 1 : 0)
             }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: intensity)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.5), value: level)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: labelShown)
+        // The label shows while the chip works and fades out `labelHoldSeconds` after it goes quiet.
+        .task(id: isActive) {
+            if isActive {
+                labelShown = true
+            } else {
+                try? await Task.sleep(for: .seconds(XRayOutlineStyle.labelHoldSeconds))
+                if !Task.isCancelled { labelShown = false }
+            }
+        }
     }
 }
 
@@ -835,7 +852,7 @@ private struct GlowingTapticBorder: View {
             )
             .frame(width: frame.width, height: frame.height)
             .position(x: frame.midX, y: frame.midY)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: intensity)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: XRayOutlineStyle.level(intensity))
     }
 }
 
