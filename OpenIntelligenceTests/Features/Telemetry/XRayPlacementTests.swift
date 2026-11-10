@@ -35,15 +35,16 @@ final class XRayPlacementTests: XCTestCase {
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,2"), .iPadPro11M5)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,4"), .iPadPro13M5)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad13,10"), .iPadPro129M1)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad13,5"), .iPadProM1M2)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,5"), .iPadProM1M2)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad13,5"), .iPadPro11M1)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,5"), .iPadPro129M2)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,3"), .iPadPro11M2)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad19,2"), .iPadMiniA20Pro)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,8"), .iPadAir11)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,11"), .iPadAir13)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,3"), .iPadAirM3M4)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,5"), .iPadAirM3M4)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,9"), .iPadAirM3M4)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,11"), .iPadAirM3M4)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,3"), .iPadAir11M3)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,5"), .iPadAir13M3M4)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,9"), .iPadAir11M4)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,11"), .iPadAir13M3M4)
     }
 
     /// iPhone Duo's insides are not mapped, so it draws nothing rather than an outline in the wrong place.
@@ -73,9 +74,7 @@ final class XRayPlacementTests: XCTestCase {
         XCTAssertGreaterThan(mini.rect.minX, 0.7)
         XCTAssertGreaterThan(mini.rect.minY, 0.5)
         // Not measured on their own board: no outline at all, not a sister model's spot.
-        for layout: DeviceComponentLayout in [.iPadProM1M2, .iPadAirM1, .iPadAirM3M4, .iPadPro11M5, .iPadMiniA20Pro] {
-            XCTAssertNil(layout.socPlacement, layout.displayName)
-        }
+        XCTAssertNil(DeviceComponentLayout.iPadAir13M3M4.socPlacement)
         // The 13-inch M5's board is not the M4's (screw rectangle 2.45 to 2.48 long against 2.21 to 2.24): traced from the
         // packages' edges, its chip sits about 0.016 of the screen lower.
         let m4 = try XCTUnwrap(DeviceComponentLayout.iPadPro13.socPlacement)
@@ -113,7 +112,8 @@ final class XRayPlacementTests: XCTestCase {
         let layouts: [DeviceComponentLayout] = [
             .iPhone15Pro, .iPhone15ProMax, .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax, .iPhone16e,
             .iPhone17, .iPhoneAir, .iPhone17e, .iPhone17Pro, .iPhone17ProMax, .iPhone18Pro, .iPhone18ProMax,
-            .iPadMini, .iPadAir11, .iPadAir13, .iPadPro11, .iPadPro13, .iPadPro13M5, .iPadPro129M1,
+            .iPadMini, .iPadMiniA20Pro, .iPadAir11, .iPadAir11M3, .iPadAir11M4, .iPadAir13, .iPadAirM1, .iPadPro11,
+            .iPadPro11M1, .iPadPro11M2, .iPadPro11M5, .iPadPro13, .iPadPro13M5, .iPadPro129M1, .iPadPro129M2,
         ]
         for layout in layouts {
             let name = layout.displayName

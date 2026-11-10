@@ -62,18 +62,21 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
     case iPhone18ProMax
     /// iPad mini with A17 Pro.
     case iPadMini
-    /// iPad mini with A20 Pro (on sale 2026-11-06): a different, straight board whose chip is not measured yet.
+    /// iPad mini with A20 Pro (on sale 2026-11-06): a different, straight board.
     case iPadMiniA20Pro
     /// iPad Air 11-inch with M2.
     case iPadAir11
     /// iPad Air 13-inch with M2.
     case iPadAir13
-    /// iPad Air with M3 or M4: Apple's repair images match the M2's, but the 13-inch iPad Pro M5 showed that shared
-    /// artwork does not prove a shared board, and no teardown shows these chips, so no chip outline.
-    case iPadAirM3M4
+    /// iPad Air 11-inch with M3.
+    case iPadAir11M3
+    /// iPad Air 11-inch with M4: a larger package than the M2's, about 3 mm further left.
+    case iPadAir11M4
+    /// iPad Air 13-inch with M3 or M4: no teardown of either has been found, so no chip outline.
+    case iPadAir13M3M4
     /// iPad Pro 11-inch with M4.
     case iPadPro11
-    /// iPad Pro 11-inch with M5: no teardown of its board yet, so no chip outline.
+    /// iPad Pro 11-inch with M5: not the M4's board (screw rectangle about 2.48 long against 2.24), chip lower.
     case iPadPro11M5
     /// iPad Pro 13-inch with M4.
     case iPadPro13
@@ -81,9 +84,13 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
     case iPadPro13M5
     /// iPad Pro 12.9-inch with M1.
     case iPadPro129M1
-    /// iPad Pro 11-inch M1 and M2, 12.9-inch M2: no top-down frame of the chip in place, so no chip outline.
-    case iPadProM1M2
-    /// iPad Air with M1: no photo of the chip on its board was found, so no chip outline.
+    /// iPad Pro 12.9-inch with M2.
+    case iPadPro129M2
+    /// iPad Pro 11-inch with M1.
+    case iPadPro11M1
+    /// iPad Pro 11-inch with M2: not the M1's board; its chip sits about 0.016 higher.
+    case iPadPro11M2
+    /// iPad Air with M1.
     case iPadAirM1
     /// Anything else, including iPhone Duo (iPhone19,4), whose insides are not mapped yet. Shows no outline.
     case unknown
@@ -148,20 +155,23 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         guard numbers.count == 2 else { return .unknown }
         let (major, minor) = (numbers[0], numbers[1])
         switch (major, minor) {
-        case (13, 4...7): return .iPadProM1M2  // iPad Pro 11-inch M1
+        case (13, 4...7): return .iPadPro11M1  // iPad Pro 11-inch M1
         case (13, 8...11): return .iPadPro129M1  // iPad Pro 12.9-inch M1 (13,10 in Xcode 27's profiles)
         case (13, 16...17): return .iPadAirM1  // iPad Air M1
-        case (14, 3...6): return .iPadProM1M2  // iPad Pro M2
+        case (14, 3...4): return .iPadPro11M2  // iPad Pro 11-inch M2 (14,3 in Xcode 27's profiles)
+        case (14, 5...6): return .iPadPro129M2  // iPad Pro 12.9-inch M2 (14,5 in Xcode 27's profiles)
         // Sizes from Xcode 27's Simulator device profiles (modelIdentifier): 14,9 / 14,11 the iPad Air 11- and 13-inch
         // M2, 15,3 / 15,5 the M3, 16,9 / 16,11 the M4; 16,4 / 16,6 the iPad Pro 11- and 13-inch M4, 17,2 / 17,4 the M5.
         // Each profile is the cellular model; its Wi-Fi model is the identifier one below.
         case (14, 8...9): return .iPadAir11  // iPad Air 11-inch M2
         case (14, 10...11): return .iPadAir13  // iPad Air 13-inch M2
-        case (15, 3...6): return .iPadAirM3M4  // iPad Air M3
+        case (15, 3...4): return .iPadAir11M3  // iPad Air 11-inch M3
+        case (15, 5...6): return .iPadAir13M3M4  // iPad Air 13-inch M3
         case (16, 1...2): return .iPadMini  // iPad mini A17 Pro
         case (16, 3...4): return .iPadPro11  // iPad Pro 11-inch M4
         case (16, 5...6): return .iPadPro13  // iPad Pro 13-inch M4
-        case (16, 8...11): return .iPadAirM3M4  // iPad Air M4
+        case (16, 8...9): return .iPadAir11M4  // iPad Air 11-inch M4
+        case (16, 10...11): return .iPadAir13M3M4  // iPad Air 13-inch M4
         case (17, 1...2): return .iPadPro11M5  // iPad Pro 11-inch M5
         case (17, 3...4): return .iPadPro13M5  // iPad Pro 13-inch M5
         // iPad mini A20 Pro: iPad19,1 and 19,2 (AppleDB and The Apple Wiki, 2026-11-10; Xcode 27.0 has no profile yet).
@@ -199,15 +209,16 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case .iPhone18ProMax: return "iPhone 18 Pro Max"
         case .iPadMini: return "iPad mini"
         case .iPadMiniA20Pro: return "iPad mini (A20 Pro)"
-        case .iPadAirM3M4: return "iPad Air"
+        case .iPadAir11M3, .iPadAir11M4: return "iPad Air 11-inch"
+        case .iPadAir13M3M4: return "iPad Air 13-inch"
         case .iPadPro11M5: return "iPad Pro 11-inch"
         case .iPadPro13M5: return "iPad Pro 13-inch"
-        case .iPadPro129M1: return "iPad Pro 12.9-inch"
+        case .iPadPro129M1, .iPadPro129M2: return "iPad Pro 12.9-inch"
+        case .iPadPro11M1, .iPadPro11M2: return "iPad Pro 11-inch"
         case .iPadAir11: return "iPad Air 11-inch"
         case .iPadAir13: return "iPad Air 13-inch"
         case .iPadPro11: return "iPad Pro 11-inch"
         case .iPadPro13: return "iPad Pro 13-inch"
-        case .iPadProM1M2: return "iPad Pro"
         case .iPadAirM1: return "iPad Air"
         case .unknown: return "Unknown Device"
         }
@@ -248,11 +259,14 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case .iPhone17Pro, .iPhone18Pro: return (x: 0.0369, y: 0.0174)  // 71.9 x 150.0 mm; screen 66.59 x 144.78 mm
         case .iPhone17ProMax, .iPhone18ProMax: return (x: 0.0328, y: 0.0154)  // 78.0 x 163.4 mm; screen 72.89 x 158.36
         case .iPadMini: return (x: 0.0700, y: 0.0482)  // 134.8 x 195.4 mm; screen 115.94 x 176.55 mm
-        case .iPadAir11: return (x: 0.0580, y: 0.0415)  // 178.5 x 247.6 mm; screen 157.79 x 227.06 mm
-        case .iPadAir13, .iPadPro129M1: return (x: 0.0416, y: 0.0316)  // 214.9 x 280.6 mm; screen 197.04 x 262.85
-        case .iPadPro11: return (x: 0.0479, y: 0.0338)  // 177.5 x 249.7 mm; screen 160.48 x 232.83 mm
+        case .iPadAir11, .iPadAir11M3, .iPadAir11M4, .iPadAirM1:
+            return (x: 0.0580, y: 0.0415)  // 178.5 x 247.6 mm; screen 157.79 x 227.06 mm
+        case .iPadPro11M1, .iPadPro11M2: return (x: 0.0505, y: 0.0360)  // 178.5 x 247.6 mm; screen 160.48 x 229.75 mm
+        case .iPadMiniA20Pro: return (x: 0.0558, y: 0.0380)  // 132.6 x 195.3 mm; 1512 x 2316 at 326 ppi
+        case .iPadAir13, .iPadPro129M1, .iPadPro129M2: return (x: 0.0416, y: 0.0316)  // 214.9 x 280.6 mm; screen 197.04 x 262.85
+        case .iPadPro11, .iPadPro11M5: return (x: 0.0479, y: 0.0338)  // 177.5 x 249.7 mm; screen 160.48 x 232.83 mm
         case .iPadPro13, .iPadPro13M5: return (x: 0.0393, y: 0.0299)  // 215.5 x 281.6 mm; screen 198.58 x 264.78 mm
-        case .iPadMiniA20Pro, .iPadAirM3M4, .iPadPro11M5, .iPadProM1M2, .iPadAirM1, .unknown:
+        case .iPadAir13M3M4, .unknown:
             return (x: 0.02, y: 0.02)  // no outline is drawn on these
         }
     }
@@ -276,9 +290,8 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 
-    /// Where the chip package is, measured. Nil draws no chip outline: unknown models, and the iPads whose chip has not
-    /// been measured on their own board (iPad Pro 11-inch M1, M2 and M5, 12.9-inch M2; iPad Air M1, M3 and M4; iPad mini
-    /// A20 Pro).
+    /// Where the chip package is, measured. Nil draws no chip outline: unknown models, and the iPad Air 13-inch M3 and M4,
+    /// of which no teardown has been found.
     ///
     /// Method (5.8, 2026-11-10): a teardown photo of the bare board with the chip identified (iFixit Chip ID, IPBrain,
     /// ChargerLab, TechInsights), fitted by its screw holes onto a whole-device image of the same model whose outline is
@@ -384,7 +397,39 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
             return ComponentPlacement(
                 rect: displayRect(x: 0.770...0.894, y: 0.574...0.640), confidence: .medium,
                 reference: "iFixit Chip ID 178389 fitted to Apple 122362 (8 constraints); mini 6 X-ray agrees")
-        case .iPadProM1M2, .iPadAirM1, .iPadAirM3M4, .iPadPro11M5, .iPadMiniA20Pro, .unknown:
+        case .iPadPro11M1:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.484...0.610, y: 0.424...0.536), confidence: .medium,
+                reference: "Teevo M1 board (2:48) fitted to its seated chassis (2:08) by 10 standoffs (0.89 px rms)")
+        case .iPadPro11M2:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.480...0.613, y: 0.408...0.518), confidence: .medium,
+                reference: "Teevo M2 (4:21 to 4:23): the chip visible in the seated board, 4-edge homography (<= 2 px)")
+        case .iPadPro129M2:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.479...0.593, y: 0.372...0.475), confidence: .medium,
+                reference: "Joe's G&E 4K teardown (10:16): the chip visible in the whole-device frame; within 0.008 of the M1")
+        case .iPadPro11M5:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.470...0.610, y: 0.442...0.552), confidence: .medium,
+                reference: "Three M5 boards (Teevo, WorkCrafts, DirectorFeng; agree within 0.002) fitted to TechInsights' chassis")
+        case .iPadAirM1:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.782...0.918, y: 0.456...0.572), confidence: .medium,
+                reference: "DirectorFeng M1 board fitted to iFixit guide 157165 step 49 by 4 points; TEKDEP frame agrees within 0.005")
+        case .iPadAir11M3:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.775...0.908, y: 0.478...0.587), confidence: .medium,
+                reference: "Teevo M3 board (2:26) fitted to its chassis (1:38) by 6 screws (3.9 px rms); top edge from the aspect")
+        case .iPadAir11M4:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.770...0.923, y: 0.477...0.591), confidence: .high,
+                reference: "Phone Repair Guru 4K (7 points, 1.4 px rms) and WorkCrafts (6 screws) M4 fits agree within 0.003")
+        case .iPadMiniA20Pro:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.752...0.876, y: 0.446...0.535), confidence: .medium,
+                reference: "DirectorFeng A20 Pro board (9:10) fitted to the seated 4K chassis (6:03) by 6 bosses (1.6 px rms)")
+        case .iPadAir13M3M4, .unknown:
             return nil
         }
     }
@@ -409,8 +454,9 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case .iPhone17ProMax: return displayRect(x: 0.609...0.863, y: 0.894...0.955)  // Apple 123395
         case .iPhone18Pro: return displayRect(x: 0.58...0.92, y: 0.88...0.94)  // Apple 127411
         case .iPhone18ProMax: return displayRect(x: 0.55...0.91, y: 0.89...0.96)  // Apple 127646
-        case .iPadMini, .iPadMiniA20Pro, .iPadAir11, .iPadAir13, .iPadAirM3M4, .iPadPro11, .iPadPro11M5, .iPadPro13,
-            .iPadPro13M5, .iPadPro129M1, .iPadProM1M2, .iPadAirM1, .unknown:
+        case .iPadMini, .iPadMiniA20Pro, .iPadAir11, .iPadAir11M3, .iPadAir11M4, .iPadAir13, .iPadAir13M3M4, .iPadPro11,
+            .iPadPro11M1, .iPadPro11M2, .iPadPro11M5, .iPadPro13, .iPadPro13M5, .iPadPro129M1, .iPadPro129M2, .iPadAirM1,
+            .unknown:
             return nil
         }
     }
