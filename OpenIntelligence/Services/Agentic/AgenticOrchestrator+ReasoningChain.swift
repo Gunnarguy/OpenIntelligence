@@ -1265,7 +1265,7 @@ extension AgenticOrchestrator {
 
                 await ragService.waitBeforeModelCallWhileInBackground("synthesis")
                 do {
-                    let synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                    var synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
                         try await ragService.generateWithProperConsent(
                             prompt: synthesisPrompt,
                             context: "",
@@ -1275,6 +1275,34 @@ extension AgenticOrchestrator {
                             qualityMode: .deepThink,
                             sourceChunks: chunks
                         )
+                    }
+                    // A synthesis the model stopped partway is not an answer (5.8). Wait for the app to be in front
+                    // (iOS cut it off in the background on the owner's iPhone on 2026-11-10) and write it again once;
+                    // cut off twice, the combined findings below stand in, never the cut-off text.
+                    if synthesisResponse.streamCutOff {
+                        Log.warning(
+                            "[ReasoningChain] Deep Think synthesis cut off after \(synthesisResponse.tokensGenerated) tokens; writing it again",
+                            category: .llm)
+                        await MainActor.run {
+                            VerificationJournal.record(
+                                "deepthink.synthesisCutOff", .failed,
+                                ["tokens": "\(synthesisResponse.tokensGenerated)", "attempt": "1"])
+                        }
+                        await ragService.waitBeforeModelCallWhileInBackground("synthesis again", onDevice: true)
+                        synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                            try await ragService.generateWithProperConsent(
+                                prompt: synthesisPrompt,
+                                context: "",
+                                systemPrompt: synthesisSystemPrompt,
+                                maxTokens: 1500,
+                                disableTools: true,
+                                qualityMode: .deepThink,
+                                sourceChunks: chunks
+                            )
+                        }
+                        if synthesisResponse.streamCutOff {
+                            throw SynthesisCutOff()
+                        }
                     }
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
@@ -1322,3 +1350,6 @@ extension AgenticOrchestrator {
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 }
+
+/// Thrown when Deep Think's synthesis is cut off twice, so the combined findings stand in for it (5.8).
+struct SynthesisCutOff: Error {}

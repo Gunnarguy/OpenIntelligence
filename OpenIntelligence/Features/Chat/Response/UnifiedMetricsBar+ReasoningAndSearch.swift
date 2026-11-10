@@ -282,10 +282,10 @@ extension UnifiedMetricsBar {
                 if topSimilarity > 0 {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         HStack(spacing: DSSpacing.xs) {
-                            Text("\(Int(topSimilarity * 100))%")
+                            Text("\(Int((Self.displayedMatch(topSimilarity) * 100).rounded(.down)))%")
                                 .scaledFont(size: 20, weight: .bold, design: .rounded)
                                 .monospacedDigit()
-                                .foregroundStyle(matchScoreColor(topSimilarity))
+                                .foregroundStyle(matchScoreColor(Self.displayedMatch(topSimilarity)))
                             Image(systemName: "star.fill")
                                 .scaledFont(size: 10)
                                 .foregroundStyle(.yellow)
@@ -299,10 +299,10 @@ extension UnifiedMetricsBar {
                 // Second best (gap indicates confidence)
                 if secondSimilarity > 0 {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("\(Int(secondSimilarity * 100))%")
+                        Text("\(Int((Self.displayedMatch(secondSimilarity) * 100).rounded(.down)))%")
                             .scaledFont(size: 16, weight: .bold, design: .rounded)
                             .monospacedDigit()
-                            .foregroundStyle(matchScoreColor(secondSimilarity))
+                            .foregroundStyle(matchScoreColor(Self.displayedMatch(secondSimilarity)))
                         Text("2nd best")
                             .scaledFont(size: 10)
                             .foregroundStyle(DSColors.secondaryText)
@@ -312,10 +312,10 @@ extension UnifiedMetricsBar {
                 // Average of top results
                 if avgTop5Similarity > 0 {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("\(Int(avgTop5Similarity * 100))%")
+                        Text("\(Int((Self.displayedMatch(avgTop5Similarity) * 100).rounded(.down)))%")
                             .scaledFont(size: 16, weight: .bold, design: .rounded)
                             .monospacedDigit()
-                            .foregroundStyle(matchScoreColor(avgTop5Similarity))
+                            .foregroundStyle(matchScoreColor(Self.displayedMatch(avgTop5Similarity)))
                         Text("avg top 5")
                             .scaledFont(size: 10)
                             .foregroundStyle(DSColors.secondaryText)

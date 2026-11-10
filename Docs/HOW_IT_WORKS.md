@@ -192,7 +192,7 @@ Vectors live outside SQLite in three files per library: a metadata JSON of rough
 ### How a search physically runs
 
 > **In plain words**
-> Comparing your question against every card is just arithmetic, repeated a lot. For a small library the processor does it directly. Past about a thousand cards it becomes worth handing to the graphics chip, which does thousands of small sums at once. The app switches automatically when GPU Acceleration is set to Performance or Maximum; Efficiency and Balanced, the default, keep it on the processor. Either way it reads the numbers straight from the file rather than copying them into memory first.
+> Comparing your question against every card is just arithmetic, repeated a lot. For a small library the processor does it directly. Past about a thousand cards it becomes worth handing to the graphics chip, which does thousands of small sums at once. The app switches automatically when the Compute Profile (called GPU Acceleration before 5.8) is set to Performance or Maximum; Efficiency and Balanced, the default, keep it on the processor. Either way it reads the numbers straight from the file rather than copying them into memory first.
 
 Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` directly against the memory-mapped pointer. At or above 1,000 chunks, on the Performance or Maximum GPU profile, the same data is handed to a Metal compute shader through an unsafe buffer pointer over the same mapping, so the GPU path is near-zero-copy; Efficiency and Balanced, the default, keep it on the CPU. Neither path materialises the embeddings on the heap.
 

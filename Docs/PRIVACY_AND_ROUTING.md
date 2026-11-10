@@ -479,6 +479,17 @@ iOS rate-limits the on-device model for an app in the background (Apple, `Langua
 
 Since 2026-11-10 a Deep Think or Maximum answer asked in Chat also waits while the app is in the background before each reasoning session (always on the device) and before a synthesis the route keeps on the device (`RAGService.waitBeforeModelCallWhileInBackground`), instead of waiting only after a refusal; a synthesis that may use Private Cloud Compute is not held, and neither is an answer asked through Siri or Shortcuts. The question being answered is kept in this device's defaults (`PendingAnswerStore`, never synced), so a question whose answer was lost when iOS ended the app is asked again once when the app starts. `[evidence_level: code_verified, test_verified (ReleaseFinishTests), confidence: medium; not yet observed on a device]`
 
+## Local only holds Deep Think in the background, and a cut-off write-up is written again (added 2026-11-10, for 5.8)
+
+`RAGService.waitBeforeModelCallWhileInBackground` holds a Deep Think or Maximum model call while the app is in the
+background whenever the call stays on the device: the reasoning sessions, a model preference pinned to the device, and
+now the On-Device, Local only route (`ExecutionContext.onDeviceOnly`), which it had missed. A route that may use Private
+Cloud Compute is not held, and the trace says so (`[Background] Not holding`). When Apple's model stops partway, the
+generation layer still returns the text it streamed, now marked `LLMResponse.streamCutOff`; Deep Think does not keep it
+as its synthesis, writes it again once the app is in front, and falls back to the reasoning sessions' findings if it is
+cut off twice. Nothing about where a call runs changes. `[evidence_level: code_verified, device trace 2026-11-10,
+confidence: medium]`
+
 ## Quotes only makes no model call (added 2026-11-10, for 5.8)
 
 Quotes only (`LLMModelType.onDeviceAnalysis`) was answered by Apple's model under the normal route through 5.7, so a question could reach Private Cloud Compute although Settings said it never leaves the device. `RAGService.quotesOnlySelected` now runs the question through Standard's retrieval with query rewriting, HyDE and contextual compression off, and answers after the hard relevance gate with excerpts copied from the retrieved passages (`quotesOnlyResponse`, `excerpts_only`). No model is called for the answer, so no route is planned for it and nothing leaves the device; Deep Think and Maximum run as Standard in this mode, the direct-chat and reliability fallbacks are off, and no follow-up suggestions are written under its answers. `[evidence_level: code_verified, test_verified (ReleaseFinishTests), confidence: medium; not yet observed on a device]`

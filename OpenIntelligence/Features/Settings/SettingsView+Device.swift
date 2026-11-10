@@ -471,10 +471,11 @@ extension SettingsView {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header
             HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "square.stack.3d.up.fill")
+                Image(systemName: "cpu")
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
-                Text("GPU Acceleration")
+                // "GPU Acceleration" until 5.8: the profiles move work between the CPU, the Neural Engine and the GPU.
+                Text("Compute Profile")
                     .font(.subheadline.weight(.medium))
                 Spacer()
 
@@ -490,7 +491,7 @@ extension SettingsView {
 
             // Until 5.7: "Choose how OpenIntelligence schedules GPU-capable work...". The profiles cover the Core ML
             // embedding model, the Core Image cleanup of scanned pages and Metal vector search, never Apple's model.
-            Text("Sets which chips the app's own embedding model, its large searches and an extra cleanup pass over scanned PDF pages can use. Apple's frameworks make the final choice among the ones allowed. Answers from Apple's model, text recognition and the reranker work the same way in every profile.")
+            Text("Which of your chips the app's own work may use. Apple's frameworks pick among the ones allowed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -508,38 +509,26 @@ extension SettingsView {
                 .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
             }
 
-            // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise.
+            // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise. The chip, the
+            // ladder and the grid of jobs replaced four buttons and a list of sentences (5.8).
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                Text("Execution Profile")
-                    .font(.subheadline.weight(.medium))
-
-                HStack(spacing: DSSpacing.xs) {
-                    ForEach(GPUExecutionProfile.allCases) { profile in
-                        executionProfileCard(profile)
+                ComputeProfileCard(
+                    profile: $gpuProfile,
+                    chipName: deviceService.chipName,
+                    backgroundGPUProfiles: computeBackgroundGPUProfiles(deviceService),
+                    systemOffersBackgroundGPU: computeSystemOffersBackgroundGPU,
+                    deviceNoun: computeDeviceNoun(deviceService),
+                    backgroundNote: { backgroundImportNote(for: $0, deviceService: deviceService) },
+                    concurrency: ComputeProfileCard.Concurrency(
+                        visionParsingPages: deviceService.visionParsingConcurrency,
+                        ocrPages: deviceService.ocrExtractionConcurrency,
+                        renderSlots: deviceService.pdfRenderingConcurrency,
+                        embeddingParallel: deviceService.embeddingConcurrency),
+                    onSelect: { profile in
+                        withAnimation(DSAnimations.snappySpring) { gpuProfile = profile }
+                        DeviceCapabilityService.shared.gpuExecutionProfile = profile
                     }
-                }
-
-                // What the selected profile actually does, listed rather than
-                // summarised, so switching between them reads as cause and effect.
-                VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    Text(gpuProfile.engagement.summary)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ForEach(gpuProfile.engagement.effects, id: \.self) { effect in
-                        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
-                            Image(systemName: "chevron.forward")
-                                .scaledFont(size: 7, weight: .bold)
-                                .foregroundStyle(gpuModeColor(for: gpuProfile).opacity(0.75))
-                            Text(effect)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .animation(DSAnimations.snappySpring, value: gpuProfile)
+                )
 
                 // What the profile does when an import goes on in the background, for this device (5.7).
                 Text(backgroundImportNote(for: gpuProfile, deviceService: deviceService))
@@ -703,6 +692,30 @@ extension SettingsView {
         #endif
     }
 
+    private func computeBackgroundGPUProfiles(_ deviceService: DeviceCapabilityService) -> [GPUExecutionProfile] {
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+            return deviceService.backgroundGPUProfiles
+        #else
+            return []
+        #endif
+    }
+
+    private var computeSystemOffersBackgroundGPU: Bool {
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+            return BackgroundTaskService.shared.systemOffersBackgroundGPU
+        #else
+            return false
+        #endif
+    }
+
+    private func computeDeviceNoun(_ deviceService: DeviceCapabilityService) -> String {
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+            return deviceService.formFactor.deviceNoun
+        #else
+            return "Mac"
+        #endif
+    }
+
     private var gpuModeName: String {
         DeviceCapabilityService.shared.activeGPUExecutionProfile.displayName
     }
@@ -718,76 +731,6 @@ extension SettingsView {
         case .performance: return .orange
         case .maximum: return .red
         }
-    }
-
-    /// One profile card.
-    ///
-    /// A menu showed one option and hid three. The whole point of this control is
-    /// that the choice changes which silicon runs the work, so all four are on
-    /// screen with their engines visible before anything is tapped.
-    @ViewBuilder
-    private func executionProfileCard(_ profile: GPUExecutionProfile) -> some View {
-        let isSelected = gpuProfile == profile
-        let accent = gpuModeColor(for: profile)
-
-        Button {
-            guard gpuProfile != profile else { return }
-            DSHaptics.light()
-            withAnimation(DSAnimations.snappySpring) {
-                gpuProfile = profile
-            }
-            DeviceCapabilityService.shared.gpuExecutionProfile = profile
-        } label: {
-            VStack(spacing: DSSpacing.xs) {
-                Text(profile.displayName)
-                    .scaledFont(size: 10, weight: isSelected ? .semibold : .medium)
-                    .foregroundStyle(isSelected ? accent : .secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                // The engine badges, with Technical Details on (5.7). With it off, the lines under the cards name
-                // each engine in words for the profile chosen, and VoiceOver reads them from the hint below.
-                if settings.showTechnicalDetails {
-                    HStack(spacing: DSSpacing.xxs) {
-                        engineChip("CPU", isOn: profile.engagement.usesCPU, accent: accent, isSelected: isSelected)
-                        engineChip("ANE", isOn: profile.engagement.usesNeuralEngine, accent: accent, isSelected: isSelected)
-                        engineChip("GPU", isOn: profile.engagement.usesGPU, accent: accent, isSelected: isSelected)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, DSSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                    .fill(accent.opacity(isSelected ? 0.16 : 0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                    .strokeBorder(accent.opacity(isSelected ? 0.55 : 0.0), lineWidth: 1)
-            )
-            .scaleEffect(isSelected ? 1.0 : 0.97)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(profile.displayName) execution profile")
-        .accessibilityHint(profile.engagement.summary)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-    }
-
-    /// A single engine badge. Dimmed rather than hidden when a profile does not use
-    /// it, so the difference between profiles is visible at a glance.
-    private func engineChip(_ name: String, isOn: Bool, accent: Color, isSelected: Bool) -> some View {
-        Text(name)
-            .scaledFont(size: 7, weight: .semibold, design: .rounded)
-            // One line, smaller rather than broken: in a quarter-width card on an iPhone 15 Pro the badges wrapped
-            // as "CP U" and "AN E" (2026-10-21).
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .foregroundStyle(isOn ? (isSelected ? accent : .secondary) : .secondary.opacity(0.28))
-            .padding(.horizontal, DSSpacing.xs)
-            .padding(.vertical, DSSpacing.xxs)
-            .background(
-                Capsule().fill(isOn ? accent.opacity(isSelected ? 0.20 : 0.08) : Color.clear)
-            )
     }
 
     @ViewBuilder

@@ -486,18 +486,21 @@ extension UnifiedMetricsBar {
     private var computedMatchScore: Float {
         // Use actual retrieval quality metrics
         if topSimilarity > 0 {
-            // Rescale reranker scores from [0.10, 0.90] to [0, 1] for intuitive display
-            // This makes 0.90 (max reranker score) show as 100%
-            let rescaled = max(0, (topSimilarity - 0.10) / 0.80)
-            return min(1.0, rescaled)  // Cap at 100%
+            return Self.displayedMatch(topSimilarity)
         } else if let avg = averageSourceScore, avg > 0 {
-            // Also rescale averages from reranker
-            let rescaled = max(0, (avg - 0.10) / 0.80)
-            return min(1.0, rescaled)
+            return Self.displayedMatch(avg)
         } else if sourceCount > 0 {
             return 0.5  // Default if we have sources but no score
         }
         return 0
+    }
+
+    /// A reranker score as the bar shows it: the reranker's scores run 0.10 to 0.90, so 0.90 reads 100%. Used for the ring
+    /// and for the panel's best, 2nd best and average figures alike (5.8): the ring said 89% and the panel 81% for one
+    /// score of 0.81 on the owner's iPhone, 2026-11-10.
+    static func displayedMatch(_ score: Float) -> Float {
+        guard score.isFinite else { return 0 }
+        return min(1.0, max(0, (score - 0.10) / 0.80))
     }
 
     func matchScoreColor(_ score: Float) -> Color {

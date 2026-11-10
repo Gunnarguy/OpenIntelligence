@@ -24,12 +24,28 @@ extension RAGService {
         guard Self.answerAskedInChat else { return }
         let held: Bool = await MainActor.run {
             if onDevice { return true }
+            // Local only keeps every call on the device (5.8): on the owner's iPhone on 2026-11-10 a Deep Think synthesis
+            // with On-Device, Local only selected was not held, started two seconds after he left the app, and was cut
+            // off when iOS took back the background time.
+            if settingsStore?.executionContext == .onDeviceOnly { return true }
             switch settingsStore?.fmPreference.canonical {
             case .core3B?, .advanced20B?: return true
             default: return false
             }
         }
-        guard held else { return }
+        guard held else {
+            // Not held, said when it matters (5.8): on 2026-11-10 a synthesis that should have waited ran in the
+            // background and the trace had no line for the decision.
+            let inBackground = await MainActor.run { Self.appIsInBackground }
+            if inBackground {
+                let route = await MainActor.run {
+                    "execution \(String(describing: settingsStore?.executionContext)), "
+                        + "model preference \(String(describing: settingsStore?.fmPreference.canonical))"
+                }
+                Log.info("[Background] Not holding \(step) in the background: the route may leave the device (\(route))", category: .llm)
+            }
+            return
+        }
         let waited = await Self.waitWhileAppIsInBackground()
         if waited > 0.5 {
             await MainActor.run {

@@ -1664,7 +1664,8 @@ extension RAGService {
                             totalTime: Date().timeIntervalSince(attemptStart),
                             modelName: service.modelName,
                             toolCallsMade: 0,
-                            executionReceipt: partialReceipt
+                            executionReceipt: partialReceipt,
+                            streamCutOff: true
                         )
                     }
                     throw error

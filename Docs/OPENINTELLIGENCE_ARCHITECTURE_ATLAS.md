@@ -719,6 +719,15 @@ supposed to be agentic.
   development builds; `AgenticOrchestrator.executeMultiQuerySearch` reads it for the blend weights. Record:
   `BenchmarkRuns/2026-11-10-rule-audit/README.md`; detail in `Docs/RETRIEVAL_PIPELINE.md`, "Every rule after the
   reranker, measured". `[evidence_level: test_verified (AnswerFloorTests), measured (Simulator benchmark), confidence: medium]`
+- **A results table keeps its place, and a statistical value is a value question (5.8, 2026-11-10).**
+  `RAGEngine.computeTOCPenalty` returns 0 for a passage with two or more estimates written with their interval
+  (`estimatesWithInterval`, "4.60 (3.99-5.29)"), so a results table stored flattened as a paragraph is not docked as a
+  contents page; `RAGService.namesAStatisticalValue` makes a question naming a ratio, rate, percentage, odds, p-value,
+  interval, mean, median or similar a value question, so `shouldUseContextualDefinitionLookupMode` no longer prefers
+  prose over tables for it. When penalties move the reranker's first pick, the trace names each penalty and its size, and
+  every lookup logs its definition-lookup decision with the four tests behind it. Deep Think's synthesis treats a
+  `streamCutOff` response as unfinished (`AgenticOrchestrator+ReasoningChain`, `SynthesisCutOff`). Not yet measured on
+  the benchmark sets. `[evidence_level: code_verified, test_verified, confidence: medium]`
 - **The reranker's setup card waits 3 seconds (5.8, 2026-11-10).** `RerankerSetupStatus.showAfterSeconds` is 3 (was 1):
   on the owner's iPhone a load from the Neural Engine's compiled cache took 0.46 s and 1.52 s, and a first load after an
   install 20.8 to 59.7 s (journal `reranker.load`, eight launches). The cache is per installed binary, so each

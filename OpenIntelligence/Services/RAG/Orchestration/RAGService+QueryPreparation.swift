@@ -570,6 +570,15 @@ extension RAGService {
         )
         let answerIntentIsExtractive = answerIntent.isExtractiveFirst && !contextualDefinitionLookup
         let answerNeedsDocumentSummary = answerIntent.requiresDocumentSummary || contextualDefinitionLookup
+        // Why a lookup is or is not answered as a definition (5.8): the trace said only "contextual-definition: true",
+        // and on 2026-11-10 that choice hid the results table holding a hazard ratio.
+        if answerIntent == .lookup {
+            Log.info(
+                "[RAG] Definition lookup: \(contextualDefinitionLookup) (conceptual: \(isConceptualLookupQuery(effectiveQuery)), "
+                    + "value question: \(isPrecisionValueQuery(effectiveQuery)), "
+                    + "definition wording: \(Self.isDefinitionStyleLookupQuery(effectiveQuery)), summaries: \(hasSummaryChunks))",
+                category: .retrieval)
+        }
         auditAnswerIntent = answerIntent.rawValue
         Log.info(
             "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntentIsExtractive), multi-hop: \(answerIntent.benefitsFromMultiHop)\(contextualDefinitionLookup ? ", contextual-definition: true" : ""))",

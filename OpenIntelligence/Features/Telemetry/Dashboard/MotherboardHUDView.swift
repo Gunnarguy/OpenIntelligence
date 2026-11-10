@@ -60,17 +60,28 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
     case iPhone17ProMax
     case iPhone18Pro
     case iPhone18ProMax
-    /// iPad mini with A17 Pro. The A20 Pro mini (on sale 2026-11-06) has a different board and is not mapped yet.
+    /// iPad mini with A17 Pro.
     case iPadMini
-    /// iPad Air 11-inch with M2, M3 or M4.
+    /// iPad mini with A20 Pro (on sale 2026-11-06): a different, straight board whose chip is not measured yet.
+    case iPadMiniA20Pro
+    /// iPad Air 11-inch with M2.
     case iPadAir11
-    /// iPad Air 13-inch with M2, M3 or M4.
+    /// iPad Air 13-inch with M2.
     case iPadAir13
-    /// iPad Pro 11-inch with M4 or M5.
+    /// iPad Air with M3 or M4: Apple's repair images match the M2's, but the 13-inch iPad Pro M5 showed that shared
+    /// artwork does not prove a shared board, and no teardown shows these chips, so no chip outline.
+    case iPadAirM3M4
+    /// iPad Pro 11-inch with M4.
     case iPadPro11
-    /// iPad Pro 13-inch with M4 or M5.
+    /// iPad Pro 11-inch with M5: no teardown of its board yet, so no chip outline.
+    case iPadPro11M5
+    /// iPad Pro 13-inch with M4.
     case iPadPro13
-    /// iPad Pro with M1 or M2: no photo of the chip on its board was found, so no chip outline.
+    /// iPad Pro 13-inch with M5: its board is not the M4's (screw rectangle 2.48 to 2.45 long against 2.21 to 2.24).
+    case iPadPro13M5
+    /// iPad Pro 12.9-inch with M1.
+    case iPadPro129M1
+    /// iPad Pro 11-inch M1 and M2, 12.9-inch M2: no top-down frame of the chip in place, so no chip outline.
     case iPadProM1M2
     /// iPad Air with M1: no photo of the chip on its board was found, so no chip outline.
     case iPadAirM1
@@ -137,7 +148,8 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         guard numbers.count == 2 else { return .unknown }
         let (major, minor) = (numbers[0], numbers[1])
         switch (major, minor) {
-        case (13, 4...11): return .iPadProM1M2  // iPad Pro M1
+        case (13, 4...7): return .iPadProM1M2  // iPad Pro 11-inch M1
+        case (13, 8...11): return .iPadPro129M1  // iPad Pro 12.9-inch M1 (13,10 in Xcode 27's profiles)
         case (13, 16...17): return .iPadAirM1  // iPad Air M1
         case (14, 3...6): return .iPadProM1M2  // iPad Pro M2
         // Sizes from Xcode 27's Simulator device profiles (modelIdentifier): 14,9 / 14,11 the iPad Air 11- and 13-inch
@@ -145,15 +157,15 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         // Each profile is the cellular model; its Wi-Fi model is the identifier one below.
         case (14, 8...9): return .iPadAir11  // iPad Air 11-inch M2
         case (14, 10...11): return .iPadAir13  // iPad Air 13-inch M2
-        case (15, 3...4): return .iPadAir11  // iPad Air 11-inch M3
-        case (15, 5...6): return .iPadAir13  // iPad Air 13-inch M3
+        case (15, 3...6): return .iPadAirM3M4  // iPad Air M3
         case (16, 1...2): return .iPadMini  // iPad mini A17 Pro
         case (16, 3...4): return .iPadPro11  // iPad Pro 11-inch M4
         case (16, 5...6): return .iPadPro13  // iPad Pro 13-inch M4
-        case (16, 8...9): return .iPadAir11  // iPad Air 11-inch M4
-        case (16, 10...11): return .iPadAir13  // iPad Air 13-inch M4
-        case (17, 1...2): return .iPadPro11  // iPad Pro 11-inch M5
-        case (17, 3...4): return .iPadPro13  // iPad Pro 13-inch M5
+        case (16, 8...11): return .iPadAirM3M4  // iPad Air M4
+        case (17, 1...2): return .iPadPro11M5  // iPad Pro 11-inch M5
+        case (17, 3...4): return .iPadPro13M5  // iPad Pro 13-inch M5
+        // iPad mini A20 Pro: iPad19,1 and 19,2 (AppleDB and The Apple Wiki, 2026-11-10; Xcode 27.0 has no profile yet).
+        case (19, 1...2): return .iPadMiniA20Pro
         default: return .unknown
         }
     }
@@ -186,6 +198,11 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
         case .iPhone18Pro: return "iPhone 18 Pro"
         case .iPhone18ProMax: return "iPhone 18 Pro Max"
         case .iPadMini: return "iPad mini"
+        case .iPadMiniA20Pro: return "iPad mini (A20 Pro)"
+        case .iPadAirM3M4: return "iPad Air"
+        case .iPadPro11M5: return "iPad Pro 11-inch"
+        case .iPadPro13M5: return "iPad Pro 13-inch"
+        case .iPadPro129M1: return "iPad Pro 12.9-inch"
         case .iPadAir11: return "iPad Air 11-inch"
         case .iPadAir13: return "iPad Air 13-inch"
         case .iPadPro11: return "iPad Pro 11-inch"
@@ -213,118 +230,161 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
 
     // MARK: - Measured positions
 
-    /// How far the display sits inside the device outline on each side, as a fraction of the outline. Apple's locator
-    /// images show the whole device, and the display is inset about 1 to 3% from its edge; 2% is assumed on all four
-    /// sides to turn an outline measurement into a display one.
-    static let displayInset: CGFloat = 0.02
+    /// How far the screen sits inside the device outline, as a fraction of the outline: (sides, top and bottom), the
+    /// screen centred. From Apple's Tech Specs (outer height and width in mm, support.apple.com, fetched 2026-11-10)
+    /// and each model's screen size in Xcode 27's Simulator profiles (pixels / ppi). Until 2026-11-10 a flat 2% was
+    /// assumed for every model, which put a box 2 to 4 points off on a 16 Pro Max and over 20 on an iPad mini.
+    var displayInset: (x: CGFloat, y: CGFloat) {
+        switch self {
+        case .iPhone15Pro: return (x: 0.0390, y: 0.0186)  // 70.6 x 146.6 mm; screen 65.10 x 141.14 mm
+        case .iPhone15ProMax: return (x: 0.0357, y: 0.0172)  // 76.7 x 159.9 mm; screen 71.23 x 154.39 mm
+        case .iPhone16: return (x: 0.0454, y: 0.0219)  // 71.6 x 147.6 mm; screen 65.10 x 141.14 mm
+        case .iPhone16Plus: return (x: 0.0422, y: 0.0202)  // 77.8 x 160.9 mm; screen 71.23 x 154.39 mm
+        case .iPhone16Pro: return (x: 0.0343, y: 0.0161)  // 71.5 x 149.6 mm; screen 66.59 x 144.78 mm
+        case .iPhone16ProMax: return (x: 0.0303, y: 0.0142)  // 77.6 x 163 mm; screen 72.89 x 158.36 mm
+        case .iPhone16e, .iPhone17e: return (x: 0.0483, y: 0.0235)  // 71.5 x 146.7 mm; screen 64.60 x 139.81 mm
+        case .iPhone17: return (x: 0.0343, y: 0.0161)  // 71.5 x 149.6 mm; screen 66.59 x 144.78 mm
+        case .iPhoneAir: return (x: 0.0343, y: 0.0164)  // 74.7 x 156.2 mm; screen 69.57 x 151.07 mm
+        case .iPhone17Pro, .iPhone18Pro: return (x: 0.0369, y: 0.0174)  // 71.9 x 150.0 mm; screen 66.59 x 144.78 mm
+        case .iPhone17ProMax, .iPhone18ProMax: return (x: 0.0328, y: 0.0154)  // 78.0 x 163.4 mm; screen 72.89 x 158.36
+        case .iPadMini: return (x: 0.0700, y: 0.0482)  // 134.8 x 195.4 mm; screen 115.94 x 176.55 mm
+        case .iPadAir11: return (x: 0.0580, y: 0.0415)  // 178.5 x 247.6 mm; screen 157.79 x 227.06 mm
+        case .iPadAir13, .iPadPro129M1: return (x: 0.0416, y: 0.0316)  // 214.9 x 280.6 mm; screen 197.04 x 262.85
+        case .iPadPro11: return (x: 0.0479, y: 0.0338)  // 177.5 x 249.7 mm; screen 160.48 x 232.83 mm
+        case .iPadPro13, .iPadPro13M5: return (x: 0.0393, y: 0.0299)  // 215.5 x 281.6 mm; screen 198.58 x 264.78 mm
+        case .iPadMiniA20Pro, .iPadAirM3M4, .iPadPro11M5, .iPadProM1M2, .iPadAirM1, .unknown:
+            return (x: 0.02, y: 0.02)  // no outline is drawn on these
+        }
+    }
 
-    /// Turns a measurement on the device outline (fractions of the outline, front view, portrait, origin top left)
-    /// into the display's normalized space, clamped to the display.
-    static func displayRect(x: ClosedRange<CGFloat>, y: ClosedRange<CGFloat>) -> CGRect {
-        let span = 1 - 2 * displayInset
-        func map(_ value: CGFloat) -> CGFloat { min(1, max(0, (value - displayInset) / span)) }
-        let x0 = map(x.lowerBound)
-        let x1 = map(x.upperBound)
-        let y0 = map(y.lowerBound)
-        let y1 = map(y.upperBound)
+    /// Turns a measurement on this device's outline (fractions of the outline, front view, portrait, origin top left)
+    /// into the screen's normalized space, clamped to the screen.
+    func displayRect(x: ClosedRange<CGFloat>, y: ClosedRange<CGFloat>) -> CGRect {
+        Self.displayRect(x: x, y: y, inset: displayInset)
+    }
+
+    static func displayRect(
+        x: ClosedRange<CGFloat>, y: ClosedRange<CGFloat>, inset: (x: CGFloat, y: CGFloat)
+    ) -> CGRect {
+        func map(_ value: CGFloat, _ inset: CGFloat) -> CGFloat {
+            min(1, max(0, (value - inset) / (1 - 2 * inset)))
+        }
+        let x0 = map(x.lowerBound, inset.x)
+        let x1 = map(x.upperBound, inset.x)
+        let y0 = map(y.lowerBound, inset.y)
+        let y1 = map(y.upperBound, inset.y)
         return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 
-    /// Where the chip package is, measured. Nil draws no chip outline: unknown models, and the three iPads on which no
-    /// photo of the chip on its board could be found.
+    /// Where the chip package is, measured. Nil draws no chip outline: unknown models, and the iPads whose chip has not
+    /// been measured on their own board (iPad Pro 11-inch M1, M2 and M5, 12.9-inch M2; iPad Air M1, M3 and M4; iPad mini
+    /// A20 Pro).
     ///
     /// Method (5.8, 2026-11-10): a teardown photo of the bare board with the chip identified (iFixit Chip ID, IPBrain,
     /// ChargerLab, TechInsights), fitted by its screw holes onto a whole-device image of the same model whose outline is
     /// measured (Apple's Self Service Repair images by article id, support.apple.com/<id>; iFixit, Lumafield and
     /// Creative Electron X-ray and CT scans). Values are fractions of the device outline, front view (looking at the
     /// display), portrait, USB-C at the bottom; back-view images are mirrored. Each was fitted twice, by independent
-    /// passes, and the two agree within 0.01 wherever both measured; the overlays are in
-    /// `BenchmarkRuns/2026-11-10-xray-chip-positions/`.
+    /// passes, and the two agree within 0.01 wherever both measured; then every box was re-traced from the package's
+    /// own edges in its board photo (edge profiles, not an annotation box) and mapped through the fit, with each side's
+    /// uncertainty in screen points (1.5 to 10) recorded in `BenchmarkRuns/2026-11-10-xray-chip-positions/`.
     var socPlacement: ComponentPlacement? {
         switch self {
         case .iPhone15Pro:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.10...0.37, y: 0.33...0.42), confidence: .high,
+                rect: displayRect(x: 0.111...0.353, y: 0.329...0.420), confidence: .high,
                 reference: "iFixit 15 Pro Max chip ID fitted to Apple 104873 internal view; same board on the X-ray")
         case .iPhone15ProMax:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.10...0.34, y: 0.32...0.41), confidence: .high,
+                rect: displayRect(x: 0.104...0.326, y: 0.325...0.408), confidence: .high,
                 reference: "iFixit 15 Pro Max chip ID fitted to the iFixit X-ray (4 holes, misses <= 9 px)")
         case .iPhone16:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.33...0.51, y: 0.18...0.29), confidence: .high,
+                rect: displayRect(x: 0.331...0.506, y: 0.183...0.290), confidence: .high,
                 reference: "iFixit 16 chip ID fitted to the iFixit iPhone 16 CT (4 holes, misses <= 14 px)")
         case .iPhone16Plus:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.32...0.48, y: 0.17...0.27), confidence: .high,
+                rect: displayRect(x: 0.321...0.482, y: 0.168...0.268), confidence: .high,
                 reference: "iFixit 16 chip ID fitted to the iFixit 16 Plus CT (4 holes, misses <= 9 px)")
         case .iPhone16Pro:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.10...0.33, y: 0.32...0.41), confidence: .high,
+                rect: displayRect(x: 0.102...0.332, y: 0.330...0.414), confidence: .high,
                 reference: "iFixit 16 Pro chip ID fitted to the iFixit 16 Pro CT (misses <= 3.4 px)")
         case .iPhone16ProMax:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.09...0.31, y: 0.29...0.38), confidence: .high,
+                rect: displayRect(x: 0.097...0.307, y: 0.304...0.381), confidence: .high,
                 reference: "iFixit 16 Pro chip ID fitted to the iFixit 16 Pro Max CT (5 holes, misses <= 5 px)")
         case .iPhone16e:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.081...0.269, y: 0.372...0.490), confidence: .high,
+                rect: displayRect(x: 0.087...0.264, y: 0.380...0.493), confidence: .high,
                 reference: "iFixit 16e chip ID fitted to the iFixit/Lumafield CT by 4 screw holes (back view, mirrored)"
             )
         case .iPhone17e:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.11...0.30, y: 0.39...0.51), confidence: .medium,
-                reference: "ChargerLab A19 board photo fitted to Apple 125954 by 5 holes (misses <= 5.7 px)")
+                rect: displayRect(x: 0.106...0.279, y: 0.387...0.500), confidence: .high,
+                reference: "iFixit 17e board (A19 boxed, video 05:45) fitted to its empty chassis by 3 points (<= 1.7 px); "
+                    + "ChargerLab board fitted to its chassis agrees within 0.011")
         case .iPhone17:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.35...0.52, y: 0.17...0.30), confidence: .medium,
-                reference: "IPBrain A19 board photo fitted to Apple 123042 by 3 holes (misses <= 1.8 px)")
+                rect: displayRect(x: 0.338...0.519, y: 0.176...0.287), confidence: .high,
+                reference: "IPBrain and WekiHome A19 board photos each fitted to Apple 123042 by 3 holes (<= 2.6 px); "
+                    + "WekiHome's own open chassis agrees within 0.009")
         case .iPhoneAir:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.414...0.631, y: 0.115...0.192), confidence: .high,
+                rect: displayRect(x: 0.398...0.611, y: 0.117...0.194), confidence: .high,
                 reference:
                     "iFixit Air chip ID fitted to the iFixit radiograph (5 holes); Apple 123061 board within 1.5 pt")
         case .iPhone17Pro:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.357...0.535, y: 0.265...0.374), confidence: .high,
+                rect: displayRect(x: 0.364...0.528, y: 0.274...0.379), confidence: .high,
                 reference: "iFixit 17 Pro chip ID fitted to Apple 123375 by 6 points (misses <= 5 px); iFixit CT agrees"
             )
         case .iPhone17ProMax:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.410...0.574, y: 0.248...0.348), confidence: .high,
+                rect: displayRect(x: 0.418...0.568, y: 0.254...0.350), confidence: .high,
                 reference: "iFixit 17 Pro chip ID fitted to Apple 123395 (misses <= 5 px; same board as the 17 Pro)")
         case .iPhone18Pro:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.286...0.501, y: 0.294...0.406), confidence: .high,
+                rect: displayRect(x: 0.298...0.505, y: 0.289...0.403), confidence: .high,
                 reference:
                     "iFixit 18 Pro no-battery photo fitted to Apple 127411 (misses <= 1.5 px); Apple's mesh square")
         case .iPhone18ProMax:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.347...0.541, y: 0.269...0.371), confidence: .high,
+                rect: displayRect(x: 0.347...0.540, y: 0.268...0.373), confidence: .high,
                 reference:
                     "iFixit 18 Pro Max no-battery photo fitted to Apple 127646 (misses <= 2.5 px); Apple's mesh square")
         case .iPadPro13:
-            // The M5 board is taken as the M4's: Apple serves the identical internal view on both (121282, 125192).
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.476...0.602, y: 0.426...0.522), confidence: .high,
+                rect: displayRect(x: 0.473...0.595, y: 0.426...0.524), confidence: .high,
                 reference: "Creative Electron M4 X-ray ball grid; iFixit Chip ID 172901 fitted by 12 holes agrees")
+        case .iPadPro13M5:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.475...0.593, y: 0.441...0.542), confidence: .medium,
+                reference: "GeekerStation M5 board fitted to iFixit's M5 chassis (video 03:30) by 4 screws (0.54 px rms); "
+                    + "a second frame and screw pair agrees within 0.007")
         case .iPadPro11:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.463...0.631, y: 0.419...0.538), confidence: .medium,
-                reference: "13-inch fit carried over: Apple's 11- and 13-inch internal views share 7 board screws")
+                rect: displayRect(x: 0.468...0.615, y: 0.421...0.532), confidence: .high,
+                reference: "WekiHome M4 board fitted by 4 screws to Apple 125182 (0.23 px rms) and to its own open chassis "
+                    + "(0.32 px rms); the two agree within 0.001")
+        case .iPadPro129M1:
+            return ComponentPlacement(
+                rect: displayRect(x: 0.482...0.600, y: 0.379...0.483), confidence: .medium,
+                reference: "TEKDEP 12.9-inch M1 teardown (10:30): the bare M1 in the whole-device frame, 4-edge "
+                    + "homography (<= 3.1 px); the board sat unscrewed, about 0.006 of play")
         case .iPadAir13:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.80...0.94, y: 0.46...0.56), confidence: .high,
+                rect: displayRect(x: 0.815...0.933, y: 0.460...0.567), confidence: .high,
                 reference: "iFixit M2 X-ray; iFixit board photo fitted to Apple 121276 by 4 screws agrees within 0.012")
         case .iPadAir11:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.78...0.93, y: 0.48...0.59), confidence: .medium,
+                rect: displayRect(x: 0.783...0.931, y: 0.478...0.589), confidence: .medium,
                 reference: "TechInsights M2 board photo fitted to Apple 121273 by 4 points (misses <= 1.7 px)")
         case .iPadMini:
             return ComponentPlacement(
-                rect: Self.displayRect(x: 0.755...0.888, y: 0.578...0.654), confidence: .medium,
+                rect: displayRect(x: 0.770...0.894, y: 0.574...0.640), confidence: .medium,
                 reference: "iFixit Chip ID 178389 fitted to Apple 122362 (8 constraints); mini 6 X-ray agrees")
-        case .iPadProM1M2, .iPadAirM1, .unknown:
+        case .iPadProM1M2, .iPadAirM1, .iPadAirM3M4, .iPadPro11M5, .iPadMiniA20Pro, .unknown:
             return nil
         }
     }
@@ -335,21 +395,23 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
     /// `socPlacement`. Nil on iPad, which has none, and on unknown devices.
     var tapticRect: CGRect? {
         switch self {
-        case .iPhone15Pro: return Self.displayRect(x: 0.11...0.39, y: 0.86...0.92)  // Apple 104882
-        case .iPhone15ProMax: return Self.displayRect(x: 0.10...0.36, y: 0.87...0.93)  // Apple 104927
-        case .iPhone16: return Self.displayRect(x: 0.06...0.26, y: 0.76...0.95)  // Apple 120643
-        case .iPhone16Plus: return Self.displayRect(x: 0.06...0.23, y: 0.70...0.88)  // Apple 120672
-        case .iPhone16Pro: return Self.displayRect(x: 0.12...0.42, y: 0.87...0.95)  // Apple 120812
-        case .iPhone16ProMax: return Self.displayRect(x: 0.15...0.38, y: 0.87...0.93)  // iFixit 16 Pro Max CT, labelled
-        case .iPhone16e: return Self.displayRect(x: 0.071...0.283, y: 0.832...0.911)  // iFixit/Lumafield CT
-        case .iPhone17e: return Self.displayRect(x: 0.12...0.31, y: 0.83...0.91)  // Apple 125954, labelled
-        case .iPhone17: return Self.displayRect(x: 0.09...0.21, y: 0.82...0.95)  // Apple 123042; IPBrain photo labels it
-        case .iPhoneAir: return Self.displayRect(x: 0.145...0.367, y: 0.865...0.941)  // Apple 123061, iFixit radiograph
-        case .iPhone17Pro: return Self.displayRect(x: 0.599...0.861, y: 0.882...0.940)  // Apple 123375, iFixit CT
-        case .iPhone17ProMax: return Self.displayRect(x: 0.609...0.863, y: 0.894...0.955)  // Apple 123395
-        case .iPhone18Pro: return Self.displayRect(x: 0.58...0.92, y: 0.88...0.94)  // Apple 127411
-        case .iPhone18ProMax: return Self.displayRect(x: 0.55...0.91, y: 0.89...0.96)  // Apple 127646
-        case .iPadMini, .iPadAir11, .iPadAir13, .iPadPro11, .iPadPro13, .iPadProM1M2, .iPadAirM1, .unknown: return nil
+        case .iPhone15Pro: return displayRect(x: 0.11...0.39, y: 0.86...0.92)  // Apple 104882
+        case .iPhone15ProMax: return displayRect(x: 0.10...0.36, y: 0.87...0.93)  // Apple 104927
+        case .iPhone16: return displayRect(x: 0.06...0.26, y: 0.76...0.95)  // Apple 120643
+        case .iPhone16Plus: return displayRect(x: 0.06...0.23, y: 0.70...0.88)  // Apple 120672
+        case .iPhone16Pro: return displayRect(x: 0.12...0.42, y: 0.87...0.95)  // Apple 120812
+        case .iPhone16ProMax: return displayRect(x: 0.15...0.38, y: 0.87...0.93)  // iFixit 16 Pro Max CT, labelled
+        case .iPhone16e: return displayRect(x: 0.071...0.283, y: 0.832...0.911)  // iFixit/Lumafield CT
+        case .iPhone17e: return displayRect(x: 0.12...0.31, y: 0.83...0.91)  // Apple 125954, labelled
+        case .iPhone17: return displayRect(x: 0.09...0.21, y: 0.82...0.95)  // Apple 123042; IPBrain photo labels it
+        case .iPhoneAir: return displayRect(x: 0.145...0.367, y: 0.865...0.941)  // Apple 123061, iFixit radiograph
+        case .iPhone17Pro: return displayRect(x: 0.599...0.861, y: 0.882...0.940)  // Apple 123375, iFixit CT
+        case .iPhone17ProMax: return displayRect(x: 0.609...0.863, y: 0.894...0.955)  // Apple 123395
+        case .iPhone18Pro: return displayRect(x: 0.58...0.92, y: 0.88...0.94)  // Apple 127411
+        case .iPhone18ProMax: return displayRect(x: 0.55...0.91, y: 0.89...0.96)  // Apple 127646
+        case .iPadMini, .iPadMiniA20Pro, .iPadAir11, .iPadAir13, .iPadAirM3M4, .iPadPro11, .iPadPro11M5, .iPadPro13,
+            .iPadPro13M5, .iPadPro129M1, .iPadProM1M2, .iPadAirM1, .unknown:
+            return nil
         }
     }
 }

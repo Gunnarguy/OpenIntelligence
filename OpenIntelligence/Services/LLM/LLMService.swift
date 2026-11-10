@@ -224,6 +224,10 @@ struct LLMResponse {
     /// Apple's own accounting for this generation. `nil` below iOS/macOS 27, where the API does
     /// not exist, and `nil` on the non-Apple paths.
     let usage: GenerationUsage?
+    /// True when the model failed partway and this is the text it had streamed so far (5.8). A caller that needs the
+    /// whole text (Deep Think's synthesis) must not take it as finished: on the owner's iPhone on 2026-11-10 a synthesis
+    /// cut off at 37 tokens when iOS took back the background time was saved as the answer, ending at "or **dementia".
+    let streamCutOff: Bool
 
     init(
         text: String,
@@ -234,8 +238,10 @@ struct LLMResponse {
         toolCallsMade: Int,
         structuredRAGGeneration: StructuredRAGGeneration? = nil,
         executionReceipt: ModelExecutionReceipt? = nil,
-        usage: GenerationUsage? = nil
+        usage: GenerationUsage? = nil,
+        streamCutOff: Bool = false
     ) {
+        self.streamCutOff = streamCutOff
         self.text = text
         self.tokensGenerated = tokensGenerated
         self.timeToFirstToken = timeToFirstToken

@@ -1499,7 +1499,8 @@ extension RAGService {
 
         let hasStrongNumericIntent = strongNumericIntentMarkers.contains { lower.contains($0) }
         let hasWeakNumericIntent = weakNumericIntentMarkers.contains { lower.contains($0) }
-        let hasStrongValueTarget = strongValueMarkers.contains { lower.contains($0) }
+        let hasStrongValueTarget =
+            strongValueMarkers.contains { lower.contains($0) } || Self.namesAStatisticalValue(lower)
         let hasAmbiguousValueTarget = ambiguousValueMarkers.contains { lower.contains($0) }
 
         // Unit-like tokens in the question are a strong indicator of precision lookup.
@@ -1516,6 +1517,17 @@ extension RAGService {
         }
 
         return false
+    }
+
+    /// A question that names a statistical value (5.8): a ratio, rate, percentage, odds, p-value, interval, mean or median,
+    /// prevalence, incidence. The value words above were written for manuals (capacity, voltage, part number), so "What
+    /// is the hazard ratio for somatic comorbidities?" was taken for a definition question on the owner's iPhone on
+    /// 2026-11-10, and the ranking preferred prose over the results table that held the ratio. Whole words only, so
+    /// "generate" is not "rate" and "meant" is not "mean".
+    nonisolated static func namesAStatisticalValue(_ lowercasedQuery: String) -> Bool {
+        let pattern =
+            #"\b(?:ratio|ratios|rate|rates|percentage|percent|proportion|prevalence|incidence|odds|p[- ]?values?|confidence intervals?|mean|median|average|correlation|coefficient|effect size|sample size|relative risk|absolute risk|risk difference|standard deviation)\b"#
+        return lowercasedQuery.range(of: pattern, options: .regularExpression) != nil
     }
 
     /// Ensures we only force-lock answers that contain concrete values.
@@ -1601,7 +1613,7 @@ extension RAGService {
         EvidenceScoringPolicyService.isStateLookupQuery(query)
     }
 
-    private nonisolated static func isDefinitionStyleLookupQuery(_ query: String) -> Bool {
+    nonisolated static func isDefinitionStyleLookupQuery(_ query: String) -> Bool {
         let lower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !lower.isEmpty else { return false }
 

@@ -1299,10 +1299,23 @@ actor RAGEngine {
     /// composition table first for "How much lysine is present?" (normalised 0.90); its dozens of decimals ("15.0-25.0",
     /// "4.4-26.2") took the section-number penalty of 0.18, the gate read 0.720 at the top, and the prose beside the
     /// table led the prompt, so the answer said "small amounts" where the table says 4.4 to 26.2 mg/g.
+    /// Figures written as an estimate with its interval, "4.60 (3.99-5.29)" or "1.2 (0.8, 1.9)": the shape of a results
+    /// table. Counted, not parsed.
+    nonisolated static func estimatesWithInterval(in content: String) -> Int {
+        let pattern = #"-?\d+(?:\.\d+)?\s*\(\s*-?\d+(?:\.\d+)?\s*(?:-|–|—|,|to)\s*-?\d+(?:\.\d+)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(in: content, range: NSRange(content.startIndex..., in: content))
+    }
+
     nonisolated static func computeTOCPenalty(content: String, isTable: Bool = false) -> Float {
         var penalty: Float = 0
         let wordCount = content.split(separator: " ").count
         guard wordCount > 10 else { return 0 }  // Too short to analyze
+        // Results with intervals ("4.60 (3.99-5.29)") are a data table, never a contents page (5.8). On the owner's
+        // iPhone on 2026-11-10 a JAMA Psychiatry results table, stored flattened as a paragraph, was the reranker's
+        // first pick for "What is the hazard ratio for somatic comorbidities?" at 0.90; this penalty took it to 0.60,
+        // it left the context, and the answer said the ratio was not in the documents.
+        if estimatesWithInterval(in: content) >= 2 { return 0 }
 
         // Pattern 1: Many section numbers like "1.1.", "2.3.", "3.4.5." etc.
         // TOC pages have dense section numbering
@@ -1760,9 +1773,17 @@ actor RAGEngine {
                 crossEncoderTop.chunk.chunk.id != shownTop.chunk.chunk.id
             {
                 let after = penalizedScored.first { $0.chunk.chunk.id == crossEncoderTop.chunk.chunk.id }?.score ?? 0
+                // Which penalty did it, and by how much (5.8): the trace said only that the pick moved, and finding the
+                // contents-page penalty behind the 2026-11-10 hazard-ratio miss took reading the code.
+                let text = crossEncoderTop.chunk.chunk.contextText
+                let toc = Self.computeTOCPenalty(content: text, isTable: Self.isStoredTable(crossEncoderTop.chunk.chunk))
+                let questionBank = computeQuestionBankPenalty(content: text, query: query)
+                let bibliography = Self.computeBibliographyPenalty(content: text)
                 Log.info(
                     "[RAGEngine] Penalties moved the reranker's first pick: \(String(format: "%.2f", crossEncoderTop.score)) -> "
-                        + "\(String(format: "%.2f", after)) (\(crossEncoderTop.chunk.chunk.metadata.structureType ?? "prose"))",
+                        + "\(String(format: "%.2f", after)) (\(crossEncoderTop.chunk.chunk.metadata.structureType ?? "prose")): "
+                        + "contents-page \(String(format: "%.2f", toc)), question-bank \(String(format: "%.2f", questionBank)), "
+                        + "bibliography \(String(format: "%.2f", bibliography))",
                     category: .retrieval)
             }
 

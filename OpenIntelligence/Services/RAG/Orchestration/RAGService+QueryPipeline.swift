@@ -56,6 +56,19 @@ extension RAGService {
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
         finishAnswerNowRequested = false
+        // A question asked while search is being set up waits here, before anything else runs, and says so (5.8). It
+        // used to start, run the question's understanding, embedding and search, and stop silently at the reranker, so
+        // the bar read "Working" through most of the wait (the owner's iPhone, 2026-11-10).
+        if RerankerSetupStatus.shared.isPreparing {
+            emitThinkingEvent(
+                .planning, title: "Waiting for search to be ready",
+                detail: "Getting search ready on this device, once after each update. Your question starts when it is done.")
+            let waitStart = Date()
+            await RAGEngine.shared.prepareReranker()
+            let waited = Date().timeIntervalSince(waitStart)
+            VerificationJournal.record("answer.waitedForSetup", durationMs: waited * 1000)
+            emitThinkingEvent(.planning, title: "Search is ready", detail: "Starting your question")
+        }
         // While this answer runs, the app's side jobs leave the on-device model to it (5.8, `AnswerModelPriority`).
         AnswerModelPriority.answerStarted()
         defer { AnswerModelPriority.answerEnded() }

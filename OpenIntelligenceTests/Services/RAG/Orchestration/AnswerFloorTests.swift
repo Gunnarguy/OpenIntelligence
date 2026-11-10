@@ -95,6 +95,29 @@ final class AnswerFloorTests: XCTestCase {
         XCTAssertEqual(RAGEngine.computeTOCPenalty(content: compositionTable, isTable: true), 0)
     }
 
+    /// The owner's iPhone, 2026-11-10: a JAMA Psychiatry results table stored flattened as a paragraph. It was the
+    /// reranker's first pick for the hazard ratio question, and the contents-page penalty took it from 0.90 to 0.60.
+    func testAFlattenedResultsTableWithIntervalsIsNotAContentsPage() {
+        let results = """
+            Table 2. Associations of ADHD With Cognitive Impairment Model HR (95% CI) Unadjusted 3.21 (2.90-3.55) \
+            Adjusted for demographics 2.98 (2.68-3.31) Somatic comorbidities 4.60 (3.99-5.29) Neuropsychiatric \
+            comorbidities 3.12 (2.71-3.59) Stratified by sex 4.05 (3.29-4.99) Stratified by race and ethnicity \
+            3.88 (3.10-4.86) Sensitivity analysis 2.75 (2.30-3.29)
+            """
+        XCTAssertGreaterThanOrEqual(RAGEngine.estimatesWithInterval(in: results), 2)
+        XCTAssertEqual(RAGEngine.computeTOCPenalty(content: results, isTable: false), 0)
+    }
+
+    /// Statistical values make a question a value question, by whole words.
+    func testStatisticalValueWordsMakeAValueQuestion() {
+        XCTAssertTrue(RAGService.namesAStatisticalValue("what is the hazard ratio for somatic comorbidities?"))
+        XCTAssertTrue(RAGService.namesAStatisticalValue("what is the median age at diagnosis?"))
+        XCTAssertTrue(RAGService.namesAStatisticalValue("what was the p-value for mental health?"))
+        XCTAssertFalse(RAGService.namesAStatisticalValue("how do they generate the summaries?"))
+        XCTAssertFalse(RAGService.namesAStatisticalValue("what is meant by executive function?"))
+        XCTAssertFalse(RAGService.namesAStatisticalValue("what is adhd?"))
+    }
+
     func testARealTableOfContentsIsStillPenalised() {
         let toc = """
             Table of Contents

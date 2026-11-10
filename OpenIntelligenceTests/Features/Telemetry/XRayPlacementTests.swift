@@ -32,14 +32,18 @@ final class XRayPlacementTests: XCTestCase {
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,3"), .iPadPro11)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,4"), .iPadPro11)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,6"), .iPadPro13)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,2"), .iPadPro11)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,4"), .iPadPro13)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,2"), .iPadPro11M5)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad17,4"), .iPadPro13M5)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad13,10"), .iPadPro129M1)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad13,5"), .iPadProM1M2)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,5"), .iPadProM1M2)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad19,2"), .iPadMiniA20Pro)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,8"), .iPadAir11)
         XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad14,11"), .iPadAir13)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,3"), .iPadAir11)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,5"), .iPadAir13)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,9"), .iPadAir11)
-        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,11"), .iPadAir13)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,3"), .iPadAirM3M4)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad15,5"), .iPadAirM3M4)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,9"), .iPadAirM3M4)
+        XCTAssertEqual(DeviceComponentLayout.layout(forIdentifier: "iPad16,11"), .iPadAirM3M4)
     }
 
     /// iPhone Duo's insides are not mapped, so it draws nothing rather than an outline in the wrong place.
@@ -68,9 +72,15 @@ final class XRayPlacementTests: XCTestCase {
         let mini = try XCTUnwrap(DeviceComponentLayout.iPadMini.socPlacement)
         XCTAssertGreaterThan(mini.rect.minX, 0.7)
         XCTAssertGreaterThan(mini.rect.minY, 0.5)
-        // No photo of the chip on these boards: no outline at all.
-        XCTAssertNil(DeviceComponentLayout.iPadProM1M2.socPlacement)
-        XCTAssertNil(DeviceComponentLayout.iPadAirM1.socPlacement)
+        // Not measured on their own board: no outline at all, not a sister model's spot.
+        for layout: DeviceComponentLayout in [.iPadProM1M2, .iPadAirM1, .iPadAirM3M4, .iPadPro11M5, .iPadMiniA20Pro] {
+            XCTAssertNil(layout.socPlacement, layout.displayName)
+        }
+        // The 13-inch M5's board is not the M4's (screw rectangle 2.45 to 2.48 long against 2.21 to 2.24): traced from the
+        // packages' edges, its chip sits about 0.016 of the screen lower.
+        let m4 = try XCTUnwrap(DeviceComponentLayout.iPadPro13.socPlacement)
+        let m5 = try XCTUnwrap(DeviceComponentLayout.iPadPro13M5.socPlacement)
+        XCTAssertGreaterThan(m5.rect.midY, m4.rect.midY + 0.01)
         XCTAssertNil(DeviceComponentLayout.iPadPro13.tapticRect)
         XCTAssertNotNil(DeviceComponentLayout.iPhone17.tapticRect)
     }
@@ -78,11 +88,16 @@ final class XRayPlacementTests: XCTestCase {
     /// Two independent passes measured these from different images; the code's value must sit within 0.02 of both.
     func testPlacementsAgreeWithTheSecondPass() throws {
         let second: [(DeviceComponentLayout, CGRect)] = [
-            (.iPhone18Pro, DeviceComponentLayout.displayRect(x: 0.29...0.50, y: 0.29...0.40)),
-            (.iPhone18ProMax, DeviceComponentLayout.displayRect(x: 0.35...0.54, y: 0.27...0.37)),
-            (.iPadPro13, DeviceComponentLayout.displayRect(x: 0.467...0.605, y: 0.424...0.529)),
-            (.iPadMini, DeviceComponentLayout.displayRect(x: 0.77...0.89, y: 0.59...0.66)),
-            (.iPhone16e, DeviceComponentLayout.displayRect(x: 0.09...0.28, y: 0.39...0.51)),
+            (.iPhone18Pro, DeviceComponentLayout.iPhone18Pro.displayRect(x: 0.29...0.50, y: 0.29...0.40)),
+            (.iPhone18ProMax, DeviceComponentLayout.iPhone18ProMax.displayRect(x: 0.35...0.54, y: 0.27...0.37)),
+            (.iPadPro13, DeviceComponentLayout.iPadPro13.displayRect(x: 0.467...0.605, y: 0.424...0.529)),
+            (.iPadMini, DeviceComponentLayout.iPadMini.displayRect(x: 0.77...0.89, y: 0.59...0.66)),
+            (.iPhone16e, DeviceComponentLayout.iPhone16e.displayRect(x: 0.09...0.28, y: 0.39...0.51)),
+            // 2026-11-10 measuring pass: a second fit from a different source.
+            (.iPhone17, DeviceComponentLayout.iPhone17.displayRect(x: 0.332...0.522, y: 0.173...0.287)),
+            (.iPhone17e, DeviceComponentLayout.iPhone17e.displayRect(x: 0.090...0.273, y: 0.371...0.497)),
+            // The earlier 11-inch value, carried from the 13-inch fit by 7 shared screws.
+            (.iPadPro11, DeviceComponentLayout.iPadPro11.displayRect(x: 0.463...0.631, y: 0.419...0.538)),
         ]
         for (layout, other) in second {
             let rect = try XCTUnwrap(layout.socPlacement?.rect, layout.displayName)
@@ -98,7 +113,7 @@ final class XRayPlacementTests: XCTestCase {
         let layouts: [DeviceComponentLayout] = [
             .iPhone15Pro, .iPhone15ProMax, .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax, .iPhone16e,
             .iPhone17, .iPhoneAir, .iPhone17e, .iPhone17Pro, .iPhone17ProMax, .iPhone18Pro, .iPhone18ProMax,
-            .iPadMini, .iPadAir11, .iPadAir13, .iPadPro11, .iPadPro13,
+            .iPadMini, .iPadAir11, .iPadAir13, .iPadPro11, .iPadPro13, .iPadPro13M5, .iPadPro129M1,
         ]
         for layout in layouts {
             let name = layout.displayName
@@ -115,16 +130,27 @@ final class XRayPlacementTests: XCTestCase {
         }
     }
 
-    /// A 2% inset on each side of the device outline: its edges map to the display's, its middle stays put.
+    /// Each model's own screen inset: the screen's edges map to the display's, its middle stays put.
     func testOutlineMeasurementsConvertToTheDisplay() {
-        let whole = DeviceComponentLayout.displayRect(x: 0.02...0.98, y: 0.02...0.98)
+        let layout = DeviceComponentLayout.iPhone16ProMax
+        let inset = layout.displayInset
+        let whole = layout.displayRect(x: inset.x...(1 - inset.x), y: inset.y...(1 - inset.y))
         assertEqual(whole, CGRect(x: 0, y: 0, width: 1, height: 1))
-        let middle = DeviceComponentLayout.displayRect(x: 0.5...0.5, y: 0.5...0.5)
+        let middle = layout.displayRect(x: 0.5...0.5, y: 0.5...0.5)
         XCTAssertEqual(middle.minX, 0.5, accuracy: 1e-9)
         XCTAssertEqual(middle.minY, 0.5, accuracy: 1e-9)
         // Past the display's edge is clamped to it.
-        let past = DeviceComponentLayout.displayRect(x: 0.0...1.0, y: 0.0...1.0)
+        let past = layout.displayRect(x: 0.0...1.0, y: 0.0...1.0)
         assertEqual(past, CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    /// The 16 Pro Max's screen, from Apple's 77.6 x 163 mm and its 1320 x 2868 pixels at 460 ppi (72.89 x 158.36 mm):
+    /// 3.0% in from the sides and 1.4% from the top and bottom, not the flat 2% assumed before.
+    func testScreenInsetComesFromTheModelsOwnDimensions() {
+        let inset = DeviceComponentLayout.iPhone16ProMax.displayInset
+        XCTAssertEqual(inset.x, (77.6 - 1320.0 / 460 * 25.4) / 2 / 77.6, accuracy: 0.0005)
+        XCTAssertEqual(inset.y, (163.0 - 2868.0 / 460 * 25.4) / 2 / 163.0, accuracy: 0.0005)
+        XCTAssertGreaterThan(DeviceComponentLayout.iPadMini.displayInset.x, 0.06)
     }
 
     // MARK: Orientation
