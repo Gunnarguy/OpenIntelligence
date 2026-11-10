@@ -393,9 +393,12 @@ struct ComputeProfileCard: View {
         if let previous {
             title =
                 lines.isEmpty
-                ? "Same chips as \(previous.displayName) on this \(deviceNoun)"
+                ? "On this \(deviceNoun), \(profile.displayName) runs exactly like \(previous.displayName)"
                 : "\(profile.displayName) adds to \(previous.displayName)"
-            detail = lines.isEmpty ? "What changes is outside this \(deviceNoun): see above." : lines.joined(separator: "\n")
+            detail =
+                lines.isEmpty
+                ? "Every job uses the same chips. It differs only where it lets an import in the background keep the GPU."
+                : lines.joined(separator: "\n")
             symbol = lines.isEmpty ? "equal.circle.fill" : "plus.circle.fill"
         } else {
             title = "The base step"
@@ -428,23 +431,34 @@ struct ComputeProfileCard: View {
 
     // MARK: The jobs
 
+    /// The jobs in two groups, when you ask and when you import, so it is plain which ones change answering and
+    /// which ones change importing (the owner asked, 2026-11-10, whether the setting was for importing only).
     private var jobsList: some View {
         let addedNow = added
+        let asking: Set<String> = ["search", "large"]
         return VStack(spacing: DSSpacing.xs) {
-            HStack(spacing: 0) {
-                Text("JOB · TAP FOR WHAT RUNS IT")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                ForEach(Chip.allCases) { chip in
-                    Text(chip.shortName).frame(width: 36)
-                }
+            phaseHeader("WHEN YOU ASK", showsChips: true)
+            ForEach(current.filter { asking.contains($0.id) }) { row in
+                jobRow(row, added: addedNow[row.id] ?? [])
             }
-            .scaledFont(size: 9, weight: .semibold, design: .monospaced)
-            .foregroundStyle(.secondary)
-
-            ForEach(current) { row in
+            phaseHeader("WHEN YOU IMPORT", showsChips: false)
+            ForEach(current.filter { !asking.contains($0.id) }) { row in
                 jobRow(row, added: addedNow[row.id] ?? [])
             }
         }
+    }
+
+    private func phaseHeader(_ title: String, showsChips: Bool) -> some View {
+        HStack(spacing: 0) {
+            Text(title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(Chip.allCases) { chip in
+                Text(showsChips ? chip.shortName : "").frame(width: 36)
+            }
+        }
+        .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+        .foregroundStyle(.secondary)
+        .padding(.top, 2)
     }
 
     private func jobRow(_ row: Workload, added: Set<Chip>) -> some View {

@@ -530,23 +530,11 @@ extension SettingsView {
                     }
                 )
 
-                // What the profile does when an import goes on in the background, for this device (5.7).
-                Text(backgroundImportNote(for: gpuProfile, deviceService: deviceService))
+                // One line (5.8): the background rule now sits in its job's row on the card, and "Same in every profile"
+                // says what the setting does not cover; three paragraphs here repeated both (the owner, 2026-11-10).
+                Text("Applies from the next import, and to searching from the next launch.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("Changes apply from the next import, and to searching by the next time the app opens at the latest. Every scanned page is prepared for text recognition on the GPU in every profile.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if settings.showTechnicalDetails {
-                    Text("Covered: the Core ML embedding model (the default for a new library on iPhone and iPad), an extra Core Image pass over rendered PDF pages, and Metal for vector search over 1,000 or more passages. Not covered: a Core AI library (the default on a Mac with macOS 27), which embeds on the GPU in every profile; the reranker, which may use all three chips; and text recognition, whose page preparation runs on the GPU.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
             .padding(DSSpacing.md)
             .background(DSColors.surface)
