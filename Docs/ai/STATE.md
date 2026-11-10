@@ -38,6 +38,19 @@ reviewed by a refuting reviewer (2 blockers and 7 defects found, all fixed) and 
 home); install `/private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app` tonight. Open for him: the X-Ray HUD outline
 over the Deep Think panel (leave or hide), naming `BNNSVectorDatabase.swift` for the rest of item 3, item 9 on his phone.
 
+**Added 2026-11-10 09:30 PT (all his asks this morning, kept here so none lives only in the conversation):**
+
+| Item | State |
+|---|---|
+| Universal passage marks (`PassageFinder`, themed box, scans, images) | Committed `b2a94f25`, on his iPhone (09:25 build); 58.4% -> 88.9% on 10,029 passages (`BenchmarkRuns/2026-11-10-passage-highlight`). Not yet seen by him; scanned-page and image marks untried on real files |
+| See-through X-Ray legend, setup card under it | Committed `b2a94f25`. Contrast of the new backing NOT yet measured (Simulator screenshots, light and dark, over a white and a dark screen; darken until 4.5:1) |
+| X-Ray positions, look, iPad rotation, tip | Plan given, awaiting PROCEED. Research (Apple repair-manual locator images, 2026-11-10): iPhone18,3 = iPhone 17 and 18,4 = Air (app maps both to 17 Pro); add 16e (17,5), 17e (18,5), 18 Pro (19,2), 18 Pro Max (19,3/19,7); chip located only on 18 Pro (x .27-.51, y .28-.40), roughly 15 Pro and 17 Pro, board elsewhere; iPads approximate; landscapeLeft/Right swapped in `HardwareXRayOverlay.orientRect` (use `UIScreen.fixedCoordinateSpace`) |
+| Disclaimers | Plan given, awaiting PROCEED: Advanced Controls and embedding choice ("tested with Automatic's settings"), Core AI tagged Experimental, "Smart Embedding Selection" card (`AdaptiveEmbeddingOptimizer.recommendConfiguration`: "40% match" and reasons from fixed rules) through `oi-claim-audit`, Vision Capture tagged Experimental |
+| Search presets | Only Balanced (Automatic on PDF libraries) was ever measured; High Precision, Technical Manual, Exploratory and custom values untested with the Granite reranker. Run each on QASPER 246 + tables 158 on benchmark day (2026-11-11) |
+| Vision Capture TLC | Notion row `41449a74d54f81c1bba2e1633026047a`, Future Backlog |
+| Benchmark day 2026-11-11 | 5.7 vs 5.8 head-to-head; iOS 27 structured-generation failure rate; table title-row fix on the 515 page-image checks; the presets above |
+| Tonight at home | Instruments traces (Deep Think, 900-page import); device checks of resume, Quotes only, panel, Spotlight tap |
+
 ## Status
 
 | What | Where it stands |
