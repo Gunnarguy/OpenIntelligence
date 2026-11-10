@@ -1004,6 +1004,10 @@ struct AdaptiveVisualizationsView: View {
         }
         let chunks = await ragService.allChunksForActiveContainer()
         let libraryPassageCount = await ragService.passageCountForActiveContainer()
+        // Leaving the Atlas cancels this task, and nothing checked it between the reads and the analysis (5.8): on
+        // his iPhone on 2026-11-05 a 3 s visit started a 61.5 s analysis of 6,000 passages while a Deep Think answer
+        // ran, with Chat the selected tab.
+        guard !Task.isCancelled else { return }
 
         await engine.analyze(
             containerId: containerId,

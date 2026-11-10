@@ -147,7 +147,10 @@ extension ChatScreen {
             graphEntitiesExtracted: 0,
             intentAwareWeightsActive: true,
             isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (effectiveQualityMode == .deepThink),
-            recursiveCallCount: auditSnapshot?.llmCallCount ?? 1,
+            // While an answer runs the snapshot is the previous answer's (5.8): the same rule as `consolidatedMetricsData`.
+            // The running answer's mode decides, because the snapshot may be a Standard answer's.
+            recursiveCallCount: isProcessing && effectiveQualityMode.canonical != .standard
+                ? max(1, ragService.deepThinkLiveSteps) : (auditSnapshot?.llmCallCount ?? 1),
             totalStoredChunks: auditSnapshot?.totalStoredChunks ?? 0,
             candidatesCount: auditSnapshot?.candidatesCount ?? 0,
             rerankedCount: auditSnapshot?.rerankedCount ?? 0,
@@ -355,11 +358,33 @@ extension ChatScreen {
                 lastLoadedChatContainerId = activeId
                 await recalcActiveCounts()
 
+
                 // Clear stale per-conversation state from previous library
                 followUpSuggestionsTask?.cancel()
                 followUpSuggestions = []
                 thinkingEvents = []
                 speedHistory = []
+
+                // A question whose answer the last run of the app lost is asked again once, by itself (5.8): iOS
+                // ended the app while a Deep Think answer waited in the background, and the reopened chat showed only
+                // the question and "This answer didn't finish." Only before anything is asked in this run, so an
+                // answer still running here is never asked twice, and never Maximum, which would spend a metered run
+                // nobody asked for (or, at the limit, open its dialog and drop the question; refuting review).
+                if !PendingAnswerStore.askedThisLaunch, !isProcessing, effectiveQualityMode.canonical != .maximum,
+                    let pending = PendingAnswerStore.resumable(
+                        PendingAnswerStore.current, lastMessageId: messages.last?.id,
+                        lastMessageIsQuestion: messages.last?.role == .user, containerId: activeId,
+                        mode: effectiveQualityMode)
+                {
+                    VerificationJournal.record(
+                        "answer.resumed",
+                        ["mode": pending.mode, "ageSeconds": "\(Int(Date().timeIntervalSince(pending.askedAt)))"])
+                    messages.removeAll { $0.id == pending.messageId }
+                    PendingAnswerStore.resumingNextSend = true
+                    sendMessage(pending.question)
+                    // A send that did not reach the record leaves no flag for the next question.
+                    PendingAnswerStore.resumingNextSend = false
+                }
             }
 
             if !isSameDocsContainer {
@@ -880,6 +905,9 @@ extension ChatScreen {
                 return .deepThink
             }
         #endif
+        // Quotes only runs no model, so its questions run through Standard: Deep Think and Maximum need a model to
+        // reason (5.8, `RAGService.quotesOnlySelected`).
+        if settings.selectedModel == .onDeviceAnalysis { return .standard }
         return settings.ragQualityMode
     }
 
@@ -916,8 +944,9 @@ extension ChatScreen {
         let liveSteps = ragService.deepThinkLiveSteps
         // While an answer runs, `lastAuditSnapshot` is still the previous answer's, so its count would win: on his
         // iPhone on 2026-11-05 the panel read "1 reasoning sessions" during Session 4 (5.8).
+        // The running answer's mode decides while it runs: a previous Standard answer's snapshot says not recursive.
         let callCount =
-            isProcessing && isRecursive
+            isProcessing && effectiveQualityMode.canonical != .standard
             ? max(1, liveSteps)
             : (audit?.llmCallCount ?? (isRecursive ? liveSteps : 1))
 

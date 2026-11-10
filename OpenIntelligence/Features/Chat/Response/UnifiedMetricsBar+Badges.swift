@@ -137,7 +137,7 @@ extension UnifiedMetricsBar {
             Text("Speed:")
                 .scaledFont(size: 9, weight: .medium)
                 .opacity(0.7)
-            Text(String(format: "%.0f", tokensPerSecond))
+            Text(tokensPerSecond >= 1 ? String(format: "%.0f", tokensPerSecond) : "–")  // no "0 t/s" before the first token (5.8)
                 .scaledFont(size: 10, weight: .bold, design: .monospaced)
                 .monospacedDigit()
             Text("t/s")
@@ -477,7 +477,7 @@ extension UnifiedMetricsBar {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "gauge.with.needle.fill")
                 .scaledFont(size: 6, weight: .semibold)
-            Text(String(format: "%.0f", tokensPerSecond))
+            Text(tokensPerSecond >= 1 ? String(format: "%.0f", tokensPerSecond) : "–")  // no "0 t/s" before the first token (5.8)
                 .scaledFont(size: 8, weight: .semibold, design: .monospaced)
                 .monospacedDigit()
             Text("t/s")

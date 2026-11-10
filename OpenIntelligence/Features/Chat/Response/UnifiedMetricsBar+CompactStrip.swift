@@ -563,7 +563,7 @@ extension UnifiedMetricsBar {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "bolt.fill")
                     .scaledFont(size: 7, weight: .bold)
-                Text(String(format: "%.0f", tokensPerSecond))
+                Text(tokensPerSecond >= 1 ? String(format: "%.0f", tokensPerSecond) : "–")  // no "0 t/s" before the first token (5.8)
                     .scaledFont(size: 8, weight: .bold, design: .monospaced)
                     .monospacedDigit()
                     .foregroundStyle(DSColors.primaryText)

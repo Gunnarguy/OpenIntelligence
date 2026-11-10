@@ -1650,6 +1650,7 @@ actor StructuredDocumentParser {
         // spans rows is written in every row it covers; one that spans columns in its first column, except in the first
         // row, whose spanning headers ("Medium" over 1, 2 and 3) name every column under them.
         var seenCells = Set<String>()
+        var spanningTitle: String?
         var placedCells: [DocumentObservation.Container.Table.Cell] = []
         for row in table.rows {
             for cell in row {
@@ -1703,6 +1704,9 @@ actor StructuredDocumentParser {
                         grid[rowIndex][columnIndex] = text
                     }
                 }
+                if cell.rowRange.lowerBound == 0, cell.columnRange.count >= columnCount, columnCount > 1, !text.isEmpty {
+                    spanningTitle = text
+                }
 
                 // ENHANCEMENT: Extract detected data from Vision's DataDetection
                 // This automatically finds emails, phone numbers, dates, URLs, etc.
@@ -1718,6 +1722,17 @@ actor StructuredDocumentParser {
         }
 
         rows = mergeWrappedContinuationRows(in: rows, pageNumber: pageNumber)
+
+        // A title Vision reads as one cell over every column of the first row is the table's caption, not its header
+        // (5.8). Taken as the header it named the columns "<title> | Column 2 | Column 3" and stored the real header as
+        // ROW 1, so no value kept its column name (KBIE_13_2100863.pdf page 6, the 2026-11-10 import check).
+        var caption = caption
+        if let title = spanningTitle, rows.count > 1,
+            let lifted = Self.liftingSpanningTitle(title, from: rows, caption: caption)
+        {
+            rows = lifted.rows
+            caption = lifted.caption
+        }
 
         // Quality gate: if majority of cells are garbled, log warning
         if totalCellCount > 0 {
@@ -1788,6 +1803,32 @@ actor StructuredDocumentParser {
             caption: caption,
             detectedEntities: uniqueEntities
         )
+    }
+
+    /// The rows and caption of a table whose first row holds only `title` (in its first column, every other cell
+    /// empty): that row is dropped and the title joins the caption, unless the caption already holds it. Nil when the
+    /// first row is anything else, so a real header row is never taken away.
+    nonisolated static func liftingSpanningTitle(_ title: String, from rows: [[String]], caption: String?) -> (
+        rows: [[String]], caption: String?
+    )? {
+        guard let first = rows.first, first.first == title, first.count > 1, first.dropFirst().allSatisfy(\.isEmpty)
+        else { return nil }
+        let folded: (String) -> String = { $0.lowercased().filter { $0.isLetter || $0.isNumber } }
+        let joined: String
+        if let caption, !caption.isEmpty {
+            let captionKey = folded(caption)
+            let titleKey = folded(title)
+            if captionKey.contains(titleKey) {
+                joined = caption
+            } else if titleKey.contains(captionKey) {
+                joined = title
+            } else {
+                joined = caption + " " + title
+            }
+        } else {
+            joined = title
+        }
+        return (Array(rows.dropFirst()), joined)
     }
 
     private func normalizeTableCellText(_ text: String) -> String {

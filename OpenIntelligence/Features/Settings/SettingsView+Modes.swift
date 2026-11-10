@@ -132,6 +132,12 @@ extension SettingsView {
                 }
             }
 
+            if settings.selectedModel == .onDeviceAnalysis {
+                Text("Quotes only answers in Standard. Deep Think and Maximum need Apple's model to reason, so they run when you choose it under Apple Intelligence.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             // The step-by-step list is the pipeline's own vocabulary, so it waits behind Technical Details (5.7 UI
             // cleanup); its lines are claims about code all the same (.claude/rules/user-facing-copy.md).
             if !settings.showTechnicalDetails {

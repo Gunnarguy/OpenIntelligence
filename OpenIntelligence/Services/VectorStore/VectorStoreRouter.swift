@@ -25,6 +25,35 @@ import Accelerate
 @MainActor
 final class VectorStoreRouter {
     private var stores: [UUID: VectorDatabase] = [:]
+
+    /// Every persistent store this router has created, held weakly, by library (5.8). A store dropped from `stores`
+    /// (memory-pressure eviction, `invalidate`) stays alive while an import or a self-healing rebuild still holds it,
+    /// and still saves. Creating a second store for the same library then left two stores replacing one file: each
+    /// save renames its file into place and maps the path again, so a store could map the other's file with offsets
+    /// computed for its own. That is "a passage's place in the metadata file is out of range", then the Mac crash of
+    /// 2026-11-03 (roadmap row `40e49a74d54f81099f05c28eb6c091f1`). A live store of the same dimension is used again.
+    private final class WeakStore {
+        weak var store: BNNSVectorDatabase?
+        init(_ store: BNNSVectorDatabase) { self.store = store }
+    }
+    private var liveStores: [UUID: WeakStore] = [:]
+    /// The library whose store `persistentStore(for:)` last handed back alive rather than made, for `db(for:)`.
+    private var reusedStoreFor: UUID?
+
+    /// The library's persistent store: the one still alive from before when its dimension matches, else a new one.
+    private func persistentStore(for container: KnowledgeContainer) -> BNNSVectorDatabase {
+        if let alive = liveStores[container.id]?.store, alive.dimension == container.embeddingDim {
+            Log.info(
+                "[VectorStoreRouter] Reusing the live store for container \(container.id) instead of opening a second one on its files",
+                category: .vectorDB)
+            reusedStoreFor = container.id
+            return alive
+        }
+        let url = AppSupportPaths.vectorsFileURL(containerId: container.id)
+        let store = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)
+        liveStores[container.id] = WeakStore(store)
+        return store
+    }
     private var memoryWarningObserver: NSObjectProtocol?
 
     /// Track which container is currently active to preserve it during memory pressure
@@ -157,8 +186,7 @@ final class VectorStoreRouter {
         switch container.vectorDBKind {
         case .persistentJSON:
             // Default: per-container JSON file (persistent), accelerated via BNNS
-            let url = AppSupportPaths.vectorsFileURL(containerId: container.id)
-            created = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)
+            created = persistentStore(for: container)
 
         case .inMemory:
             // Volatile in-memory database (per app session), accelerated via BNNS
@@ -170,12 +198,22 @@ final class VectorStoreRouter {
             created = VecturaVectorDatabase(dimension: container.embeddingDim)
             #else
             // Fallback to persistent BNNS when VecturaKit is unavailable
-            let url = AppSupportPaths.vectorsFileURL(containerId: container.id)
-            created = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)
+            created = persistentStore(for: container)
             #endif
         }
 
         stores[container.id] = created
+        // A store used again did not read its files now (refuting review, 2026-11-10): while it was out of the cache,
+        // `clearAll` did not see it, so a file changed meanwhile (by sync) is read back here, as `clearAll` would.
+        if reusedStoreFor == container.id {
+            reusedStoreFor = nil
+            let signature = Self.diskSignature(for: container.id)
+            if lastSeenDiskSignature[container.id] != signature {
+                lastSeenDiskSignature[container.id] = signature
+                Task { try? await created.reload() }
+            }
+            return created
+        }
         // A store reads its files when it is created, so what is on disk now is what it holds.
         // Without this the first `clearAll()` after launch found no recorded signature for the
         // store and read it again: a second full decode on every launch, 3 s for a library of
@@ -207,8 +245,9 @@ final class VectorStoreRouter {
     /// Invalidate cache AND delete persisted vector data for a container.
     /// Call this when embedding dimension or provider changes to ensure a fresh start.
     func invalidateAndClearStorage(containerId: UUID) {
-        // Remove from cache
+        // Remove from cache. Its files are deleted below, so a store still alive must not be used again.
         stores.removeValue(forKey: containerId)
+        liveStores.removeValue(forKey: containerId)
         // Drop the remembered signature too. Keeping it would let a later re-add be compared
         // against the pre-deletion state and skip a reload it genuinely needs.
         lastSeenDiskSignature.removeValue(forKey: containerId)

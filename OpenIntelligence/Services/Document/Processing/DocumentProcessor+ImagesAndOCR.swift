@@ -400,51 +400,16 @@ extension DocumentProcessor {
         Task { @MainActor in
             HardwareTelemetryState.shared.pulse(.reranking, intensity: 0.8, duration: 0.3)  // Reuse reranking as "Vision OCR" activity
         }
-
-        // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
-        let cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
-        guard let cgImage = cgImageResult else {
+        guard
+            let observations = try await Self.recognizeText(
+                in: OCRHandoff(value: image), context: OCRHandoff(value: Self.gpuContext),
+                customWords: currentDocumentCustomWords, languages: currentDocumentRecognitionLanguages)
+        else {
             throw NSError(domain: "DocumentProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage for OCR"])
         }
-
-        // Use CGImage directly - Vision will use GPU acceleration for the request
-        let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-
-        return try await withCheckedThrowingContinuation { continuation in
-            // Stays on `VNRecognizeTextRequest` (5.7). Scanned pages are read by `RecognizeDocumentsRequest`
-            // (`StructuredDocumentParser`); this is one of the older request's remaining uses, which move to Vision's Swift
-            // `RecognizeTextRequest` together, checked against the OCR fixtures in IngestionFormatCoverageTests, not one
-            // at a time (roadmap row "Vision: DataDetection results are computed and thrown away, and VisionKit is never
-            // imported").
-            let request = VNRecognizeTextRequest { request, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                    continuation.resume(returning: [])
-                    return
-                }
-
-                continuation.resume(returning: observations)
-            }
-
-            // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
-            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords, languages: self.currentDocumentRecognitionLanguages)
-
-            // Limit concurrent Vision OCR to prevent Metal race conditions
-            VisionOCRThrottle.performSync {
-                do {
-                    try requestHandler.perform([request])
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        return observations.value
     }
 
-    /// Extract text from RTF using native AttributedString
     func extractTextFromRTF(url: URL) throws -> String {
         let data = try Data(contentsOf: url)
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
@@ -612,76 +577,51 @@ extension DocumentProcessor {
 
     /// Perform a single OCR attempt on an image (no retry logic)
     private func performOCRSingleAttempt(on image: CIImage) async throws -> String {
-        // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
-        let cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
-        guard let cgImage = cgImageResult else {
-            Log.error("[DocumentProcessor] Failed to create CGImage for OCR", category: .ingestion)
+        let observations: [VNRecognizedTextObservation]
+        do {
+            guard
+                let read = try await Self.recognizeText(
+                    in: OCRHandoff(value: image), context: OCRHandoff(value: Self.gpuContext),
+                    customWords: currentDocumentCustomWords, languages: currentDocumentRecognitionLanguages)
+            else {
+                Log.error("[DocumentProcessor] Failed to create CGImage for OCR", category: .ingestion)
+                return ""
+            }
+            observations = read.value
+        } catch {
+            Log.error("[DocumentProcessor] OCR failed: \(error.localizedDescription)", category: .ingestion)
+            throw error
+        }
+        guard !observations.isEmpty else {
+            Log.warning("[DocumentProcessor] OCR returned no results", category: .ingestion)
             return ""
         }
 
-        let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        Log.debug("[DocumentProcessor] OCR found \(observations.count) text blocks", category: .ingestion)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            // Stays on `VNRecognizeTextRequest` (5.7). Scanned pages are read by `RecognizeDocumentsRequest`
-            // (`StructuredDocumentParser`); this is one of the older request's remaining uses, which move to Vision's Swift
-            // `RecognizeTextRequest` together, checked against the OCR fixtures in IngestionFormatCoverageTests, not one
-            // at a time (roadmap row "Vision: DataDetection results are computed and thrown away, and VisionKit is never
-            // imported").
-            let request = VNRecognizeTextRequest { request, error in
-                if let error = error {
-                    Log.error("[DocumentProcessor] OCR failed: \(error.localizedDescription)", category: .ingestion)
-                    continuation.resume(throwing: error)
-                    return
-                }
+        // VISUAL DOCUMENT UNDERSTANDING: Sort observations by reading order
+        // Vision uses normalized coordinates where (0,0) is bottom-left
+        // Sort by Y descending (top to bottom), then X ascending (left to right)
+        let sortedObservations = observations.sorted { obs1, obs2 in
+            let box1 = obs1.boundingBox
+            let box2 = obs2.boundingBox
 
-                guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                    Log.warning("[DocumentProcessor] OCR returned no results", category: .ingestion)
-                    continuation.resume(returning: "")
-                    return
-                }
+            // Use a threshold to detect "same line" (within 2% of image height)
+            let lineThreshold: CGFloat = 0.02
+            let y1 = box1.midY
+            let y2 = box2.midY
 
-                Log.debug("[DocumentProcessor] OCR found \(observations.count) text blocks", category: .ingestion)
-
-                // VISUAL DOCUMENT UNDERSTANDING: Sort observations by reading order
-                // Vision uses normalized coordinates where (0,0) is bottom-left
-                // Sort by Y descending (top to bottom), then X ascending (left to right)
-                let sortedObservations = observations.sorted { obs1, obs2 in
-                    let box1 = obs1.boundingBox
-                    let box2 = obs2.boundingBox
-
-                    // Use a threshold to detect "same line" (within 2% of image height)
-                    let lineThreshold: CGFloat = 0.02
-                    let y1 = box1.midY
-                    let y2 = box2.midY
-
-                    // If on different lines, sort top-to-bottom (higher Y = higher on page in Vision coords)
-                    if abs(y1 - y2) > lineThreshold {
-                        return y1 > y2 // Higher Y value means higher on the page
-                    }
-
-                    // Same line: sort left-to-right
-                    return box1.minX < box2.minX
-                }
-
-                // Detect potential columns by analyzing X-position clusters
-                let columnText = self.extractTextWithColumnAwareness(from: sortedObservations)
-
-                continuation.resume(returning: columnText)
+            // If on different lines, sort top-to-bottom (higher Y = higher on page in Vision coords)
+            if abs(y1 - y2) > lineThreshold {
+                return y1 > y2  // Higher Y value means higher on the page
             }
 
-            // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
-            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords, languages: self.currentDocumentRecognitionLanguages)
-
-            // Limit concurrent Vision OCR to prevent Metal race conditions
-            VisionOCRThrottle.performSync {
-                do {
-                    try requestHandler.perform([request])
-                } catch {
-                    Log.error("[DocumentProcessor] OCR request failed: \(error.localizedDescription)", category: .ingestion)
-                    continuation.resume(throwing: error)
-                }
-            }
+            // Same line: sort left-to-right
+            return box1.minX < box2.minX
         }
+
+        // Detect potential columns by analyzing X-position clusters
+        return extractTextWithColumnAwareness(from: sortedObservations)
     }
 
     // MARK: - Enhanced Spatial OCR (Full Document Understanding)
@@ -714,46 +654,41 @@ extension DocumentProcessor {
     /// Async wrapper for observation-based OCR
     /// GPU-accelerated via Metal-backed CGImage conversion
     func performOCRWithObservationsAsync(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
-        // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
-        let cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
-        guard let cgImage = cgImageResult else {
+        guard
+            let observations = try await Self.recognizeText(
+                in: OCRHandoff(value: image), context: OCRHandoff(value: Self.gpuContext),
+                customWords: currentDocumentCustomWords, languages: currentDocumentRecognitionLanguages)
+        else {
             throw NSError(domain: "DocumentProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage for OCR"])
         }
+        return observations.value
+    }
 
-        let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-
-        return try await withCheckedThrowingContinuation { continuation in
-            // Stays on `VNRecognizeTextRequest` (5.7). Scanned pages are read by `RecognizeDocumentsRequest`
-            // (`StructuredDocumentParser`); this is one of the older request's remaining uses, which move to Vision's Swift
-            // `RecognizeTextRequest` together, checked against the OCR fixtures in IngestionFormatCoverageTests, not one
-            // at a time (roadmap row "Vision: DataDetection results are computed and thrown away, and VisionKit is never
-            // imported").
-            let request = VNRecognizeTextRequest { request, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                    continuation.resume(returning: [])
-                    return
-                }
-
-                continuation.resume(returning: observations)
-            }
-
-            // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
-            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords, languages: self.currentDocumentRecognitionLanguages)
-
-            // Limit concurrent Vision OCR to prevent Metal race conditions
-            VisionOCRThrottle.performSync {
-                do {
-                    try requestHandler.perform([request])
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+    /// Renders an image and reads its text on the concurrent pool, under the Vision throttle (5.8). Each OCR helper
+    /// used to render on the main actor and then block it in `VisionOCRThrottle.performSync`, waiting in the
+    /// throttle's queue behind the page workers. During a 913-page import in the background iOS's scene-update
+    /// watchdog ended the app 10 s into such a wait (0x8BADF00D with the main thread at 2% CPU, his iPhone,
+    /// 2026-10-21; roadmap row `40049a74d54f81cba108fb04a576dc42`). The request and its settings are unchanged
+    /// (`VNRecognizeTextRequest`, `OCRConfiguration.configureRequest`). Nil when the image cannot be rendered.
+    @concurrent nonisolated static func recognizeText(
+        in image: OCRHandoff<CIImage>, context: OCRHandoff<CIContext>, customWords: [String], languages: [String]?
+    ) async throws -> OCRHandoff<[VNRecognizedTextObservation]>? {
+        let source = image.value
+        guard let cgImage = context.value.createCGImage(source, from: source.extent) else { return nil }
+        let rendered = OCRHandoff(value: cgImage)
+        return try await VisionOCRThrottle.perform {
+            let request = VNRecognizeTextRequest()
+            OCRConfiguration.configureRequest(request, customWords: customWords, languages: languages)
+            try VNImageRequestHandler(cgImage: rendered.value, options: [:]).perform([request])
+            return OCRHandoff(value: request.results ?? [])
         }
     }
 
+}
+
+/// A value handed to OCR off the main actor (5.8). Core Image documents `CIContext` as safe to use from several threads
+/// and `CIImage` as immutable; a rendered `CGImage` and Vision's returned observations are not changed after they are
+/// made.
+nonisolated struct OCRHandoff<Value>: @unchecked Sendable {
+    let value: Value
 }

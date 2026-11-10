@@ -173,7 +173,7 @@ extension AgenticOrchestrator {
                 id: UUID(),
                 type: .searching,
                 input: "Choosing sections to read",
-                output: "Selected \(selected.count) of \(listed) available sections",
+                output: "Chose \(selected.count) of \(listed) sections to read",
                 tokensUsed: response.tokensGenerated,
                 duration: 0.2,
                 timestamp: Date()
@@ -643,6 +643,8 @@ extension AgenticOrchestrator {
                     Log.info("[ReasoningChain] Cancelled before session \(sessionNum) LLM call", category: .llm)
                     break
                 }
+                // No on-device model call starts while the app is in the background (5.8).
+                await ragService.waitBeforeModelCallWhileInBackground("session \(sessionNum)", onDevice: true)
                 do {
                     response = try await ragService.generateWithProperConsent(
                         prompt: sessionPrompt,
@@ -1261,6 +1263,7 @@ extension AgenticOrchestrator {
                 let synthesisSystemPrompt =
                     "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
 
+                await ragService.waitBeforeModelCallWhileInBackground("synthesis")
                 do {
                     let synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
                         try await ragService.generateWithProperConsent(

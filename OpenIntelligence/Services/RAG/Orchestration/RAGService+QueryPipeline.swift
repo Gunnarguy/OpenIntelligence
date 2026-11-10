@@ -189,11 +189,16 @@ extension RAGService {
         )
 
         let __unpackRuntimeContextResult = await unpackRuntimeContext(runtimeContext: runtimeContext, question: question)
-        let useAgentic = __unpackRuntimeContextResult.useAgentic
+        // Quotes only answers with the documents' own words and no model (5.8). Deep Think and Maximum need a model to
+        // reason, so a question asked in Quotes only runs through Standard's retrieval and stops before generation.
+        let quotesOnly = await MainActor.run { self.quotesOnlySelected }
+        let useAgentic = __unpackRuntimeContextResult.useAgentic && !quotesOnly
         let qualityMode = __unpackRuntimeContextResult.qualityMode
         var inferenceConfig = __unpackRuntimeContextResult.inferenceConfig
         let initialQueryProfile = __unpackRuntimeContextResult.initialQueryProfile
-        let reliabilityModeEnabled = __unpackRuntimeContextResult.reliabilityModeEnabled
+        // Quotes only has no model to fall back on (5.8): the exits that answer by direct chat or the reliability
+        // fallback when retrieval finds nothing, or when a step fails, call Apple's model (refuting review, 2026-11-10).
+        let reliabilityModeEnabled = __unpackRuntimeContextResult.reliabilityModeEnabled && !quotesOnly
         let adaptiveConfig = __unpackRuntimeContextResult.adaptiveConfig
         let initialWantsCloudContext = __unpackRuntimeContextResult.initialWantsCloudContext
         let initialQueryPlan = __unpackRuntimeContextResult.initialQueryPlan
@@ -241,7 +246,7 @@ extension RAGService {
         let qualityModeRequiresCitations = qualityMode.requiresCitations
 
         // NEW: Comprehensive quality mode feature toggles
-        let qualityModeUsesHyDE = qualityMode.usesHyDE
+        let qualityModeUsesHyDE = qualityMode.usesHyDE && !quotesOnly
         let qualityModeUsesReRanking = qualityMode.usesReRanking
         let qualityModeUsesMMR = qualityMode.usesMMR
         let qualityModeUsesVerificationGates = qualityMode.usesVerificationGates
@@ -260,7 +265,8 @@ extension RAGService {
             "[RAGService] Quality mode '\(qualityModeDisplayName)' features: HyDE=\(qualityModeUsesHyDE), ReRank=\(qualityModeUsesReRanking), MMR=\(qualityModeUsesMMR), Verification=\(qualityModeUsesVerificationGates), QueryExpand=\(qualityModeUsesQueryExpansion), ContainerVocab=\(qualityModeUsesContainerVocabulary), ParentDoc=\(qualityModeUsesParentDocRetrieval), Compression=\(qualityModeUsesContextualCompression)",
             category: .pipeline)
 
-        let (vdb, retrievalConfig, selectedContainer, allowUngroundedFallback, asksForAnAction) = await resolveQueryContainer(reliabilityModeEnabled: reliabilityModeEnabled, selectedId: selectedId)
+        let (vdb, retrievalConfig, selectedContainer, allowUngroundedFallbackForMode, asksForAnAction) = await resolveQueryContainer(reliabilityModeEnabled: reliabilityModeEnabled, selectedId: selectedId)
+        let allowUngroundedFallback = allowUngroundedFallbackForMode && !quotesOnly
         // Ensure cleanup even if an error is thrown later in the pipeline
         defer {
             Task { await MainActor.run { self.currentQueryContainerId = nil } }
@@ -342,7 +348,7 @@ extension RAGService {
                 let rewriteEnabledBySettings = __loadCorpusVocabularyResult.rewriteEnabledBySettings
                 let simpleGroundedLookup = __loadCorpusVocabularyResult.simpleGroundedLookup
                 let translatedInitialQuery = __loadCorpusVocabularyResult.translatedInitialQuery
-                let useQueryRewriting = __loadCorpusVocabularyResult.useQueryRewriting
+                let useQueryRewriting = __loadCorpusVocabularyResult.useQueryRewriting && !quotesOnly
                 let queryEnhancer = __loadCorpusVocabularyResult.queryEnhancer
                 var cachedAllChunks = __loadCorpusVocabularyResult.cachedAllChunks
                 let originalKeywordQuery = __loadCorpusVocabularyResult.originalKeywordQuery
@@ -464,7 +470,7 @@ extension RAGService {
                 runSpecTableSniper(answerIntentIsExtractive: answerIntentIsExtractive, cachedAllChunks: cachedAllChunks, contextCandidates: &contextCandidates, question: question)
 
                 let __gateContextualCompressionResult = gateContextualCompression(isProceduralQuery: isProceduralQuery, vocabularyMismatch: vocabularyMismatch, contextStrategy: contextStrategy, qualityModeUsesContextualCompression: qualityModeUsesContextualCompression, adaptiveConfig: adaptiveConfig)
-                let useContextualCompression = __gateContextualCompressionResult.useContextualCompression
+                let useContextualCompression = __gateContextualCompressionResult.useContextualCompression && !quotesOnly
                 var compressionSavings = __gateContextualCompressionResult.compressionSavings
 
                 await compressContextCandidates(contextCandidates: &contextCandidates, useContextualCompression: useContextualCompression, auditUsedContextualCompression: &auditUsedContextualCompression, question: question, answerIntent: answerIntent, compressionSavings: &compressionSavings)
@@ -553,6 +559,12 @@ extension RAGService {
                 let bestSimilarity = includedRetrievedChunks.first?.similarityScore ?? 0
 
                 if let exitResponse = await applyHardRelevanceGate(bestSimilarity: bestSimilarity, lexicalRelevance: lexicalRelevance, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, ragQueryValue: ragQueryValue, question: question, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
+
+                // Step QO: Quotes only answers here, from the passages assembled for the model, with no model call (5.8).
+                if quotesOnly {
+                    let response = quotesOnlyResponse(question: question, passages: includedRetrievedChunks, queryId: ragQueryValue.id, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId)
+                    return await finalizeResponse(query: question, containerId: selectedId, containerName: selectedName, response: response)
+                }
 
                 let (useEvidenceFirstMode, uniqueSourceDocs, bestRetrievalSim) = assessEvidenceBeforeGeneration(includedRetrievedChunks: includedRetrievedChunks, actualChunksUsed: actualChunksUsed, auditAvgTop5: auditAvgTop5, auditDynamicMin: auditDynamicMin, lexicalRelevance: lexicalRelevance, isProceduralQuery: isProceduralQuery)
 

@@ -82,6 +82,25 @@ extension RAGService {
         )
     }
 
+    /// Up to six excerpts, each copied from its passage around the question's words, with the passage's section and its
+    /// source label. Shared by the excerpts fallback and Quotes only (5.8), so both show the same words.
+    func excerptBullets(question: String, passages: [RetrievedChunk]) -> [String] {
+        let terms = extractQueryTerms(question)
+        return passages.prefix(6).enumerated().compactMap { idx, retrieved -> String? in
+            let sectionLabel = retrieved.chunk.metadata.sectionTitle.flatMap { $0.isEmpty ? nil : "**\($0)**: " } ?? ""
+            let sourceName = retrieved.sourceDocument.isEmpty ? "Document" : retrieved.sourceDocument
+            let snippet = Self.tidiedExcerpt(
+                extractSnippet(
+                    from: retrieved.chunk.content,
+                    queryTerms: terms,
+                    maxChars: 500
+                )
+            )
+            guard !snippet.isEmpty else { return nil }
+            return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)]"
+        }
+    }
+
     /// Reliability-first fallback: return a best-effort answer instead of surfacing errors.
     func buildReliabilityFallbackResponse(
         question: String,
@@ -326,20 +345,7 @@ extension RAGService {
                 category: .pipeline)
         }
 
-        let terms = extractQueryTerms(question)
-        let snippetBullets = usedRetrieved.prefix(6).enumerated().compactMap { idx, retrieved -> String? in
-            let sectionLabel = retrieved.chunk.metadata.sectionTitle.flatMap { $0.isEmpty ? nil : "**\($0)**: " } ?? ""
-            let sourceName = retrieved.sourceDocument.isEmpty ? "Document" : retrieved.sourceDocument
-            let snippet = Self.tidiedExcerpt(
-                extractSnippet(
-                    from: retrieved.chunk.content,
-                    queryTerms: terms,
-                    maxChars: 500
-                )
-            )
-            guard !snippet.isEmpty else { return nil }
-            return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)]"
-        }
+        let snippetBullets = excerptBullets(question: question, passages: usedRetrieved)
         // Both texts name the real reason when the model cannot run on this device (5.7).
         let capabilities = Self.checkDeviceCapabilities()
         let responseText: String

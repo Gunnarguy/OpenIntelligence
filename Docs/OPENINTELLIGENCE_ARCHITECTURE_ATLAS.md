@@ -707,6 +707,7 @@ supposed to be agentic.
   every mode appends `answers:<verdict>` to the gating string that `VerificationOutcome` reads. Details in
   `Docs/RETRIEVAL_PIPELINE.md`, "An answer has to answer its question".
   `[evidence_level: test_verified, measured (Mac probe), confidence: medium]`
+- **The 5.8 finishing fixes (2026-11-10).** Quotes only makes no model call (`RAGService.quotesOnlySelected`, `quotesOnlyResponse`; detail in `Docs/PRIVACY_AND_ROUTING.md`). Deep Think waits before an on-device model call while the app is in the background (`waitBeforeModelCallWhileInBackground`), and `PendingAnswerStore` lets Chat ask a lost question again once at launch. `VectorStoreRouter.persistentStore(for:)` hands back a library's live store instead of opening a second one on its files. OCR renders and reads off the main actor (`DocumentProcessor.recognizeText`), and a table's spanning title becomes its caption (`StructuredDocumentParser.liftingSpanningTitle`; detail in `Docs/INGESTION_PIPELINE.md`). Deep Think's panel counts the running answer and marks skipped steps (`VerificationGatesOverlayView.saysSkipped`). `[evidence_level: code_verified, confidence: medium; none yet observed on a device]`
 - **The reranker's first pick leads, and every rule after it was measured (5.8, 2026-11-09/10).** IBM Granite reranker
   r2 replaced TinyBERT in `RAGEngine.rerankWithCrossEncoder`. Side searches (cross-references, Standard's spec sniper)
   go behind the top passage (`RAGService.insertingBehindTopRanked`) and the sniper's scores stop at 0.89; stored tables

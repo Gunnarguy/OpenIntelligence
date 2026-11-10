@@ -1051,15 +1051,33 @@ enum NavigationProbe {
             let presented = root.presentedViewController.map { String(describing: type(of: $0)) } ?? "none"
             var tabsPart = ""
             if let tabs = tabBarController(under: root) {
-                let named = (tabs.viewControllers ?? []).enumerated().map { index, controller in
-                    let name = index < tabNames.count ? tabNames[index] : "tab\(index)"
+                // SwiftUI's `Tab` builds `UITab`s (iOS 18), whose controllers are not in `viewControllers`: every
+                // reading from 2026-11-07 to 11-09 had an empty `tabs=` (5.8). Each tab's own controller now names it.
+                // Named by position in `tabNames` and by the tab's own identifier, so a tab with no controller yet
+                // keeps its place instead of shifting the names after it.
+                let entries: [(name: String, controller: UIViewController?)] =
+                    (tabs.viewControllers?.isEmpty == false)
+                    ? (tabs.viewControllers ?? []).enumerated().map { index, controller in
+                        (index < tabNames.count ? tabNames[index] : "tab\(index)", controller)
+                    }
+                    : tabs.tabs.enumerated().map { index, tab in
+                        ("\(index < tabNames.count ? tabNames[index] : "tab\(index)")[\(tab.identifier.prefix(16))]", tab.viewController)
+                    }
+                let named = entries.map { entry in
                     let depth =
-                        navigationControllers(under: controller).first.map { "\($0.viewControllers.count)" } ?? "-"
-                    return "\(name):\(depth)"
+                        entry.controller.flatMap { navigationControllers(under: $0).first }
+                        .map { "\($0.viewControllers.count)" } ?? "-"
+                    return "\(entry.name):\(depth)"
                 }
-                tabsPart = " tabs=\(named.joined(separator: ",")) selected=\(tabs.selectedIndex)"
+                let selected = tabs.selectedTab?.identifier ?? "\(tabs.selectedIndex)"
+                tabsPart = " tabs=\(named.joined(separator: ",")) selected=\(selected)"
             }
-            return "depths=\(depths) back=\(backs) presented=\(presented)\(tabsPart)"
+            // What sits on top of each stack, so a pushed screen names itself (a stack 4 deep with no back item was
+            // read with Chat selected on 2026-11-07 to 11-09, and nothing in Chat pushes a screen).
+            let tops = navigations.map { navigation in
+                navigation.topViewController.map { String(describing: type(of: $0)).prefix(40) } ?? "nil"
+            }.joined(separator: ",")
+            return "depths=\(depths) back=\(backs) presented=\(presented)\(tabsPart) tops=\(tops)"
         }
     #else
         static func summary() -> String { "n/a" }

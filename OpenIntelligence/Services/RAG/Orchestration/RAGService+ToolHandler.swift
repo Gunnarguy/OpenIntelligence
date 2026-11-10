@@ -212,7 +212,9 @@ extension RAGService: RAGToolHandler {
         // Step 2: Generate query embedding
         await onDetailedEvent?(.embedding, "Encoding query", "384-dim neural embedding")
         let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: textToEmbed)
-        await onDetailedEvent?(.vectorSearch, "Vector ready", "Query encoded for semantic search")
+        // The query's embedding is an embedding step, not the search (5.8): as `.vectorSearch` it ticked the panel's
+        // "Vector & BM25" gate before any search ran.
+        await onDetailedEvent?(.embedding, "Vector ready", "Query encoded for semantic search")
 
         // Step 3: Classify query intent for adaptive weights AND expand query
         // Fetch corpus vocabulary from cache (built during Standard mode or prior queries)
@@ -314,6 +316,7 @@ extension RAGService: RAGToolHandler {
             Log.info("[FullRetrieval] Demoted \(demotedCount) purely interrogative/FAQ chunks.", category: .retrieval)
         }
 
+        await onDetailedEvent?(.vectorSearch, "Vector & keyword search", "\(retrievedChunks.count) passages found")
         await onDetailedEvent?(.rrf, "RRF fusion", "\(retrievedChunks.count) candidates from hybrid search")
 
         // Step 5: AI Re-ranking with ReRanker model

@@ -10,6 +10,34 @@ Last verified commit: 2313b62b
 **Ship 5.8** (his words 2026-11-10: "I feel like I should ship 5.8"). The board is 5.8 and Future Backlog only. What
 remains is his device pass, a Xcode Cloud build when he asks for one, and the App Store Connect submission at his word.
 
+## Active work list, 2026-11-10 (his words: "let's do it all, surgically, I want you to remember this list and its full reason")
+
+Approved that morning on the plan below (defaults accepted: Quotes only made real, Spotlight checked on his phone
+first, localization and named profiles to Future Backlog; `BNNSVectorDatabase.swift` NOT named, so not touched).
+Benchmarks (5.7 vs 5.8 head-to-head, iOS 27 structured-failure rate) are for 2026-11-11; Instruments tracing on the
+phone is for the evening of 2026-11-10 when he is home. Each item: what, why, closes when.
+
+| # | Item, Notion row | Why | Closes when |
+|---|---|---|---|
+| T | Table title row becomes the header (`41449a74d54f816bb701c8ba99044cd2`) | KBIE p6 header reads "<title> \| Column 2 \| Column 3", real header stored as ROW 1: column names detached at import (owner rule 4, fidelity). Cause: the PDF table parser's header check (`StructuredDocumentParser.swift`, `headerRow` in the table parser, ~line 1732) accepts a first row with one filled cell; the Office path already requires 2 | 515 page-image checks gain KBIE's 9 column checks, none lost; re-imported KBIE on his iPhone answers by column |
+| 1 | Quotes only answered by Apple's model (`40049a74d54f811ea077ef82be46545e`) | Settings says no model writes and it never leaves the device; `case "on_device_analysis"` loads `AppleFoundationLLMService` (owner rule 5, honest claims) | Picking it gives extractive answers with no model call, a test proves it; Deep Think and Maximum off in that mode |
+| 2 | Deep Think panel (`40f49a74d54f81b4b22bc0b52bf566c8`) | "1 reasoning sessions" during session 4; HyDE tick for a step Deep Think skips (a false claim); a purple box drawn over it; internal wording ("Tokens: 4", "0 t/s") | Count matches, ticks match stages that ran, nothing drawn over it, he finds it clear on his iPhone |
+| 3 | Mac crash: overlapping saves of one library (`40e49a74d54f81099f05c28eb6c091f1`) | Guard committed `b2fe74ca` stops the crash; the cause (a self-healing rebuild's `addDocument` and an import's `persist` saving one library at once, records and mapped file disagreeing) is not established | Import during a self-healing rebuild of the same library, Simulator then his Mac, no "out of range" and no crash |
+| 4 | Deep Think "didn't finish" after leaving the app (`40f49a74d54f812dbdd8fd628b622299`) | The answer lived only in memory; iOS suspended then ended the app; background generation was `rateLimited` (Apple: use non-streaming `respond` in the background) | A Deep Think answer interrupted by leaving the app finishes after return or relaunch on his iPhone |
+| 5 | Chat goes white (`40f49a74d54f81eb9b32d9ec3292c817`) | Journal: `chat.disappear`/`chat.appear` three times in a second with no tab change, then the tab shows no view; recovery `checkChatStillShown` exists, cause unknown | Cause found in code and fixed; Deep Think with screen switching keeps Chat drawn on his iPhone |
+| 6 | Import watchdog, 900-page PDF in background (`40049a74d54f81cba108fb04a576dc42`) | `0x8BADF00D` scene-update watchdog, main thread waiting (app CPU 2%); suspect a synchronous Vision wait (`VisionOCRThrottle.executeSyncOperation`) reached from the main actor | 900-page import, app backgrounded, no watchdog report on his iPhone |
+| 7 | Instruments tracing (`3ab49a74d54f8195a1bbe3843f83be5c`) | One Time Profiler + signpost trace per answer mode | Tonight with him, phone unlocked |
+| 8 | iOS 27 prompts (`3d749a74d54f81e7888fc50e668d74df`) | Structured-generation failure rate on the 27 model unrecorded | Tomorrow with the benchmarks |
+| 9 | Spotlight document tap (`3ff49a74d54f81fea954d76ff336595e`) | Simulator: Top Hit runs Ask About a Document instead of opening it | Checked on his phone first; then his choice (drop the Siri link, or one App Shortcut slot in `RAGAppIntents.swift`) |
+| 10, 11 | Localization (`39049a74d54f811083b1f84f2231d275`), named profiles (`3d749a74d54f810e9136cad05c15bd37`) | Need his languages / `FoundationModelRoutePolicy.swift` | Moved to Future Backlog |
+
+
+**Where the list stands (2026-11-10 08:15 PT):** T, 1, 2, 3 (in-app path), 4, 5 (probe and Atlas only; cause unknown) and 6 are built,
+reviewed by a refuting reviewer (2 blockers and 7 defects found, all fixed) and pass on the iOS 27 Simulator: 169 tests, 0 failures
+(`/private/tmp/oi-finish/test.log`), macOS build and iPhone build succeeded. The iPhone install failed (phone unavailable, away from
+home); install `/private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app` tonight. Open for him: the X-Ray HUD outline
+over the Deep Think panel (leave or hide), naming `BNNSVectorDatabase.swift` for the rest of item 3, item 9 on his phone.
+
 ## Status
 
 | What | Where it stands |

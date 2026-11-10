@@ -114,7 +114,9 @@ extension UnifiedMetricsBar {
                         .scaledFont(size: 24, weight: .bold, design: .rounded)
                         .monospacedDigit()
                         .foregroundStyle(.purple)
-                    Text("reasoning sessions")
+                    // The count is the answer's model calls (planning, sessions, synthesis, checks), live and final
+                    // (5.8); the progress card's "Session N" counts sessions alone, so the two differ.
+                    Text("model calls")
                         .scaledFont(size: 10)
                         .foregroundStyle(DSColors.secondaryText)
                 }

@@ -1487,6 +1487,14 @@ checks quote the papers and stay in the gitignored `BenchmarkRuns/2026-11-08-ext
 `[evidence_level: test_verified (PageTextRepairTests), measured (BenchmarkRuns/2026-11-08-extraction-fidelity, runs
 after9 and later), confidence: medium: thresholds set on eight mostly English papers]`
 
+## A table's title is its caption, not its header (added 2026-11-10, for 5.8)
+
+When Vision reads one cell over every column of a table's first row, that cell is the table's title. `StructuredDocumentParser.parseTable` used to take the row as the header, so the columns were named "<title> | Column 2 | Column 3" and the real header became ROW 1 (KBIE_13_2100863.pdf page 6, the 2026-11-10 import check, `BenchmarkRuns/2026-11-10-rule-audit/README.md`). `liftingSpanningTitle` now drops a first row holding only that title, joins the title to the caption unless the caption already holds it, and the header check runs on the next row. A first row with any other cell filled stays. Office tables already needed two filled header cells (`inferredHeaderRow`). `[evidence_level: test_verified (TableTitleRowTests), confidence: medium; the 515 page-image checks not yet re-run]`
+
+## OCR runs off the main thread (added 2026-11-10, for 5.8)
+
+`DocumentProcessor` is main-actor isolated. Its three OCR helpers (`performOCRSingleAttempt`, `performOCRWithObservations`, `performOCRWithObservationsAsync`) rendered the image there and blocked in `VisionOCRThrottle.performSync`, behind the page workers holding the throttle's queue; iOS's scene-update watchdog ended a 913-page background import on the owner's iPhone on 2026-10-21 (0x8BADF00D, main thread at 2% CPU). They now hand the image to `DocumentProcessor.recognizeText`, a `@concurrent` function that renders it and runs the same `VNRecognizeTextRequest`, configured by `OCRConfiguration.configureRequest`, under `VisionOCRThrottle.perform`. Rendering a page for the structured parse (`renderPageForParsing`) still runs on the main actor. `[evidence_level: code_verified, confidence: medium; cause inferred from code, the crash report has no main-thread frames]`
+
 ## A table passage keeps the same keywords on every import (added 2026-11-07, for 5.8)
 
 `DocumentProcessor.extractKeywordsFromStructuredElement` keeps at most 20 keywords for a table or list passage. Through

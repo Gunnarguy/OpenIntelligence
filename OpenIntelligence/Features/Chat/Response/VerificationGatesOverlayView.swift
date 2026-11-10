@@ -12,6 +12,8 @@ struct VerificationGatesOverlayView: View {
         case pending
         case processing
         case passed
+        /// The step's only events say it was skipped or is disabled in this mode (5.8): it did not run, so no tick.
+        case skipped
         case failed(reason: String)
     }
 
@@ -41,7 +43,7 @@ struct VerificationGatesOverlayView: View {
                 // Named for what lights it (5.8): Deep Think's search emits `.queryRewrite` ("Synonym expansion") and
                 // runs no HyDE (`performFullRetrievalPipeline`: "HyDE disabled in Deep Think"); `.hyde` fires only on
                 // Standard's path. It read "HyDE Generation" with a green tick on his iPhone on 2026-11-05.
-                VerificationGate(id: 2, title: "Query Expansion", kind: .queryRewrite, secondaryKind: .hyde),
+                VerificationGate(id: 2, title: "Query Expansion", kind: .queryRewrite, secondaryKind: nil),
                 VerificationGate(id: 3, title: "Vector & BM25", kind: .vectorSearch, secondaryKind: .bm25),
                 VerificationGate(id: 4, title: "RRF Fusion", kind: .rrf, secondaryKind: nil),
                 VerificationGate(id: 5, title: "MMR Diversity", kind: .mmr, secondaryKind: nil),
@@ -52,7 +54,8 @@ struct VerificationGatesOverlayView: View {
         case .maximum:
             return [
                 VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
-                VerificationGate(id: 2, title: "Query Expansion", kind: .queryRewrite, secondaryKind: .hyde),
+                // Maximum runs Deep Think's search, which has no HyDE step (5.8).
+                VerificationGate(id: 2, title: "Query Expansion", kind: .queryRewrite, secondaryKind: nil),
                 VerificationGate(id: 3, title: "Broad Retrieval", kind: .vectorSearch, secondaryKind: .bm25),
                 VerificationGate(id: 4, title: "RRF Fusion", kind: .rrf, secondaryKind: nil),
                 VerificationGate(id: 5, title: "MMR & Re-rank", kind: .mmr, secondaryKind: .rerank),
@@ -122,6 +125,11 @@ struct VerificationGatesOverlayView: View {
         }
     }
 
+    /// Whether an event's title says its step did not run.
+    static func saysSkipped(_ title: String) -> Bool {
+        title.localizedCaseInsensitiveContains("skipped") || title.localizedCaseInsensitiveContains("disabled")
+    }
+
     private func updateGateStatuses() {
         var newGates = gates
         var hasFailed = false
@@ -178,6 +186,17 @@ struct VerificationGatesOverlayView: View {
             }
         }
         
+        // A passed step whose every event says it was skipped or is disabled did not run, so it gets no tick (5.8):
+        // "Query expansion skipped" and "Compression skipped" showed green ticks. Decided after the pass above, so a
+        // warning after a skipped step still fails the gate it fails (refuting review, 2026-11-10).
+        for i in newGates.indices where newGates[i].status == .passed {
+            let gate = newGates[i]
+            let ownEvents = events.filter { $0.kind == gate.kind || $0.kind == gate.secondaryKind }
+            if !ownEvents.isEmpty, ownEvents.allSatisfy({ Self.saysSkipped($0.title) }) {
+                newGates[i].status = .skipped
+            }
+        }
+
         withAnimation(DSAnimations.fastEase) {
             self.gates = newGates
         }
@@ -239,6 +258,10 @@ struct GateRowView: View {
                 .scaledFont(size: 12)
                 .foregroundStyle(.green)
                 .symbolEffect(.bounce, value: gate.status == .passed)
+        case .skipped:
+            Image(systemName: "minus.circle")
+                .scaledFont(size: 12)
+                .foregroundStyle(DSColors.secondaryText)
         case .failed:
             Image(systemName: "xmark.circle.fill")
                 .scaledFont(size: 12)
@@ -252,6 +275,7 @@ struct GateRowView: View {
         case .pending: return DSColors.secondaryText.opacity(0.5)
         case .processing: return DSColors.accent
         case .passed: return DSColors.primaryText
+        case .skipped: return DSColors.secondaryText
         case .failed: return .red
         }
     }

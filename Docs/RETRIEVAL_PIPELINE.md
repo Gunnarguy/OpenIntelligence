@@ -512,6 +512,10 @@ and the words "contents" or "table of contents"; numbers, short lines and list m
 `[evidence_level: code_verified, artifact_derived (pipeline_trace.log, 2026-11-09 14:56 to 15:05), test_verified
 (AnswerFloorTests); confidence: high for the mechanism, unmeasured for accuracy across sets]`
 
+## Quotes only stops before generation (added 2026-11-10, for 5.8)
+
+With Quotes only selected (`RAGService.quotesOnlySelected`), Standard skips query rewriting, HyDE and contextual compression, and after the hard relevance gate returns `quotesOnlyResponse`: up to six excerpts from the passages assembled for the model (`excerptBullets`, shared with the excerpts fallback), each labelled with its source. Deep Think and Maximum run as Standard. `[evidence_level: code_verified, test_verified (ReleaseFinishTests), confidence: medium]`
+
 ## Every rule after the reranker, measured (added 2026-11-10, for 5.8)
 
 Thirty rules change a passage's score, rank, inclusion or place between the cross-encoder and the prompt; twelve can

@@ -495,6 +495,13 @@ extension RAGService {
         }
 
         let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
+        // This answer's live counters start at zero (5.8): they were reset only on clearing the chat or switching mode
+        // or library, so the panel carried counts over from earlier answers.
+        await MainActor.run {
+            self.deepThinkLiveTokens = 0
+            self.deepThinkLiveSteps = 0
+            self.deepThinkLiveConfidence = 0
+        }
 
         // Wrap execution in a tracked task so it can be cancelled by subsequent queries
         let agenticTask = Task<RAGResponse, Error> { [weak self] in
@@ -507,7 +514,7 @@ extension RAGService {
                 onStep: { [weak self] step in
                     // Stream thinking steps to UI AND update live counters
                     await MainActor.run {
-                        // Update live token counter for real-time UI
+                        // Update live token counter for real-time UI (reset when this answer started, below)
                         self?.deepThinkLiveTokens += step.tokensUsed
 
                         // Only count actual LLM reasoning sessions, NOT pipeline events
@@ -576,16 +583,17 @@ extension RAGService {
                             )
                         } else {
                             // Regular reasoning step - use standard format
-                            let metricsString: String
-                            if let confidence = step.confidence {
-                                metricsString = "Confidence: \(Int(confidence * 100))% • Tokens: \(step.tokensUsed)"
-                            } else {
-                                metricsString =
-                                    "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
-                            }
+                            // Plain words only (5.8): "Tokens: 4, Duration: 0.2s" read as internal values, and the
+                            // durations were constants the steps set (0.2 s, 0.5 s), never measured.
+                            var metrics: [String] = []
+                            if let confidence = step.confidence { metrics.append("\(Int(confidence * 100))% confident") }
+                            if step.tokensUsed > 0 { metrics.append("\(step.tokensUsed) tokens") }
+                            let metricsString = metrics.joined(separator: " • ")
 
                             let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
-                            let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
+                            let detail =
+                                metricsString.isEmpty
+                                ? cleanOutput : (cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)")
 
                             self?.emitThinkingEvent(
                                 step.type.thinkingKind,

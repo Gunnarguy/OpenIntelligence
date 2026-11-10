@@ -270,6 +270,9 @@ extension ChatScreen {
         userMessage.containerId = usedContainerId
         messages.append(userMessage)
         persistChatHistory(for: usedContainerId)
+        // Kept on this device until the answer is saved, so a lost answer can be asked again (5.8).
+        PendingAnswerStore.record(
+            messageId: userMessage.id, question: query, mode: effectiveQualityMode, containerId: usedContainerId)
         // Which library is asked in, and when, for Siri's suggestions (5.7): the one the question
         // goes to, which a one-question override can make other than the open one.
         SiriDonations.libraryUsed(ragService.containerService.containers.first { $0.id == usedContainerId })
@@ -470,13 +473,15 @@ extension ChatScreen {
                     DSHaptics.messageReceived()  // Feel the response starting
                 }
 
-                let response = try await capturedService.query(
-                    capturedQuery,
-                    topK: capturedTopK,
-                    config: config,
-                    containerId: capturedUsedContainerId,
-                    streamHandler: queryStreamHandler
-                )
+                let response = try await RAGService.$answerAskedInChat.withValue(true) {
+                    try await capturedService.query(
+                        capturedQuery,
+                        topK: capturedTopK,
+                        config: config,
+                        containerId: capturedUsedContainerId,
+                        streamHandler: queryStreamHandler
+                    )
+                }
 
                 await MainActor.run {
                     guard self.currentQuerySessionId == querySessionId,
@@ -625,7 +630,10 @@ extension ChatScreen {
 
                 // Generate follow-up suggestions in the background. These should never
                 // keep the main chat in a "generating" state after the answer is visible.
-                let enableSmartReplies = await MainActor.run { self.settings.enableSmartReplies }
+                // Quotes only writes nothing, so no model-written follow-ups under its answers either (5.8).
+                let enableSmartReplies = await MainActor.run {
+                    self.settings.enableSmartReplies && self.settings.selectedModel != .onDeviceAnalysis
+                }
                 let smartReplyCount = await MainActor.run { self.settings.smartReplyCount }
                 if enableSmartReplies {
                     await MainActor.run {
