@@ -14,6 +14,11 @@ import SwiftUI
 /// card reads "Search is ready" for a moment and goes. Styled as the setup checklist's launcher is (material, sheet
 /// corners, border hairline), so it reads as the app's own.
 struct RerankerSetupCard: View {
+    /// What is happening, when, how long, and what a question asked meanwhile does (5.8, reworded at the owner's word on
+    /// 2026-11-10: "Once after an update, about a minute. A question asked now waits for it." read as ambiguous). "Up
+    /// to a minute": the longest first load measured on his iPhone took 59.7 s.
+    static let explanation = "Preparing search for this device's Neural Engine. This happens once after each update and takes up to a minute. You can still ask a question; it starts as soon as this is done."
+
     @ObservedObject private var status = RerankerSetupStatus.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -40,11 +45,11 @@ struct RerankerSetupCard: View {
                 .frame(width: DSSpacing.xl)
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text(ready ? "Search is ready" : "Setting up search")
+                Text(ready ? "Search is ready" : "Getting search ready")
                     .font(.headline)
                     .foregroundStyle(.primary)
                 if !ready {
-                    Text("Once after an update, about a minute. A question asked now waits for it.")
+                    Text(Self.explanation)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -74,7 +79,7 @@ struct RerankerSetupCard: View {
         .accessibilityLabel(
             ready
                 ? "Search is ready"
-                : "Setting up search. This happens once after an update and takes about a minute. A question asked now waits for it."
+                : "Getting search ready. \(Self.explanation)"
         )
         .accessibilityAddTraits(.updatesFrequently)
     }

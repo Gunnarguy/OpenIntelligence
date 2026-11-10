@@ -165,7 +165,10 @@ struct UnifiedMetricsBar: View {
     @State var pulsePhase: CGFloat = 0
     
     // Smooth Drag State
-    @State var autoHeight: CGFloat = 0
+    /// The panel's sections at their natural height, so an undragged panel fits them with no empty space (5.8).
+    @State var panelContentHeight: CGFloat = 0
+    /// Where the panel's top is on screen, so a drag cannot take its handle under the composer and tab bar (5.8).
+    @State var panelTop: CGFloat = 0
     @State var baseHeight: CGFloat = 0
     @State var dragOffset: CGFloat = 0
     @State var isDragging: Bool = false

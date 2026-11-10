@@ -212,8 +212,8 @@
     final class SearchSetupLiveActivity {
         static let shared = SearchSetupLiveActivity()
 
-        private static let title = "Setting up search"
-        private static let subtitle = "Once after an update, about a minute."
+        private static let title = "Getting search ready"
+        private static let subtitle = "Once after each update, up to a minute."
         private static let updateInterval: Duration = .seconds(3)
 
         private var activity: Activity<QueryLiveActivityAttributes>?
@@ -293,7 +293,7 @@
             guard let activity else { return }
             self.activity = nil
             let content = ActivityContent(
-                state: state(progress: 1, title: "Search is ready", subtitle: "Questions are answered at full speed.",
+                state: state(progress: 1, title: "Search is ready", subtitle: "You can ask questions now.",
                     finished: true),
                 staleDate: nil)
             VerificationJournal.record("liveactivity.setup.end", .ok)

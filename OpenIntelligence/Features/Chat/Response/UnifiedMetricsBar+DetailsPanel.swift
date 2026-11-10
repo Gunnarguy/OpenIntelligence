@@ -7,6 +7,9 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 extension UnifiedMetricsBar {
     // MARK: - Micro Metric
@@ -72,6 +75,7 @@ extension UnifiedMetricsBar {
                         agenticToolsSection
                     }
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelContentHeight = $0 }
             }
             
             // Native Resizable Drawer Handle
@@ -90,42 +94,27 @@ extension UnifiedMetricsBar {
                     .onChanged { val in
                         if !isDragging {
                             isDragging = true
-                            // Capture the exact height instantly only if we haven't already
+                            // Start from the height on screen.
                             if baseHeight == 0 {
-                                baseHeight = autoHeight
+                                baseHeight = panelHeight
                             }
                         }
                         dragOffset = val.translation.height
                     }
                     .onEnded { val in
-                        baseHeight = Self.clampedPanelHeight(baseHeight + val.translation.height)
+                        baseHeight = clampedPanelHeight(baseHeight + val.translation.height)
                         dragOffset = 0
                         isDragging = false
                     }
             )
         }
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onChange(of: geo.size.height) { _, newHeight in
-                        // Constantly track intrinsic height when not being manually forced
-                        if baseHeight == 0 {
-                            autoHeight = newHeight
-                        }
-                    }
-                    .onAppear {
-                        if baseHeight == 0 {
-                            autoHeight = geo.size.height
-                        }
-                    }
-            }
-        )
-        // A dragged panel is exactly the height dragged to, and the card around it follows. Until 5.8 the card sat in a
-        // frame that grew to all the space Chat offered: dragging up shrank the panel inside a card that kept its size,
-        // so the panel slid to the card's middle with a blank band above it, and dragging down pushed the screen
-        // (the owner's iPhone, 2026-11-10). Before any drag it sizes itself, up to the same limit as before.
-        .frame(height: baseHeight > 0 ? Self.clampedPanelHeight(baseHeight + dragOffset) : nil, alignment: .top)
-        .frame(maxHeight: baseHeight > 0 ? nil : Self.panelHeightLimit, alignment: .top)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { panelTop = $0 }
+        // One explicit height, with the card around it (5.8, the owner's iPhone, 2026-11-10). Until then the card sat
+        // in a frame that grew to all the space Chat offered: an undragged panel showed empty space under its
+        // sections, dragging up left a blank band above them, and a drag could take the handle under the tab bar,
+        // where it could not be dragged back. Now an undragged panel fits its sections, and every height stops where
+        // the handle stays on screen.
+        .frame(height: panelHeight, alignment: .top)
         // The bar's springs do not run while the finger moves the panel, so it tracks the finger with no lag.
         .transaction { transaction in
             if isDragging { transaction.animation = nil }
@@ -141,16 +130,32 @@ extension UnifiedMetricsBar {
         .padding(.top, DSSpacing.xs)
     }
 
-    #if os(iOS)
-        static let panelHeightLimit: CGFloat = 1000
-    #else
-        static let panelHeightLimit: CGFloat = 650
-    #endif
+    /// The handle's own height under the sections.
+    static let panelHandleHeight: CGFloat = 21
+    /// Room kept under the panel for the composer and the tab bar, plus the card's padding.
+    static let panelBottomReserve: CGFloat = 190
 
-    /// A dragged height kept between 150 points and the limit the panel had before any drag.
-    static func clampedPanelHeight(_ height: CGFloat) -> CGFloat {
+    /// The tallest the panel can be with its handle still on screen above the composer and tab bar.
+    var panelMaxHeight: CGFloat {
+        #if os(iOS)
+            let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+            let screenHeight = (windows.first { $0.isKeyWindow } ?? windows.first)?.bounds.height ?? 800
+            return max(150, screenHeight - max(0, panelTop) - Self.panelBottomReserve)
+        #else
+            return 650
+        #endif
+    }
+
+    /// The height on screen: a dragged height, or the sections' own height with the handle; never past the limit.
+    var panelHeight: CGFloat {
+        if baseHeight > 0 { return clampedPanelHeight(baseHeight + dragOffset) }
+        return min(panelMaxHeight, max(60, panelContentHeight + Self.panelHandleHeight))
+    }
+
+    /// A dragged height kept between 150 points and the limit.
+    func clampedPanelHeight(_ height: CGFloat) -> CGFloat {
         guard height.isFinite else { return 150 }
-        return min(panelHeightLimit, max(150, height))
+        return min(panelMaxHeight, max(150, height))
     }
 
     // MARK: - Section: Library Context (NEW)
