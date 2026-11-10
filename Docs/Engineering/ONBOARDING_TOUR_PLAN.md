@@ -113,7 +113,7 @@ Each line: **the control** (file:line) — the tip's title / its one sentence �
 3. **Private Cloud Compute** (`SettingsView+ModelAndCloud.swift:143`) — "You decide when it's used" / "Never, ask each time, or for long questions." — first visit on a device that supports it.
 4. **Plain English** (Glossary) — "Every term explained" / "What each word in the app means." — second visit.
 5. **Appearance › Technical Details** (`SettingsView+AppearanceAndSupport.swift:79`) — "Want to see the work?" / "Show the metrics bar and passage counts under answers." — first Appearance visit.
-5a. **Appearance › Telemetry HUD** (`TourStep.xray`, added 2026-11-10) — "Where your chip is" / what the outline marks, the component colors, the Taptic Engine outline, and that the logic board is outlined where the chip's spot isn't known — first Appearance visit, not on a Mac.
+5a. **Appearance › Telemetry HUD** (`TourStep.xray`, added 2026-11-10) — "Where your chip is" / what the outline marks, the component colors, the Taptic Engine outline (the motor behind each tap), and that the Labels switch hides the names (revised 2026-11-10: every outline is the chip itself now, so the logic-board sentence is gone) — first Appearance visit, not on a Mac and not on a device with no measured chip spot.
 6. **Siri & Shortcuts** — "Ask without opening the app" / "Siri and Shortcuts can ask, search and add." — second visit.
 7. **Advanced** (`SettingsView+List.swift:233`, keeps `ModelConfigTip`) — unchanged.
 

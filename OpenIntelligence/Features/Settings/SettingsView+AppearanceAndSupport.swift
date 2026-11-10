@@ -183,6 +183,29 @@ extension SettingsView {
                     }
                     .padding(.horizontal, DSSpacing.lg)
                     .padding(.vertical, DSSpacing.sm)
+
+                    Divider()
+                        .padding(.horizontal, DSSpacing.lg)
+
+                    // X-Ray labels (5.8): the chip's name and "Taptic Engine" in the outlines' corners.
+                    HStack {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                            Text("Labels")
+                                .font(.caption.weight(.medium))
+                            Text("Name what is working on the X-Ray")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Toggle("Labels", isOn: $settings.hudShowLabels)
+                            .labelsHidden()
+                            .tint(.accentColor)
+                            .onChange(of: settings.hudShowLabels) { _, _ in
+                                DSHaptics.toggle()
+                            }
+                    }
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
                 }
 
                 #if os(macOS)

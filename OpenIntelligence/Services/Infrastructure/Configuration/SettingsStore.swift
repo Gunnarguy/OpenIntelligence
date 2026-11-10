@@ -120,6 +120,7 @@ final class SettingsStore: ObservableObject {
         static let hudGlowIntensity = "hudGlowIntensity" // Double 0.0-1.0 - HUD glow brightness
         static let hudShowMetrics = "hudShowMetrics" // Bool - Show real-time metrics in legend
         static let hudShowTaptic = "hudShowTaptic" // Bool - Show Taptic Engine on HUD
+        static let hudShowLabels = "hudShowLabels" // Bool - Name the X-Ray's outlines (5.8)
 
         // Apple Intelligence Features
         static let enableSmartReplies = "enableSmartReplies" // Bool
@@ -303,6 +304,9 @@ final class SettingsStore: ObservableObject {
 
     /// Show Taptic Engine activity on the HUD
     @Published var hudShowTaptic: Bool
+
+    /// Name the X-Ray's outlines: the chip ("A18 Pro") and the Taptic Engine (5.8). On by default.
+    @Published var hudShowLabels: Bool
 
     // MARK: - Apple Intelligence Features
 
@@ -599,6 +603,7 @@ final class SettingsStore: ObservableObject {
         hudGlowIntensity = defaults.object(forKey: Keys.hudGlowIntensity) as? Double ?? 0.6
         hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
         hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true
+        hudShowLabels = defaults.object(forKey: Keys.hudShowLabels) as? Bool ?? true
 
         // Apple Intelligence Features
         enableSmartReplies = defaults.object(forKey: Keys.enableSmartReplies) as? Bool ?? true
@@ -692,6 +697,7 @@ final class SettingsStore: ObservableObject {
             $hudGlowIntensity.map { _ in "hudGlowIntensity" }.eraseToAnyPublisher(),
             $hudShowMetrics.map { _ in "hudShowMetrics" }.eraseToAnyPublisher(),
             $hudShowTaptic.map { _ in "hudShowTaptic" }.eraseToAnyPublisher(),
+            $hudShowLabels.map { _ in "hudShowLabels" }.eraseToAnyPublisher(),
             $enableSmartReplies.map { _ in "enableSmartReplies" }.eraseToAnyPublisher(),
             $enableContentTagging.map { _ in "enableContentTagging" }.eraseToAnyPublisher(),
             $enableSpotlightIndexing.map { _ in "enableSpotlightIndexing" }.eraseToAnyPublisher(),
@@ -938,6 +944,7 @@ final class SettingsStore: ObservableObject {
         defaults.set(hudGlowIntensity, forKey: Keys.hudGlowIntensity)
         defaults.set(hudShowMetrics, forKey: Keys.hudShowMetrics)
         defaults.set(hudShowTaptic, forKey: Keys.hudShowTaptic)
+        defaults.set(hudShowLabels, forKey: Keys.hudShowLabels)
 
         // Apple Intelligence Features
         defaults.set(enableSmartReplies, forKey: Keys.enableSmartReplies)

@@ -512,26 +512,28 @@ struct HardwareXRayOverlay: View {
         max(0.0, min(1.0, max(telemetry.cpuIntensity, telemetry.gpuIntensity, telemetry.aneIntensity)))
     }
 
-    /// Dominant color based on which component is most active. Grey while nothing is.
-    private var dominantColor: Color {
+    /// The busiest of the chip's three parts, from the same readings the legend shows; nil while none is working.
+    private var busyComponent: HardwareComponent? {
         let cpu = telemetry.cpuIntensity
         let gpu = telemetry.gpuIntensity
         let ane = telemetry.aneIntensity
-
-        if totalIntensity <= 0.01 {
-            return .gray
-        } else if ane >= gpu && ane >= cpu {
-            return HardwareComponent.neuralEngine.color  // Purple
-        } else if gpu >= cpu {
-            return HardwareComponent.gpu.color  // Cyan
-        } else {
-            return HardwareComponent.cpu.color  // Orange
-        }
+        if totalIntensity <= 0.01 { return nil }
+        if ane >= gpu && ane >= cpu { return .neuralEngine }
+        return gpu >= cpu ? .gpu : .cpu
     }
 
-    /// The label beside the chip outline: the chip's name. Every outline drawn is the chip package itself.
+    /// The last part that worked, so the label keeps its name while it fades out.
+    @State private var lastBusyComponent: HardwareComponent = .neuralEngine
+
+    /// Dominant color based on which component is most active. Grey while nothing is.
+    private var dominantColor: Color {
+        busyComponent?.color ?? .gray
+    }
+
+    /// The label in the chip outline: the part of the chip working now, in its color ("Neural Engine", "GPU", "CPU").
+    /// It named the chip ("A18 Pro") until the owner found that odd on 2026-11-10; the legend already names the chip.
     private var socLabel: String {
-        layout.socPlacement == nil ? "" : layout.chipName
+        layout.socPlacement == nil ? "" : (busyComponent ?? lastBusyComponent).rawValue
     }
 
     #if canImport(UIKit)
@@ -625,8 +627,7 @@ struct HardwareXRayOverlay: View {
                             color: dominantColor,
                             intensity: totalIntensity,
                             glowMultiplier: settings.hudGlowIntensity,  // User-controlled
-                            label: socLabel,
-                            containerSize: geometry.size
+                            label: settings.hudShowLabels ? socLabel : ""
                         )
                         .allowsHitTesting(false)
                     }
@@ -636,9 +637,11 @@ struct HardwareXRayOverlay: View {
                         GlowingTapticBorder(
                             frame: tapticFrame,
                             intensity: telemetry.hapticIntensity,
-                            glowMultiplier: settings.hudGlowIntensity
+                            glowMultiplier: settings.hudGlowIntensity,
+                            label: settings.hudShowLabels ? "Taptic Engine" : ""
                         )
                         .allowsHitTesting(false)
+                        .transition(.opacity)
                     }
 
                     // The legend lives in its own floating passthrough window
@@ -661,6 +664,11 @@ struct HardwareXRayOverlay: View {
                             .allowsHitTesting(false)
                     }
                 }
+                .onChange(of: busyComponent) { _, busy in
+                    if let busy { lastBusyComponent = busy }
+                }
+                // The Taptic Engine outline and its label fade in and out rather than appearing in one frame.
+                .animation(.easeOut(duration: 0.25), value: telemetry.hapticIntensity > 0.01)
                 .ignoresSafeArea()
                 // Re-place the outlines once a rotation or a window resize has landed. On rotation the reader's width
                 // and height swap, so this fires when the new geometry is real; the second pass, a turn of the run
@@ -716,6 +724,11 @@ private enum XRayOutlineStyle {
     /// Activity that shows the outline's label; it stays up `labelHoldSeconds` after the chip goes quiet.
     static let labelThreshold: Double = 0.05
     static let labelHoldSeconds: Double = 2
+    static let labelInset: CGFloat = 4
+    /// Short and even (5.8; 0.5 s ease-in-out before, which lagged behind a tenth that changed every half second and
+    /// read as sluggish on the owner's iPhone).
+    static let levelAnimation: Animation = .smooth(duration: 0.3)
+    static let labelAnimation: Animation = .easeOut(duration: 0.25)
 
     /// The outline's opacity for an activity level and the user's Glow Intensity, never NaN.
     static func opacity(intensity: Double, glow: Double) -> Double {
@@ -734,7 +747,6 @@ private struct GlowingSoCBorder: View {
     let intensity: Double
     var glowMultiplier: Double = 0.6
     let label: String
-    let containerSize: CGSize
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var labelShown = false
@@ -749,44 +761,27 @@ private struct GlowingSoCBorder: View {
         min(XRayOutlineStyle.maximumFill, XRayOutlineStyle.maximumFill * level)
     }
 
-    /// The label sits just above the outline, or just below it when the outline starts too near the top.
-    private var labelCenterY: CGFloat {
-        frame.minY > 40 ? frame.minY - 12 : min(containerSize.height - 12, frame.maxY + 12)
-    }
-
-    /// The label's leading edge: the outline's, held far enough from the right edge that the label stays on screen.
-    private var labelMinX: CGFloat {
-        max(8, min(frame.minX, containerSize.width - 200))
-    }
-
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(color.opacity(fillOpacity))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(color.opacity(outlineOpacity), lineWidth: XRayOutlineStyle.lineWidth)
-                )
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            if !label.isEmpty {
-                // A point at the label's leading edge, with the label hung off it: an overlay takes its own size and
-                // does not change the layout, so the label needs no measuring to start where the outline starts.
-                Color.clear
-                    .frame(width: 1, height: 1)
-                    .overlay(alignment: .leading) {
-                        XRayOutlineLabel(
-                            text: label, color: color, opacity: max(0.6 * min(1, glowMultiplier / 0.6), outlineOpacity)
-                        )
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(color.opacity(fillOpacity))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(color.opacity(outlineOpacity), lineWidth: XRayOutlineStyle.lineWidth)
+            )
+            // The label inside the outline's top corner (5.8): above it, it sat on the app's own bars (the owner's
+            // iPhone, 2026-11-10), and it was as faint as the outline. Inside, it can only cover the X-Ray.
+            .overlay(alignment: .topLeading) {
+                if !label.isEmpty {
+                    XRayOutlineLabel(text: label, color: color)
                         .fixedSize()
-                    }
-                    .position(x: labelMinX, y: labelCenterY)
-                    .opacity(labelShown ? 1 : 0)
+                        .padding(XRayOutlineStyle.labelInset)
+                        .opacity(labelShown ? 1 : 0)
+                }
             }
-        }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.5), value: level)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: labelShown)
+            .frame(width: frame.width, height: frame.height)
+            .position(x: frame.midX, y: frame.midY)
+            .animation(reduceMotion ? nil : XRayOutlineStyle.levelAnimation, value: level)
+            .animation(reduceMotion ? nil : XRayOutlineStyle.labelAnimation, value: labelShown)
         // The label shows while the chip works and fades out `labelHoldSeconds` after it goes quiet.
         .task(id: isActive) {
             if isActive {
@@ -799,11 +794,10 @@ private struct GlowingSoCBorder: View {
     }
 }
 
-/// The small capsule beside an outline: its name, on the legend's dark blur.
+/// The small capsule in an outline's corner: its name, in white on the legend's dark blur. Shown whole or not at all.
 private struct XRayOutlineLabel: View {
     let text: String
     let color: Color
-    let opacity: Double
 
     var body: some View {
         HStack(spacing: 4) {
@@ -823,17 +817,18 @@ private struct XRayOutlineLabel: View {
                 .background(Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark))
                 .overlay(Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
         )
-        .opacity(opacity)
     }
 }
 
 // MARK: - Taptic Engine outline
 
-/// A hairline outline at the Taptic Engine, shown briefly when haptics fire and faded out after.
+/// A hairline outline at the Taptic Engine, shown briefly when haptics fire and faded out after, named in its corner
+/// (5.8) unless labels are off.
 private struct GlowingTapticBorder: View {
     let frame: CGRect
     let intensity: Double
     var glowMultiplier: Double = 0.6
+    var label: String = ""
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -850,6 +845,13 @@ private struct GlowingTapticBorder: View {
                 RoundedRectangle(cornerRadius: XRayOutlineStyle.chipCornerRadius, style: .continuous)
                     .strokeBorder(hapticColor.opacity(outlineOpacity), lineWidth: XRayOutlineStyle.lineWidth)
             )
+            .overlay(alignment: .topLeading) {
+                if !label.isEmpty {
+                    XRayOutlineLabel(text: label, color: hapticColor)
+                        .fixedSize()
+                        .padding(XRayOutlineStyle.labelInset)
+                }
+            }
             .frame(width: frame.width, height: frame.height)
             .position(x: frame.midX, y: frame.midY)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: XRayOutlineStyle.level(intensity))
