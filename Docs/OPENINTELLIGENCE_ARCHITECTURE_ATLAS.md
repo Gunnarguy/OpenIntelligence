@@ -707,6 +707,16 @@ supposed to be agentic.
   every mode appends `answers:<verdict>` to the gating string that `VerificationOutcome` reads. Details in
   `Docs/RETRIEVAL_PIPELINE.md`, "An answer has to answer its question".
   `[evidence_level: test_verified, measured (Mac probe), confidence: medium]`
+- **The reranker's first pick leads, and every rule after it was measured (5.8, 2026-11-09/10).** IBM Granite reranker
+  r2 replaced TinyBERT in `RAGEngine.rerankWithCrossEncoder`. Side searches (cross-references, Standard's spec sniper)
+  go behind the top passage (`RAGService.insertingBehindTopRanked`) and the sniper's scores stop at 0.89; stored tables
+  are exempt from most contents-page patterns (`RAGEngine.isStoredTable`); an answer with no letters is rewritten or
+  replaced by `notFoundAnswer` (`ensureAnswerResponds`, `isDegenerateAnswer`); `isOrphanListMarker` needs the period or
+  bracket. Deep Think's spec sniper was removed after the audit measured it hurting on tables, and its lost-in-the-middle
+  step now sorts by score first (`RAGEngine.applyLostInMiddleReordering`). `RetrievalAblation` switches each rule off in
+  development builds; `AgenticOrchestrator.executeMultiQuerySearch` reads it for the blend weights. Record:
+  `BenchmarkRuns/2026-11-10-rule-audit/README.md`; detail in `Docs/RETRIEVAL_PIPELINE.md`, "Every rule after the
+  reranker, measured". `[evidence_level: test_verified (AnswerFloorTests), measured (Simulator benchmark), confidence: medium]`
 - **Fact Check in Deep Think and Maximum (5.8, 2026-11-07).** After the displayed text is fixed, `RAGService.factCheckedAgenticAnswer`
   checks each claim the structured answer lists with `VerificationGateService.claimVerdicts` (Gate B's per-claim check) and
   `StructuredAnswer.withClaimVerdicts` fills in only the verdicts; until then every claim read Not Checked.

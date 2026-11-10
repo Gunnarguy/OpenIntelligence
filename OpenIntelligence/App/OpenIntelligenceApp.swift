@@ -51,10 +51,15 @@ struct OpenIntelligenceApp: App {
 
         // Prepares the embedding model for this device when the system's cache has no entry for it.
         // Not under the validation harness, whose timings it would sit beside.
+        // And the reranker, whose first load after an install compiles it for the Neural Engine (5.8).
         #if DEBUG
-            if !DebugRAGValidationHarness.isEnabled { EmbeddingModelWarmup.scheduleAfterLaunch() }
+            if !DebugRAGValidationHarness.isEnabled {
+                EmbeddingModelWarmup.scheduleAfterLaunch()
+                RerankerWarmup.scheduleAfterLaunch()
+            }
         #else
             EmbeddingModelWarmup.scheduleAfterLaunch()
+            RerankerWarmup.scheduleAfterLaunch()
         #endif
 
         // Configure TipKit for contextual user guidance

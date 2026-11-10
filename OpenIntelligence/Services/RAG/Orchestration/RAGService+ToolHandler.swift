@@ -320,6 +320,11 @@ extension RAGService: RAGToolHandler {
         await onDetailedEvent?(.rerank, "AI re-ranking", "Scoring \(retrievedChunks.count) chunks with neural model")
 
         let engine = RAGEngine.shared
+        // The reranker's first load after an install compiles it for the Neural Engine (5.8); this search waits.
+        if RerankerSetupStatus.shared.isPreparing {
+            await onDetailedEvent?(
+                .rerank, "Preparing search", "Setting up the reranker on this device, first launch only")
+        }
         retrievedChunks = await engine.rerank(chunks: retrievedChunks, query: semanticQuery, topK: topK * 2)
         // Record the stage that just ran. This line missing is why every deep-think benchmark trace
         // showed six stages and no `.rerank`, which was then read as "Deep Think has no reranker"
@@ -358,27 +363,14 @@ extension RAGService: RAGToolHandler {
                 "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(effectiveMinSimilarity * 100))% threshold)")
         }
 
-        // Precision/spec lookups need the same rescue path in Deep Think that
-        // Standard mode uses. Rerankers often prefer prose around a spec table
-        // over the actual row containing the value.
-        let fullPipelineAnswerIntent = queryProfile.answerIntent
-        if fullPipelineAnswerIntent.isExtractiveFirst || isPrecisionValueQuery(query) {
-            let existingIds = Set(retrievedChunks.map { $0.chunk.id })
-            let sniperResults = specTableSniper(
-                query: query,
-                allChunks: allChunks,
-                excludeIds: existingIds
-            )
-            if !sniperResults.isEmpty {
-                retrievedChunks.insert(contentsOf: sniperResults, at: 0)
-                demoteCrossReferenceChunks(&retrievedChunks)
-                await onDetailedEvent?(
-                    .retrieval, "Spec sniper",
-                    "+\(sniperResults.count) targeted chunks via keyword+number co-occurrence")
-                Log.info(
-                    "[FullRetrieval] Spec sniper added \(sniperResults.count) targeted chunks", category: .retrieval)
-            }
-        }
+        // Deep Think no longer runs the spec sniper (5.8). It was added because "rerankers often prefer prose around a
+        // spec table over the actual row containing the value", which was TinyBERT's behaviour. Measured on 2026-11-10
+        // with the Granite reranker (`BenchmarkRuns/2026-11-10-rule-audit`): on 158 table questions over 7 PDFs, the
+        // passage holding the cell came first in 72.2% of searches with the sniper and 75.9% without it (7 better, 1
+        // worse, sign test p=0.07, short of significance; one review's table went from 5 of 10 to 10 of 10); on 246
+        // QASPER questions, 32.5% and 32.1% (no difference). Nothing measured showed it helping here, and this held after
+        // its passages were put behind the top one and its scores capped under the reranker's. Standard keeps its
+        // sniper, where switching it off lost 2 of 158 table cells (p=0.50).
 
         // Step 7.5: Parent Document Retrieval (expand with sibling chunks for context)
         if mode.usesParentDocumentRetrieval && !retrievedChunks.isEmpty {
@@ -475,17 +467,12 @@ extension RAGService: RAGToolHandler {
         }
 
         // Step 8: Lost-in-Middle reorder (place best chunks at start and end)
-        if retrievedChunks.count >= 4 {
-            var reordered: [RetrievedChunk] = []
+        // Through 5.7 this had its own loop, which inserted each odd-ranked passage at `count / 2`: for passages ranked
+        // 1 to 5 it gave [2, 4, 1, 3, 5], so the second best led and the best was third. It now uses the engine's
+        // placement, [1, 3, 5, 4, 2], best first and second best last (5.8).
+        if retrievedChunks.count >= 4, !RetrievalAblation.isOff(.deepThinkLostInMiddle) {
             let sorted = retrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
-            for (index, chunk) in sorted.enumerated() {
-                if index % 2 == 0 {
-                    reordered.append(chunk)  // Even indices go to front
-                } else {
-                    reordered.insert(chunk, at: reordered.count / 2)  // Odd go to middle
-                }
-            }
-            retrievedChunks = reordered
+            retrievedChunks = RAGEngine.applyLostInMiddleReordering(sorted)
             await onDetailedEvent?(.lostInMiddle, "Lost-in-Middle reorder", "Best evidence at start/end of context")
         }
 

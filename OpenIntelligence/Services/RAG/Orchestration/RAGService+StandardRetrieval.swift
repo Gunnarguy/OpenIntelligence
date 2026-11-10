@@ -311,17 +311,24 @@ extension RAGService {
             return $0.score > $1.score
         }
 
-        // Take top 3 candidates
+        // Take top 3 candidates. Held below the reranker's ceiling (5.8): the cross-encoder's scores are normalised to
+        // 0.10 to 0.90, and this score reaches 1.01 (0.60 + 0.15 + 0.10 + 0.08 + 0.08), so wherever candidates were later
+        // sorted by score, as in Deep Think, a passage matched only on words and numbers outranked every reranked one:
+        // a car-manual passage at 1.01 came first in 39 of 330 golden searches about NLP papers (2026-11-09).
         return candidates.prefix(3).map { (chunk, score, _) in
             RetrievedChunk(
                 chunk: chunk,
-                similarityScore: score,
+                similarityScore: min(score, Self.sideSearchScoreCeiling),
                 rank: 1,
                 sourceDocument: getDocumentName(for: chunk.documentId),
                 pageNumber: chunk.metadata.pageNumber
             )
         }
     }
+
+    /// The highest score a passage found outside the reranker may carry: just under the reranker's 0.90 ceiling, so a
+    /// sort by score never puts it above the reranker's first pick (5.8).
+    nonisolated static let sideSearchScoreCeiling: Float = 0.89
 
     /// The most passages the spec scan scores for one question.
     nonisolated static let specScanLimit = 20_000
@@ -1075,8 +1082,11 @@ extension RAGService {
     func recordTransmission(_ record: CloudTransmissionRecord, grant: String) async {
         VerificationJournal.record(
             "consent.authorized",
-            ["grant": grant, "contextChars": "\(record.contextCharacterCount)", "chunks": "\(record.contextChunkCount)",
-                "relay": "\(asksThroughRelay)", "background": "\(Self.appIsInBackground)"])
+            [
+                "grant": grant, "contextChars": "\(record.contextCharacterCount)",
+                "chunks": "\(record.contextChunkCount)",
+                "relay": "\(asksThroughRelay)", "background": "\(Self.appIsInBackground)",
+            ])
         pendingCloudConsent = nil
         lastCloudTransmission = record
         TelemetryCenter.emit(
@@ -1197,7 +1207,9 @@ extension RAGService {
 
     /// The fields `import.stage` writes (5.8), with the file's size, the process's memory footprint and, at the end
     /// of an import, how many documents the library already held. Sizes and counts only.
-    nonisolated static func importStageFields(_ base: [String: String], url: URL, othersInLibrary: Int?) -> [String: String] {
+    nonisolated static func importStageFields(
+        _ base: [String: String], url: URL, othersInLibrary: Int?
+    ) -> [String: String] {
         var fields = base
         guard VerificationJournal.isEnabled else { return fields }
         fields["bytes"] = "\(VerificationJournal.fileBytes(url))"

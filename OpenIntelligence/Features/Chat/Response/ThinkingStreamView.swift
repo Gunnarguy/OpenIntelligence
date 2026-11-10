@@ -376,7 +376,7 @@ private struct ThinkingPulse: View {
         ThinkingEvent(kind: .bm25, title: "BM25 keyword search", detail: "42 matches in 847 chunks"),
         ThinkingEvent(kind: .vectorSearch, title: "Vector similarity search", detail: "top 20 candidates"),
         ThinkingEvent(kind: .rrf, title: "Reciprocal Rank Fusion", detail: "merged 62 → 25 chunks"),
-        ThinkingEvent(kind: .rerank, title: "Cross-encoder reranking", detail: "TinyBERT scoring 25 pairs"),
+        ThinkingEvent(kind: .rerank, title: "Cross-encoder reranking", detail: "Granite scoring 25 pairs"),
         ThinkingEvent(kind: .mmr, title: "MMR diversity selection", detail: "λ=0.6 selecting 8 diverse"),
         ThinkingEvent(kind: .parentDoc, title: "Parent document expansion", detail: "+4 sibling chunks"),
         ThinkingEvent(kind: .compression, title: "Context compression", detail: "1,247 → 680 tokens"),

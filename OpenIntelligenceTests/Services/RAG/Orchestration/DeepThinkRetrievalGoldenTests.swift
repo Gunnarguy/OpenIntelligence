@@ -165,7 +165,9 @@ final class DeepThinkRetrievalGoldenTests: XCTestCase {
 
         // The on-device window sets parent expansion's budget, so everything runs under the window this simulator
         // reports and again under 4,096 (Apple's documented window) and 8,192 (a Mac on macOS 27).
-        let windows: [Int?] = [nil, 4096, 8192]
+        // TEST_RUNNER_OI_GOLDEN_WINDOWS=device searches under the simulator's window only, for runs that score a
+        // ranking change rather than prove nothing changed (2026-11-09, the reranker swap).
+        let windows: [Int?] = environment["OI_GOLDEN_WINDOWS"] == "device" ? [nil] : [nil, 4096, 8192]
         addTeardownBlock { FoundationModelTokenBudget.onDeviceContextSizeOverrideForTesting = nil }
 
         func pass() async throws -> [String: [Hit]] {
@@ -211,11 +213,13 @@ final class DeepThinkRetrievalGoldenTests: XCTestCase {
         let started = Date()
         let first = try await pass()
         let firstSeconds = Date().timeIntervalSince(started)
-        let second = try await pass()
+        // TEST_RUNNER_OI_GOLDEN_PASSES=1 records one pass, for runs after a baseline has shown the passes agree.
+        let second = environment["OI_GOLDEN_PASSES"] == "1" ? first : try await pass()
         let secondSeconds = Date().timeIntervalSince(started) - firstSeconds
 
         let passagesAfter = try await db.readableChunks().count
-        XCTAssertEqual(passagesAfter, stored.count, "the library changed during the run, so the passes are not comparable")
+        XCTAssertEqual(
+            passagesAfter, stored.count, "the library changed during the run, so the passes are not comparable")
         let unsteady = first.keys.filter { first[$0] != second[$0] }.sorted()
         XCTAssertTrue(
             unsteady.isEmpty, "two passes in one run differ for \(unsteady.count) searches: \(unsteady.prefix(10))")
@@ -236,7 +240,8 @@ final class DeepThinkRetrievalGoldenTests: XCTestCase {
         let record = Record(
             label: label, passages: stored.count, passagesAfter: passagesAfter, documents: documentsByName.count,
             deviceWindow: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true),
-            retrievalConfig: String(describing: libraries.containers.first { $0.id == library.id }?.retrievalConfig), searches: first.count,
+            retrievalConfig: String(describing: libraries.containers.first { $0.id == library.id }?.retrievalConfig),
+            searches: first.count,
             firstPassSeconds: firstSeconds, secondPassSeconds: secondSeconds, unsteady: unsteady, results: first)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]

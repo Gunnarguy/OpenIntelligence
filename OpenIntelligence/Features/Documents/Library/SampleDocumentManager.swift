@@ -262,7 +262,7 @@ Vectors live in a memory-mapped file. Similarity search runs through Accelerate'
 The vector search and the BM25 keyword search run independently on every question and are merged by reciprocal rank fusion, so a passage that only one of them found still gets a fair score. Identifiers, part numbers and exact phrases come through the keyword arm; paraphrases come through the vector arm.
 
 ### 6. Re-rank and diversify
-The merged candidates are re-scored by a cross-encoder, the ms-marco-TinyBERT-L2-v2 model run through Core ML, which reads the question and each passage together rather than comparing two vectors. Maximal marginal relevance then removes near-duplicates so the evidence covers more of the document instead of repeating one paragraph.
+The merged candidates are re-scored by a cross-encoder, IBM's granite-embedding-reranker-english-r2 model run through Core ML on the Neural Engine, which reads the question and each passage together rather than comparing two vectors. Maximal marginal relevance then removes near-duplicates so the evidence covers more of the document instead of repeating one paragraph.
 
 ### 7. Pack
 The top passages are selected and trimmed to fit the device's window alongside the instructions, the question and room for the answer.

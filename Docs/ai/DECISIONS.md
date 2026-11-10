@@ -2158,3 +2158,30 @@ them. One file-scope global, `deferredEnrichmentIsRunning`, is internal now beca
 citations written before the split name the old files; they are history and resolve through the line map. The codemap
 was repointed by each citation's matched text.
 
+
+## 2026-11-09 - The reranker is IBM's Granite cross-encoder, 4-bit, on the Neural Engine
+
+**Context.** The owner's first rule is commercial use only, training data included (`Docs/ai/PURPOSE.md`). The bundled
+cross-encoder, `cross-encoder/ms-marco-TinyBERT-L2-v2`, and the embedder, `all-MiniLM-L6-v2`, were both trained on MS
+MARCO, whose terms are for non-commercial research. A bake-off on 2026-11-09 (`BenchmarkRuns/2026-11-09-reranker-swap/`)
+measured candidates for both on QASPER and BEIR. The owner gave PROCEED: IMPLEMENT for the reranker the same day.
+
+**Decision.** Replace the reranker with `ibm-granite/granite-embedding-reranker-english-r2` (Apache 2.0; its card says
+MS MARCO was left out for its licence), converted by `scripts/build_reranker_model.py` into one Core ML package with
+two fixed-shape functions (256 and 512 tokens), weights palettized to 4 bits, run on CPU and Neural Engine. Keep the
+min-max normalisation of each batch, so downstream thresholds read the same 0.10 to 0.90 scale. Show "Preparing
+search" while a load runs past one second. The embedder is not changed: swapping it re-embeds every library, which is
+the owner's decision.
+
+**Alternatives.** 8-bit weights (144 MB: one file over GitHub's 100 MiB limit, so Git LFS; Xcode Cloud has it
+installed, per Apple's "Making dependencies available to Xcode Cloud", read 2026-11-09), same accuracy as 4-bit.
+4-bit per-block linear quantization (fell onto the CPU, 59 ms a pair). One 512-token shape (a 256-token pass is three
+times faster, and most pairs fit). Enumerated shapes (planned onto the CPU). `.all` compute units (the GPU was slower
+than the Neural Engine for this model on the M3 Pro). Keeping TinyBERT (licence). Reranking fewer candidates was
+measured (20 at 256 tokens kept 47.6% against 48.4% for 50 at 512) and not adopted here: the app's pool of 100 to 250
+was set for needles past rank 100, and its cost is decided by the iPhone measurement.
+
+**Consequences.** About 12 to 40 times the compute per pair (10 to 31 ms on the M3 Pro's Neural Engine against 0.8
+ms), so a search costs a fraction of a second more; the app grows about 68 MB; the first launch after an install
+compiles the model for the Neural Engine (about 50 s on the Mac). The tokenizer is now the model's own byte-pair
+encoding, no longer a copy of the embedder's. `RerankerModelTests` pins the token ids and both functions' scores.

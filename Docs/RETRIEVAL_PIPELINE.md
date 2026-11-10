@@ -47,7 +47,7 @@ flowchart TD
     GPUProfile --> HybridSearch
     HybridSearch --> RRF[Reciprocal Rank Fusion - RRF]
     RRF --> Cutoff{Adaptive Ceiling Cutoff}
-    Cutoff --> Rerank[Core ML TinyBERT Reranker / Heuristic Fallback]
+    Cutoff --> Rerank[Core ML Granite Reranker on the Neural Engine / Heuristic Fallback]
     Rerank --> Floor[Dynamic Similarity Floor, after a wider search or a keyword retry when the first is weak]
     Floor --> MMR[MMR Diversity Selection, lambda from the library settings]
     GPUProfile --> MMR
@@ -96,7 +96,7 @@ flowchart TD
 4. **Indexing**: Chunks are written into local search (SQLite FTS5) and vector databases ([BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)). The keyword index is written twice: the document's whole text before the text is cut, with one row per page as well for a PDF of more than one page and for each batch of a PDF imported in batches, and one row per passage after its vectors are stored, all stemmed and case-folded by `porter unicode61`. A large text, Markdown or JSON Lines file is imported in pieces, and its whole text is written once, after every piece is in. The vectors are kept in arrival order in one flat Float32 file per library, which each save writes again whole, and a search compares the question with every vector (on the GPU from 1,000 vectors when the device policy allows it). There is no approximate index and no grouping by topic. (Added 2026-10-20.) `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor+Import.swift:42-53 (which files are imported in pieces), DocumentProcessor+Import.swift:331-337 (pages are numbered for more than one page or a PDF batch), DocumentProcessor+Import.swift:351-353 (a piece's text goes back to its caller), DocumentProcessor+Import.swift:359 (before chunking at :396), RAGService+TextStreaming.swift:317-321 (the whole text, after the last piece), RAGService+Import.swift:339 (vectors), RAGService+Import.swift:1205 (passage rows), SQLiteFullTextService.swift:191-195, SQLiteFullTextService.swift:242-252, SQLiteFullTextService.swift:321-327, BNNSVectorDatabase.swift:29-36 (each file written whole on a save), :1036-1048, :1063-1091 (storeBatch appends in memory, persist saves), :1104-1126, VectorStoreRouter.swift:160-161]` `[evidence_level: grep_verified, confidence: high, evidence_source: grep -rn "pageBreakSentinel" OpenIntelligence --include='*.swift', 2026-10-20: the page break is written only at DocumentProcessor+PDFText.swift:1005 and DocumentProcessor+StructuredParsing.swift:1339, both in PDF extraction]`
 5. **Query Analysis & Planning**: Incoming questions are classified, scoped, and prepared for retrieval.
 6. **Retrieval**: Candidate chunks are selected from the active library or workspace container.
-7. **Reranking and Packing**: Evidence is scored using a local Core ML TinyBERT cross-encoder (with proximity-based heuristic fallback if the model is absent), deduplicated (MMR, which acts from 5.7, see "MMR and the passages' vectors" below), expanded with sibling context, and packed into the budget. When the packing goes passage by passage (`RAGEngine.assembleContext`), a passage whose words overlap 75% or more with one already packed is skipped. A lookup's first pass packs chosen sentences instead (item 13), and there a sentence whose words overlap more than 70% with one already chosen gives way to the better-scored of the two. Contextual compression, a model call that cuts irrelevant sentences, runs on no answer path: Standard's mode turns it off, and Deep Think and Maximum leave Standard's path before its one compression step, although `RAGQualityMode.usesContextualCompression` reads true for Deep Think. (Corrected 2026-10-20: this said "and compressed".) `[evidence_level: code_verified, confidence: exact, evidence_source: RAGQualityMode.swift:277-284, RAGService+QueryPipeline.swift:212-231, RAGService+QueryContext.swift:1076-1086, RAGService+QueryContext.swift:80, RAGService+AgenticQuery.swift:905-910 (the fallback rerun is Standard), RAGService+ToolHandler.swift:92-526 (executeFullRetrievalPipeline and performFullRetrievalPipeline, no compression step), RAGService+QueryContext.swift:447-457 (a lookup's first pass), RAGService+SentenceExtraction.swift:444-505 (the sentences' own overlap test), QueryRuntimeCoordinator.swift:222-227, RAGEngine.swift:563, :605-624 (the 75% test, in assembleContext)]` `[evidence_level: grep_verified, confidence: high, evidence_source: grep -rn "ContextualCompressionService()" OpenIntelligence OpenIntelligenceTests --include='*.swift', 2026-10-20: one hit, RAGService+QueryContext.swift:80]` Only the first `min(count, max(100, min(250, topK × 5)))` fused candidates reach the reranker (`RAGEngine.rerank`); from 5.7 a warning line says how many were left out whenever that ceiling binds, which nothing showed before (roadmap F-03). `[evidence_level: code_verified, confidence: high, evidence_source: RAGEngine.swift, the adaptiveCeiling lines]`
+7. **Reranking and Packing**: Evidence is scored using a local Core ML cross-encoder, since 5.8 IBM's granite-embedding-reranker-english-r2 on the Neural Engine (TinyBERT through 5.7; see "The reranker, from 5.8" below), with a proximity-based heuristic fallback if the model is absent, deduplicated (MMR, which acts from 5.7, see "MMR and the passages' vectors" below), expanded with sibling context, and packed into the budget. When the packing goes passage by passage (`RAGEngine.assembleContext`), a passage whose words overlap 75% or more with one already packed is skipped. A lookup's first pass packs chosen sentences instead (item 13), and there a sentence whose words overlap more than 70% with one already chosen gives way to the better-scored of the two. Contextual compression, a model call that cuts irrelevant sentences, runs on no answer path: Standard's mode turns it off, and Deep Think and Maximum leave Standard's path before its one compression step, although `RAGQualityMode.usesContextualCompression` reads true for Deep Think. (Corrected 2026-10-20: this said "and compressed".) `[evidence_level: code_verified, confidence: exact, evidence_source: RAGQualityMode.swift:277-284, RAGService+QueryPipeline.swift:212-231, RAGService+QueryContext.swift:1076-1086, RAGService+QueryContext.swift:80, RAGService+AgenticQuery.swift:905-910 (the fallback rerun is Standard), RAGService+ToolHandler.swift:92-526 (executeFullRetrievalPipeline and performFullRetrievalPipeline, no compression step), RAGService+QueryContext.swift:447-457 (a lookup's first pass), RAGService+SentenceExtraction.swift:444-505 (the sentences' own overlap test), QueryRuntimeCoordinator.swift:222-227, RAGEngine.swift:563, :605-624 (the 75% test, in assembleContext)]` `[evidence_level: grep_verified, confidence: high, evidence_source: grep -rn "ContextualCompressionService()" OpenIntelligence OpenIntelligenceTests --include='*.swift', 2026-10-20: one hit, RAGService+QueryContext.swift:80]` Only the first `min(count, max(100, min(250, topK × 5)))` fused candidates reach the reranker (`RAGEngine.rerank`); from 5.7 a warning line says how many were left out whenever that ceiling binds, which nothing showed before (roadmap F-03). `[evidence_level: code_verified, confidence: high, evidence_source: RAGEngine.swift, the adaptiveCeiling lines]`
 8. **Post-Retrieval Model Routing & Generation**: `ModelExecutionPlanner` combines evidence sufficiency and synthesis burden with the captured persistent policy, foreground state, network, signed entitlement, live quota/availability, and SDK token/context budgets. Hybrid chooses per question in Standard and per planned call in Deep Think and Maximum, On-Device is local-only, and explicit PCC requests cloud but records a truthful local completion when any cloud gate prevents use. (Corrected 2026-10-20: this said Hybrid chooses "per query".) Local execution uses `SystemLanguageModel.default`; eligible iOS/macOS 27 synthesis may use native PCC after the exact minimized envelope is consented. iOS/macOS 26 remains local-only. `[evidence_level: code_verified, confidence: high_pending_physical_device_validation, evidence_source: ChatScreen.swift, ModelExecutionPlanner.swift, LLMService.swift, RAGService.swift]` In Standard, for a library that has passages, the plan is made once, before the answer is generated. A Standard question typed to a library with no documents gets no plan: the model answers it alone, with the library's tools switched off. (Corrected 2026-11-04: this said the route policy's branch for a call with no plan can send it to PCC with no consent sheet, under Hybrid when it is longer than the device's window, and at any length when PCC is picked, even with the permission on Don't Allow. That described 5.6 and the 5.7 work before 2026-10-21. `FoundationModelRoutePolicy.determineRoute` now returns `.onDevice` for a call with no plan, so this question never reaches PCC; `Docs/PRIVACY_AND_ROUTING.md`, "The exception: a question to a library with no documents", has the history. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelRoutePolicy.swift:49-65 ("No plan means on device (5.7)"), RAGService+QueryExits.swift:794-799 (`disableTools = true`, no plan)]`) `[evidence_level: code_verified, confidence: high, read link by link and not run on a device, evidence_source: RAGService+QueryPipeline.swift:327-329, RAGService+QueryExits.swift:730-801 (the empty library), RAGService+Generation.swift:1480-1487, RAGService+StandardRetrieval.swift:873-881 (no plan, no consent), FoundationModelRoutePolicy.swift:28-66, FoundationModelSessionFactory.swift:86-102]` In Deep Think and Maximum each call made through `RAGService.generateWithProperConsent` is planned on its own, and the calls made through `RAGService.generateWithFreshSession` are never planned and run on the device. Under Hybrid only the calls that write an answer can be planned to PCC. Such a call goes there when PCC is usable, the device is online, the person can be asked (the app is in front, or a Siri or Shortcuts action can bring it forward) or has already allowed it, and the call's context fits PCC's window, and when, besides, its context does not fit the device budget or, outside Standard, its passages come from more than one document. Consent is then asked before anything is sent, unless a choice is remembered. The other planned calls in those modes (the sessions, research's search-or-answer decisions and Maximum's running answers) are held on the device unless the person picked PCC in the model picker (`Docs/PRIVACY_AND_ROUTING.md`, "Fallback and stream integrity"). (Added 2026-10-20.) `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryRetrieval.swift:122 (Standard's one plan), RAGService+Generation.swift:1222-1232, RAGService+Agentic.swift:87-132, RAGService+Agentic.swift:214-220, RAGService+Agentic.swift:248-256, ModelExecutionPlanner.swift:45-56, :77-85]`
 9. **Fidelity Verification & Receipt**: Responses pass through local verification checks. Route metadata is persisted as a `ModelExecutionReceipt` that separates intended, attempted, actual, fallback, and completed targets. `[evidence_level: code_verified, confidence: high, evidence_source: VerificationGateService.swift, ModelExecutionReceipt.swift, RAGQuery.swift]` From 5.7 the numeric check compares a number as a value (`NumericValueExtractor`): "2.5 billion" has to be stated as 2.5 billion, a number that is part of a name or code ("Qwen-2.5-3B") is matched as that name, and digits inside a larger number do not match. A sentence whose figure is not stated in the passages is Partial, not Supported. The same reading is applied in the source-only check that follows a Deep Think or Maximum answer. From 2026-10-20 a claim's check (Fact Check, Check a Claim) also counts an ordinal ("the 16th", against the same number in digits or words) and an amount written in words ("four hundred dollars", `NumericValueExtractor.spelledAmounts`); the numeric gate over a whole answer counts neither, and a passage's amounts in words are values an answer's digits can match. `[evidence_level: test_verified (NumericSanityGateTests), confidence: high, evidence_source: NumericValueExtractor.swift, VerificationGateService.swift]` `[evidence_level: test_verified for Standard's gate and claim check, build_verified for the source-only check; confidence: high; evidence_source: NumericSanityGateTests, 2026-10-09; SourceOnlyAnswerService.swift]`
 10. **Presentation**: Answers are shown with liquid glass UI indicators, citations, quality gauges, and review affordances.
@@ -220,7 +220,7 @@ Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval 
 
     **2026-10-17, for 5.7: every score sort in retrieval breaks ties the same way.** Eight sorts ordered passages by score alone, so passages with equal scores kept whatever order they arrived in: the keyword boost, the structure boost and the scoped search (`HybridSearchService`, now `byScoreThenId`), and the heuristic rerank, the brute-force vector search, reciprocal rank fusion and both cross-encoder sorts (`RAGEngine`, by `HybridSearchService.stableTieBreakKey`). The key is the document's name, the passage's place in it and, from that day, the document's id: vector hits carry no name and keyword-only hits are named "Unknown" at these stages, and keyword results reach fusion in a dictionary's order, so passages of two documents at the same place still tied without it. The brute-force search sorts by document id and place. The cross-encoder's penalties floor scores at 0.01, so ties there are common right at the cut. This removes one known source of the difference between runs; whether two runs of one build now agree has not been measured (a greedy A/A pair on the Mac closes the row). Since 2026-10-18 both helpers are `nonisolated`: `RAGEngine` calls `stableTieBreakKey` off the main actor, and the module's default isolation made each call a main-actor call from a nonisolated context (ten warnings, two at each of five sorts, in the demo copy's Release build of `b19b9b5`), and the same build warned three times at three sorts inside `HybridSearchService`, "call to main actor-isolated static method 'byScoreThenId' in a synchronous nonisolated context"; there are none of either in the test build of the next commit's tree. `[evidence_level: measured (that build log: 10 and 3 warnings), build_verified (0 of either, 2026-10-18), confidence: high, evidence_source: HybridSearchService.swift, RAGEngine.swift]` `[evidence_level: test_verified (HybridSearchServiceTests: tied passages, named and unnamed, come out in one order whatever order they went in), not yet measured as A/A, confidence: medium, evidence_source: HybridSearchService.swift, RAGEngine.swift]`
 
-21. **The cross-encoder reranker is real and lives in `Orchestration`, not `Retrieval`** *(added 2026-09-01)*: stated here because a search scoped to `Services/RAG/Retrieval/` finds only heuristic scoring and reads as though no reranker exists. It does. `RAGEngine.swift:82` loads `ReRankerModel` at launch and `rerankWithCrossEncoder` runs at `:354` whenever the model and its tokenizer are both present, falling back when either is missing to the heuristic scorer in the same function, not to fusion order: each candidate's incoming score plus keyword, proximity, chunk-position and metadata boosts, minus the TOC, question-bank and bibliography penalties, with a `Cross-encoder unavailable ... heuristic fallback` warning logged every time. **Corrected 2026-09-24:** this sentence said "falling through to fusion order", which contradicted the flow diagram and item 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:354, :366-370, :372-400]` It is bound to `cross-encoder/ms-marco-TinyBERT-L2-v2` by exact path in `THIRD_PARTY_NOTICES.md`.
+21. **The cross-encoder reranker is real and lives in `Orchestration`, not `Retrieval`** *(added 2026-09-01)*: stated here because a search scoped to `Services/RAG/Retrieval/` finds only heuristic scoring and reads as though no reranker exists. It does. `RAGEngine.swift:82` loads `ReRankerModel` at launch and `rerankWithCrossEncoder` runs at `:354` whenever the model and its tokenizer are both present, falling back when either is missing to the heuristic scorer in the same function, not to fusion order: each candidate's incoming score plus keyword, proximity, chunk-position and metadata boosts, minus the TOC, question-bank and bibliography penalties, with a `Cross-encoder unavailable ... heuristic fallback` warning logged every time. **Corrected 2026-09-24:** this sentence said "falling through to fusion order", which contradicted the flow diagram and item 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:354, :366-370, :372-400]` It is bound to `ibm-granite/granite-embedding-reranker-english-r2` (since 5.8; `cross-encoder/ms-marco-TinyBERT-L2-v2` through 5.7) by exact path in `THIRD_PARTY_NOTICES.md`.
 
     The flow diagram in section 2 has always shown this correctly as "Core ML TinyBERT Reranker / Heuristic Fallback". An audit on 2026-08-29 nonetheless concluded the reranker was absent, and that claim reached a published document and a roadmap row before `Docs/ai/ARCHITECTURE.md` contradicted it. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:82 and :354; Resources/MLModels/ReRankerModel.mlpackage]`
 
@@ -430,6 +430,114 @@ precision lookup's two (the full run happens), the end of a Deep Think or Maximu
 `RAGService+AgenticQuery.swift`), and the reliability fallback (the passages answer instead,
 `buildReliabilityFallbackResponse`, whose gating string now carries the verdict).
 `[evidence_level: measured (Mac probe), test_verified (AnswerResponsivenessJudgeTests, VerificationOutcomeTests), confidence: medium; the iPhone's verdicts not yet read]`
+
+## The reranker, from 5.8 (added 2026-11-09)
+
+The cross-encoder is IBM's `granite-embedding-reranker-english-r2` (149 million parameters, 22 layers, Apache 2.0),
+replacing `cross-encoder/ms-marco-TinyBERT-L2-v2` (2 layers, 4.4 million). Two reasons, both measured or read:
+
+- **Commercial use.** TinyBERT was trained on MS MARCO, whose terms allow non-commercial research only; IBM's card
+  says the Granite reranker's training data leaves MS MARCO out "due to its non-commercial license" (read 2026-11-09 at
+  revision `d09d3d69`). `Docs/ai/PURPOSE.md` rule 1.
+- **Accuracy.** On 246 QASPER questions over 80 papers (3,912 passages, the app's `[file] [section path]` prefix,
+  hybrid vector and BM25 with reciprocal rank fusion at k=60, the top 50 reranked), the first gold passage reached the
+  top 5 for 37.0% of questions with no reranker, 41.9% with TinyBERT and 48.8% with Granite; Granite against TinyBERT
+  was better on 25 questions and worse on 8 (sign test p=0.005). The bundled Core ML file scores 48.4% (4-bit
+  palettized, 2 questions better and 2 worse than 8-bit). `BenchmarkRuns/2026-11-09-reranker-swap/`.
+
+How it runs (`RAGEngine.setupReRanker`, `rerankWithCrossEncoder`):
+
+- `ReRankerModel.mlpackage` holds two fixed-shape functions, `len256` and `len512`, sharing one 76 MB weight file;
+  each pair runs on the shorter function that holds it. Fixed shapes are what the Neural Engine runs (enumerated shapes
+  were planned onto the CPU); 887 of 897 operations are planned there. Compute units are CPU and Neural Engine, which
+  ran it faster than the GPU on an M3 Pro: 10.4 against 20.8 ms a pair at 256 tokens, 31.6 against 38.8 at 512.
+  TinyBERT took 0.8 ms. The first load after an install compiles the model for the Neural Engine (about 50 s on the M3
+  Pro, 45.5 s on an iPhone 16 Pro Max by the journal's `reranker.load`, 2026-11-09; 0.2 to 1.5 s from Core ML's cache
+  afterwards; `RerankerSetupCard` shows "Setting up search" on every tab meanwhile). `RerankerWarmup` starts the load four seconds after a launch into the
+  foreground (until 5.8 `RAGEngine.shared`, whose initializer starts it, was first created by the first search, so the
+  first question would have paid the compile); a load past one second shows "Preparing search" on the model pill and,
+  for a question that waits on it, as a step (`RerankerSetupStatus`).
+- **Inside the app** (`DeepThinkRetrievalGoldenTests`, iOS 27 Simulator, 71 documents, 7,078 passages, one pass under
+  the Simulator's window, scored by the question's expected document with
+  `BenchmarkRuns/2026-11-09-reranker-swap/scripts/score_golden.py`): Deep Think at 15 passages, 92 questions, the
+  expected document first 28.3% before and 33.7% after, in the top 5 48.9% and 50.0%, MRR 0.372 and 0.413 (23 better,
+  19 worse, p=0.64); Maximum at 15, 36 questions, top 5 50.0% and 55.6% (9/7); Standard at 20, 19 questions, top 5
+  52.6% and 47.4% (2 better, 6 worse, p=0.29). None of these differences is significant. Most of these questions are
+  QASPER's ("What is their evaluation metric?") and name no paper, so the expected document is often not
+  identifiable from the question in a 71-document library; the passage-level QASPER test above is the sharper measure.
+  The Simulator runs Core ML on the CPU, so its search pass took 3,236 s against 281 s and says nothing about a
+  device.
+- Inputs are the token ids and the mask, without TinyBERT's token types; a pair longer than 512 tokens loses the
+  passage's end and keeps its closing `[SEP]`, as the model's own tokenizer truncates. The output is one logit, min-max
+  normalised over the batch to 0.10 to 0.90 as before, so every downstream threshold reads the same scale.
+- The tokenizer is the model's own (byte-pair encoding, `reranker_tokenizer.bundle`), pinned by `RerankerModelTests`
+  to the token ids and scores the build script printed.
+
+`[evidence_level: measured (accuracy, timings, load), code_verified (the loading and scoring), documented (the
+licence and training data, the model card); confidence: high for the ranking gain on QASPER, unmeasured on the
+iPhone's Neural Engine]`
+
+## Side searches go behind retrieval's best passage (added 2026-11-09, for 5.8)
+
+Three steps add passages found outside the reranker to an extractive question's candidates: cross-reference resolution
+(`addCrossReferencedPassages`, Step 4.6), Standard's spec sniper (`runSpecTableSniper`, Step 4.8, keyword and number
+co-occurrence over every passage) and Deep Think's spec sniper (`RAGService+ToolHandler`). Each inserted at position 0.
+Sentence extraction keeps the first candidate whole (`leadingWithTopRanked`, 5.7, up to three fifths of the budget), so
+whatever a side search found decided the answer. On the owner's iPhone, 2026-11-09, "How much lysine is present?"
+(Standard, 48 documents, 8,202 passages): both reranks ranked the Elfar spirulina composition table first, the sniper
+put two passages from an autism-biomarker paper ahead of it on "lysine" and "present", the prompt held 2 of 162
+passages (both from that paper) and the answer said the topic was not in the documents. All three now insert through
+`RAGService.insertingBehindTopRanked`: right behind the top passage, ahead of every other candidate, so they still
+survive the budget. When the reranker's first pick is wrong and a side search's is right, the side search's passage
+is second instead of first; that is the trade, and it is not yet measured on the golden set or QASPER.
+
+The same run ended blank for a second reason, downstream of retrieval: the model stopped after "1", the
+responsiveness judge called it a full answer, and `cleanupResponseText` deleted a line that was only a number as an
+orphaned list marker. `isDegenerateAnswer` now sends an answer with no letters back for one rewrite and, failing that,
+Standard shows `notFoundAnswer`; `isOrphanListMarker` requires the marker's period or bracket.
+
+Checked on the phone at 17:40 the same day: the spirulina paper was S1 and the answer had words, but it opened with
+"**ONE**" and quoted the prose beside the table ("small amounts") instead of its row (lysine 4.4 to 26.2 mg/g). The
+count came from the "State the exact count FIRST" instruction, which "how much" questions also got; it is now for
+"how many" only (`getsCountInstruction`). Whether the lysine row was in the lead passage ("[Part 1]" of the table) is
+open: `[RAG] Lead passage` now logs the lead's document, page, structure, and how many of its characters the room kept.
+
+That line settled it at 17:44: the lead was the prose paragraph (p.5, 1,579 of 1,579 characters), not the table. The
+cross-encoder had ranked the table first at 0.90, and `RAGEngine.computeTOCPenalty` took 0.18 off it because its
+section-number pattern (`\b\d+\.\d+\.?`, 8 or more matches) counts every decimal in "15.0-25.0" and "4.4-26.2"; the
+gate read 0.720 at the top. For a passage stored as a table (`isStoredTable`) the penalty now counts only dot leaders
+and the words "contents" or "table of contents"; numbers, short lines and list markers describe every data table.
+`[evidence_level: artifact_derived, test_verified (AnswerFloorTests), confidence: high for the mechanism]`
+
+`[evidence_level: code_verified, artifact_derived (pipeline_trace.log, 2026-11-09 14:56 to 15:05), test_verified
+(AnswerFloorTests); confidence: high for the mechanism, unmeasured for accuracy across sets]`
+
+## Every rule after the reranker, measured (added 2026-11-10, for 5.8)
+
+Thirty rules change a passage's score, rank, inclusion or place between the cross-encoder and the prompt; twelve can
+override its first pick, and several were written for TinyBERT ("the reranker has an inherent prose bias"). Each was
+switched off on its own (`RetrievalAblation`, development builds) and measured by whether the evidence reached the
+model (`EvidenceReachBenchmarkTests`, `scripts/evidence_reach.py`): 246 QASPER questions (prose) and 158 table questions
+over 7 PDFs (a numeric cell read off the page image). Full tables: `BenchmarkRuns/2026-11-10-rule-audit/README.md`.
+
+- **Corrective retrieval** measurably helps: switched off, Standard's evidence coverage on QASPER fell 0.617 to 0.595
+  (15 better, 33 worse, p=0.01). The focused neighbour window probably helps (0.608, 6/15, p=0.08).
+- **Deep Think's spec sniper is removed.** On tables the cell's passage came first in 72.2% of searches with it and
+  75.9% without (7 better, 1 worse, p=0.07); on QASPER 32.5% and 32.1%. Standard keeps its sniper (off: 2 of 158 cells
+  lost, p=0.50).
+- No other rule measurably helps or hurts on either set: the three penalties (the question-bank and bibliography ones
+  never fired; the contents-page one is neutral with tables exempt), definition boost (QASPER 9 better, 4 worse
+  switched off, p=0.27), spec rescue, summary hybrid, cross-references, extractive priority, graph packing. They stay.
+- Not measured: contextual compression (a model call; the harness's stand-in model skips it) and Deep Think's
+  multi-query blend (the harness does not call `executeMultiQuerySearch`).
+
+With everything on, the table cell reached Standard's prompt for 83.5% of questions, and Apple's model answered 125 of
+158 right, 124 of the 131 whose cell reached it: the loss is retrieval and import, not the model. On the import side a
+table whose title spans its first row is stored with "Column 2 | Column 3" as its header and the real header as row 1
+(`tables/fidelity.score.txt`).
+
+`[evidence_level: measured (iOS 27 Simulator, 2026-11-10), code_verified; confidence: high for corrective retrieval
+and for the absence of large effects, medium for the sniper (p=0.07); tables limited to 7 PDFs]`
 
 ## Look-alike numbers are not duplicates, and the reranker's pool was measured (added 2026-11-08, for 5.8)
 

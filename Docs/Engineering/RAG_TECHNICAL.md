@@ -85,7 +85,7 @@ QUERY → RESPONSE (25 specified; 28 present in code, 27 active — see note bel
   Step 2.5: RAPTOR-lite Routing (overview → L1 summaries)
   Step 3:   Hybrid Search (Vector + BM25 + RRF) or Iterative Retrieval
   Step 3.5: Section Metadata Boost                                [UNSPECIFIED]
-  Step 4:   Cross-Encoder Rerank (TinyBERT)
+  Step 4:   Cross-Encoder Rerank (Granite since 5.8; TinyBERT through 5.7)
   Step 4.3: Low-Confidence Filtering
   Step 4.4: Multi-Document Representation (source diversity)
   Step 4.5: MMR Diversification (λ=0.6)
@@ -606,7 +606,7 @@ Hybrid Search (Vector + BM25) → RRF Fusion → Cross-Encoder Rerank → Final 
 ### Model
 
 - `ReRankerModel.mlpackage` (bundled Core ML model)
-- Based on TinyBERT/ms-marco architecture
+- Since 5.8 IBM's granite-embedding-reranker-english-r2 (ModernBERT, 22 layers), two fixed-shape functions `len256` and `len512` on the Neural Engine, built by `scripts/build_reranker_model.py`; through 5.7 ms-marco-TinyBERT-L2-v2
 - Falls back to heuristic scoring if model unavailable
 
 ### Code Location

@@ -372,7 +372,7 @@
           "stepNumber": "4",
           "name": "Cross-Encoder Rerank",
           "shortName": "Rerank",
-          "description": "TinyBERT cross-encoder scores all query-chunk pairs. Concurrent TaskGroup (2-4 predictions by device tier). MLMultiArray bulk dataPointer writes.",
+          "description": "Granite cross-encoder (since 5.8; TinyBERT through 5.7) scores all query-chunk pairs on the Neural Engine. Concurrent TaskGroup (2-4 predictions by device tier). MLMultiArray bulk dataPointer writes.",
           "thinkingKinds": ["rerank"],
           "color": "#f97316",
           "typicalDuration": "100-500ms"

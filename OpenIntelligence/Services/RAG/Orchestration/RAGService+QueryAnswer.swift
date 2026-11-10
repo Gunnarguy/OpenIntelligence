@@ -49,7 +49,11 @@ extension RAGService {
 
     /// Step 6 (citations): retries once for a cited answer when citations are required and missing.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func retryForMissingCitations(llmResponse: inout LLMResponse, requiresCitations: Bool, allowUngroundedFallback: Bool, selectedName: String, question: String, genConfig: InferenceConfig, usedOverflowRetry: Bool, generationContext: String, generationChunks: [DocumentChunk]) async -> (responseText: String, preserveStreamingResponse: Bool) {
+    func retryForMissingCitations(
+        llmResponse: inout LLMResponse, requiresCitations: Bool, allowUngroundedFallback: Bool, selectedName: String,
+        question: String, genConfig: InferenceConfig, usedOverflowRetry: Bool, generationContext: String,
+        generationChunks: [DocumentChunk]
+    ) async -> (responseText: String, preserveStreamingResponse: Bool) {
         var responseText = llmResponse.text
 
         let preserveStreamingResponse = LLMStreamingContext.handler != nil
@@ -105,7 +109,11 @@ extension RAGService {
 
     /// Step 6 (integrity): normalizes malformed output and runs one grounded repair pass when needed.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func repairResponseIntegrity(responseText: inout String, question: String, answerIntent: AnswerIntent, genConfig: InferenceConfig, requiresCitations: Bool, generationContext: String, generationChunks: [DocumentChunk], llmResponse: inout LLMResponse) async {
+    func repairResponseIntegrity(
+        responseText: inout String, question: String, answerIntent: AnswerIntent, genConfig: InferenceConfig,
+        requiresCitations: Bool, generationContext: String, generationChunks: [DocumentChunk],
+        llmResponse: inout LLMResponse
+    ) async {
         // Universal output integrity gate:
         // Detect malformed generation artifacts (placeholder lists, repetition loops,
         // dangling markdown) and attempt one grounded repair pass.
@@ -204,7 +212,10 @@ extension RAGService {
 
     /// Step 6g (override): replaces the answer with the source-locked precision-lookup value when the model did not state it.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func applyPrecisionLookupOverride(answerIntentIsExtractive: Bool, question: String, answerIntent: AnswerIntent, generationRetrievedChunks: [RetrievedChunk], responseText: inout String) async -> Bool {
+    func applyPrecisionLookupOverride(
+        answerIntentIsExtractive: Bool, question: String, answerIntent: AnswerIntent,
+        generationRetrievedChunks: [RetrievedChunk], responseText: inout String
+    ) async -> Bool {
         var sourceLockedFinalResponse = false
         if answerIntentIsExtractive || isPrecisionValueQuery(question),
             let extractiveOverride = await highPrecisionLookupOverride(
@@ -238,7 +249,9 @@ extension RAGService {
 
     /// Step 7: scores answer confidence and quality warnings.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func assessAnswerQuality(generationRetrievedChunks: [RetrievedChunk], engine: RAGEngine, question: String, auditTopSim: Float) async -> (confidenceScore: Float, qualityWarnings: [String]) {
+    func assessAnswerQuality(
+        generationRetrievedChunks: [RetrievedChunk], engine: RAGEngine, question: String, auditTopSim: Float
+    ) async -> (confidenceScore: Float, qualityWarnings: [String]) {
         // Step 7: Calculate confidence score and quality warnings
         Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
         HardwareTelemetryState.shared.reportRAGPipeline(stage: "Quality Assessment")
@@ -280,7 +293,13 @@ extension RAGService {
 
     /// Step 7.5 (run): runs verification gates A-G against the answer and the evidence embeddings.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func verifyAnswerAgainstEvidence(question: String, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, auditAvgTop5: Float, auditSecondSim: Float, auditTopSim: Float, responseText: String, queryEmbeddingService: EmbeddingService, generationRetrievedChunks: [RetrievedChunk], vdb: any VectorDatabase, verificationResult: inout RAGVerificationResult?, contextCandidates: [RetrievedChunk], queryEmbedding: [Float], llmResponse: LLMResponse, verificationTime: inout TimeInterval) async -> (confidencePolicy: QueryConfidencePolicy, verificationService: VerificationGateService) {
+    func verifyAnswerAgainstEvidence(
+        question: String, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, auditAvgTop5: Float,
+        auditSecondSim: Float, auditTopSim: Float, responseText: String, queryEmbeddingService: EmbeddingService,
+        generationRetrievedChunks: [RetrievedChunk], vdb: any VectorDatabase,
+        verificationResult: inout RAGVerificationResult?, contextCandidates: [RetrievedChunk], queryEmbedding: [Float],
+        llmResponse: LLMResponse, verificationTime: inout TimeInterval
+    ) async -> (confidencePolicy: QueryConfidencePolicy, verificationService: VerificationGateService) {
         Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
 
         let confidencePolicy = ConfidencePolicyService.policy(
@@ -344,7 +363,13 @@ extension RAGService {
 
     /// Step 9 (source-only): checks an extractive answer against its sources when the Standard gates flagged it.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func applySourceOnlyCheck(answerIntentIsExtractive: Bool, question: String, qualityMode: RAGQualityMode, verificationResult: RAGVerificationResult?, answerIntent: AnswerIntent, responseText: String, generationRetrievedChunks: [RetrievedChunk], sourceLockedFinalResponse: Bool, finalResponseText: inout String, structuredAnswer: inout StructuredAnswer, gatingSummary: inout String?, finalWarnings: inout [String], finalConfidenceScore: inout Float, confidenceScore: Float) async {
+    func applySourceOnlyCheck(
+        answerIntentIsExtractive: Bool, question: String, qualityMode: RAGQualityMode,
+        verificationResult: RAGVerificationResult?, answerIntent: AnswerIntent, responseText: String,
+        generationRetrievedChunks: [RetrievedChunk], sourceLockedFinalResponse: Bool, finalResponseText: inout String,
+        structuredAnswer: inout StructuredAnswer, gatingSummary: inout String?, finalWarnings: inout [String],
+        finalConfidenceScore: inout Float, confidenceScore: Float
+    ) async {
         #if canImport(FoundationModels)
             // Standard checks an extractive answer against its sources only when the
             // verification gates flagged it. The check is two sequential structured
@@ -403,9 +428,20 @@ extension RAGService {
         #endif
     }
 
+    /// Whether a lookup question gets the "State the exact count FIRST" instruction: "how many" only (5.8). "How much"
+    /// asks for an amount, and with the count instruction the on-device model opened all three of the owner's answers
+    /// to "How much lysine is present?" on 2026-11-09 with a count: "1. **Value not specified**", "1", "**ONE**".
+    nonisolated static func getsCountInstruction(_ lowerQuestion: String) -> Bool {
+        lowerQuestion.contains("how many")
+    }
+
     /// Step 6 (prompt): writes the intent-specific system prompt and the temperature caps into the generation config.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func composeStandardGenerationConfig(inferenceConfig: InferenceConfig, includedChunks: [DocumentChunk], question: String, answerIntent: AnswerIntent, contextualDefinitionLookup: Bool, useEvidenceFirstMode: Bool, qualityModeTemperature: Float, retrievalConfig: RetrievalConfig) -> InferenceConfig {
+    func composeStandardGenerationConfig(
+        inferenceConfig: InferenceConfig, includedChunks: [DocumentChunk], question: String, answerIntent: AnswerIntent,
+        contextualDefinitionLookup: Bool, useEvidenceFirstMode: Bool, qualityModeTemperature: Float,
+        retrievalConfig: RetrievalConfig
+    ) -> InferenceConfig {
         var genConfig = inferenceConfig
 
         // ═══════════════════════════════════════════════════════════════
@@ -436,8 +472,7 @@ extension RAGService {
         case .lookup, .tableLookup:
             // Detect count/enumeration queries that slipped through to lookup
             // (e.g., "how many quarts" — single-value with unit)
-            let isCountQuery = lowerQuestion.contains("how many") || lowerQuestion.contains("how much")
-            if isCountQuery {
+            if Self.getsCountInstruction(lowerQuestion) {
                 intentSpecificInstructions = """
                     State the exact count FIRST, then list only the directly relevant items by name.
                     Keep each bullet brief. Copy names, labels, and values VERBATIM from the excerpts.
@@ -550,7 +585,11 @@ extension RAGService {
 
     /// Step 6 (output budget): caps maxTokens to the room left after the context and applies the procedural and trivial adjustments.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func capGenerationTokens(baseWindowTokens: Int, contextTokens: Int, promptOverheadTokens: Int, questionTokens: Int, globalSafetyFactor: Double, genConfig: inout InferenceConfig, isProceduralQuery: Bool, allowLargeContext: Bool, isTrivial: Bool) {
+    func capGenerationTokens(
+        baseWindowTokens: Int, contextTokens: Int, promptOverheadTokens: Int, questionTokens: Int,
+        globalSafetyFactor: Double, genConfig: inout InferenceConfig, isProceduralQuery: Bool, allowLargeContext: Bool,
+        isTrivial: Bool
+    ) {
         let availableForOutput = max(
             128,
             Int(
@@ -587,7 +626,9 @@ extension RAGService {
 
     /// Step 6 (history): adds conversation history or memory to the prompt and decides whether citations are required.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func buildGenerationPrompt(selectedId: UUID, question: String, retrievalConfig: RetrievalConfig, qualityModeRequiresCitations: Bool) -> (promptForGeneration: String, requiresCitations: Bool) {
+    func buildGenerationPrompt(
+        selectedId: UUID, question: String, retrievalConfig: RetrievalConfig, qualityModeRequiresCitations: Bool
+    ) -> (promptForGeneration: String, requiresCitations: Bool) {
         // Inject conversational history to support follow-up questions
         // e.g. "What is it?" uses history to resolve "it"
         let history = chatHistory(for: selectedId)
@@ -646,7 +687,10 @@ extension RAGService {
 
     /// Step 6 (chain gate): decides whether the developer-forced reasoning chain runs.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func decideReasoningChain(initialQueryProfile: QueryProfile, qualityMode: RAGQualityMode, useEvidenceFirstMode: Bool, isTrivial: Bool, bestRetrievalSim: Float, contextSize: Int, includedRetrievedChunks: [RetrievedChunk]) -> (useReasoningChain: Bool, standardComplexity: QueryComplexityResult, reasoningTraceForMetadata: [String]?) {
+    func decideReasoningChain(
+        initialQueryProfile: QueryProfile, qualityMode: RAGQualityMode, useEvidenceFirstMode: Bool, isTrivial: Bool,
+        bestRetrievalSim: Float, contextSize: Int, includedRetrievedChunks: [RetrievedChunk]
+    ) -> (useReasoningChain: Bool, standardComplexity: QueryComplexityResult, reasoningTraceForMetadata: [String]?) {
         // Track reasoning trace from chained sessions (for UI display)
         var reasoningTraceForMetadata: [String]? = nil
 
@@ -687,12 +731,18 @@ extension RAGService {
 
             return true
         }()
-        return (useReasoningChain: useReasoningChain, standardComplexity: standardComplexity, reasoningTraceForMetadata: reasoningTraceForMetadata)
+        return (
+            useReasoningChain: useReasoningChain, standardComplexity: standardComplexity,
+            reasoningTraceForMetadata: reasoningTraceForMetadata
+        )
     }
 
     /// Step 6 (telemetry): measures the generation time and emits the 'Response generated' events.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func emitGenerationTelemetry(generationStartTime: Date, responseText: String, llmResponse: LLMResponse, selectedName: String, selectedId: UUID) -> (generationTime: TimeInterval, responseWordCount: Int) {
+    func emitGenerationTelemetry(
+        generationStartTime: Date, responseText: String, llmResponse: LLMResponse, selectedName: String,
+        selectedId: UUID
+    ) -> (generationTime: TimeInterval, responseWordCount: Int) {
         let generationTime = Date().timeIntervalSince(generationStartTime)
         let responseWordCount = wordCount(of: responseText)
         TelemetryCenter.emit(
@@ -719,7 +769,9 @@ extension RAGService {
 
     /// Step 6g (log): logs the model, timing, length and token rate of the generated answer.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func logGeneratedResponse(generationTime: TimeInterval, responseText: String, responseWordCount: Int, llmResponse: LLMResponse) {
+    func logGeneratedResponse(
+        generationTime: TimeInterval, responseText: String, responseWordCount: Int, llmResponse: LLMResponse
+    ) {
         Log.info("✓ Response generated", category: .llm)
         Log.info("  Model: \(llmService.modelName)", category: .llm)
         Log.info(
@@ -732,7 +784,9 @@ extension RAGService {
         #if DEBUG
             // Development builds record the answer's opening so a run can be reviewed from the trace; the question is
             // already in "Query received". Release builds never write it.
-            Log.debug("  Response text: \(String(responseText.prefix(400)).replacingOccurrences(of: "\n", with: " ⏎ "))", category: .llm)
+            Log.debug(
+                "  Response text: \(String(responseText.prefix(400)).replacingOccurrences(of: "\n", with: " ⏎ "))",
+                category: .llm)
         #endif
         Log.debug("  Words: \(responseWordCount)", category: .llm)
 
@@ -749,7 +803,13 @@ extension RAGService {
 
     /// Step 8: calibrates confidence and logs and emits the pipeline completion.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func calibrateConfidenceAndLogCompletion(pipelineStartTime: Date, question: String, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, generationRetrievedChunks: [RetrievedChunk], verificationResult: RAGVerificationResult?, confidenceScore: Float, expansionTime: TimeInterval, embeddingTime: TimeInterval, retrievalTime: TimeInterval, rerankTime: TimeInterval, mmrTime: TimeInterval, verificationTime: TimeInterval, generationTime: TimeInterval, selectedName: String, selectedId: UUID) {
+    func calibrateConfidenceAndLogCompletion(
+        pipelineStartTime: Date, question: String, answerIntent: AnswerIntent, qualityMode: RAGQualityMode,
+        generationRetrievedChunks: [RetrievedChunk], verificationResult: RAGVerificationResult?, confidenceScore: Float,
+        expansionTime: TimeInterval, embeddingTime: TimeInterval, retrievalTime: TimeInterval, rerankTime: TimeInterval,
+        mmrTime: TimeInterval, verificationTime: TimeInterval, generationTime: TimeInterval, selectedName: String,
+        selectedId: UUID
+    ) {
         // Step 8: Package results
         let pipelineTotalTime = Date().timeIntervalSince(pipelineStartTime)
 
@@ -821,7 +881,15 @@ extension RAGService {
 
     /// Step 9 (gating): builds the gating summary, final warnings and the structured answer.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func summarizeGatingAndWarnings(acceptanceOverride: Bool, lenient: Bool, verificationResult: RAGVerificationResult?, qualityWarnings: [String], responseText: String, confidenceScore: Float, generationRetrievedChunks: [RetrievedChunk], answerIntent: AnswerIntent, llmResponse: LLMResponse, reasoningTraceForMetadata: [String]?, allowUngroundedFallback: Bool) -> (finalResponseText: String, structuredAnswer: StructuredAnswer, gatingSummary: String?, finalWarnings: [String], finalConfidenceScore: Float) {
+    func summarizeGatingAndWarnings(
+        acceptanceOverride: Bool, lenient: Bool, verificationResult: RAGVerificationResult?, qualityWarnings: [String],
+        responseText: String, confidenceScore: Float, generationRetrievedChunks: [RetrievedChunk],
+        answerIntent: AnswerIntent, llmResponse: LLMResponse, reasoningTraceForMetadata: [String]?,
+        allowUngroundedFallback: Bool
+    ) -> (
+        finalResponseText: String, structuredAnswer: StructuredAnswer, gatingSummary: String?, finalWarnings: [String],
+        finalConfidenceScore: Float
+    ) {
         // Step 9: Create response metadata
         var gatingSummary: String? =
             acceptanceOverride
@@ -863,12 +931,22 @@ extension RAGService {
             loops: reasoningTraceForMetadata?.count ?? 1,
             allowUngroundedFallback: allowUngroundedFallback
         )
-        return (finalResponseText: finalResponseText, structuredAnswer: structuredAnswer, gatingSummary: gatingSummary, finalWarnings: finalWarnings, finalConfidenceScore: finalConfidenceScore)
+        return (
+            finalResponseText: finalResponseText, structuredAnswer: structuredAnswer, gatingSummary: gatingSummary,
+            finalWarnings: finalWarnings, finalConfidenceScore: finalConfidenceScore
+        )
     }
 
     /// Step 9 (response): builds the response metadata and the RAGResponse and logs the total time.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func buildStandardResponse(llmResponse: LLMResponse, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, gatingSummary: String?, embeddingProviderId: String, qualityMode: RAGQualityMode, question: String, reasoningTraceForMetadata: [String]?, runtimeContext: QueryRuntimeContext, generationContext: String, finalResponseText: String, structuredAnswer: StructuredAnswer, ragQueryValue: RAGQuery, generationRetrievedChunks: [RetrievedChunk], finalConfidenceScore: Float, finalWarnings: [String], pipelineStartTime: Date) -> RAGResponse {
+    func buildStandardResponse(
+        llmResponse: LLMResponse, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, gatingSummary: String?,
+        embeddingProviderId: String, qualityMode: RAGQualityMode, question: String,
+        reasoningTraceForMetadata: [String]?, runtimeContext: QueryRuntimeContext, generationContext: String,
+        finalResponseText: String, structuredAnswer: StructuredAnswer, ragQueryValue: RAGQuery,
+        generationRetrievedChunks: [RetrievedChunk], finalConfidenceScore: Float, finalWarnings: [String],
+        pipelineStartTime: Date
+    ) -> RAGResponse {
         let metadata = ResponseMetadata(
             timeToFirstToken: llmResponse.timeToFirstToken,
             totalGenerationTime: llmResponse.totalTime,

@@ -26,7 +26,14 @@ import PDFKit
 extension RAGService {
     /// Step 3 (iterative): runs multi-pass iterative retrieval with self-correction.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func runIterativeRetrieval(iterativeConfig: IterativeRetrievalConfig, adjustedVectorWeight: Float, adjustedKeywordWeight: Float, queryEmbeddingService: EmbeddingService, expandedQueries: [String], effectiveQuery: String, originalKeywordQuery: String?, vdb: any VectorDatabase, effectiveTopK: Int, filteredCachedChunks: [DocumentChunk]?, answerIntent: AnswerIntent, retrievedChunks: inout [RetrievedChunk], iterativeMetadata: inout (iterations: Int, confidence: Float, queries: Int)?, auditUsedIterativeRetrieval: inout Bool, auditIterativePassCount: inout Int) async throws {
+    func runIterativeRetrieval(
+        iterativeConfig: IterativeRetrievalConfig, adjustedVectorWeight: Float, adjustedKeywordWeight: Float,
+        queryEmbeddingService: EmbeddingService, expandedQueries: [String], effectiveQuery: String,
+        originalKeywordQuery: String?, vdb: any VectorDatabase, effectiveTopK: Int,
+        filteredCachedChunks: [DocumentChunk]?, answerIntent: AnswerIntent, retrievedChunks: inout [RetrievedChunk],
+        iterativeMetadata: inout (iterations: Int, confidence: Float, queries: Int)?,
+        auditUsedIterativeRetrieval: inout Bool, auditIterativePassCount: inout Int
+    ) async throws {
         // Multi-pass iterative retrieval with self-correction
         Log.section(
             "Step 3: Iterative Retrieval (\(iterativeConfig.maxIterations) max passes)",
@@ -106,7 +113,13 @@ extension RAGService {
 
     /// Step 6 (route plan): applies the post-retrieval model plan (Private Cloud Compute envelope, consent, local fallback, abstain).
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func applyPostRetrievalModelPlan(uniqueSourceDocs: Int, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, promptForGeneration: String, generationContext: inout String, genConfig: inout InferenceConfig, generationRetrievedChunks: inout [RetrievedChunk], cloudConsentState: CloudConsentState, networkAvailable: Bool, question: String, generationChunks: inout [DocumentChunk], engine: RAGEngine, orderedCandidates: [RetrievedChunk], useLostInMiddleMitigation: Bool) async throws {
+    func applyPostRetrievalModelPlan(
+        uniqueSourceDocs: Int, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, promptForGeneration: String,
+        generationContext: inout String, genConfig: inout InferenceConfig,
+        generationRetrievedChunks: inout [RetrievedChunk], cloudConsentState: CloudConsentState, networkAvailable: Bool,
+        question: String, generationChunks: inout [DocumentChunk], engine: RAGEngine,
+        orderedCandidates: [RetrievedChunk], useLostInMiddleMitigation: Bool
+    ) async throws {
         if ModelRoutingFeatureFlags.plannerV1Enabled,
             llmService is AppleFoundationLLMService
         {
@@ -272,7 +285,13 @@ extension RAGService {
 
     /// Step 3 (single pass): runs the hybrid vector and BM25 search.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func runHybridSearch(adjustedVectorWeight: Float, adjustedKeywordWeight: Float, effectiveTopK: Int, queryIntent: QueryIntent, vdb: any VectorDatabase, retrievedChunks: inout [RetrievedChunk], expandedQueries: [String], effectiveQuery: String, originalKeywordQuery: String?, queryEmbedding: [Float], filteredCachedChunks: [DocumentChunk]?, selectedId: UUID, answerIntent: AnswerIntent, trace: RetrievalTraceCollector?) async throws {
+    func runHybridSearch(
+        adjustedVectorWeight: Float, adjustedKeywordWeight: Float, effectiveTopK: Int, queryIntent: QueryIntent,
+        vdb: any VectorDatabase, retrievedChunks: inout [RetrievedChunk], expandedQueries: [String],
+        effectiveQuery: String, originalKeywordQuery: String?, queryEmbedding: [Float],
+        filteredCachedChunks: [DocumentChunk]?, selectedId: UUID, answerIntent: AnswerIntent,
+        trace: RetrievalTraceCollector?
+    ) async throws {
         // Single-pass hybrid search (original behavior)
         Log.section(
             "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
@@ -315,7 +334,12 @@ extension RAGService {
 
     /// Step 3 (multi-vector): adds passages from vector searches on up to two appended query expansions.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func runSupplementaryVectorSearch(answerIntentIsExtractive: Bool, isTrivial: Bool, expandedQueries: [String], retrievedChunks: inout [RetrievedChunk], effectiveQuery: String, textToEmbed: String, selectedContainer: KnowledgeContainer?, queryEmbeddingService: EmbeddingService, vdb: any VectorDatabase, effectiveTopK: Int, auditUsedSupplementaryVectorSearch: inout Bool, answerIntent: AnswerIntent) async {
+    func runSupplementaryVectorSearch(
+        answerIntentIsExtractive: Bool, isTrivial: Bool, expandedQueries: [String],
+        retrievedChunks: inout [RetrievedChunk], effectiveQuery: String, textToEmbed: String,
+        selectedContainer: KnowledgeContainer?, queryEmbeddingService: EmbeddingService, vdb: any VectorDatabase,
+        effectiveTopK: Int, auditUsedSupplementaryVectorSearch: inout Bool, answerIntent: AnswerIntent
+    ) async {
         // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
         // The primary search uses ONE embedding (HyDE or rewritten query).
         // Query expansion generates ~12 variations but only uses them for BM25 text.
@@ -383,7 +407,10 @@ extension RAGService {
 
     /// Step SC (write): stores a live search's passages in the semantic query cache.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func writeSemanticQueryCache(exactCacheHit: Bool, isDocumentScoped: Bool, retrievedChunks: [RetrievedChunk], cacheKey: String, selectedId: UUID, queryEmbedding: [Float], normalizedQueryText: String) async {
+    func writeSemanticQueryCache(
+        exactCacheHit: Bool, isDocumentScoped: Bool, retrievedChunks: [RetrievedChunk], cacheKey: String,
+        selectedId: UUID, queryEmbedding: [Float], normalizedQueryText: String
+    ) async {
         // ─ Write to Semantic Cache ─────────────────────────────────────────────────────
         // Only persist when we actually ran the live search (not on cache hits)
         if !exactCacheHit && !retrievedChunks.isEmpty && !isDocumentScoped {
@@ -402,7 +429,10 @@ extension RAGService {
 
     /// Step S3s: narrows the retrieved and cached pools to the documents a Shortcuts action named.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func applyDocumentScope(retrievedChunks: inout [RetrievedChunk], cachedAllChunks: inout [DocumentChunk]?, filteredCachedChunks: inout [DocumentChunk]?) throws {
+    func applyDocumentScope(
+        retrievedChunks: inout [RetrievedChunk], cachedAllChunks: inout [DocumentChunk]?,
+        filteredCachedChunks: inout [DocumentChunk]?
+    ) throws {
         // Document scope (set by the Shortcuts actions that name a document). Every search
         // above went through `HybridSearchService.search`, which searches inside the named
         // documents when a scope is set. This narrows what did not: passages added by a
@@ -440,7 +470,11 @@ extension RAGService {
 
     /// Step S3n: attaches source names, demotes interrogative FAQ passages and emits the retrieval telemetry.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func attachSourcesAndDemoteQuestions(retrievedChunks: [RetrievedChunk], question: String, auditCandidatesCount: inout Int, recoveryRetrievedChunks: inout [RetrievedChunk], effectiveTopK: Int, selectedName: String, selectedId: UUID, retrievalTime: TimeInterval, adjustedVectorWeight: Float, adjustedKeywordWeight: Float) async -> (chunksWithSources: [RetrievedChunk], docsSnapshot: [Document]) {
+    func attachSourcesAndDemoteQuestions(
+        retrievedChunks: [RetrievedChunk], question: String, auditCandidatesCount: inout Int,
+        recoveryRetrievedChunks: inout [RetrievedChunk], effectiveTopK: Int, selectedName: String, selectedId: UUID,
+        retrievalTime: TimeInterval, adjustedVectorWeight: Float, adjustedKeywordWeight: Float
+    ) async -> (chunksWithSources: [RetrievedChunk], docsSnapshot: [Document]) {
         // Add source information for citations with a safe MainActor snapshot
         let docsSnapshot = await snapshotDocuments()
         var chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
@@ -535,7 +569,10 @@ extension RAGService {
 
     /// Step 4: re-ranks the candidates (cross-encoder or similarity order) and records the rerank trace stage.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func rerankCandidates(qualityModeUsesReRanking: Bool, chunksWithSources: [RetrievedChunk], question: String, effectiveTopK: Int, auditRerankedCount: inout Int, qualityModeDisplayName: String, trace: RetrievalTraceCollector?) async -> (engine: RAGEngine, rerankTime: TimeInterval, rerankedChunks: [RetrievedChunk]) {
+    func rerankCandidates(
+        qualityModeUsesReRanking: Bool, chunksWithSources: [RetrievedChunk], question: String, effectiveTopK: Int,
+        auditRerankedCount: inout Int, qualityModeDisplayName: String, trace: RetrievalTraceCollector?
+    ) async -> (engine: RAGEngine, rerankTime: TimeInterval, rerankedChunks: [RetrievedChunk]) {
         // Step 4: Re-rank results with multiple signals
         // QUALITY MODE: Check if re-ranking is enabled
         let engine = RAGEngine.shared
@@ -553,6 +590,12 @@ extension RAGService {
                     ("candidates", "\(chunksWithSources.count)")
                 ])
 
+            // The reranker's first load after an install compiles it for the Neural Engine (5.8); this search waits.
+            if RerankerSetupStatus.shared.isPreparing {
+                emitThinkingEvent(
+                    .rerank, title: "Preparing search",
+                    detail: "Setting up the reranker on this device, first launch only")
+            }
             rerankedChunks = await engine.rerank(
                 chunks: chunksWithSources,
                 query: question,
@@ -609,7 +652,14 @@ extension RAGService {
 
     /// Step S4c: runs the lexical-heavy cascade search and re-rank when the policy asks for it.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func runRetrievalCascade(rerankedChunks: inout [RetrievedChunk], effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode, retrievalConfig: RetrievalConfig, effectiveTopK: Int, totalStored: Int, usedRetrievalCascade: inout Bool, expandedQueries: [String], question: String, vdb: any VectorDatabase, originalKeywordQuery: String?, queryEmbedding: [Float], docsSnapshot: [Document], engine: RAGEngine, auditCandidatesCount: inout Int, auditRerankedCount: inout Int, retrievalTime: inout TimeInterval, rerankTime: inout TimeInterval, recoveryRetrievalTime: inout TimeInterval) async throws {
+    func runRetrievalCascade(
+        rerankedChunks: inout [RetrievedChunk], effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode,
+        retrievalConfig: RetrievalConfig, effectiveTopK: Int, totalStored: Int, usedRetrievalCascade: inout Bool,
+        expandedQueries: [String], question: String, vdb: any VectorDatabase, originalKeywordQuery: String?,
+        queryEmbedding: [Float], docsSnapshot: [Document], engine: RAGEngine, auditCandidatesCount: inout Int,
+        auditRerankedCount: inout Int, retrievalTime: inout TimeInterval, rerankTime: inout TimeInterval,
+        recoveryRetrievalTime: inout TimeInterval
+    ) async throws {
         let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
         let cascadeAvgTop5: Float = {
             let sims = rerankedChunks.prefix(5).map { $0.similarityScore }
@@ -717,7 +767,11 @@ extension RAGService {
 
     /// Step S4k: retries with a cleaned keyword query when the top similarity is below 0.45.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func retryWithCleanKeywordQuery(rerankedChunks: inout [RetrievedChunk], question: String, queryEmbeddingService: EmbeddingService, vdb: any VectorDatabase, effectiveTopK: Int, filteredCachedChunks: [DocumentChunk]?, selectedId: UUID, docsSnapshot: [Document], qualityModeUsesReRanking: Bool, engine: RAGEngine) async {
+    func retryWithCleanKeywordQuery(
+        rerankedChunks: inout [RetrievedChunk], question: String, queryEmbeddingService: EmbeddingService,
+        vdb: any VectorDatabase, effectiveTopK: Int, filteredCachedChunks: [DocumentChunk]?, selectedId: UUID,
+        docsSnapshot: [Document], qualityModeUsesReRanking: Bool, engine: RAGEngine
+    ) async {
         // Keyword search fallback retry if top similarity is low (Standard Mode)
         var queryRetryDone = false
         let preRetryTopSim = rerankedChunks.first?.similarityScore ?? 0
@@ -781,9 +835,10 @@ extension RAGService {
 
                     // Passages whose document is in no library are left out here too (5.7,
                     // `passagesFromKnownDocuments`), as in the retrieval cascade above.
-                    cleanedRetryChunks = Self.passagesFromKnownDocuments(
-                        cleanedRetryChunks, knownDocumentIds: Set(docsSnapshot.map(\.id))
-                    ).kept
+                    cleanedRetryChunks =
+                        Self.passagesFromKnownDocuments(
+                            cleanedRetryChunks, knownDocumentIds: Set(docsSnapshot.map(\.id))
+                        ).kept
 
                     // Merge retry results with existing reranked chunks
                     let mergedChunks = mergeUniqueChunks(rerankedChunks, cleanedRetryChunks)
@@ -814,7 +869,15 @@ extension RAGService {
 
     /// Step 4.3 (filter): computes the adaptive similarity floor and filters the re-ranked passages.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func filterLowConfidenceChunks(auditLenient: inout Bool, rerankedChunks: [RetrievedChunk], auditTopSim: inout Float, auditSecondSim: inout Float, auditAvgTop5: inout Float, effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode, retrievalConfig: RetrievalConfig, auditDynamicMin: inout Float, engine: RAGEngine, auditAcceptanceOverride: inout Bool) async -> (dynamicMin: Float, filteredChunks: [RetrievedChunk], acceptanceOverride: Bool, lenient: Bool, topSim: Float, secondSim: Float, avgTop5: Float, vocabularyMismatch: Bool) {
+    func filterLowConfidenceChunks(
+        auditLenient: inout Bool, rerankedChunks: [RetrievedChunk], auditTopSim: inout Float,
+        auditSecondSim: inout Float, auditAvgTop5: inout Float, effectiveQueryProfile: QueryProfile,
+        qualityMode: RAGQualityMode, retrievalConfig: RetrievalConfig, auditDynamicMin: inout Float, engine: RAGEngine,
+        auditAcceptanceOverride: inout Bool
+    ) async -> (
+        dynamicMin: Float, filteredChunks: [RetrievedChunk], acceptanceOverride: Bool, lenient: Bool, topSim: Float,
+        secondSim: Float, avgTop5: Float, vocabularyMismatch: Bool
+    ) {
         // Step 4.3: Filter low-confidence chunks using container's retrieval config
         // Adaptive gating: consider "lenient" mode, quality mode, and trivial/short queries
         let lenient = await MainActor.run {
@@ -891,12 +954,20 @@ extension RAGService {
             title: "Confidence gate (\(retrievalConfig.summary))",
             detail: "min \(String(format: "%.2f", dynamicMin)) • top \(String(format: "%.2f", topSim))"
         )
-        return (dynamicMin: dynamicMin, filteredChunks: filteredChunks, acceptanceOverride: acceptanceOverride, lenient: lenient, topSim: topSim, secondSim: secondSim, avgTop5: avgTop5, vocabularyMismatch: vocabularyMismatch)
+        return (
+            dynamicMin: dynamicMin, filteredChunks: filteredChunks, acceptanceOverride: acceptanceOverride,
+            lenient: lenient, topSim: topSim, secondSim: secondSim, avgTop5: avgTop5,
+            vocabularyMismatch: vocabularyMismatch
+        )
     }
 
     /// Step 4.5: diversifies the filtered passages with MMR (or takes the top K when MMR is off).
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func diversifyWithMMR(retrievalConfig: RetrievalConfig, qualityModeUsesMMR: Bool, qualityModeDisplayName: String, effectiveTopK: Int, filteredChunks: [RetrievedChunk], auditMMRSelectedCount: inout Int, isProceduralQuery: Bool, engine: RAGEngine, queryEmbedding: [Float], selectedId: UUID) async -> (diverseChunks: [RetrievedChunk], mmrTime: TimeInterval) {
+    func diversifyWithMMR(
+        retrievalConfig: RetrievalConfig, qualityModeUsesMMR: Bool, qualityModeDisplayName: String, effectiveTopK: Int,
+        filteredChunks: [RetrievedChunk], auditMMRSelectedCount: inout Int, isProceduralQuery: Bool, engine: RAGEngine,
+        queryEmbedding: [Float], selectedId: UUID
+    ) async -> (diverseChunks: [RetrievedChunk], mmrTime: TimeInterval) {
         // Step 4.5: Apply MMR for diversity using container's retrieval config
         Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
         let mmrStartTime = Date()
@@ -986,7 +1057,12 @@ extension RAGService {
 
     /// Step 4.6: expands the candidates with sibling passages from their parent sections.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func expandParentDocuments(qualityModeUsesParentDocRetrieval: Bool, adaptiveConfig: AdaptivePipelineConfig, cachedAllChunks: [DocumentChunk]?, contextCandidates: inout [RetrievedChunk], auditUsedParentDocumentRetrieval: inout Bool, effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode, qualityModeMaxSiblingChunks: Int, useAgentic: Bool, question: String, contextStrategy: inout String) async {
+    func expandParentDocuments(
+        qualityModeUsesParentDocRetrieval: Bool, adaptiveConfig: AdaptivePipelineConfig,
+        cachedAllChunks: [DocumentChunk]?, contextCandidates: inout [RetrievedChunk],
+        auditUsedParentDocumentRetrieval: inout Bool, effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode,
+        qualityModeMaxSiblingChunks: Int, useAgentic: Bool, question: String, contextStrategy: inout String
+    ) async {
         // Step 4.6: Parent Document Retrieval (optional)
         // Expand matched chunks to include sibling context from same section/page
         // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
@@ -1053,7 +1129,11 @@ extension RAGService {
 
     /// Step 4.6 (cross references): adds the passages that extractive candidates refer to.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func addCrossReferencedPassages(answerIntentIsExtractive: Bool, contextCandidates: inout [RetrievedChunk], question: String, cachedAllChunks: [DocumentChunk]?) async {
+    func addCrossReferencedPassages(
+        answerIntentIsExtractive: Bool, contextCandidates: inout [RetrievedChunk], question: String,
+        cachedAllChunks: [DocumentChunk]?
+    ) async {
+        guard !RetrievalAblation.isOff(.crossReferences) else { return }  // 5.8 audit switch (development builds)
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Step 4.6: Cross-Reference Resolution
         // Technical documents often say "see Section X on page Y". The actual
@@ -1071,7 +1151,7 @@ extension RAGService {
                 // Insert cross-referenced chunks near the top so they survive context assembly
                 let existingIds = Set(contextCandidates.map { $0.chunk.id })
                 let newChunks = crossRefChunks.filter { !existingIds.contains($0.chunk.id) }
-                contextCandidates.insert(contentsOf: newChunks, at: 0)
+                Self.insertingBehindTopRanked(newChunks, into: &contextCandidates)
                 Log.info(
                     "[RAG] Cross-reference resolution: +\(newChunks.count) chunks from referenced sections",
                     category: .retrieval)
@@ -1200,7 +1280,9 @@ extension RAGService {
 
     /// Step 3.5: boosts passages whose section metadata matches the question and logs the top passage.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func applySectionMetadataBoost(chunksWithSources: inout [RetrievedChunk], question: String, retrievalTime: TimeInterval) {
+    func applySectionMetadataBoost(
+        chunksWithSources: inout [RetrievedChunk], question: String, retrievalTime: TimeInterval
+    ) {
         // Step 3.5: Section Metadata Boost
         // Boost chunks whose sectionTitle/sectionPath match query keywords.
         // This is THE key signal that distinguishes "Engine Oil" chunks from "Gear Oil" chunks
@@ -1239,7 +1321,10 @@ extension RAGService {
 
     /// Step S4d: applies the contextual-definition boost to the re-ranked list.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func boostContextualDefinitionMatches(contextualDefinitionLookup: Bool, rerankedChunks: inout [RetrievedChunk], question: String) {
+    func boostContextualDefinitionMatches(
+        contextualDefinitionLookup: Bool, rerankedChunks: inout [RetrievedChunk], question: String
+    ) {
+        guard !RetrievalAblation.isOff(.definitionBoost) else { return }  // 5.8 audit switch (development builds)
         if contextualDefinitionLookup,
             let boostedDefinitionChunks = applyContextualDefinitionBoost(
                 chunks: rerankedChunks,
@@ -1256,7 +1341,10 @@ extension RAGService {
 
     /// Step 4.3 (rescue): reports the dropped passages and rescues specification passages for extractive questions.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func rescueDroppedSpecChunks(filteredChunks: inout [RetrievedChunk], rerankedChunks: [RetrievedChunk], auditDroppedCount: inout Int, dynamicMin: Float, answerIntentIsExtractive: Bool, answerIntent: AnswerIntent) {
+    func rescueDroppedSpecChunks(
+        filteredChunks: inout [RetrievedChunk], rerankedChunks: [RetrievedChunk], auditDroppedCount: inout Int,
+        dynamicMin: Float, answerIntentIsExtractive: Bool, answerIntent: AnswerIntent
+    ) {
         if filteredChunks.count < rerankedChunks.count {
             let dropped = rerankedChunks.count - filteredChunks.count
             auditDroppedCount = dropped
@@ -1274,7 +1362,7 @@ extension RAGService {
             // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values.
             // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
             // but these are exactly the chunks that contain the answer.
-            if answerIntentIsExtractive {
+            if answerIntentIsExtractive, !RetrievalAblation.isOff(.specRescue) {
                 let filteredIds = Set(filteredChunks.map { $0.chunk.id })
                 let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
 
@@ -1361,7 +1449,10 @@ extension RAGService {
 
     /// Step 4.4: adds passages from other documents before diversification and records the retry candidates.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func ensureMultiDocumentCoverage(rerankedChunks: [RetrievedChunk], auditUniqueDocCount: inout Int, effectiveTopK: Int, filteredChunks: inout [RetrievedChunk], retryCandidates: inout [RetrievedChunk]) -> Int {
+    func ensureMultiDocumentCoverage(
+        rerankedChunks: [RetrievedChunk], auditUniqueDocCount: inout Int, effectiveTopK: Int,
+        filteredChunks: inout [RetrievedChunk], retryCandidates: inout [RetrievedChunk]
+    ) -> Int {
         // Step 4.4: Ensure multiple documents are represented before diversification
         let uniqueDocCount = Set(rerankedChunks.map { $0.chunk.documentId }).count
         auditUniqueDocCount = uniqueDocCount

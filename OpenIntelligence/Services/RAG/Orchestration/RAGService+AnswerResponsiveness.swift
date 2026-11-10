@@ -46,6 +46,18 @@ extension RAGService {
         return judgment
     }
 
+    /// Whether an answer holds no word at all: empty, or only digits, list markers and punctuation ("1", "2.", "-").
+    /// Such an answer is never what this app writes, since even a bare value carries its citation ("60 [S1]"), so it is
+    /// written again without asking the judge (5.8). On 2026-11-09 the on-device model stopped after "1" with a prompt
+    /// near its window, the judge called "1" a full answer to "How much lysine is present?", and the reader saw a blank.
+    nonisolated static func isDegenerateAnswer(_ text: String) -> Bool {
+        !text.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+    }
+
+    /// What Standard shows when the answer and its rewrite both came back with no words (5.8), instead of a blank.
+    nonisolated static let notFoundAnswer =
+        "I couldn't find an answer to this in the passages I searched. Try asking with the document's own words, or in Deep Think."
+
     /// How completely a verdict answers, for comparing an answer with its rewrite.
     nonisolated static func responsivenessRank(_ verdict: AnswerResponsiveness) -> Int {
         switch verdict {
@@ -72,9 +84,29 @@ extension RAGService {
         generationContext: String,
         generationChunks: [DocumentChunk]
     ) async -> ResponsivenessJudgment? {
-        guard let first = await judgeResponsiveness(question: question, answer: responseText, stage: "generated")
-        else { return nil }
+        let degenerate = Self.isDegenerateAnswer(responseText)
+        let judged: ResponsivenessJudgment?
+        if degenerate {
+            // No word at all: the judge read "1" as a full answer to "How much lysine is present?" (2026-11-09).
+            Log.warning(
+                "[Responsiveness] The generated answer has no words (\(responseText.count) chars); writing it again",
+                category: .llm)
+            VerificationJournal.record(
+                "answer.responsiveness",
+                ["stage": "generated", "verdict": "degenerate", "answerChars": "\(responseText.count)"])
+            judged = ResponsivenessJudgment(verdict: .none, askedFor: "", missing: "", seconds: 0)
+        } else {
+            judged = await judgeResponsiveness(question: question, answer: responseText, stage: "generated")
+        }
+        guard let first = judged else { return nil }
         guard first.verdict != .full else { return first }
+        defer {
+            if Self.isDegenerateAnswer(responseText) {
+                Log.warning(
+                    "[Responsiveness] The rewrite has no words either; saying the answer was not found", category: .llm)
+                responseText = Self.notFoundAnswer
+            }
+        }
 
         emitThinkingEvent(
             .warning,

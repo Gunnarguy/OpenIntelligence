@@ -26,7 +26,12 @@ import PDFKit
 extension RAGService {
     /// Step 4.7: compresses the leading candidates with the contextual compression model.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func compressContextCandidates(contextCandidates: inout [RetrievedChunk], useContextualCompression: Bool, auditUsedContextualCompression: inout Bool, question: String, answerIntent: AnswerIntent, compressionSavings: inout Int) async {
+    func compressContextCandidates(
+        contextCandidates: inout [RetrievedChunk], useContextualCompression: Bool,
+        auditUsedContextualCompression: inout Bool, question: String, answerIntent: AnswerIntent,
+        compressionSavings: inout Int
+    ) async {
+        guard !RetrievalAblation.isOff(.compression) else { return }  // 5.8 audit switch (development builds)
         if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
             auditUsedContextualCompression = true
             // SMART COMPRESSION BUDGET: Estimate how many chunks will fit in context
@@ -193,7 +198,12 @@ extension RAGService {
 
     /// Step 4.9: packs graph neighbors and references around the candidates for multi-hop intents.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func packContextWithGraph(contextCandidates: inout [RetrievedChunk], question: String, answerIntent: AnswerIntent, cachedAllChunks: [DocumentChunk]?, allowLargeContext: Bool, isAppleFMOnDevice: Bool, auditUsedGraphPacking: inout Bool) async {
+    func packContextWithGraph(
+        contextCandidates: inout [RetrievedChunk], question: String, answerIntent: AnswerIntent,
+        cachedAllChunks: [DocumentChunk]?, allowLargeContext: Bool, isAppleFMOnDevice: Bool,
+        auditUsedGraphPacking: inout Bool
+    ) async {
+        guard !RetrievalAblation.isOff(.graphPack) else { return }  // 5.8 audit switch (development builds)
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Step 4.9: Graph-Based Context Packing (AppleRAG §5)
         // pack(R + parents(R) + neighbors(R,±1) + graphHops(R,1))
@@ -221,7 +231,8 @@ extension RAGService {
             let coreChunks = contextCandidates.map { $0.chunk }
 
             // Sized to the window the device reports (5.7): see `graphPackingTokenBudget(windowTokens:)`.
-            let graphTokenBudget = allowLargeContext
+            let graphTokenBudget =
+                allowLargeContext
                 ? 24000
                 : Self.graphPackingTokenBudget(
                     windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))
@@ -267,11 +278,13 @@ extension RAGService {
 
                 VerificationJournal.record(
                     "retrieval.graphPack",
-                    ["tokens": "\(packedContext.estimatedTokens)", "budget": "\(graphTokenBudget)",
+                    [
+                        "tokens": "\(packedContext.estimatedTokens)", "budget": "\(graphTokenBudget)",
                         "window": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))",
                         "withinBudget": "\(packedContext.estimatedTokens <= graphTokenBudget)",
                         "truncated": "\(packedContext.wasTruncated)", "core": "\(packedContext.coreChunkCount)",
-                        "context": "\(packedContext.contextChunkCount)"])
+                        "context": "\(packedContext.contextChunkCount)",
+                    ])
                 Log.info(
                     "[GraphPack] \(packedContext.coreChunkCount) core + \(packedContext.contextChunkCount) context chunks (\(packedContext.estimatedTokens) tokens) in \(String(format: "%.0f", graphPackingTime * 1000))ms\(packedContext.wasTruncated ? " [truncated]" : "")",
                     category: .retrieval
@@ -293,7 +306,14 @@ extension RAGService {
 
     /// Step SR: runs corrective lexical retrieval and adopts or rejects its candidates.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func runCorrectiveRetrieval(effectiveQuery: String, contextCandidates: inout [RetrievedChunk], answerIntentIsExtractive: Bool, effectiveTopK: Int, selectedId: UUID, cachedAllChunks: [DocumentChunk]?, answerIntent: AnswerIntent, qualityModeUsesReRanking: Bool, engine: RAGEngine, question: String, rerankTime: inout TimeInterval, contextStrategy: inout String, auditUsedCorrectiveRetrieval: inout Bool, retrievalTime: inout TimeInterval, recoveryRetrievalTime: inout TimeInterval) async {
+    func runCorrectiveRetrieval(
+        effectiveQuery: String, contextCandidates: inout [RetrievedChunk], answerIntentIsExtractive: Bool,
+        effectiveTopK: Int, selectedId: UUID, cachedAllChunks: [DocumentChunk]?, answerIntent: AnswerIntent,
+        qualityModeUsesReRanking: Bool, engine: RAGEngine, question: String, rerankTime: inout TimeInterval,
+        contextStrategy: inout String, auditUsedCorrectiveRetrieval: inout Bool, retrievalTime: inout TimeInterval,
+        recoveryRetrievalTime: inout TimeInterval
+    ) async {
+        guard !RetrievalAblation.isOff(.corrective) else { return }  // 5.8 audit switch (development builds)
         let shouldAttemptCorrective = shouldAttemptCorrectiveRetrieval(
             query: effectiveQuery,
             candidates: contextCandidates,
@@ -420,7 +440,13 @@ extension RAGService {
 
     /// Step 5 (assembly): builds the context by sentence extraction or whole-passage packing with needle rescue.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func assembleStandardContext(answerIntentIsExtractive: Bool, isProceduralQuery: Bool, orderedCandidates: [RetrievedChunk], question: String, maxContextChars: Int, useCompactMode: Bool, engine: RAGEngine, useLostInMiddleMitigation: Bool) async -> (actualChunksUsed: Int, context: String, placedForAttention: Bool, promptSources: [RetrievedChunk], rescuedChunks: [RetrievedChunk]) {
+    func assembleStandardContext(
+        answerIntentIsExtractive: Bool, isProceduralQuery: Bool, orderedCandidates: [RetrievedChunk], question: String,
+        maxContextChars: Int, useCompactMode: Bool, engine: RAGEngine, useLostInMiddleMitigation: Bool
+    ) async -> (
+        actualChunksUsed: Int, context: String, placedForAttention: Bool, promptSources: [RetrievedChunk],
+        rescuedChunks: [RetrievedChunk]
+    ) {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // SENTENCE-LEVEL EXTRACTION (lookup intent only)
         // Instead of packing 3 whole chunks into 4475 chars, extract
@@ -569,12 +595,30 @@ extension RAGService {
 
             context = assembledContext
         }
-        return (actualChunksUsed: actualChunksUsed, context: context, placedForAttention: placedForAttention, promptSources: promptSources, rescuedChunks: rescuedChunks)
+        return (
+            actualChunksUsed: actualChunksUsed, context: context, placedForAttention: placedForAttention,
+            promptSources: promptSources, rescuedChunks: rescuedChunks
+        )
     }
 
     /// Step 5 (audit): emits the context telemetry and stores the RAGAuditSnapshot.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func recordContextAuditSnapshot(actualChunksUsed: Int, contextWords: Int, contextSize: Int, selectedName: String, selectedId: UUID, selectedContainer: KnowledgeContainer?, question: String, embeddingProviderId: String, selectedDim: Int, qualityModeDisplayName: String, retrievalConfig: RetrievalConfig, auditLenient: Bool, auditDynamicMin: Float, auditTopSim: Float, auditSecondSim: Float, auditAvgTop5: Float, auditAcceptanceOverride: Bool, totalStored: Int, auditCandidatesCount: Int, auditRerankedCount: Int, auditFilteredCount: Int, auditDroppedCount: Int, auditMMRSelectedCount: Int, auditUniqueDocCount: Int, contextStrategy: String, maxContextChars: Int, baseWindowTokens: Int, promptOverheadTokens: Int, questionTokens: Int, reservedOutputTokens: Int, availableForContextTokens: Int, inferenceConfig: InferenceConfig, networkAvailable: Bool, allowLargeContext: Bool, reliabilityModeEnabled: Bool, allowUngroundedFallback: Bool, auditAnswerIntent: String, auditQueryWasRewritten: Bool, auditQueryExpansionCount: Int, auditUsedHyDE: Bool, auditUsedIterativeRetrieval: Bool, auditIterativePassCount: Int, auditUsedQueryRouting: Bool, auditUsedSummaryRouting: Bool, auditUsedParentDocumentRetrieval: Bool, auditUsedCorrectiveRetrieval: Bool, auditUsedContextualCompression: Bool, auditUsedGraphPacking: Bool, usedRetrievalCascade: Bool, auditUsedSupplementaryVectorSearch: Bool) async {
+    func recordContextAuditSnapshot(
+        actualChunksUsed: Int, contextWords: Int, contextSize: Int, selectedName: String, selectedId: UUID,
+        selectedContainer: KnowledgeContainer?, question: String, embeddingProviderId: String, selectedDim: Int,
+        qualityModeDisplayName: String, retrievalConfig: RetrievalConfig, auditLenient: Bool, auditDynamicMin: Float,
+        auditTopSim: Float, auditSecondSim: Float, auditAvgTop5: Float, auditAcceptanceOverride: Bool, totalStored: Int,
+        auditCandidatesCount: Int, auditRerankedCount: Int, auditFilteredCount: Int, auditDroppedCount: Int,
+        auditMMRSelectedCount: Int, auditUniqueDocCount: Int, contextStrategy: String, maxContextChars: Int,
+        baseWindowTokens: Int, promptOverheadTokens: Int, questionTokens: Int, reservedOutputTokens: Int,
+        availableForContextTokens: Int, inferenceConfig: InferenceConfig, networkAvailable: Bool,
+        allowLargeContext: Bool, reliabilityModeEnabled: Bool, allowUngroundedFallback: Bool, auditAnswerIntent: String,
+        auditQueryWasRewritten: Bool, auditQueryExpansionCount: Int, auditUsedHyDE: Bool,
+        auditUsedIterativeRetrieval: Bool, auditIterativePassCount: Int, auditUsedQueryRouting: Bool,
+        auditUsedSummaryRouting: Bool, auditUsedParentDocumentRetrieval: Bool, auditUsedCorrectiveRetrieval: Bool,
+        auditUsedContextualCompression: Bool, auditUsedGraphPacking: Bool, usedRetrievalCascade: Bool,
+        auditUsedSupplementaryVectorSearch: Bool
+    ) async {
         Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
 
         // Pipeline Trace: Step 5
@@ -688,7 +732,11 @@ extension RAGService {
 
     /// Step SX (setup): starts the context candidates from the MMR list and detects enumeration questions.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func prepareContextCandidates(diverseChunks: [RetrievedChunk], question: String) -> (contextCandidates: [RetrievedChunk], contextStrategy: String, isEnumerationQuery: Bool, isAppleFMOnDevice: Bool) {
+    func prepareContextCandidates(
+        diverseChunks: [RetrievedChunk], question: String
+    ) -> (
+        contextCandidates: [RetrievedChunk], contextStrategy: String, isEnumerationQuery: Bool, isAppleFMOnDevice: Bool
+    ) {
         let isAppleFMOnDevice = llmService is AppleFoundationLLMService
         var contextCandidates = diverseChunks
         var contextStrategy = "mmr"
@@ -707,7 +755,10 @@ extension RAGService {
             ]
             return quickTriggers.contains { lq.contains($0) }
         }()
-        return (contextCandidates: contextCandidates, contextStrategy: contextStrategy, isEnumerationQuery: isEnumerationQuery, isAppleFMOnDevice: isAppleFMOnDevice)
+        return (
+            contextCandidates: contextCandidates, contextStrategy: contextStrategy,
+            isEnumerationQuery: isEnumerationQuery, isAppleFMOnDevice: isAppleFMOnDevice
+        )
     }
 
     /// Step SX: blends document summaries with detail passages for questions that need a document summary.
@@ -725,7 +776,8 @@ extension RAGService {
         for candidate in candidates.prefix(5) where relevantOrder[candidate.chunk.documentId] == nil {
             relevantOrder[candidate.chunk.documentId] = relevantOrder.count
         }
-        return allChunks
+        return
+            allChunks
             .filter {
                 $0.metadata.abstractionLevel == .documentSummary && !existingIds.contains($0.id)
                     && relevantOrder[$0.documentId] != nil
@@ -733,7 +785,11 @@ extension RAGService {
             .sorted { (relevantOrder[$0.documentId] ?? .max) < (relevantOrder[$1.documentId] ?? .max) }
     }
 
-    func addSummaryDetailHybrid(answerNeedsDocumentSummary: Bool, cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool, contextCandidates: inout [RetrievedChunk], question: String, contextStrategy: inout String) {
+    func addSummaryDetailHybrid(
+        answerNeedsDocumentSummary: Bool, cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool,
+        contextCandidates: inout [RetrievedChunk], question: String, contextStrategy: inout String
+    ) {
+        guard !RetrievalAblation.isOff(.summaryHybrid) else { return }  // 5.8 audit switch (development builds)
         // ═══════════════════════════════════════════════════════════════════════════════
         // Summary-detail hybrid context for research/findings queries
         // ═══════════════════════════════════════════════════════════════════════════════
@@ -887,7 +943,12 @@ extension RAGService {
 
     /// Step SF: narrows strong short single-document questions to a neighbor window around the top passage (on-device Apple model only).
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func applyFocusedNeighborWindow(diverseChunks: [RetrievedChunk], question: String, auditAvgTop5: Float, auditTopSim: Float, queryWords: Int, rerankedChunks: [RetrievedChunk], uniqueDocCount: Int, isAppleFMOnDevice: Bool, initialWantsCloudContext: Bool, effectiveTopK: Int, contextCandidates: inout [RetrievedChunk], contextStrategy: inout String) {
+    func applyFocusedNeighborWindow(
+        diverseChunks: [RetrievedChunk], question: String, auditAvgTop5: Float, auditTopSim: Float, queryWords: Int,
+        rerankedChunks: [RetrievedChunk], uniqueDocCount: Int, isAppleFMOnDevice: Bool, initialWantsCloudContext: Bool,
+        effectiveTopK: Int, contextCandidates: inout [RetrievedChunk], contextStrategy: inout String
+    ) {
+        guard !RetrievalAblation.isOff(.focusedWindow) else { return }  // 5.8 audit switch (development builds)
         // Universal pipeline trace: log chunk content previews at each stage
         if Log.pipelineTraceEnabled {
             logChunkTrace(diverseChunks, stage: "Post-MMR", query: question)
@@ -941,7 +1002,10 @@ extension RAGService {
 
     /// Step SE: adds a BM25 second pass over every passage for enumeration questions.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func addEnumerationKeywordPass(cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool, contextCandidates: inout [RetrievedChunk], question: String, contextStrategy: inout String) {
+    func addEnumerationKeywordPass(
+        cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool, contextCandidates: inout [RetrievedChunk],
+        question: String, contextStrategy: inout String
+    ) {
         // ═══════════════════════════════════════════════════════════════════
         // ITERATIVE RETRIEVAL: BM25 second-pass for enumeration queries
         // ═══════════════════════════════════════════════════════════════════
@@ -1040,7 +1104,11 @@ extension RAGService {
 
     /// Step 4.8: adds specification-table passages found by keyword and number co-occurrence for extractive questions.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func runSpecTableSniper(answerIntentIsExtractive: Bool, cachedAllChunks: [DocumentChunk]?, contextCandidates: inout [RetrievedChunk], question: String) {
+    func runSpecTableSniper(
+        answerIntentIsExtractive: Bool, cachedAllChunks: [DocumentChunk]?, contextCandidates: inout [RetrievedChunk],
+        question: String
+    ) {
+        guard !RetrievalAblation.isOff(.specSniper) else { return }  // 5.8 audit switch (development builds)
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Step 4.8: Targeted Spec Retrieval ("Spec Table Sniper")
         // The reranker has an inherent prose bias: prose scores ~0.78 while
@@ -1059,9 +1127,8 @@ extension RAGService {
                 excludeIds: existingIds
             )
             if !sniperResults.isEmpty {
-                // Insert at position 0 — these targeted results should survive
-                // context assembly budget cuts ahead of prose chunks
-                contextCandidates.insert(contentsOf: sniperResults, at: 0)
+                // Right behind retrieval's best passage, so they survive the budget without displacing it (5.8)
+                Self.insertingBehindTopRanked(sniperResults, into: &contextCandidates)
 
                 // Demote chunks that merely CITE other sections ("given in X on page Y")
                 // now that we have the actual data they were pointing to
@@ -1079,7 +1146,10 @@ extension RAGService {
 
     /// Step 4.7 (gates): decides whether contextual compression runs and logs each reason it is skipped.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func gateContextualCompression(isProceduralQuery: Bool, vocabularyMismatch: Bool, contextStrategy: String, qualityModeUsesContextualCompression: Bool, adaptiveConfig: AdaptivePipelineConfig) -> (useContextualCompression: Bool, compressionSavings: Int) {
+    func gateContextualCompression(
+        isProceduralQuery: Bool, vocabularyMismatch: Bool, contextStrategy: String,
+        qualityModeUsesContextualCompression: Bool, adaptiveConfig: AdaptivePipelineConfig
+    ) -> (useContextualCompression: Bool, compressionSavings: Int) {
         // Step 4.7: Contextual Compression (optional)
         // Extract only query-relevant sentences from chunks to maximize signal and save tokens
         // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
@@ -1130,7 +1200,10 @@ extension RAGService {
 
     /// Step 5 (tools): starts context assembly and turns tools off when the context is already assembled.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func disableToolsForAssembledContext(allowLargeContext: Bool, isTrivial: Bool, contextCandidates: [RetrievedChunk], inferenceConfig: inout InferenceConfig) -> Bool {
+    func disableToolsForAssembledContext(
+        allowLargeContext: Bool, isTrivial: Bool, contextCandidates: [RetrievedChunk],
+        inferenceConfig: inout InferenceConfig
+    ) -> Bool {
         // Step 5: Construct context from retrieved chunks (off-main)
         // Note: rawContext assembly is handled via engine.assembleContext with size limits
         HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
@@ -1152,7 +1225,13 @@ extension RAGService {
 
     /// Step 5 (budget): computes the token and character budget for the context.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func computeContextCharBudget(inferenceConfig: InferenceConfig, baseWindowTokens: Int, promptOverheadTokens: Int, questionTokens: Int, allowLargeContext: Bool, isAppleFMOnDevice: Bool, applyTrivialCaps: Bool, conservativeCharsPerToken: Double) -> (maxContextChars: Int, useCompactMode: Bool, reservedOutputTokens: Int, availableForContextTokens: Int, globalSafetyFactor: Double) {
+    func computeContextCharBudget(
+        inferenceConfig: InferenceConfig, baseWindowTokens: Int, promptOverheadTokens: Int, questionTokens: Int,
+        allowLargeContext: Bool, isAppleFMOnDevice: Bool, applyTrivialCaps: Bool, conservativeCharsPerToken: Double
+    ) -> (
+        maxContextChars: Int, useCompactMode: Bool, reservedOutputTokens: Int, availableForContextTokens: Int,
+        globalSafetyFactor: Double
+    ) {
         // Transcript tokens NO LONGER deducted from context budget.
         // This eliminates the failure mode where transcript > window → 0 context.
         let rawTranscriptTokens: Int
@@ -1211,12 +1290,18 @@ extension RAGService {
         Log.debug(
             "Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(rawTranscriptTokens)(not deducted), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)",
             category: .pipeline)
-        return (maxContextChars: maxContextChars, useCompactMode: useCompactMode, reservedOutputTokens: reservedOutputTokens, availableForContextTokens: availableForContextTokens, globalSafetyFactor: globalSafetyFactor)
+        return (
+            maxContextChars: maxContextChars, useCompactMode: useCompactMode,
+            reservedOutputTokens: reservedOutputTokens, availableForContextTokens: availableForContextTokens,
+            globalSafetyFactor: globalSafetyFactor
+        )
     }
 
     /// Step 5 (ordering): orders the candidates for procedural, extractive or default questions.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func orderContextCandidates(isProceduralQuery: Bool, contextCandidates: [RetrievedChunk], answerIntentIsExtractive: Bool, question: String) -> (orderedCandidates: [RetrievedChunk], useLostInMiddleMitigation: Bool) {
+    func orderContextCandidates(
+        isProceduralQuery: Bool, contextCandidates: [RetrievedChunk], answerIntentIsExtractive: Bool, question: String
+    ) -> (orderedCandidates: [RetrievedChunk], useLostInMiddleMitigation: Bool) {
         // For procedural queries, preserve document order instead of relevance order
         // This prevents sequence inversions (e.g., "dry before disinfect" errors)
         let orderedCandidates: [RetrievedChunk]
@@ -1232,7 +1317,7 @@ extension RAGService {
             Log.info(
                 "[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval
             )
-        } else if answerIntentIsExtractive {
+        } else if answerIntentIsExtractive, !RetrievalAblation.isOff(.extractivePriority) {
             // For lookup/table queries, prioritize chunks containing specifications
             // that MATCH the query topic — not just any specs
             let queryKeywords = extractQueryTerms(question)
@@ -1307,7 +1392,14 @@ extension RAGService {
 
     /// Step 5 (citations): logs the assembled context, lists the passages the prompt labelled and records them for recovery.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func finishIncludedPassages(actualChunksUsed: Int, context: String, question: String, placedForAttention: Bool, contextCandidates: [RetrievedChunk], contextStrategy: String, useCompactMode: Bool, promptSources: [RetrievedChunk], rescuedChunks: [RetrievedChunk], recoveryRetrievedChunks: inout [RetrievedChunk]) -> (contextWords: Int, contextSize: Int, includedRetrievedChunks: [RetrievedChunk], includedChunks: [DocumentChunk]) {
+    func finishIncludedPassages(
+        actualChunksUsed: Int, context: String, question: String, placedForAttention: Bool,
+        contextCandidates: [RetrievedChunk], contextStrategy: String, useCompactMode: Bool,
+        promptSources: [RetrievedChunk], rescuedChunks: [RetrievedChunk],
+        recoveryRetrievedChunks: inout [RetrievedChunk]
+    ) -> (
+        contextWords: Int, contextSize: Int, includedRetrievedChunks: [RetrievedChunk], includedChunks: [DocumentChunk]
+    ) {
         // Universal pipeline trace: log final assembled context
         if Log.pipelineTraceEnabled {
             logFinalContext(context, actualChunksUsed: actualChunksUsed, query: question)
@@ -1350,12 +1442,18 @@ extension RAGService {
         // )
         let includedChunks = includedRetrievedChunks.map { $0.chunk }
         recoveryRetrievedChunks = includedRetrievedChunks
-        return (contextWords: contextWords, contextSize: contextSize, includedRetrievedChunks: includedRetrievedChunks, includedChunks: includedChunks)
+        return (
+            contextWords: contextWords, contextSize: contextSize, includedRetrievedChunks: includedRetrievedChunks,
+            includedChunks: includedChunks
+        )
     }
 
     /// Step SV: computes the pre-generation confidence and decides whether the Evidence-First prompt is used.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    func assessEvidenceBeforeGeneration(includedRetrievedChunks: [RetrievedChunk], actualChunksUsed: Int, auditAvgTop5: Float, auditDynamicMin: Float, lexicalRelevance: Float, isProceduralQuery: Bool) -> (useEvidenceFirstMode: Bool, uniqueSourceDocs: Int, bestRetrievalSim: Float) {
+    func assessEvidenceBeforeGeneration(
+        includedRetrievedChunks: [RetrievedChunk], actualChunksUsed: Int, auditAvgTop5: Float, auditDynamicMin: Float,
+        lexicalRelevance: Float, isProceduralQuery: Bool
+    ) -> (useEvidenceFirstMode: Bool, uniqueSourceDocs: Int, bestRetrievalSim: Float) {
         // EVIDENCE-FIRST GATE: Check retrieval quality BEFORE generation
         // If evidence is weak, switch to Evidence-First mode instead of generating verbosely
         // Key insight: P(all claims correct) = p^N where N = number of claims
@@ -1408,7 +1506,10 @@ extension RAGService {
                 detail: "Low confidence (\(String(format: "%.0f", preGenConfidence * 100))%) - \(triggerReason)"
             )
         }
-        return (useEvidenceFirstMode: useEvidenceFirstMode, uniqueSourceDocs: uniqueSourceDocs, bestRetrievalSim: bestRetrievalSim)
+        return (
+            useEvidenceFirstMode: useEvidenceFirstMode, uniqueSourceDocs: uniqueSourceDocs,
+            bestRetrievalSim: bestRetrievalSim
+        )
     }
 
 }

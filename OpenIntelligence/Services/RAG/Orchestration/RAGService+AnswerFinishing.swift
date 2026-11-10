@@ -468,7 +468,8 @@ extension RAGService {
             {
                 return decline(
                     "the check would see \(Int((coverage * 100).rounded()))% of the answer, under the "
-                        + "\(Int((Self.sourceOnlyMinCandidateCoverage * 100).rounded()))% floor, so it could only keep it")
+                        + "\(Int((Self.sourceOnlyMinCandidateCoverage * 100).rounded()))% floor, so it could only keep it"
+                )
             }
 
             Log.info(
@@ -694,14 +695,7 @@ extension RAGService {
         result = result.components(separatedBy: .newlines)
             .map { line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // Remove empty bullet markers
-                if trimmed == "-" || trimmed == "*" || trimmed == "•" {
-                    return ""
-                }
-                // Remove empty numbered markers (e.g., "2." or "3)" with nothing after)
-                if trimmed.range(of: #"^\d+[.)]?\s*$"#, options: .regularExpression) != nil {
-                    return ""
-                }
+                if Self.isOrphanListMarker(trimmed) { return "" }
                 return line
             }
             .joined(separator: "\n")
@@ -712,6 +706,14 @@ extension RAGService {
         }
 
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whether a trimmed line is a list marker with nothing after it ("-", "*", "•", "2.", "3)"). The period or
+    /// bracket of a numbered marker is required (5.8): with it optional, a line that is only a number was taken for a
+    /// marker, so an answer "60" to "How many days?" was erased, and on 2026-11-09 the answer "1" became a blank.
+    nonisolated static func isOrphanListMarker(_ trimmed: String) -> Bool {
+        if trimmed == "-" || trimmed == "*" || trimmed == "•" { return true }
+        return trimmed.range(of: #"^\d+[.)]\s*$"#, options: .regularExpression) != nil
     }
 
     /// Detects and collapses intra-line/intra-sentence phrase repetition loops.

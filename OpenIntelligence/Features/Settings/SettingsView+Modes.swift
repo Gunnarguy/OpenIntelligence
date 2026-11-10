@@ -225,14 +225,12 @@ extension SettingsView {
         items.append(.init(id: "parent-doc", icon: "doc.on.doc", label: "Parent Document Retrieval", desc: "Expands chunk window ±5 for full paragraph context", color: .green))
         items.append(.init(id: "query-understand", icon: "lightbulb", label: "Query Understanding", desc: "NLTagger resolves pronouns, NER extracts key entities", color: .green))
         items.append(.init(id: "hybrid-rrf", icon: "arrow.triangle.merge", label: "Hybrid Search + RRF", desc: "Vector + BM25 keyword search with Reciprocal Rank Fusion", color: .green))
-        // "TinyBERT" is correct and is documented provenance, not a guess. An earlier pass
-        // removed it on the grounds that `ReRankerModel.mlpackage/Manifest.json` declares no
-        // model family, but that manifest is a Core ML packaging artifact and never carried
-        // one. `THIRD_PARTY_NOTICES.md` binds `cross-encoder/ms-marco-TinyBERT-L2-v2`
-        // (Apache 2.0) to this exact bundled artifact path. Attribution required for a
-        // license is stronger evidence than a converted package's metadata, so the specific
-        // name is restored. Do not remove it again without checking that file first.
-        items.append(.init(id: "cross-encoder", icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", desc: "TinyBERT cross-encoder scores query-document relevance", color: .green))
+        // The model name is documented provenance, not a guess. `ReRankerModel.mlpackage/Manifest.json`
+        // declares no model family (a Core ML packaging artifact never carries one);
+        // `THIRD_PARTY_NOTICES.md` binds the bundled artifact to its source, since 5.8
+        // `ibm-granite/granite-embedding-reranker-english-r2` (Apache 2.0), which replaced
+        // `cross-encoder/ms-marco-TinyBERT-L2-v2`. Check that file before changing the name.
+        items.append(.init(id: "cross-encoder", icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", desc: "IBM Granite cross-encoder scores query-document relevance on the Neural Engine", color: .green))
         items.append(.init(id: "mmr", icon: "shuffle", label: "MMR Diversification", desc: "Maximal Marginal Relevance for diverse results", color: .green))
         items.append(.init(id: "lost-middle", icon: "arrow.left.arrow.right", label: "Lost-in-Middle Mitigation", desc: "Best evidence at start AND end of context window", color: .green))
         items.append(.init(id: "raptor", icon: "tree", label: "RAPTOR-lite Summaries", desc: "Document-level summaries route overview queries", color: .green))

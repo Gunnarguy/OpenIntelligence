@@ -402,12 +402,12 @@ This document maps the application architecture across all 30 core subsystems.
 
 ## Reranking/fusion
 
-- **Purpose**: Scores candidate chunks using a local CoreML TinyBERT model to refine search relevance.
+- **Purpose**: Scores candidate chunks using a local Core ML cross-encoder to refine search relevance: since 5.8 IBM's granite-embedding-reranker-english-r2 (Apache 2.0, trained without MS MARCO) on the Neural Engine, TinyBERT through 5.7.
 - **Risk Level**: **MEDIUM**
-- **Data Owned**: TinyBERT model vocabularies
+- **Data Owned**: the reranker model (`ReRankerModel.mlpackage`, functions `len256` and `len512`) and its tokenizer (`reranker_tokenizer.bundle`)
 - **Dependencies**: retrieval
 - **Downstream Consumers**: context packing
-- **Gaps or Uncertainties**: TinyBERT model inferences are run in batches which can cause latency spikes on large context sets.
+- **Gaps or Uncertainties**: one prediction per candidate, two to four in flight; the Granite model is about 12 to 40 times slower per passage than TinyBERT was (10.4 ms at 256 tokens, 31.6 at 512, against 0.8, M3 Pro Neural Engine, 2026-11-09), so the candidate count sets the cost of every search.
 - **Owning Files**:
   - [ContainerSettingsSheet+Sections](../../../OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift)
 - **Main Services / Views / Models**:

@@ -284,7 +284,7 @@ extension GlossaryTermID {
                 icon: "arrow.up.arrow.down",
                 section: .pipeline,
                 plain: "A second, more careful look at the passages the search turned up, moving the ones that genuinely answer your question to the top. The first pass is fast and rough, so this one only ever sees the shortlist.",
-                technical: "A cross-encoder scores your question and a passage together in a single pass, rather than comparing two vectors that were built independently. The shipped model is `ms-marco-TinyBERT-L2-v2` under Core ML.",
+                technical: "A cross-encoder scores your question and a passage together in a single pass, rather than comparing two vectors that were built independently. The shipped model is IBM's `granite-embedding-reranker-english-r2` under Core ML, on the Neural Engine (it replaced `ms-marco-TinyBERT-L2-v2` in 5.8).",
                 seeAlso: [.hybridSearch, .citation],
                 synonyms: ["rerank", "cross-encoder", "ranking", "reorder"]
             )

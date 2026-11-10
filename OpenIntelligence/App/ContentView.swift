@@ -138,7 +138,8 @@ struct ContentView: View {
             // read a "containerId" the index never wrote, so it always fell back to the Documents tab
             // of whatever library was active.
             guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
-            VerificationJournal.record("spotlight.open", ["kind": identifier.split(separator: "-").first.map(String.init) ?? "?"])
+            VerificationJournal.record(
+                "spotlight.open", ["kind": identifier.split(separator: "-").first.map(String.init) ?? "?"])
             AppNavigationRequest.post(AppLink.destination(forSpotlightIdentifier: identifier) ?? .documents)
         }
         // Handoff: what another of the person's devices had open (5.7).
@@ -184,6 +185,13 @@ struct ContentView: View {
                 .padding(.trailing, 24)
                 .padding(.bottom, 28)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        // The one-time "Setting up search" card, on every tab, while the reranker compiles after an install (5.8).
+        .overlay(alignment: .top) {
+            if !screenshotMode.isEnabled {
+                RerankerSetupCard()
+                    .padding(.top, DSSpacing.sm)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
@@ -419,7 +427,10 @@ struct ContentView: View {
             Log.warning("[TabBar] Selected tab changed from \(oldTab) to \(newTab)", category: .ui)
             VerificationJournal.record(
                 "ui.tab",
-                ["to": "\(newTab)", "from": "\(oldTab)", "textSize": Self.journalTextSize(), "scheme": Self.journalScheme()])
+                [
+                    "to": "\(newTab)", "from": "\(oldTab)", "textSize": Self.journalTextSize(),
+                    "scheme": Self.journalScheme(),
+                ])
             DSHaptics.tabChanged()
         }
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
@@ -556,7 +567,8 @@ struct ContentView: View {
     /// the view would track in every build.
     private static func journalTextSize() -> String {
         #if canImport(UIKit)
-            let category = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?
+            let category =
+                UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?
                 .traitCollection.preferredContentSizeCategory ?? UIApplication.shared.preferredContentSizeCategory
             return DynamicTypeSize(category).map { "\($0)" } ?? "unknown"
         #else
@@ -718,7 +730,10 @@ struct ContentView: View {
             let outcome = taken.outcome
             VerificationJournal.record(
                 "share.inbox",
-                ["staged": "\(outcome.staged.count)", "failed": "\(outcome.failures.count)", "waiting": "\(taken.waiting)"])
+                [
+                    "staged": "\(outcome.staged.count)", "failed": "\(outcome.failures.count)",
+                    "waiting": "\(taken.waiting)",
+                ])
             if !outcome.staged.isEmpty { AppNavigationRequest.post(.importFiles(outcome.staged)) }
             var lines = outcome.failures
             if taken.waiting > Self.sharedItemsSaidWaiting {
@@ -823,7 +838,11 @@ struct ContentView: View {
             return
         }
         VerificationJournal.record(
-            "open.url", ["scheme": url.scheme ?? "nil", "host": url.host ?? "nil", "path": url.pathComponents.dropFirst().first ?? ""])
+            "open.url",
+            [
+                "scheme": url.scheme ?? "nil", "host": url.host ?? "nil",
+                "path": url.pathComponents.dropFirst().first ?? "",
+            ])
         Log.info("[DeepLink] Received \(url.scheme ?? "nil")://\(url.host ?? "nil")\(url.path)", category: .ui)
         guard let destination = AppLink.destination(for: url) else {
             Log.warning("[DeepLink] Not one of this app's links; ignored", category: .ui)
@@ -842,7 +861,8 @@ struct ContentView: View {
 
     private func continueActivity(_ activity: NSUserActivity) {
         let destinations = AppActivity.destinations(type: activity.activityType, userInfo: activity.userInfo)
-        VerificationJournal.record("handoff.continue", ["type": activity.activityType, "steps": "\(destinations.count)"])
+        VerificationJournal.record(
+            "handoff.continue", ["type": activity.activityType, "steps": "\(destinations.count)"])
         Log.info("[Handoff] Continuing \(activity.activityType): \(destinations.count) step(s)", category: .ui)
         destinations.forEach(AppNavigationRequest.post)
     }
@@ -1033,7 +1053,8 @@ enum NavigationProbe {
             if let tabs = tabBarController(under: root) {
                 let named = (tabs.viewControllers ?? []).enumerated().map { index, controller in
                     let name = index < tabNames.count ? tabNames[index] : "tab\(index)"
-                    let depth = navigationControllers(under: controller).first.map { "\($0.viewControllers.count)" } ?? "-"
+                    let depth =
+                        navigationControllers(under: controller).first.map { "\($0.viewControllers.count)" } ?? "-"
                     return "\(name):\(depth)"
                 }
                 tabsPart = " tabs=\(named.joined(separator: ",")) selected=\(tabs.selectedIndex)"

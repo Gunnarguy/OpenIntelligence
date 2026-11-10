@@ -109,7 +109,8 @@ These are not roadmap gaps. They are the product.
   either in code or copy.
 - **Core ML**, for the bundled cross-encoder reranker at
   `OpenIntelligence/Resources/MLModels/ReRankerModel.mlpackage`. `THIRD_PARTY_NOTICES.md` binds it to
-  `cross-encoder/ms-marco-TinyBERT-L2-v2`, Apache 2.0, by exact path.
+  `ibm-granite/granite-embedding-reranker-english-r2`, Apache 2.0 and trained without MS MARCO, by exact path
+  (since 5.8; `cross-encoder/ms-marco-TinyBERT-L2-v2` through 5.7).
 - **Core ML and Core AI**, for the bundled sentence embedder, `sentence-transformers/all-MiniLM-L6-v2`, one
   copy for each framework. From 5.7 a new library uses the Core ML copy on iPhone and iPad and the Core AI
   copy on macOS 27 (`EmbeddingProviderDefaults` in `EmbeddingService.swift`), and a library keeps the copy

@@ -1155,12 +1155,16 @@ extension AgenticOrchestrator {
         // RRF consensus rewards chunks that appear across MULTIPLE differently-worded queries,
         // which is a strong signal that the chunk actually addresses the topic.
         let maxRRF = chunkScores.values.map { $0.rrfScore }.max() ?? 1.0
+        // The 5.8 audit switch (development builds): off, the weight on fusion is 0 and the reranker's score decides.
+        let blendOff = RetrievalAblation.isOff(.multiQueryBlend)
+        let rerankWeight: Float = blendOff ? 1 : 0.6
+        let rrfWeight: Float = blendOff ? 0 : 0.4
         let fusedResults = chunkScores.values
             .sorted {
                 let normRRF0 = $0.rrfScore / max(maxRRF, 0.001)
                 let normRRF1 = $1.rrfScore / max(maxRRF, 0.001)
-                let blended0 = $0.maxRerankerScore * 0.6 + normRRF0 * 0.4
-                let blended1 = $1.maxRerankerScore * 0.6 + normRRF1 * 0.4
+                let blended0 = $0.maxRerankerScore * rerankWeight + normRRF0 * rrfWeight
+                let blended1 = $1.maxRerankerScore * rerankWeight + normRRF1 * rrfWeight
                 if blended0 != blended1 { return blended0 > blended1 }
                 return firstSeen[$0.chunk.chunk.id, default: .max] < firstSeen[$1.chunk.chunk.id, default: .max]
             }

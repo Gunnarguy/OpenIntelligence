@@ -480,7 +480,7 @@ extension UnifiedMetricsBar {
     }
 
     /// Computed match score from retrieval similarity, rescaled for user comprehension.
-    /// The cross-encoder reranker normalizes scores to 0.10-0.90 range (MS-MARCO model).
+    /// The cross-encoder reranker min-max normalizes each batch's scores to the 0.10-0.90 range (`RAGEngine`).
     /// A score of 0.90 means "perfect match" but shows as 90% which confuses users.
     /// We rescale: (score - 0.10) / 0.80 → maps 0.10→0%, 0.50→50%, 0.90→100%
     private var computedMatchScore: Float {

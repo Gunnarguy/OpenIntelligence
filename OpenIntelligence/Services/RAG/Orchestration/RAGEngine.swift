@@ -7,13 +7,13 @@
 //  - Avoids touching UI or main-actor–isolated services
 //
 
-import Foundation
-import os
-import NaturalLanguage
 import Accelerate
 import CoreML
+import Foundation
 import Metal
+import NaturalLanguage
 import Tokenizers
+import os
 
 #if DEBUG
     import os.signpost
@@ -36,11 +36,18 @@ actor RAGEngine {
     private static let pageNumberRegex3 = try? Regex(#"\b\d{1,2}\s+\.{2,}"#)
     private static let standaloneNumberRegex = try? Regex(#"\b\d{2}\b"#)
 
-
     // MARK: - Properties
 
     #if canImport(CoreML)
-        private var rerankerModel: MLModel?
+        /// The cross-encoder, one loaded function per input length, shortest first.
+        ///
+        /// Since 5.8 the reranker is IBM's granite-embedding-reranker-english-r2 (Apache 2.0, trained without
+        /// MS MARCO), replacing cross-encoder/ms-marco-TinyBERT-L2-v2, whose training data's terms allow
+        /// non-commercial research only. `ReRankerModel.mlpackage` holds two fixed-shape functions, `len256` and
+        /// `len512`, because the Neural Engine runs fixed shapes and a 256-token pass is three times faster than a
+        /// 512-token one (10.4 against 31.6 ms, M3 Pro, 2026-11-09). Built by `scripts/build_reranker_model.py`;
+        /// measurements in `BenchmarkRuns/2026-11-09-reranker-swap/`.
+        private var rerankerModels: [(length: Int, model: MLModel)] = []
     #endif
 
     private var rerankerTokenizer: Tokenizer?
@@ -72,37 +79,61 @@ actor RAGEngine {
         }
     }
 
+    /// Waits for the reranker's load (`RerankerWarmup` calls this a few seconds after launch, which is what starts it).
+    func prepareReranker() async {
+        await setupTask?.value
+    }
+
     private func setupReRanker() async {
         // Only run setup once
         guard !isSetupComplete else { return }
         isSetupComplete = true
 
         #if canImport(CoreML)
-            // Load ReRanker Model (compiled from .mlpackage to .mlmodelc by Xcode)
+            // Load the reranker's two functions (Xcode compiles the .mlpackage to .mlmodelc). The Neural Engine,
+            // not `.all`: on the M3 Pro it ran this model faster than the GPU at both lengths (10.4 against 20.8 ms
+            // at 256 tokens, 31.6 against 38.8 at 512, 2026-11-09), and it leaves the GPU to the vector search.
             let modelName = "ReRankerModel"
-            if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
-                do {
-                    let config = MLModelConfiguration()
-                    config.computeUnits = .all
-                    config.allowLowPrecisionAccumulationOnGPU = true
-                    self.rerankerModel = try MLModel(contentsOf: url, configuration: config)
-                    Log.info("[RAGEngine] Loaded ReRankerModel.mlmodelc", category: .retrieval)
-                } catch {
-                    Log.error("[RAGEngine] Failed to load ReRanker: \(error)", category: .retrieval)
+            // Say "Preparing search" once the load has run a second (the first load after an install compiles the
+            // model for the Neural Engine; a cached load takes about 0.2 s and never shows it).
+            let loadStart = Date()
+            let announce = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(RerankerSetupStatus.showAfterSeconds * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                RerankerSetupStatus.shared.setPreparing(true)
+            }
+            defer {
+                announce.cancel()
+                Task { @MainActor in RerankerSetupStatus.shared.setPreparing(false) }
+            }
+            if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc")
+                ?? OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage")
+            {
+                var loaded: [(length: Int, model: MLModel)] = []
+                for length in [256, 512] {
+                    do {
+                        let config = MLModelConfiguration()
+                        config.computeUnits = .cpuAndNeuralEngine
+                        config.functionName = "len\(length)"
+                        loaded.append((length, try MLModel(contentsOf: url, configuration: config)))
+                    } catch {
+                        Log.error(
+                            "[RAGEngine] Failed to load ReRanker function len\(length): \(error)", category: .retrieval)
+                    }
                 }
-            } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
-                // Fallback: Check for uncompiled package
-                do {
-                    let config = MLModelConfiguration()
-                    config.computeUnits = .all
-                    config.allowLowPrecisionAccumulationOnGPU = true
-                    self.rerankerModel = try MLModel(contentsOf: sourceURL, configuration: config)
-                    Log.info("[RAGEngine] Loaded ReRankerModel.mlpackage (fallback)", category: .retrieval)
-                } catch {
-                    Log.error("[RAGEngine] Failed to load ReRanker from source: \(error)", category: .retrieval)
-                }
+                self.rerankerModels = loaded
+                let loadSeconds = Date().timeIntervalSince(loadStart)
+                Log.info(
+                    "[RAGEngine] Loaded \(url.lastPathComponent), functions "
+                        + loaded.map { "len\($0.length)" }.joined(separator: ", ")
+                        + " in \(String(format: "%.2f", loadSeconds)) s", category: .retrieval)
+                // The first load after an install compiles for the Neural Engine; this is what the phone check reads.
+                VerificationJournal.record(
+                    "reranker.load", loaded.count == 2 ? .ok : .failed, durationMs: loadSeconds * 1000,
+                    ["functions": loaded.map { "len\($0.length)" }.joined(separator: ",")])
             } else {
-                Log.warning("[RAGEngine] ReRankerModel not found (looked for .mlmodelc and .mlpackage)", category: .retrieval)
+                Log.warning(
+                    "[RAGEngine] ReRankerModel not found (looked for .mlmodelc and .mlpackage)", category: .retrieval)
             }
         #endif
 
@@ -163,7 +194,8 @@ actor RAGEngine {
         let metalVectorOpsEnabled = await MainActor.run {
             DeviceCapabilityService.shared.useMetalForVectorOps
         }
-        let useGPU = candidates.count > 50
+        let useGPU =
+            candidates.count > 50
             && metalVectorOpsEnabled
             && gpuCompute.isGPUAvailable
 
@@ -180,9 +212,12 @@ actor RAGEngine {
             // Validate matrix is N×N matching candidate count — malformed matrix causes subscript crash
             if matrix.count == candidates.count, matrix.first?.count == candidates.count {
                 diversityMatrix = matrix
-                Log.debug("[RAGEngine] 🚀 GPU MMR diversity matrix for \(candidates.count) candidates", category: .retrieval)
+                Log.debug(
+                    "[RAGEngine] 🚀 GPU MMR diversity matrix for \(candidates.count) candidates", category: .retrieval)
             } else {
-                Log.warning("[RAGEngine] ⚠️ GPU MMR matrix dimensions mismatch (got \(matrix.count)×\(matrix.first?.count ?? 0), expected \(candidates.count)×\(candidates.count)), falling back to CPU", category: .retrieval)
+                Log.warning(
+                    "[RAGEngine] ⚠️ GPU MMR matrix dimensions mismatch (got \(matrix.count)×\(matrix.first?.count ?? 0), expected \(candidates.count)×\(candidates.count)), falling back to CPU",
+                    category: .retrieval)
             }
         }
 
@@ -284,7 +319,8 @@ actor RAGEngine {
         for (index, retrieved) in chunks.enumerated() {
             if Task.isCancelled { break }
 
-            builder += "[Document Chunk \(index + 1), Similarity: \(String(format: "%.3f", retrieved.similarityScore))]\n"
+            builder +=
+                "[Document Chunk \(index + 1), Similarity: \(String(format: "%.3f", retrieved.similarityScore))]\n"
             builder += retrieved.chunk.contextText
 
             if index != chunks.count - 1 {
@@ -304,10 +340,11 @@ actor RAGEngine {
         query: String,
         topK: Int
     ) async -> [RetrievedChunk] {
-        // The cross-encoder is planned onto the Neural Engine (55 of 66 operations under `.all`, M3 Pro,
-        // BenchmarkRuns/2026-10-18-compute-plan). Without the model the fallback is CPU heuristics, which lit the
-        // Neural Engine too until 5.7.
-        let usesCrossEncoder = rerankerModel != nil
+        // The cross-encoder is planned onto the Neural Engine (887 of 897 operations, 86% of the estimated cost at
+        // 256 tokens and 93% at 512, M3 Pro, BenchmarkRuns/2026-11-09-reranker-swap; the TinyBERT one before 5.8 was
+        // 55 of 66, BenchmarkRuns/2026-10-18-compute-plan). Without the model the fallback is CPU heuristics, which
+        // lit the Neural Engine too until 5.7.
+        let usesCrossEncoder = !rerankerModels.isEmpty
         Task { @MainActor in
             if usesCrossEncoder {
                 HardwareTelemetryReporter.pulse(.reranking, intensity: 0.85, duration: 0.3)
@@ -350,12 +387,12 @@ actor RAGEngine {
         await setupTask?.value
 
         #if canImport(CoreML)
-            if let model = rerankerModel, let tokenizer = rerankerTokenizer {
+            if !rerankerModels.isEmpty, let tokenizer = rerankerTokenizer {
                 return await rerankWithCrossEncoder(
                     chunks: candidateChunks,
                     query: query,
                     topK: topK,
-                    model: model,
+                    models: rerankerModels,
                     tokenizer: tokenizer
                 )
             }
@@ -373,7 +410,8 @@ actor RAGEngine {
         let queryTermSet = Set(queryTerms)
         let queryLower = query.lowercased()
         let hasDigits = queryLower.rangeOfCharacter(from: .decimalDigits) != nil
-        let wantsSteps = queryLower.contains("step")
+        let wantsSteps =
+            queryLower.contains("step")
             || queryLower.contains("procedure")
             || queryLower.contains("instructions")
             || queryLower.contains("checklist")
@@ -391,10 +429,10 @@ actor RAGEngine {
             var score = r.similarityScore
 
             let keywordBoost = calculateKeywordMatch(query: query, content: r.chunk.content)
-            score += keywordBoost * 0.25 // Moderate: boost keyword matches without overwhelming semantic similarity
+            score += keywordBoost * 0.25  // Moderate: boost keyword matches without overwhelming semantic similarity
 
             let proximityBoost = calculateTermProximity(query: query, content: r.chunk.content)
-            score += proximityBoost * 0.20 // Moderate: favor term proximity without clobbering vector ranking
+            score += proximityBoost * 0.20  // Moderate: favor term proximity without clobbering vector ranking
 
             let chunkIndex = r.chunk.metadata.chunkIndex
             let positionScore = 1.0 / Float(chunkIndex + 10)
@@ -410,24 +448,37 @@ actor RAGEngine {
 
             // TOC/Boilerplate Detection Penalty
             // Table-of-contents chunks have many section numbers but little actual content
-                let contentForPenalty = r.chunk.contextText
-                let tocPenalty = computeTOCPenalty(content: contentForPenalty)
-                let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
-                let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)
-                score -= tocPenalty + questionBankPenalty + bibliographyPenalty
+            let contentForPenalty = r.chunk.contextText
+            let tocPenalty =
+                RetrievalAblation.isOff(.tocPenalty)
+                ? 0 : Self.computeTOCPenalty(content: contentForPenalty, isTable: Self.isStoredTable(r.chunk))
+            let questionBankPenalty =
+                RetrievalAblation.isOff(.questionBankPenalty)
+                ? 0 : computeQuestionBankPenalty(content: contentForPenalty, query: query)
+            let bibliographyPenalty =
+                RetrievalAblation.isOff(.bibliographyPenalty)
+                ? 0 : Self.computeBibliographyPenalty(content: contentForPenalty)
+            score -= tocPenalty + questionBankPenalty + bibliographyPenalty
 
             scored.append((r, score, keywordBoost, proximityBoost, metadataBoost))
         }
 
         // Sort by rerank score desc, ties in one order from run to run (5.7; see HybridSearchService.byScoreThenId)
-        scored.sort { $0.score != $1.score ? $0.score > $1.score : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk) }
+        scored.sort {
+            $0.score != $1.score
+                ? $0.score > $1.score
+                : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
+        }
 
         if scored.count > 0 {
             // keep debug parity with existing logs
             let top = scored[0]
-            Log.debug("[RAGEngine] Heuristic re-ranking complete. Top score: \(String(format: "%.4f", top.score))", category: .retrieval)
+            Log.debug(
+                "[RAGEngine] Heuristic re-ranking complete. Top score: \(String(format: "%.4f", top.score))",
+                category: .retrieval)
             Log.debug("[RAGEngine] Score breakdown:", category: .retrieval)
-            Log.debug("[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
+            Log.debug(
+                "[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
             Log.debug("[RAGEngine] - Keywords: \(String(format: "%.3f", top.keyword))", category: .retrieval)
             Log.debug("[RAGEngine] - Proximity: \(String(format: "%.3f", top.proximity))", category: .retrieval)
             if top.metadata > 0 {
@@ -547,7 +598,9 @@ actor RAGEngine {
             // Only inject if it fits within ~10% of the budget
             if glossaryBlock.count <= maxChars / 10 {
                 builder += glossaryBlock
-                Log.debug("[RAGEngine] Injected abbreviation glossary (\(glossary.count) entries, \(glossaryBlock.count) chars)", category: .retrieval)
+                Log.debug(
+                    "[RAGEngine] Injected abbreviation glossary (\(glossary.count) entries, \(glossaryBlock.count) chars)",
+                    category: .retrieval)
             }
         }
 
@@ -627,7 +680,9 @@ actor RAGEngine {
                     return jaccard >= 0.75
                 }
                 if isDuplicate {
-                    Log.debug("[RAGEngine] Skipping chunk \(i + 1) — >75% word overlap with existing context chunk", category: .retrieval)
+                    Log.debug(
+                        "[RAGEngine] Skipping chunk \(i + 1) — >75% word overlap with existing context chunk",
+                        category: .retrieval)
                     continue
                 }
             }
@@ -671,7 +726,8 @@ actor RAGEngine {
                 usedWordSets.append(contentWords)
             } else if used < minChunksTarget && remainingBudget > 300 {
                 // Force-fit truncated version if we haven't hit minimum chunks yet
-                let forceTruncated = truncateAtSentence(truncatedContent, maxChars: remainingBudget - headerOverhead - 20)
+                let forceTruncated = truncateAtSentence(
+                    truncatedContent, maxChars: remainingBudget - headerOverhead - 20)
                 if forceTruncated.count >= 150 {
                     let forceBlock = renderBlock(used + 1, r, forceTruncated, isLast: i == orderedChunks.count - 1)
                     builder += forceBlock
@@ -690,7 +746,7 @@ actor RAGEngine {
         // The Lost-in-the-Middle placement, on the passages chosen. The labels follow the new order, so they still
         // read [S1], [S2], [S3] down the context, and `usedSources` returns the passages in that order.
         if useLostInMiddleMitigation, packed.count >= 4 {
-            let placed = applyLostInMiddleReordering(packed)
+            let placed = Self.applyLostInMiddleReordering(packed)
             builder = glossaryPrefix
             for (place, entry) in placed.enumerated() {
                 builder += renderBlock(place + 1, entry.chunk, entry.text, isLast: place == placed.count - 1)
@@ -776,10 +832,10 @@ actor RAGEngine {
         }
 
         // 3. Remove zero-width characters that can confuse tokenizers
-        result = result.replacingOccurrences(of: "\u{200B}", with: "") // zero-width space
-        result = result.replacingOccurrences(of: "\u{200C}", with: "") // zero-width non-joiner
-        result = result.replacingOccurrences(of: "\u{200D}", with: "") // zero-width joiner
-        result = result.replacingOccurrences(of: "\u{FEFF}", with: "") // byte order mark
+        result = result.replacingOccurrences(of: "\u{200B}", with: "")  // zero-width space
+        result = result.replacingOccurrences(of: "\u{200C}", with: "")  // zero-width non-joiner
+        result = result.replacingOccurrences(of: "\u{200D}", with: "")  // zero-width joiner
+        result = result.replacingOccurrences(of: "\u{FEFF}", with: "")  // byte order mark
 
         return result
     }
@@ -791,7 +847,9 @@ actor RAGEngine {
     ///   - Start: #1 (best), #3, #5
     ///   - End: #2 (second-best), #4, #6
     ///   - Middle: worst chunks (#5, #6)
-    private func applyLostInMiddleReordering<T>(_ chunks: [T]) -> [T] {
+    ///
+    /// Static since 5.8 so Deep Think's retrieval uses this one too: its own copy put #2 first ([2,4,1,3,5]).
+    nonisolated static func applyLostInMiddleReordering<T>(_ chunks: [T]) -> [T] {
         guard chunks.count >= 4 else { return chunks }
 
         // Split into odd-indexed (0, 2, 4...) and even-indexed (1, 3, 5...) positions
@@ -803,9 +861,9 @@ actor RAGEngine {
 
         for (i, chunk) in chunks.enumerated() {
             if i % 2 == 0 {
-                frontChunks.append(chunk)   // ranks 1, 3, 5, ... → front
+                frontChunks.append(chunk)  // ranks 1, 3, 5, ... → front
             } else {
-                backChunks.append(chunk)    // ranks 2, 4, 6, ... → back (reversed)
+                backChunks.append(chunk)  // ranks 2, 4, 6, ... → back (reversed)
             }
         }
 
@@ -870,12 +928,9 @@ actor RAGEngine {
         let diversityScore = min(Float(sourceCount) / Float(max(totalDocs, 1)), 1.0)
         let queryScore = min(Float(queryWords) / 5.0, 1.0)
 
-        let confidence = (
-            similarityScore * similarityWeight +
-                chunkScore * chunkCountWeight +
-                    diversityScore * sourceDiversityWeight +
-                    queryScore * queryQualityWeight
-        )
+        let confidence =
+            (similarityScore * similarityWeight + chunkScore * chunkCountWeight + diversityScore * sourceDiversityWeight
+                + queryScore * queryQualityWeight)
 
         return (confidence, warnings)
     }
@@ -932,13 +987,14 @@ actor RAGEngine {
                 : ($0.chunk.documentId.uuidString, $0.chunk.metadata.chunkIndex)
                     < ($1.chunk.documentId.uuidString, $1.chunk.metadata.chunkIndex)
         }.prefix(min(topK, scored.count))
-        return Array(top.enumerated().map { idx, pair in
-            RetrievedChunk(
-                chunk: pair.chunk,
-                similarityScore: pair.score,
-                rank: idx + 1
-            )
-        })
+        return Array(
+            top.enumerated().map { idx, pair in
+                RetrievedChunk(
+                    chunk: pair.chunk,
+                    similarityScore: pair.score,
+                    rank: idx + 1
+                )
+            })
     }
 
     // MARK: - Hybrid Search Utilities (BM25 + RRF)
@@ -1078,7 +1134,8 @@ actor RAGEngine {
 
         let ranked = allCandidates.sorted {
             let (lhs, rhs) = (scores[$0.chunk.id] ?? 0, scores[$1.chunk.id] ?? 0)
-            return lhs != rhs ? lhs > rhs : HybridSearchService.stableTieBreakKey($0) < HybridSearchService.stableTieBreakKey($1)
+            return lhs != rhs
+                ? lhs > rhs : HybridSearchService.stableTieBreakKey($0) < HybridSearchService.stableTieBreakKey($1)
         }
         return ranked
     }
@@ -1118,12 +1175,13 @@ actor RAGEngine {
         let normalized = text.lowercased()
         cachedTokenizer.string = normalized
         cachedLemmaTagger.string = normalized
-        return cachedTokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
+        return cachedTokenizer.tokens(for: normalized.startIndex..<normalized.endIndex).compactMap { range in
             let token = String(normalized[range]).trimmingCharacters(in: .punctuationCharacters)
             guard !token.isEmpty else { return nil }
             // Lemmatize to match BM25Scorer: "running" → "run"
             if let lemma = cachedLemmaTagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma).0?.rawValue,
-               !lemma.isEmpty {
+                !lemma.isEmpty
+            {
                 return lemma
             }
             return token
@@ -1221,16 +1279,34 @@ actor RAGEngine {
         return boost
     }
 
+    /// Whether a passage was stored as a table (`structureType` "table", or a table's parts or summary), for
+    /// `computeTOCPenalty`.
+    nonisolated static func isStoredTable(_ chunk: DocumentChunk) -> Bool {
+        if chunk.metadata.structureType == "table" { return true }
+        switch chunk.metadata.chunkType {
+        case .tableStructural, .tableSemantic: return true
+        default: return false
+        }
+    }
+
     /// Detect table-of-contents or index-style chunks that match keywords but lack actual content
     /// Returns a penalty score (0.0 = normal content, up to 0.5 = definitely TOC/index)
-    private func computeTOCPenalty(content: String) -> Float {
+    ///
+    /// For a passage stored as a table (`isTable`), only the two signs a data table does not share count: dot leaders
+    /// before page numbers and the words "contents" or "table of contents" (5.8). The others (numbers like "3.4",
+    /// standalone two-digit numbers, short lines, list markers) describe every numeric table: "3.4" is a decimal as
+    /// often as a section number, and a table's rows are short by nature. On 2026-11-09 the reranker ranked a spirulina
+    /// composition table first for "How much lysine is present?" (normalised 0.90); its dozens of decimals ("15.0-25.0",
+    /// "4.4-26.2") took the section-number penalty of 0.18, the gate read 0.720 at the top, and the prose beside the
+    /// table led the prompt, so the answer said "small amounts" where the table says 4.4 to 26.2 mg/g.
+    nonisolated static func computeTOCPenalty(content: String, isTable: Bool = false) -> Float {
         var penalty: Float = 0
         let wordCount = content.split(separator: " ").count
         guard wordCount > 10 else { return 0 }  // Too short to analyze
 
         // Pattern 1: Many section numbers like "1.1.", "2.3.", "3.4.5." etc.
         // TOC pages have dense section numbering
-        let sectionMatches = Self.sectionNumberRegex.map { content.matches(of: $0) } ?? []
+        let sectionMatches = isTable ? [] : (Self.sectionNumberRegex.map { content.matches(of: $0) } ?? [])
         if sectionMatches.count >= 8 {
             penalty += 0.18  // Strong indicator of TOC
         } else if sectionMatches.count >= 5 {
@@ -1253,7 +1329,7 @@ actor RAGEngine {
         // TOC has many "45", "52", "53" etc. scattered throughout
         // NOTE: Swift Regex doesn't support lookbehind, so we use word boundaries
         // and filter in code instead
-        let standaloneMatches = Self.standaloneNumberRegex.map { content.matches(of: $0) } ?? []
+        let standaloneMatches = isTable ? [] : (Self.standaloneNumberRegex.map { content.matches(of: $0) } ?? [])
         // Filter out numbers that are part of decimals or larger numbers
         let filteredNumberCount = standaloneMatches.filter { match in
             let matchRange = match.range
@@ -1284,7 +1360,7 @@ actor RAGEngine {
         // Pattern 5: Very short average sentence length (typical of headings/TOC entries)
         let sentences = content.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        if sentences.count >= 6 {
+        if !isTable, sentences.count >= 6 {
             let avgWordsPerSentence = Float(wordCount) / Float(sentences.count)
             if avgWordsPerSentence < 5 {
                 penalty += 0.12  // Very short "sentences" = likely headings
@@ -1304,10 +1380,11 @@ actor RAGEngine {
 
         // Pattern 7: High ratio of bullet points / list markers in short content
         // TOC often has • or - at start of many lines
-        let bulletCount = content.components(separatedBy: "•").count - 1
+        let bulletCount =
+            content.components(separatedBy: "•").count - 1
             + content.components(separatedBy: "\n-").count - 1
             + content.components(separatedBy: "\n*").count - 1
-        if bulletCount >= 6 && Float(bulletCount) / Float(sentences.count) > 0.4 {
+        if !isTable, bulletCount >= 6 && Float(bulletCount) / Float(sentences.count) > 0.4 {
             penalty += 0.08
         }
 
@@ -1359,13 +1436,14 @@ actor RAGEngine {
 
     private func computeQuestionBankPenalty(content: String, query: String) -> Float {
         let normalizedContent = content.lowercased()
-        let normalizedQuery = query
+        let normalizedQuery =
+            query
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
         guard !normalizedContent.isEmpty,
-              !normalizedQuery.isEmpty,
-              !querySeeksExampleQuestions(normalizedQuery)
+            !normalizedQuery.isEmpty,
+            !querySeeksExampleQuestions(normalizedQuery)
         else {
             return 0
         }
@@ -1378,7 +1456,7 @@ actor RAGEngine {
             "example questions",
             "strongest on questions",
             "strongest with questions",
-            "good at answering questions"
+            "good at answering questions",
         ]
 
         let markerHits = markerPhrases.reduce(into: 0) { count, phrase in
@@ -1423,7 +1501,7 @@ actor RAGEngine {
             "good at answering",
             "good at",
             "can i ask",
-            "should i ask"
+            "should i ask",
         ]
 
         if phrases.contains(where: { normalizedQuery.contains($0) }) {
@@ -1457,22 +1535,25 @@ actor RAGEngine {
             chunks: [RetrievedChunk],
             query: String,
             topK: Int,
-            model: MLModel,
+            models: [(length: Int, model: MLModel)],
             tokenizer: Tokenizer
         ) async -> [RetrievedChunk] {
             let cappedTopK = min(topK, chunks.count)
-            let maxLen = 512
+            // The longest function's length is the most the model reads; each pair runs on the shortest function
+            // that holds it, padded to that length.
+            let maxLen = models.last?.length ?? 512
 
-            // Special Token IDs
+            // Special Token IDs (Granite's tokenizer: [PAD] 50283, [SEP] 50282)
             let padId = tokenizer.convertTokenToId("[PAD]") ?? 0
+            let sepId = tokenizer.convertTokenToId("[SEP]")
 
             // OPTIMIZATION: Pre-tokenize ALL chunks upfront (CPU-bound, fast)
             // This amortizes tokenizer overhead and enables concurrent prediction
             struct TokenizedInput: Sendable {
                 let chunkIndex: Int
+                let length: Int
                 let inputIds: [Int]
                 let attentionMask: [Int]
-                let tokenTypes: [Int]
             }
 
             var tokenizedInputs: [TokenizedInput] = []
@@ -1481,35 +1562,36 @@ actor RAGEngine {
             for (idx, r) in chunks.enumerated() {
                 // Include contextual prefix for cross-encoder (Anthropic's Contextual Retrieval)
                 let docText = (r.chunk.contextualPrefix ?? "") + r.chunk.content
-                
+
                 var encoding: TokenizerEncoding
                 do {
-                    encoding = try tokenizer.encodeWithMetadata(text: query, textPair: docText, addSpecialTokens: true, offsetUnit: .utf8)
+                    encoding = try tokenizer.encodeWithMetadata(
+                        text: query, textPair: docText, addSpecialTokens: true, offsetUnit: .utf8)
                 } catch {
                     continue
                 }
 
                 var inputIds = encoding.tokenIds
-                var tokenTypes = encoding.tokenTypeIds
-                var attentionMask = encoding.attentionMask
-
                 if inputIds.count > maxLen {
-                    inputIds = Array(inputIds.prefix(maxLen))
-                    tokenTypes = Array(tokenTypes.prefix(maxLen))
-                    attentionMask = Array(attentionMask.prefix(maxLen))
-                } else if inputIds.count < maxLen {
-                    let padLen = maxLen - inputIds.count
+                    // Cut the passage's end and keep the closing [SEP], as the model's own tokenizer truncates a
+                    // pair whose passage is the longer side (the question is a few tokens).
+                    inputIds = Array(inputIds.prefix(maxLen - 1)) + [sepId ?? inputIds[inputIds.count - 1]]
+                }
+                let length = models.first { $0.length >= inputIds.count }?.length ?? maxLen
+                var attentionMask = Array(repeating: 1, count: inputIds.count)
+                if inputIds.count < length {
+                    let padLen = length - inputIds.count
                     inputIds.append(contentsOf: Array(repeating: padId, count: padLen))
                     attentionMask.append(contentsOf: Array(repeating: 0, count: padLen))
-                    tokenTypes.append(contentsOf: Array(repeating: 0, count: padLen))
                 }
 
-                tokenizedInputs.append(TokenizedInput(
-                    chunkIndex: idx,
-                    inputIds: inputIds,
-                    attentionMask: attentionMask,
-                    tokenTypes: tokenTypes
-                ))
+                tokenizedInputs.append(
+                    TokenizedInput(
+                        chunkIndex: idx,
+                        length: length,
+                        inputIds: inputIds,
+                        attentionMask: attentionMask
+                    ))
             }
 
             // OPTIMIZATION: Concurrent predictions using TaskGroup
@@ -1521,51 +1603,59 @@ actor RAGEngine {
             // Each invocation creates its own MLMultiArray buffers (no sharing between tasks).
             let runPrediction: @Sendable (TokenizedInput) async -> (Int, Float)? = { input in
                 do {
-                    let inputIdsArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
-                    let maskArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
-                    let tokenTypeArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
+                    guard let model = models.first(where: { $0.length == input.length })?.model else { return nil }
+                    let len = input.length
+                    let inputIdsArray = try MLMultiArray(shape: [1, NSNumber(value: len)], dataType: .int32)
+                    let maskArray = try MLMultiArray(shape: [1, NSNumber(value: len)], dataType: .int32)
 
                     // Bulk copy using dataPointer for 3x faster writes vs NSNumber subscript
-                    let inputPtr = inputIdsArray.dataPointer.bindMemory(to: Int32.self, capacity: maxLen)
-                    let maskPtr = maskArray.dataPointer.bindMemory(to: Int32.self, capacity: maxLen)
-                    let tokenPtr = tokenTypeArray.dataPointer.bindMemory(to: Int32.self, capacity: maxLen)
-                    for i in 0 ..< maxLen {
+                    let inputPtr = inputIdsArray.dataPointer.bindMemory(to: Int32.self, capacity: len)
+                    let maskPtr = maskArray.dataPointer.bindMemory(to: Int32.self, capacity: len)
+                    for i in 0..<len {
                         inputPtr[i] = Int32(input.inputIds[i])
                         maskPtr[i] = Int32(input.attentionMask[i])
-                        tokenPtr[i] = Int32(input.tokenTypes[i])
                     }
 
                     let inputs = try MLDictionaryFeatureProvider(dictionary: [
                         "input_ids": MLFeatureValue(multiArray: inputIdsArray),
                         "attention_mask": MLFeatureValue(multiArray: maskArray),
-                        "token_type_ids": MLFeatureValue(multiArray: tokenTypeArray),
                     ])
 
                     let output = try await model.prediction(from: inputs)
 
-                    var score: Float = 0
-                    if let logits = output.featureValue(for: "logits")?.multiArrayValue {
-                        let count = logits.count
-                        if count >= 1 {
-                            let val0 = logits[0].floatValue
-                            if count == 1 {
-                                score = val0
-                            } else {
-                                let val1 = logits[1].floatValue
-                                let e0 = exp(val0)
-                                let e1 = exp(val1)
-                                score = e1 / (e0 + e1)
-                            }
-                        }
+                    // One relevance logit per pair.
+                    guard let logits = output.featureValue(for: "logits")?.multiArrayValue, logits.count >= 1 else {
+                        return nil
                     }
-                    return (input.chunkIndex, score)
+                    return (input.chunkIndex, logits[0].floatValue)
                 } catch {
-                    Log.error("[RAGEngine] Re-ranking inference failed for chunk \(input.chunkIndex): \(error)", category: .retrieval)
+                    Log.error(
+                        "[RAGEngine] Re-ranking inference failed for chunk \(input.chunkIndex): \(error)",
+                        category: .retrieval)
                     return nil
                 }
             }
 
-            let scored: [(index: Int, score: Float)] = await withTaskGroup(
+            // A benchmark run with a score file reads the pairs it has scored before (`RerankScoreCache`, development
+            // builds only); everything else runs on the model as always.
+            let scoreCache = RerankScoreCache.shared
+            var cachedResults: [(Int, Float)] = []
+            var cacheKeys: [Int: String] = [:]
+            if scoreCache.isEnabled {
+                var uncached: [TokenizedInput] = []
+                for input in tokenizedInputs {
+                    let key = RerankScoreCache.key(input.inputIds)
+                    if let value = scoreCache.score(for: key) {
+                        cachedResults.append((input.chunkIndex, value))
+                    } else {
+                        cacheKeys[input.chunkIndex] = key
+                        uncached.append(input)
+                    }
+                }
+                tokenizedInputs = uncached
+            }
+
+            let modelScored: [(index: Int, score: Float)] = await withTaskGroup(
                 of: (Int, Float)?.self,
                 returning: [(Int, Float)].self
             ) { group in
@@ -1574,7 +1664,7 @@ actor RAGEngine {
                 results.reserveCapacity(chunks.count)
 
                 // Seed initial batch
-                for _ in 0 ..< maxConcurrentPredictions {
+                for _ in 0..<maxConcurrentPredictions {
                     guard let input = inputIterator.next() else { break }
                     group.addTask { [input] in await runPrediction(input) }
                 }
@@ -1591,15 +1681,24 @@ actor RAGEngine {
                 }
                 return results
             }
+            if scoreCache.isEnabled {
+                for (index, value) in modelScored {
+                    if let key = cacheKeys[index] { scoreCache.store(value, for: key) }
+                }
+            }
+            let scored = cachedResults.map { (index: $0.0, score: $0.1) } + modelScored
 
             // Reconstruct scored chunks in score-descending order
             var scoredChunks = scored.map { (chunk: chunks[$0.index], score: $0.score) }
             scoredChunks.sort {
-                $0.score != $1.score ? $0.score > $1.score : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
+                $0.score != $1.score
+                    ? $0.score > $1.score
+                    : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
             }
 
-            // MS-MARCO cross-encoders output unbounded relevance scores (e.g., -10 to +10).
-            // These are meant for ranking, not as probabilities.
+            // The cross-encoder outputs an unbounded relevance logit (the TinyBERT one before 5.8 ran about -11 to
+            // +6; the Granite one's range is not measured beyond test pairs). It is meant for ranking, not as a
+            // probability.
             // We normalize to [0,1] using min-max normalization within the batch,
             // which preserves ranking order while matching downstream score thresholds.
 
@@ -1624,7 +1723,9 @@ actor RAGEngine {
             if let top = normalizedScored.first, let bottom = normalizedScored.last {
                 let rawTop = scoredChunks.first?.score ?? 0
                 let rawBottom = scoredChunks.last?.score ?? 0
-                Log.debug("[RAGEngine] AI Re-ranking: raw \(String(format: "%.2f", rawBottom))→\(String(format: "%.2f", rawTop)), normalized \(String(format: "%.2f", bottom.score))→\(String(format: "%.2f", top.score))", category: .retrieval)
+                Log.debug(
+                    "[RAGEngine] AI Re-ranking: raw \(String(format: "%.2f", rawBottom))→\(String(format: "%.2f", rawTop)), normalized \(String(format: "%.2f", bottom.score))→\(String(format: "%.2f", top.score))",
+                    category: .retrieval)
                 // Log top chunk preview for debugging retrieval quality
                 let previewSource = top.chunk.chunk.contextText
                 let preview = String(previewSource.prefix(150)).replacingOccurrences(of: "\n", with: " ")
@@ -1635,14 +1736,34 @@ actor RAGEngine {
             // This demotes table-of-contents chunks that match keywords but lack actual content
             let penalizedScored = normalizedScored.map { item -> (chunk: RetrievedChunk, score: Float) in
                 let contentForPenalty = item.chunk.chunk.contextText
-                let tocPenalty = computeTOCPenalty(content: contentForPenalty)
-                let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
-                let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)
+                let tocPenalty =
+                    RetrievalAblation.isOff(.tocPenalty)
+                    ? 0
+                    : Self.computeTOCPenalty(content: contentForPenalty, isTable: Self.isStoredTable(item.chunk.chunk))
+                let questionBankPenalty =
+                    RetrievalAblation.isOff(.questionBankPenalty)
+                    ? 0 : computeQuestionBankPenalty(content: contentForPenalty, query: query)
+                let bibliographyPenalty =
+                    RetrievalAblation.isOff(.bibliographyPenalty)
+                    ? 0 : Self.computeBibliographyPenalty(content: contentForPenalty)
                 let adjustedScore = max(0.01, item.score - tocPenalty - questionBankPenalty - bibliographyPenalty)
                 return (item.chunk, adjustedScore)
             }.sorted {
                 // Many scores meet at the 0.01 floor, so ties are common at the cut (5.7).
-                $0.score != $1.score ? $0.score > $1.score : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
+                $0.score != $1.score
+                    ? $0.score > $1.score
+                    : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
+            }
+
+            // A penalty that moves the reranker's first pick is worth one line in the trace (5.8).
+            if let crossEncoderTop = normalizedScored.first, let shownTop = penalizedScored.first,
+                crossEncoderTop.chunk.chunk.id != shownTop.chunk.chunk.id
+            {
+                let after = penalizedScored.first { $0.chunk.chunk.id == crossEncoderTop.chunk.chunk.id }?.score ?? 0
+                Log.info(
+                    "[RAGEngine] Penalties moved the reranker's first pick: \(String(format: "%.2f", crossEncoderTop.score)) -> "
+                        + "\(String(format: "%.2f", after)) (\(crossEncoderTop.chunk.chunk.metadata.structureType ?? "prose"))",
+                    category: .retrieval)
             }
 
             return penalizedScored.prefix(cappedTopK).map { scoredItem in
@@ -1657,4 +1778,28 @@ actor RAGEngine {
             }
         }
     #endif
+}
+
+// MARK: - The reranker's tokenizer, for tests
+
+extension RAGEngine {
+    /// The reranker's tokenizer encoding a question and passage the way `rerankWithCrossEncoder` does, before any
+    /// truncation or padding; nil when the bundle is missing or the tokenizer fails. For `RerankerModelTests`: the
+    /// test target does not link the tokenizer package, so it cannot load the tokenizer itself.
+    static func rerankerTokenIds(query: String, passage: String) async -> [Int]? {
+        guard let tok = await loadRerankerTokenizerForTesting() else { return nil }
+        return try? tok.encodeWithMetadata(text: query, textPair: passage, addSpecialTokens: true, offsetUnit: .utf8)
+            .tokenIds
+    }
+
+    /// The id of one of the reranker tokenizer's tokens, for `RerankerModelTests`.
+    static func rerankerTokenId(_ token: String) async -> Int? {
+        await loadRerankerTokenizerForTesting()?.convertTokenToId(token)
+    }
+
+    private static func loadRerankerTokenizerForTesting() async -> Tokenizer? {
+        guard let url = OpenIntelligenceResourceBundle.url(forResource: "reranker_tokenizer", withExtension: "bundle")
+        else { return nil }
+        return try? await AutoTokenizer.from(directory: url)
+    }
 }

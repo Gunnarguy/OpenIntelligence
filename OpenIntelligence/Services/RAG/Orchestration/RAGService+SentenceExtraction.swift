@@ -100,11 +100,25 @@ extension RAGService {
     /// The candidates with the passage retrieval ranked first in front, the rest in the order given
     /// (5.7). The extractive ordering sorts by the question's words, and must not move retrieval's
     /// best passage out of the context: see `extractRelevantSentencesOffMain`.
-    nonisolated static func leadingWithTopRanked(_ top: RetrievedChunk?, then ordered: [RetrievedChunk])
+    nonisolated static func leadingWithTopRanked(
+        _ top: RetrievedChunk?, then ordered: [RetrievedChunk]
+    )
         -> [RetrievedChunk]
     {
         guard let top else { return ordered }
         return [top] + ordered.filter { $0.chunk.id != top.chunk.id }
+    }
+
+    /// Adds passages found by a side search (the spec sniper, cross-reference resolution) right behind the passage
+    /// retrieval ranked first, never in front of it (5.8). Context assembly keeps whatever is first whole, so a side
+    /// search that inserted at the front decided the answer: on 2026-11-09 the reranker ranked the table holding the
+    /// value first, the spec sniper put two passages from another paper ahead of it on the words "lysine" and
+    /// "present", and the table never reached the model. Behind the top passage the additions still lead every
+    /// other candidate, so they survive the budget as before.
+    nonisolated static func insertingBehindTopRanked(_ added: [RetrievedChunk], into candidates: inout [RetrievedChunk])
+    {
+        guard !added.isEmpty else { return }
+        candidates.insert(contentsOf: added, at: min(1, candidates.count))
     }
 
     private nonisolated static func extractRelevantSentencesOffMain(
@@ -145,7 +159,23 @@ extension RAGService {
                 label = "[S\(1 + labelOffset)]\(sectionTag) \(lead.sourceDocument)\(page)"
             }
             var body = lead.chunk.contextText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let fullCount = body.count
             let room = maxChars * 3 / 5 - label.count - 1
+            // What leads the prompt, and whether the room cut it (5.8). On 2026-11-09 the reranker's first pick was
+            // "[Part 1]" of a composition table and the answer quoted the prose beside it, and the trace could not say
+            // whether the row asked about was in the part or cut off.
+            defer {
+                Log.info(
+                    "[RAG] Lead passage: \(lead.sourceDocument) p.\(lead.pageNumber.map(String.init) ?? "-"), "
+                        + "\(lead.chunk.metadata.structureType.map { "\($0)" } ?? "prose"), kept \(body.count) of "
+                        + "\(fullCount) chars (room \(room))",
+                    category: .retrieval)
+                #if DEBUG
+                    Log.debug(
+                        "[RAG] Lead passage text: \(body.replacingOccurrences(of: "\n", with: " ⏎ "))",
+                        category: .retrieval)
+                #endif
+            }
             if body.count > room {
                 let head = room > 0 ? String(body.prefix(room)) : ""
                 if let lineEnd = head.lastIndex(of: "\n") {

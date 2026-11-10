@@ -90,7 +90,7 @@ final class GlossaryTests: XCTestCase {
     /// defined term. Identifiers have no such ambiguity, and they are the actual thing
     /// that leaks when someone edits a plain definition while looking at code.
     private static let technicalOnlyVocabulary = [
-        "MiniLM", "TinyBERT", "BM25", "FTS5", "vDSP", "BNNS", "HNSW", "RRF",
+        "MiniLM", "TinyBERT", "Granite", "BM25", "FTS5", "vDSP", "BNNS", "HNSW", "RRF",
         "CoreML", "Core ML", "PDFKit", "ProcessInfo", "mlpackage", "TN3193",
         "cosine", "cross-encoder", "reciprocal rank", "dimensions", "tokenizer",
         "SQLite", "Metal", "threadgroup", "concurrency", "amortise", "amortize",
@@ -229,6 +229,7 @@ final class GlossaryTests: XCTestCase {
             ("bm25", GlossaryTermID.hybridSearch),
             ("vdsp", .searchBatch),
             ("minilm", .vector),
+            ("granite", .reranking),
             ("tinybert", .reranking),
             ("fts5", .index),
         ] {

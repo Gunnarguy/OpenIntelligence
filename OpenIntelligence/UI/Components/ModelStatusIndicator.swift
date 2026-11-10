@@ -11,6 +11,8 @@ import SwiftUI
 struct ModelStatusIndicator: View {
     @EnvironmentObject private var modelResolution: ModelResolutionService
     @EnvironmentObject private var settings: SettingsStore
+    /// "Preparing search" while the reranker compiles for the Neural Engine, the first launch after an install (5.8).
+    @ObservedObject private var rerankerSetup = RerankerSetupStatus.shared
     @State private var pulseScale: CGFloat = 1.0
 
     var body: some View {
@@ -125,7 +127,7 @@ struct ModelStatusIndicator: View {
                 .scaledFont(size: 10, weight: .semibold)
                 .foregroundStyle(statusColor)
         }
-        .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
+        .scaleEffect(modelResolution.isProcessing || rerankerSetup.isPreparing ? pulseScale : 1.0)
         .onAppear {
             withAnimation(DSAnimations.stagePulse) {
                 pulseScale = 1.15
@@ -182,6 +184,9 @@ struct ModelStatusIndicator: View {
     /// worth reading rather than a redundant "Ready" — these describe where each
     /// preference actually sends work, which is the thing the one-word names elide.
     private var statusText: String {
+        // The reranker's first load after an install (5.8): a question asked now waits for it, so say why. The words
+        // are no wider than "Larger context" by more than two characters, so the fixed-size pill barely moves.
+        if rerankerSetup.isPreparing { return "Preparing search" }
         switch shownStatus {
         case .loading: return "Preparing"
         case .unavailable: return "Unavailable"
