@@ -83,7 +83,18 @@ nonisolated enum RerankerWarmup {
             try? await Task.sleep(for: delay)
             guard !SystemResourceAdvice.prefersReducedUsage else { return }
             guard await appIsInFront() else { return }
-            await RAGEngine.shared.prepareReranker()
+            #if canImport(UIKit)
+                // Leaving the app during the first load would suspend it mid-compile. Ask iOS for the background time
+                // it gives any app (about 30 s, not guaranteed; the Neural Engine is allowed in the background under
+                // the app's continued-processing.inference entitlement). A launch is not a person's action, so a
+                // continued-processing task, the kind with system progress, cannot be started for this; a question
+                // asked during setup starts one, and its wait for the reranker runs inside it.
+                let backgroundTime = await RerankerSetupBackgroundTime.begin()
+                await RAGEngine.shared.prepareReranker()
+                await backgroundTime.end(expired: false)
+            #else
+                await RAGEngine.shared.prepareReranker()
+            #endif
         }
     }
 
@@ -96,3 +107,29 @@ nonisolated enum RerankerWarmup {
         #endif
     }
 }
+
+#if canImport(UIKit)
+    /// The background time held while the reranker's first load runs (5.8). If iOS takes it back first, the journal says
+    /// so (`reranker.backgroundTimeExpired`) and the load goes on when the app is opened again.
+    @MainActor
+    final class RerankerSetupBackgroundTime {
+        private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+        static func begin() -> RerankerSetupBackgroundTime {
+            let time = RerankerSetupBackgroundTime()
+            time.identifier = UIApplication.shared.beginBackgroundTask(withName: "RerankerSetup") { [weak time] in
+                time?.end(expired: true)
+            }
+            return time
+        }
+
+        func end(expired: Bool) {
+            guard identifier != .invalid else { return }
+            if expired {
+                VerificationJournal.record("reranker.backgroundTimeExpired", .failed)
+            }
+            UIApplication.shared.endBackgroundTask(identifier)
+            identifier = .invalid
+        }
+    }
+#endif

@@ -196,8 +196,10 @@ struct ContentView: View {
                     .padding(.top, setupCardTopPadding)
                     .animation(.snappy, value: setupCardTopPadding)
                     .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
-                        // The card's own top, less the padding it was given, is where the overlay starts.
-                        setupCardOverlayTop = top - setupCardTopPadding
+                        // Measured outside the padding, so this is where the overlay starts, whatever the padding.
+                        // Until 5.8's fix it subtracted the padding a second time, and the card landed on the legend
+                        // (the owner's iPhone, 2026-11-10).
+                        setupCardOverlayTop = top
                     }
             }
         }
