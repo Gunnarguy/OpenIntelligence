@@ -149,6 +149,7 @@ enum AppTipConfiguration {
         #else
             TourContext.isMac = ProcessInfo.processInfo.isiOSAppOnMac || ProcessInfo.processInfo.isMacCatalystApp
             TourContext.isLargeScreen = UIDevice.current.userInterfaceIdiom != .phone
+            TourContext.xrayDrawsHere = DeviceComponentLayout.current.socPlacement != nil
         #endif
         Task { await TourContext.appLaunched.donate() }
         Tour.recordStatusChanges()

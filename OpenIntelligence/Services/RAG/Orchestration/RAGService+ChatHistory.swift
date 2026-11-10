@@ -39,6 +39,12 @@ extension RAGService {
 
         do {
             let threads = try threadStore.listThreads(containerId: resolvedId)
+            if let fresh = Self.unsavedNewThread(for: resolvedId, savedThreadIds: threads.map(\.id)) {
+                activeThreadId = fresh
+                activeThreadIds[resolvedId] = fresh
+                chatHistories[resolvedId] = []
+                return []
+            }
             if let mostRecent = threads.first {
                 activeThreadId = mostRecent.id
                 activeThreadIds[resolvedId] = mostRecent.id
@@ -67,6 +73,12 @@ extension RAGService {
 
         do {
             let threads = try self.threadStore.listThreads(containerId: resolvedId)
+            if let fresh = Self.unsavedNewThread(for: resolvedId, savedThreadIds: threads.map(\.id)) {
+                self.activeThreadId = fresh
+                self.activeThreadIds[resolvedId] = fresh
+                self.chatHistories[resolvedId] = []
+                return []
+            }
             if let mostRecent = threads.first {
                 self.activeThreadId = mostRecent.id
                 self.activeThreadIds[resolvedId] = mostRecent.id
@@ -130,6 +142,7 @@ extension RAGService {
         let resolvedId = containerId ?? containerService.activeContainerId
         chatHistories[resolvedId] = []
         activeThreadIds[resolvedId] = nil
+        UserDefaults.standard.removeObject(forKey: Self.unsavedNewThreadKey(resolvedId))
 
         if let currentThread = activeThreadId {
             do {
@@ -257,6 +270,7 @@ extension RAGService {
             let thread = try threadStore.getThread(id: threadId, containerId: containerId)
             activeThreadId = thread.id
             activeThreadIds[containerId] = thread.id
+            UserDefaults.standard.removeObject(forKey: Self.unsavedNewThreadKey(containerId))
             let loaded = thread.messages.map { $0.sanitizedForPersistence() }
             chatHistories[containerId] = loaded
             return loaded
@@ -288,6 +302,30 @@ extension RAGService {
         activeThreadId = newId
         activeThreadIds[containerId] = newId
         chatHistories[containerId] = []
+        UserDefaults.standard.set(newId.uuidString, forKey: Self.unsavedNewThreadKey(containerId))
+        // The model's saved transcript is kept per library, not per conversation: left on disk, the next launch would
+        // restore the old conversation's context into the new chat (refuting review, 2026-11-10).
+        TranscriptPersistenceService.shared.deleteTranscript(for: containerId)
+    }
+
+    /// A New Chat with nothing asked in it yet is not a file, so through 5.8's first builds the next launch reopened the
+    /// library's most recent conversation (the owner's iPhone, 2026-11-10: New Chat in every library, then closed and
+    /// reopened, and every library showed its old conversation). The new conversation's id is kept in this device's
+    /// defaults, never synced, until it has a message or another conversation is opened.
+    nonisolated static func unsavedNewThreadKey(_ containerId: UUID) -> String {
+        "unsavedNewThread.\(containerId.uuidString)"
+    }
+
+    /// The library's New Chat when it has not been saved yet; nil once it has (its id is among the saved ones, and
+    /// the record is dropped) or when there is none.
+    nonisolated static func unsavedNewThread(for containerId: UUID, savedThreadIds: [UUID]) -> UUID? {
+        let key = unsavedNewThreadKey(containerId)
+        guard let raw = UserDefaults.standard.string(forKey: key), let id = UUID(uuidString: raw) else { return nil }
+        if savedThreadIds.contains(id) {
+            UserDefaults.standard.removeObject(forKey: key)
+            return nil
+        }
+        return id
     }
 
     /// Resets Deep Think / Maximum mode live metrics to prevent stale state in UI.

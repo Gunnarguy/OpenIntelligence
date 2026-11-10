@@ -69,18 +69,34 @@
         @State private var documentStabilityCounter: Int = 0
         private let stabilityThreshold: Int = 3  // Frames before accepting new position
 
+        /// Shows a line of live text only once it has repeated across frames. See
+        /// `LiveTextStabilizer`.
+        @State private var liveTextStabilizer = LiveTextStabilizer()
+
+        /// The open camera area between the top controls and the bottom panels, in global
+        /// coordinates, measured from the `Spacer` that separates them. Boxes, labels and
+        /// skeletons are clipped to it so they never sit on Cancel, the title or the buttons.
+        @State private var openCameraArea: CGRect = .zero
+
+        /// Whether the bottom card shows its chips and live text, or only its one-line caption.
+        @State private var detailsExpanded = true
+
         var body: some View {
             NavigationStack {
                 ZStack {
-                    // Camera preview layer
-                    CameraPreviewLayer(session: cameraManager.session)
-                        .ignoresSafeArea()
+                    // Camera preview layer. The layer is handed to the camera once it is in a window,
+                    // so the analysed frames are rotated exactly like the picture on screen.
+                    CameraPreviewLayer(session: cameraManager.session) { previewLayer in
+                        cameraManager.attachPreviewLayer(previewLayer)
+                    }
+                    .ignoresSafeArea()
 
                     // AR Overlay layer with detected regions
                     DetectionOverlayView(
                         regions: filteredRegions,
                         selectedType: selectedRegionType,
-                        sourceSize: analysedSourceSize
+                        sourceSize: analysedSourceSize,
+                        openAreaGlobal: openCameraArea
                     )
                     .ignoresSafeArea()
 
@@ -88,7 +104,8 @@
                     PoseWireframeOverlay(
                         humanPoses: humanPoses,
                         animalPoses: animalPoses,
-                        sourceSize: analysedSourceSize
+                        sourceSize: analysedSourceSize,
+                        openAreaGlobal: openCameraArea
                     )
                     .ignoresSafeArea()
 
@@ -103,18 +120,14 @@
                         }
 
                         Spacer()
+                            .onGeometryChange(for: CGRect.self) { proxy in
+                                proxy.frame(in: .global)
+                            } action: { newValue in
+                                openCameraArea = newValue
+                            }
 
-                        // Scene & Object labels
-                        if !sceneLabels.isEmpty || !detectedObjects.isEmpty || (regionCounts[.face] ?? 0) > 0
-                            || (regionCounts[.human] ?? 0) > 0
-                        {
-                            liveLabelsView
-                        }
-
-                        // Live OCR preview (scrollable)
-                        if !liveOCRText.isEmpty && (selectedRegionType == .all || selectedRegionType == .text) {
-                            liveOCRPreview
-                        }
+                        // Chips, live text and the experimental caption, in one compact card.
+                        detailsCard
 
                         // Bottom capture controls
                         bottomCaptureBar
@@ -125,6 +138,14 @@
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
+                    }
+                    ToolbarItem(placement: .principal) {
+                        HStack(spacing: DSSpacing.xs) {
+                            Text("Vision Capture")
+                                .font(.headline)
+                            experimentalBadge
+                        }
+                        .accessibilityElement(children: .combine)
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -167,8 +188,9 @@
                 // failure this exemption exists to prevent, and the reader would conclude the
                 // detector found nothing rather than that the slider was mis-scaled for it.
                 //
-                // Objects are gated instead where they are produced, at a classification
-                // confidence of 0.25 in `CameraManager.classify`.
+                // Objects are gated instead where they are produced: `CameraManager.classify` names a box
+                // only when Vision's high-precision filter passes (`hasMinimumRecall(0.01, forPrecision: 0.9)`)
+                // and the name is not a parent or scene word (`ObjectLabelPolicy`, 5.8).
                 if region.type != .object {
                     guard region.confidence >= confidenceThreshold else { return false }
                 }
@@ -333,151 +355,118 @@
             .padding(.horizontal, DSSpacing.lg)
         }
 
-        // MARK: - Helper Functions
+        // MARK: - Experimental badge
 
-        /// Get color for detected object based on emoji prefix
-        private func colorForDetectedObject(_ label: String) -> Color {
-            if label.hasPrefix("🐾") { return .orange }
-            if label.hasPrefix("🌿") { return .green }
-            if label.hasPrefix("📱") { return .accentColor }
-            if label.hasPrefix("🚗") { return .accentColor }
-            if label.hasPrefix("🍽️") { return .red }
-            return .orange
+        /// The screen's honesty marker, in the same chip shape the app uses elsewhere.
+        private var experimentalBadge: some View {
+            Text("Experimental")
+                .font(DSTypography.chip)
+                .foregroundStyle(DSColors.warning)
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xxs)
+                .background(Capsule().fill(DSColors.chipBackground(for: DSColors.warning)))
+                .accessibilityLabel("Experimental feature")
         }
 
-        // MARK: - Live Labels View
+        // MARK: - Details card
 
-        private var liveLabelsView: some View {
-            VStack(spacing: DSSpacing.sm) {
-                // Scene labels
-                if !sceneLabels.isEmpty {
-                    // A plain `HStack` here could not fit three long classifications on a phone,
-                    // so SwiftUI compressed them into each other: "Computer" rendered on top of
-                    // "Consumer Electronics". `FlowLayout` is already used for the detected-object
-                    // chips immediately below and wraps instead of overlapping.
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        HStack(spacing: DSSpacing.xs) {
-                            Image(systemName: "photo")
-                                .foregroundStyle(DSColors.accent)
-                            Text("Scene:")
-                                .font(.caption.bold())
-                                .foregroundStyle(.white)
-                            Spacer()
-                        }
+        /// Chips, live text and the caption, in one card.
+        ///
+        /// **What was wrong before (2026-11-10).** A labels card (two headed chip groups that wrap
+        /// onto several lines, plus face and person counts) and a separate Live Text card (five
+        /// lines and a character count) stacked above the shutter covered about a third of the
+        /// camera view on the owner's iPhone 16 Pro Max. Now every chip group is one line that
+        /// scrolls sideways, live text is at most two lines, and the whole card folds down to
+        /// its caption with the chevron.
+        private var detailsCard: some View {
+            let faceCount = regionCounts[.face] ?? 0
+            let humanCount = regionCounts[.human] ?? 0
+            let showsText = !liveOCRText.isEmpty && (selectedRegionType == .all || selectedRegionType == .text)
+            let hasChips = !sceneLabels.isEmpty || !detectedObjects.isEmpty || faceCount > 0 || humanCount > 0
 
-                        FlowLayout(spacing: DSSpacing.xs) {
-                            ForEach(sceneLabels.prefix(3), id: \.self) { label in
-                                Text(label)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .padding(.horizontal, DSSpacing.sm)
-                                    .padding(.vertical, DSSpacing.xs)
-                                    .background(Capsule().fill(DSColors.accent.opacity(0.85)))
-                                    .foregroundStyle(.white)
+            return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                Button {
+                    withAnimation(DSAnimations.snappySpring) { detailsExpanded.toggle() }
+                } label: {
+                    HStack(spacing: DSSpacing.xs) {
+                        Image(systemName: "info.circle")
+                        Text("Labels are the device's best guess and may be wrong.")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Spacer(minLength: DSSpacing.xs)
+                        Image(systemName: detailsExpanded ? "chevron.down" : "chevron.up")
+                    }
+                    .font(DSTypography.meta)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Labels are the device's best guess and may be wrong.")
+                .accessibilityHint(
+                    detailsExpanded ? "Hides the labels and live text" : "Shows the labels and live text")
+
+                if detailsExpanded {
+                    if hasChips {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: DSSpacing.xs) {
+                                ForEach(sceneLabels.prefix(3), id: \.self) { label in
+                                    detailChip(label, systemImage: "photo", color: DSColors.accent)
+                                }
+                                ForEach(detectedObjects.prefix(6), id: \.self) { label in
+                                    detailChip(label, systemImage: "cube", color: .orange)
+                                }
+                                if faceCount > 0 {
+                                    detailChip(
+                                        "\(faceCount) face\(faceCount == 1 ? "" : "s")",
+                                        systemImage: "face.smiling", color: DSColors.accent)
+                                }
+                                if humanCount > 0 {
+                                    detailChip(
+                                        "\(humanCount) person\(humanCount == 1 ? "" : "s")",
+                                        systemImage: "figure.stand", color: .green)
+                                }
                             }
                         }
                     }
-                }
 
-                // Detected objects - now with emoji prefixes for categories
-                if !detectedObjects.isEmpty {
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        HStack(spacing: DSSpacing.xs) {
-                            Image(systemName: "sparkle.magnifyingglass")
-                                .foregroundStyle(.orange)
-                            Text("Detected:")
-                                .font(.caption.bold())
-                                .foregroundStyle(.white)
-                            Spacer()
+                    if showsText {
+                        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
+                            Image(systemName: "text.viewfinder")
+                                .font(DSTypography.meta)
+                            Text(liveOCRText)
+                                .font(DSTypography.code)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-
-                        // Wrap objects in a flowing layout
-                        FlowLayout(spacing: DSSpacing.xs) {
-                            ForEach(detectedObjects.prefix(8), id: \.self) { obj in
-                                // Color based on emoji prefix
-                                let color = colorForDetectedObject(obj)
-                                Text(obj)
-                                    .font(.caption)
-                                    .padding(.horizontal, DSSpacing.sm)
-                                    .padding(.vertical, DSSpacing.xs)
-                                    .background(Capsule().fill(color.opacity(0.85)))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                    }
-                }
-
-                // Face and Human detection counts
-                let faceCount = regionCounts[.face] ?? 0
-                let humanCount = regionCounts[.human] ?? 0
-                if faceCount > 0 || humanCount > 0 {
-                    HStack(spacing: DSSpacing.sm) {
-                        if faceCount > 0 {
-                            HStack(spacing: DSSpacing.xs) {
-                                Image(systemName: "face.smiling")
-                                    .foregroundStyle(DSColors.accent)
-                                Text("\(faceCount) face\(faceCount == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .padding(.horizontal, DSSpacing.sm)
-                                    .padding(.vertical, DSSpacing.xs)
-                                    .background(Capsule().fill(DSColors.accent.opacity(0.85)))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        if humanCount > 0 {
-                            HStack(spacing: DSSpacing.xs) {
-                                Image(systemName: "figure.stand")
-                                    .foregroundStyle(.green)
-                                Text("\(humanCount) person\(humanCount == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .padding(.horizontal, DSSpacing.sm)
-                                    .padding(.vertical, DSSpacing.xs)
-                                    .background(Capsule().fill(Color.green.opacity(0.85)))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        Spacer()
+                        .foregroundStyle(.white)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Live text: \(liveOCRText)")
                     }
                 }
             }
-            .padding(DSSpacing.lg)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.sm)
             .background(
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
+            .environment(\.colorScheme, .dark)
             .padding(.horizontal, DSSpacing.lg)
         }
 
-        // MARK: - Live OCR Preview
-
-        private var liveOCRPreview: some View {
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "text.viewfinder")
-                    Text("Live Text")
-                        .font(.caption.bold())
-                    Spacer()
-                    Text("\(liveOCRText.count) chars")
-                        .font(.caption2)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-
-                ScrollView {
-                    Text(liveOCRText)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(5)
-                }
-                .frame(maxHeight: 80)
+        /// One chip in the details card. Scene chips describe the whole picture; object chips are
+        /// the names of the boxes on screen.
+        private func detailChip(_ text: String, systemImage: String, color: Color) -> some View {
+            HStack(spacing: DSSpacing.xxs) {
+                Image(systemName: systemImage)
+                Text(text)
+                    .lineLimit(1)
             }
-            .padding(DSSpacing.lg)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .padding(.horizontal, DSSpacing.lg)
+            .font(DSTypography.meta)
+            .foregroundStyle(.white)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xxs)
+            .background(Capsule().fill(color.opacity(0.85)))
         }
 
         // MARK: - Bottom Capture Bar
@@ -592,7 +581,9 @@
             // assigned outside the animation and simply replace each other.
             sceneLabels = analysis.sceneLabels
             detectedObjects = analysis.detectedObjects
-            liveOCRText = analysis.recognizedText
+            // Only lines seen in most of the recent frames. A single frame's reading of blur is
+            // what reached this panel, and the Text button, before (2026-11-10).
+            liveOCRText = liveTextStabilizer.stableLines(from: analysis.textLines).joined(separator: " ")
             regionCounts = counts
             aestheticsScore = analysis.aestheticsScore
 
@@ -819,18 +810,26 @@
         let confidence: Float
         let preview: String?  // Brief text preview for text regions
 
+        /// True when the name came from classifying a crop of a salient region rather than from a
+        /// detector that finds that kind of thing (faces, people, cats and dogs). Its confidence
+        /// says how sure the classifier is about the crop, not that the box sits on the object, so
+        /// the box does not print it.
+        let isGuess: Bool
+
         init(
             id: UUID = UUID(),
             type: RegionType,
             boundingBox: CGRect,
             confidence: Float,
-            preview: String? = nil
+            preview: String? = nil,
+            isGuess: Bool = false
         ) {
             self.id = id
             self.type = type
             self.boundingBox = boundingBox
             self.confidence = confidence
             self.preview = preview
+            self.isGuess = isGuess
         }
 
         func withID(_ id: UUID) -> DetectedRegion {
@@ -839,7 +838,8 @@
                 type: type,
                 boundingBox: boundingBox,
                 confidence: confidence,
-                preview: preview
+                preview: preview,
+                isGuess: isGuess
             )
         }
     }
@@ -915,6 +915,10 @@
         /// need no change.
         let sourceSize: CGSize
 
+        /// The recognised lines that passed `LiveTextStabilizer.accepts`, in Vision's order. The
+        /// overlay debounces these across frames before showing any of them.
+        let textLines: [String]
+
         init(
             regions: [DetectedRegion],
             recognizedText: String,
@@ -924,8 +928,10 @@
             humanPoses: [DetectedPose],
             animalPoses: [DetectedPose],
             lensSmudgeDetected: Bool,
-            sourceSize: CGSize = .zero
+            sourceSize: CGSize = .zero,
+            textLines: [String] = []
         ) {
+            self.textLines = textLines
             self.regions = regions
             self.recognizedText = recognizedText
             self.aestheticsScore = aestheticsScore
@@ -975,9 +981,14 @@
     struct CameraPreviewLayer: UIViewRepresentable {
         let session: AVCaptureSession
 
+        /// Called once, when the preview layer first lands in a window. See
+        /// `CameraManager.attachPreviewLayer`.
+        var onLayerInWindow: (AVCaptureVideoPreviewLayer) -> Void = { _ in }
+
         func makeUIView(context: Context) -> CameraPreviewUIView {
             let view = CameraPreviewUIView()
             view.session = session
+            view.onLayerInWindow = onLayerInWindow
             return view
         }
 
@@ -995,6 +1006,9 @@
                 }
             }
         }
+
+        var onLayerInWindow: ((AVCaptureVideoPreviewLayer) -> Void)?
+        private var reportedLayer = false
 
         private lazy var previewLayer: AVCaptureVideoPreviewLayer = {
             let layer = AVCaptureVideoPreviewLayer()
@@ -1016,6 +1030,43 @@
             super.layoutSubviews()
             previewLayer.frame = bounds
         }
+
+        /// The rotation coordinator reports 0 degrees for a layer that is not in a view hierarchy,
+        /// so the layer is handed over here rather than at creation.
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil, !reportedLayer else { return }
+            reportedLayer = true
+            onLayerInWindow?(previewLayer)
+        }
+    }
+
+    // MARK: - Open camera area
+
+    extension View {
+        /// Clips an overlay drawn over the whole screen to the open camera area, given in global
+        /// coordinates, so nothing it draws can sit on the navigation bar, the top controls or the
+        /// bottom card. A zero area (not yet measured) leaves the overlay unclipped.
+        func clippedToOpenArea(_ local: CGRect) -> some View {
+            mask(alignment: .topLeading) {
+                if local.width > 0, local.height > 0 {
+                    Rectangle()
+                        .frame(width: local.width, height: local.height)
+                        .offset(x: local.minX, y: local.minY)
+                } else {
+                    Rectangle()
+                }
+            }
+        }
+    }
+
+    /// The open camera area in an overlay's own coordinates.
+    private func openArea(_ global: CGRect, in geometry: GeometryProxy) -> CGRect {
+        let origin = geometry.frame(in: .global).origin
+        guard global.width > 0, global.height > 0 else {
+            return CGRect(origin: .zero, size: geometry.size)
+        }
+        return global.offsetBy(dx: -origin.x, dy: -origin.y)
     }
 
     // MARK: - Detection Overlay View
@@ -1025,6 +1076,8 @@
         let selectedType: RegionType
         /// Pixel size of the analysed frame, threaded down to the box views.
         let sourceSize: CGSize
+        /// The open camera area in global coordinates. See `clippedToOpenArea`.
+        var openAreaGlobal: CGRect = .zero
 
         private var filteredRegions: [DetectedRegion] {
             if selectedType == .all {
@@ -1035,42 +1088,35 @@
 
         var body: some View {
             GeometryReader { geometry in
-                ForEach(filteredRegions) { region in
-                    // Faces get an oval, everything else a box.
-                    //
-                    // `.human` used to get `HumanSilhouetteOverlay`, which drew a mannequin from
-                    // hardcoded fractions of the bounding box: head ellipse at 35% of its width,
-                    // shoulders at 60%, waist at 40% of its height, hips at 55%, legs as
-                    // rectangles. None of that was measured, so it drew the same figure every time
-                    // stretched to whatever rectangle came back, and it could not match a pose
-                    // because it never looked at one.
-                    //
-                    // What made it read as wrong rather than merely stylised is that the real pose
-                    // **is** available and already drawn beside it: `PoseWireframeOverlay` renders
-                    // measured joints from `VNDetectHumanBodyPoseRequest`. Two overlays claimed to
-                    // describe the same body and disagreed, and the invented one was the louder.
-                    // The box says where the person is; the wireframe says what they are doing.
-                    switch region.type {
-                    case .human:
-                        RegionBoundingBox(
-                            region: region,
-                            containerSize: geometry.size,
-                            sourceSize: sourceSize
-                        )
-                    case .face:
-                        FaceSilhouetteOverlay(
-                            region: region,
-                            containerSize: geometry.size,
-                            sourceSize: sourceSize
-                        )
-                    default:
-                        RegionBoundingBox(
-                            region: region,
-                            containerSize: geometry.size,
-                            sourceSize: sourceSize
-                        )
+                let visible = openArea(openAreaGlobal, in: geometry)
+                ZStack(alignment: .topLeading) {
+                    ForEach(filteredRegions) { region in
+                        // Faces get an oval, everything else a box.
+                        //
+                        // `.human` used to get `HumanSilhouetteOverlay`, which drew a mannequin from
+                        // hardcoded fractions of the bounding box. None of that was measured, and
+                        // the real pose is drawn beside it by `PoseWireframeOverlay` from measured
+                        // joints. The box says where the person is; the wireframe says what they
+                        // are doing.
+                        switch region.type {
+                        case .face:
+                            FaceSilhouetteOverlay(
+                                region: region,
+                                containerSize: geometry.size,
+                                sourceSize: sourceSize
+                            )
+                        default:
+                            RegionBoundingBox(
+                                region: region,
+                                containerSize: geometry.size,
+                                sourceSize: sourceSize,
+                                visible: visible
+                            )
+                        }
                     }
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .clippedToOpenArea(visible)
             }
         }
     }
@@ -1112,10 +1158,9 @@
 
                     // The eyes, nose and mouth that used to be drawn here were invented: fixed
                     // fractions of the bounding box, with no `DetectFaceLandmarksRequest` run
-                    // anywhere in the app to place them. They could not line up with a real face
-                    // because nothing had measured one, so a detected face wore a smiley doodle
-                    // that drifted off it. The oval stays, because the face rectangle IS measured
-                    // and inscribing an ellipse in it claims nothing the rectangle does not.
+                    // anywhere in the app to place them. The oval stays, because the face rectangle
+                    // IS measured and inscribing an ellipse in it claims nothing the rectangle does
+                    // not.
 
                     // Draw glow layer
                     context.fill(facePath, with: .color(faceColor.opacity(0.15)))
@@ -1125,7 +1170,7 @@
                 }
                 .shadow(color: Color.accentColor.opacity(0.6), radius: 6)
 
-                // Label
+                // Label. The overlay's open-area mask keeps it off the navigation bar.
                 Text("Face")
                     .scaledFont(size: 10, weight: .bold)
                     .foregroundStyle(.white)
@@ -1137,114 +1182,118 @@
         }
     }
 
-    // MARK: - Human Silhouette Overlay
+    // MARK: - Region Bounding Box
 
     struct RegionBoundingBox: View {
         let region: DetectedRegion
         let containerSize: CGSize
         /// Pixel size of the analysed frame, so the aspect-fill crop can be undone.
         let sourceSize: CGSize
+        /// The open camera area in this overlay's coordinates.
+        let visible: CGRect
 
-        private var frame: CGRect {
-            // Convert normalized coords to screen coords
-            // Vision uses bottom-left origin, SwiftUI uses top-left
-            // Was four lines of hand-rolled arithmetic, repeated identically in five places, that
-            // stretched Vision's normalized space onto the view's bounds. The preview layer is
-            // `.resizeAspectFill`, so those are different spaces. See `CameraOverlayGeometry`.
-            return CameraOverlayGeometry.viewRect(
+        /// Measured each layout so the label's placement knows its real size.
+        @State private var labelSize = CGSize(width: 90, height: 20)
+
+        /// The detection in overlay coordinates. May extend past the screen, which is correct:
+        /// the preview crops the picture. See `CameraOverlayGeometry.viewRect`.
+        private var fullFrame: CGRect {
+            CameraOverlayGeometry.viewRect(
                 normalized: region.boundingBox,
                 sourceSize: sourceSize,
                 viewSize: containerSize
             )
         }
 
+        /// The part of it that is drawn: inside the open camera area, or nothing.
+        private var frame: CGRect? {
+            CameraOverlayGeometry.clippedRect(fullFrame, to: visible)
+        }
+
         private var cornerRadius: CGFloat {
             DSCorners.chip
         }
 
+        /// A percentage only where it measures the detection: a face, a person, a cat or a dog
+        /// found by a detector for that kind of thing. Not on crop guesses (see
+        /// `DetectedRegion.isGuess`), not on documents, and not on text, whose fast-mode
+        /// confidence is a coarse constant.
+        private var showsConfidence: Bool {
+            guard region.confidence > 0, !region.isGuess else { return false }
+            switch region.type {
+            case .face, .human, .object: return true
+            default: return false
+            }
+        }
+
         var body: some View {
-            ZStack(alignment: .topLeading) {
-                // Bounding box with animated stroke - smoothed with animation
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(
-                        region.type.color,
-                        style: StrokeStyle(
-                            lineWidth: 2,
-                            lineCap: .round,
-                            lineJoin: .round,
-                            dash: region.type == .document ? [8, 4] : []
+            if let frame {
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(
+                            region.type.color,
+                            style: StrokeStyle(
+                                lineWidth: 2,
+                                lineCap: .round,
+                                lineJoin: .round,
+                                dash: region.type == .document ? [8, 4] : []
+                            )
                         )
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(region.type.color.opacity(0.05))
-                    )
-                    .shadow(color: region.type.color.opacity(0.4), radius: 3)
-                    .animation(DSAnimations.snappySpring, value: frame)
+                        .background(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .fill(region.type.color.opacity(0.05))
+                        )
+                        .shadow(color: region.type.color.opacity(0.4), radius: 3)
+                        .animation(DSAnimations.snappySpring, value: frame)
 
-                // Type label.
-                //
-                // **Text regions get no label.** Every box used to carry one, at a fixed -24pt
-                // offset with no collision handling, so a page of printed text produced one capsule
-                // per recognised line all stacked on top of each other. A photo of a document
-                // showed nine overlapping capsules covering the thing being read. The box itself
-                // already says where the line is and the Live Text panel already says what it says,
-                // so the capsule was adding occlusion and no information.
-                //
-                // The label stays for the types that are few and genuinely need naming: a document
-                // edge, a recognised animal, a face, a person.
-                if region.type != .text {
-                    HStack(spacing: DSSpacing.xs) {
-                        Image(systemName: region.type.icon)
-                            .scaledFont(size: 10, weight: .bold)
-
-                        if let preview = region.preview {
-                            Text(preview.prefix(15))
-                                .scaledFont(size: 10, weight: .medium)
-                                .lineLimit(1)
-                        }
-
-                        // Confidence, but only where it varies. `VNRecognizeTextRequest` in `.fast`
-                        // mode reports 0.5 for essentially every observation, so the old
-                        // unconditional percentage rendered a literal "50%" on every capsule on
-                        // screen: the same number, repeated, meaning nothing.
-                        if region.confidence > 0, region.type != .document {
-                            Text(String(format: "%.0f%%", region.confidence * 100))
-                                .scaledFont(size: 9, weight: .bold)
-                                .foregroundStyle(.white)
-                        }
+                    // Type label.
+                    //
+                    // **Text regions get no label.** A page of printed text produced one capsule
+                    // per recognised line, all stacked on each other. The box already says where
+                    // the line is and the details card says what it says.
+                    if region.type != .text {
+                        let offset = CameraOverlayGeometry.labelOffset(
+                            box: frame, visible: visible, labelSize: labelSize
+                        )
+                        boxLabel
+                            .fixedSize()
+                            .onGeometryChange(for: CGSize.self) { proxy in
+                                proxy.size
+                            } action: { newValue in
+                                labelSize = newValue
+                            }
+                            .offset(x: offset.x, y: offset.y)
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(
-                        Capsule()
-                            .fill(region.type.color.opacity(0.9))
-                            .shadow(color: .black.opacity(0.3), radius: 2)
-                    )
-                    // Kept on screen in both axes.
-                    //
-                    // The y clamp already moved a label below its box when the box was near the
-                    // top. The x offset was a flat 4, which is fine until a box extends past the
-                    // left edge, and saliency produces exactly that: a whole television is one
-                    // salient object whose rectangle starts off-screen. Its label went with it and
-                    // arrived sliced in half.
-                    //
-                    // Offsets here are relative to the box's own top-left, so pushing the label
-                    // right by `-frame.minX` puts it back at the screen edge. `min` against the
-                    // container keeps a box that starts off-screen *right* from doing the same
-                    // thing in the other direction.
-                    .offset(
-                        x: min(
-                            max(4, 4 - frame.minX),
-                            max(4, containerSize.width - frame.minX - 120)
-                        ),
-                        y: frame.minY < 28 ? 4 : -24
-                    )
+                }
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
+            }
+        }
+
+        private var boxLabel: some View {
+            HStack(spacing: DSSpacing.xs) {
+                Image(systemName: region.type.icon)
+                    .scaledFont(size: 10, weight: .bold)
+
+                if let preview = region.preview {
+                    Text(preview.prefix(18))
+                        .scaledFont(size: 10, weight: .medium)
+                        .lineLimit(1)
+                }
+
+                if showsConfidence {
+                    Text(String(format: "%.0f%%", region.confidence * 100))
+                        .scaledFont(size: 9, weight: .bold)
                 }
             }
-            .frame(width: frame.width, height: frame.height)
-            .position(x: frame.midX, y: frame.midY)
+            .foregroundStyle(.white)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
+            .background(
+                Capsule()
+                    .fill(region.type.color.opacity(0.9))
+                    .shadow(color: .black.opacity(0.3), radius: 2)
+            )
         }
     }
 
@@ -1255,18 +1304,24 @@
         let animalPoses: [DetectedPose]
         /// Pixel size of the analysed frame, threaded down to the wireframes.
         let sourceSize: CGSize
+        /// The open camera area in global coordinates. See `clippedToOpenArea`.
+        var openAreaGlobal: CGRect = .zero
 
         var body: some View {
             GeometryReader { geometry in
-                // Draw human wireframes
-                ForEach(humanPoses) { pose in
-                    HumanWireframe(pose: pose, containerSize: geometry.size, sourceSize: sourceSize)
-                }
+                ZStack(alignment: .topLeading) {
+                    // Draw human wireframes
+                    ForEach(humanPoses) { pose in
+                        HumanWireframe(pose: pose, containerSize: geometry.size, sourceSize: sourceSize)
+                    }
 
-                // Draw animal wireframes
-                ForEach(animalPoses) { pose in
-                    AnimalWireframe(pose: pose, containerSize: geometry.size, sourceSize: sourceSize)
+                    // Draw animal wireframes
+                    ForEach(animalPoses) { pose in
+                        AnimalWireframe(pose: pose, containerSize: geometry.size, sourceSize: sourceSize)
+                    }
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .clippedToOpenArea(openArea(openAreaGlobal, in: geometry))
             }
         }
     }

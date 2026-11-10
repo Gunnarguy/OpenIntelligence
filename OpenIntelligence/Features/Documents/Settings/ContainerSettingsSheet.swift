@@ -80,17 +80,17 @@ struct ContainerSettingsSheet: View {
         let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
         let suffix = docCount == 1 ? "" : "s"
         if lib.syncMode == .iCloudShared {
-            return "This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(suffix). This cannot be undone."
+            return
+                "This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(suffix). This cannot be undone."
         } else {
-            return "This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(suffix) inside it. This cannot be undone."
+            return
+                "This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(suffix) inside it. This cannot be undone."
         }
     }
 
     private var hasICloudSyncAccess: Bool {
         entitlementStore.effectiveTier.isAtLeast(.pro)
     }
-
-
 
     var lastSelfTuneSummary: String? {
         guard let stamp = activeContainer?.lastSelfTuneAt else { return nil }
@@ -116,15 +116,15 @@ struct ContainerSettingsSheet: View {
             return "No Core ML model found. Import a .mlpackage to use this provider."
         case "coreai_sentence_embedding":
             #if canImport(CoreAI)
-            if #available(iOS 27.0, macOS 27.0, *) {
-                if CoreAISentenceEmbeddingProvider.shared.isModelLoaded {
-                    return nil
-                } else if CoreAISentenceEmbeddingProvider.shared.isModelLoadingFailed {
-                    return "Failed to load Core AI model. Check model asset presence in bundle."
-                } else {
-                    return "Core AI model is still loading..."
+                if #available(iOS 27.0, macOS 27.0, *) {
+                    if CoreAISentenceEmbeddingProvider.shared.isModelLoaded {
+                        return nil
+                    } else if CoreAISentenceEmbeddingProvider.shared.isModelLoadingFailed {
+                        return "Failed to load Core AI model. Check model asset presence in bundle."
+                    } else {
+                        return "Core AI model is still loading..."
+                    }
                 }
-            }
             #endif
             return "Core AI is not supported on this build/device."
         default:
@@ -153,7 +153,7 @@ struct ContainerSettingsSheet: View {
     /// Get supported dimensions for a provider ID
     private func supportedDimensions(for provider: String) -> [Int] {
         guard let option = embeddingProviderOptions.first(where: { $0.id == provider && $0.isSelectable }) else {
-            return [512] // Safe fallback
+            return [512]  // Safe fallback
         }
         return option.supportedDimensions.sorted()
     }
@@ -165,7 +165,9 @@ struct ContainerSettingsSheet: View {
 
         // Current dimension is invalid, auto-correct
         if let firstValid = validDims.first {
-            Log.warning("[ContainerSettings] Dimension \(newDim) invalid for \(providerId), correcting to \(firstValid)", category: .embedding)
+            Log.warning(
+                "[ContainerSettings] Dimension \(newDim) invalid for \(providerId), correcting to \(firstValid)",
+                category: .embedding)
             // Use DispatchQueue to avoid state modification during view update
             DispatchQueue.main.async {
                 self.dim = firstValid
@@ -234,7 +236,9 @@ struct ContainerSettingsSheet: View {
                 hasInitialized = true
 
                 if let c = activeContainer {
-                    Log.info("[ContainerSettings] onAppear: Loading container '\(c.name)' with provider=\(c.embeddingProviderId), dim=\(c.embeddingDim)", category: .embedding)
+                    Log.info(
+                        "[ContainerSettings] onAppear: Loading container '\(c.name)' with provider=\(c.embeddingProviderId), dim=\(c.embeddingDim)",
+                        category: .embedding)
                     name = c.name
                     icon = c.icon
                     colorHex = c.colorHex
@@ -285,9 +289,9 @@ struct ContainerSettingsSheet: View {
                 // Check provider availability asynchronously
                 refreshProviderAvailability()
             }
-.onChange(of: providerId) { oldProvider, newProvider in
-    guard oldProvider != newProvider else { return }
-    Log.info("[ContainerSettings] Provider changed: \(oldProvider) → \(newProvider)", category: .embedding)
+            .onChange(of: providerId) { oldProvider, newProvider in
+                guard oldProvider != newProvider else { return }
+                Log.info("[ContainerSettings] Provider changed: \(oldProvider) → \(newProvider)", category: .embedding)
                 normalizeProviderAndDimension()
             }
             .onChange(of: containerService.activeContainerId) { _, newValue in
@@ -315,7 +319,9 @@ struct ContainerSettingsSheet: View {
                     showingDBChangeConfirmation = false
                 }
             } message: { _ in
-                Text("In-Memory storage doesn't persist between app launches. Your \(activeContainerDocuments.count) document(s) will need to be re-indexed every time you restart the app.")
+                Text(
+                    "In-Memory storage doesn't persist between app launches. Your \(activeContainerDocuments.count) document(s) will need to be re-indexed every time you restart the app."
+                )
             }
             .confirmationDialog(
                 "Rebuild embeddings now?",
@@ -331,12 +337,17 @@ struct ContainerSettingsSheet: View {
                     dismiss()
                 }
             } message: { context in
-                Text("You changed the \(context.reason). We'll refresh \(context.documentCount) document\(context.documentCount == 1 ? "" : "s") so search quality stays sharp.")
+                Text(
+                    "You changed the \(context.reason). We'll refresh \(context.documentCount) document\(context.documentCount == 1 ? "" : "s") so search quality stays sharp."
+                )
             }
-            .alert("Re-embed failed", isPresented: Binding(
-                get: { reembedError != nil },
-                set: { if !$0 { reembedError = nil } }
-            )) {
+            .alert(
+                "Re-embed failed",
+                isPresented: Binding(
+                    get: { reembedError != nil },
+                    set: { if !$0 { reembedError = nil } }
+                )
+            ) {
                 Button("OK", role: .cancel) {}
             } message: {
                 if let message = reembedError {
@@ -347,10 +358,13 @@ struct ContainerSettingsSheet: View {
                 PlanUpgradeSheet(entryPoint: planEntryPoint)
                     .environmentObject(entitlementStore)
             }
-            .alert("Library not deleted", isPresented: Binding(
-                get: { deleteError != nil },
-                set: { if !$0 { deleteError = nil } }
-            )) {
+            .alert(
+                "Library not deleted",
+                isPresented: Binding(
+                    get: { deleteError != nil },
+                    set: { if !$0 { deleteError = nil } }
+                )
+            ) {
                 Button("OK", role: .cancel) {}
             } message: {
                 if let deleteError {
@@ -373,13 +387,14 @@ struct ContainerSettingsSheet: View {
             }
         }
         #if os(macOS)
-        // A sheet with no explicit size is laid out from its content's intrinsic width,
-        // which for a Form full of cards and metrics collapses to a column narrow enough
-        // to hyphenate "Documents" into "Doc ume nts". iOS sheets fill the screen and
-        // never showed this. Sized here rather than at the call site so every presenter
-        // gets it.
-        .frame(minWidth: 620, idealWidth: 760, maxWidth: 900,
-               minHeight: 560, idealHeight: 760, maxHeight: .infinity)
+            // A sheet with no explicit size is laid out from its content's intrinsic width,
+            // which for a Form full of cards and metrics collapses to a column narrow enough
+            // to hyphenate "Documents" into "Doc ume nts". iOS sheets fill the screen and
+            // never showed this. Sized here rather than at the call site so every presenter
+            // gets it.
+            .frame(
+                minWidth: 620, idealWidth: 760, maxWidth: 900,
+                minHeight: 560, idealHeight: 760, maxHeight: .infinity)
         #endif
     }
 
@@ -398,13 +413,17 @@ struct ContainerSettingsSheet: View {
                 .foregroundStyle(.secondary)
 
             if syncMode == .iCloudShared {
-                Text("Only this library uses iCloud Sync. Local Only libraries in the app stay on-device and do not enter the shared iCloud workspace.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Only this library uses iCloud Sync. Local Only libraries in the app stay on-device and do not enter the shared iCloud workspace."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             } else {
-                Text("This library remains fully local on this device. It won't be copied into the shared iCloud workspace.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "This library remains fully local on this device. It won't be copied into the shared iCloud workspace."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
     }
@@ -421,14 +440,20 @@ struct ContainerSettingsSheet: View {
                 icon: "cpu.fill",
                 title: "Neural Engine (MiniLM)",
                 tagline: "all-MiniLM-L6-v2 • 384-dim",
-                detail: "Sentence-transformer model fine-tuned for semantic similarity. Produces 384-dimensional vectors via mean-pooling, accelerated on Neural Engine.",
+                detail:
+                    "Sentence-transformer model fine-tuned for semantic similarity. Produces 384-dimensional vectors via mean-pooling, accelerated on Neural Engine.",
                 isSelectable: true,
                 // The badge follows the platform default since 5.7: Core ML on iPhone and iPad,
                 // Core AI on macOS 27 (`EmbeddingProviderDefaults`).
-                badgeText: EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreML ? "✓ Default" : nil,
+                badgeText: EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreML
+                    ? "✓ Default" : nil,
                 supportedDimensions: [384],
                 metrics: [
-                    OptionMetric(icon: "bolt.fill", text: "ANE accelerated", tint: .accentColor),
+                    // Was "ANE accelerated". Every device setting gives this model the Neural Engine
+                    // (`DeviceCapabilityService.coreMLComputeUnits`: .cpuAndNeuralEngine or .all; background imports
+                    // .cpuAndNeuralEngine), and Core ML plans 150 of its 161 operations there, 11 on the CPU
+                    // (BenchmarkRuns/2026-10-18-compute-plan, M3 Pro). The iOS Simulator runs it on the CPU only.
+                    OptionMetric(icon: "bolt.fill", text: "Runs on the Neural Engine", tint: .accentColor),
                     // "High semantic accuracy" was an unmeasured superlative, and the first
                     // measurement contradicts it: over 25 QASPER cases the dense arm ranked
                     // the gold document first in 8% of cases against BM25's 60%. Replaced
@@ -438,49 +463,60 @@ struct ContainerSettingsSheet: View {
                     OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
                 alert: nil
-            ),
+            )
         ]
 
         var coreAISelectable = false
-        var coreAIBadge = "⚡ Native"
+        // "Experimental" (was "⚡ Native"): the Core AI model's retrieval in its current, mean-pooled form has no
+        // benchmark on record (LEDGER.md "Open, not yet run": "Corrected Core AI export"), so the owner asked for the tag
+        // on 2026-11-10. The tagline carries it too, because this card's badge gives way to "ACTIVE" when selected.
+        var coreAIBadge = "Experimental"
         // Provenance, not marketing. `THIRD_PARTY_NOTICES.md:3-8` binds the bundled
-// `EmbeddingModel.mlpackage` to `sentence-transformers/all-MiniLM-L6-v2`, so this option is
-// the SAME model as the Neural Engine option, recompiled for the Core AI runtime. It was
-// described as "Apple Intelligence-backed sentence embeddings", which reads as an Apple
-// model and is not one. The latency figure was also removed: it traces to
-// `AppleIntelligenceTransitionPlan.md:16`, where "a 40%+ reduction" is stated as a GOAL,
-// and no measurement of it exists in this repository. Flagged unverified by
-// `LIBRARY_SURFACES_AUDIT_2026-08-11.md:196` and resolved here.
-let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine option, recompiled for Apple's Core AI runtime. Runs zero-copy on Apple Silicon, which changes speed rather than accuracy. It runs on the GPU, not the Neural Engine, and a library keeps the option it was built with."
+        // `EmbeddingModel.mlpackage` to `sentence-transformers/all-MiniLM-L6-v2`, so this option is
+        // the SAME model as the Neural Engine option, recompiled for the Core AI runtime. It was
+        // described as "Apple Intelligence-backed sentence embeddings", which reads as an Apple
+        // model and is not one. The latency figure was also removed: it traces to
+        // `AppleIntelligenceTransitionPlan.md:16`, where "a 40%+ reduction" is stated as a GOAL,
+        // and no measurement of it exists in this repository. Flagged unverified by
+        // `LIBRARY_SURFACES_AUDIT_2026-08-11.md:196` and resolved here.
+        //
+        // 2026-11-10: "Runs zero-copy on Apple Silicon, which changes speed rather than accuracy" came out. Apple's page
+        // for the initializer the provider uses, `NDArray.init(scalars:shape:)`, says it makes "a copy of some sequence
+        // of scalars" (developer.apple.com/documentation/coreai/ndarray/init(scalars:shape:), read 2026-11-10), so the
+        // input is copied; and no benchmark compares its accuracy with the Core ML copy since the mean-pooling
+        // re-export. "A library keeps the option it was built with" stays: nothing switches between the two copies
+        // (`EmbeddingProviderDefaults.areCopiesOfOneModel` in `evaluateEmbeddingShift`).
+        let coreAIDetail =
+            "The same all-MiniLM-L6-v2 weights as the Neural Engine option, rebuilt for Apple's Core AI runtime, which runs it on the GPU, not the Neural Engine. Its search accuracy hasn't been benchmarked in this form. A library keeps the option it was built with."
         var coreAIAlertMessage: ProviderAvailabilityAlert? = nil
 
         #if canImport(CoreAI)
-        if #available(iOS 27.0, macOS 27.0, *) {
-            coreAISelectable = true
-            if EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI {
-                coreAIBadge = "✓ Default"
+            if #available(iOS 27.0, macOS 27.0, *) {
+                coreAISelectable = true
+                if EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI {
+                    coreAIBadge = "✓ Default"
+                }
+            } else {
+                coreAIAlertMessage = ProviderAvailabilityAlert(
+                    id: "coreai_sentence_embedding_os_req",
+                    icon: "exclamationmark.triangle.fill",
+                    title: "iOS 27 Required",
+                    description: "Core AI features require iOS 27.0+ or macOS 27.0+ APIs.",
+                    bullets: ["Update your device to the latest OS version."],
+                    accent: .orange
+                )
+                coreAIBadge = "iOS 27+"
             }
-        } else {
-            coreAIAlertMessage = ProviderAvailabilityAlert(
-                id: "coreai_sentence_embedding_os_req",
-                icon: "exclamationmark.triangle.fill",
-                title: "iOS 27 Required",
-                description: "Core AI features require iOS 27.0+ or macOS 27.0+ APIs.",
-                bullets: ["Update your device to the latest OS version."],
-                accent: .orange
-            )
-            coreAIBadge = "iOS 27+"
-        }
         #else
-        coreAIAlertMessage = ProviderAvailabilityAlert(
-            id: "coreai_sentence_embedding_build_req",
-            icon: "hammer.fill",
-            title: "Build Toolchain Issue",
-            description: "Core AI is not compiled into this application binary.",
-            bullets: ["Rebuild the application using Xcode 27.0+ and the iOS 27 SDK."],
-            accent: .red
-        )
-        coreAIBadge = "Unsupported build"
+            coreAIAlertMessage = ProviderAvailabilityAlert(
+                id: "coreai_sentence_embedding_build_req",
+                icon: "hammer.fill",
+                title: "Build Toolchain Issue",
+                description: "Core AI is not compiled into this application binary.",
+                bullets: ["Rebuild the application using Xcode 27.0+ and the iOS 27 SDK."],
+                accent: .red
+            )
+            coreAIBadge = "Unsupported build"
         #endif
 
         options.append(
@@ -488,7 +524,7 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
                 id: "coreai_sentence_embedding",
                 icon: "sparkles",
                 title: "Core AI Sentence",
-                tagline: "Silicon-Native • 384-dim",
+                tagline: "Experimental • all-MiniLM-L6-v2 • 384-dim",
                 detail: coreAIDetail,
                 isSelectable: coreAISelectable,
                 badgeText: coreAIBadge,
@@ -499,12 +535,18 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
                     // 2026-10-10: 88.5 passages a second against 5.4; M3 Pro Mac 2026-10-12: 4.71 ms
                     // a passage against 112.26).
                     OptionMetric(icon: "bolt.fill", text: "Runs on the GPU", tint: .accentColor),
-                    OptionMetric(icon: "memorychip", text: "Zero-copy memory"),
+                    // Was "Zero-copy memory" until 2026-11-10: the provider builds its input with
+                    // `NDArray.init(scalars:shape:)`, which Apple documents as making a copy. Mean pooling is what
+                    // the provider can be shown to do: `modelRevision` "MiniLM-L6-v2/coreai-mlirb-meanpool", and the
+                    // attention mask it passes so the graph averages the real tokens.
+                    OptionMetric(icon: "target", text: "384-dim mean-pooled"),
                     // Was "40%+ faster". That figure is a goal from
                     // AppleIntelligenceTransitionPlan.md:16, never measured here.
                     // "Lower latency" followed it out on 2026-10-12: on the same iPhone the Core ML copy
                     // measured 115.8 passages a second against 88.5 for this one. The precision of the
-                    // weights is the property that can be checked (Float32 in the model's metadata).
+                    // weights is the property that can be checked. `metadata.json` in EmbeddingModel.bundle names
+                    // only the producer, but `main.mlirb` is 90,352,203 bytes, 4 bytes a weight for MiniLM-L6's
+                    // roughly 22.7 million, and its strings name F32 (checked 2026-11-10).
                     OptionMetric(icon: "gauge.with.needle", text: "32-bit weights"),
                 ],
                 alert: coreAIAlertMessage
@@ -522,15 +564,17 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
                 icon: "cpu.fill",
                 title: "384D • MiniLM-L6-v2",
                 caption: "Bundled MiniLM model",
-                detail: "Native output of the bundled all-MiniLM-L6-v2 sentence-transformer. Mean-pooled token embeddings produce dense 384-dim vectors optimized for cosine similarity.",
+                detail:
+                    "Native output of the bundled all-MiniLM-L6-v2 sentence-transformer. Mean-pooled token embeddings produce dense 384-dim vectors optimized for cosine similarity.",
                 metrics: [
                     // The 384D option serves the Core ML and the Core AI copy. Core ML plans the model onto the Neural
                     // Engine and Core AI runs it on the GPU (BenchmarkRuns/2026-10-18-compute-plan; 5.7).
-                    OptionMetric(icon: "bolt.fill", text: "Neural Engine with Core ML, GPU with Core AI", tint: .accentColor),
+                    OptionMetric(
+                        icon: "bolt.fill", text: "Neural Engine with Core ML, GPU with Core AI", tint: .accentColor),
                     OptionMetric(icon: "cube.fill", text: "~0.58 MB / 100 docs"),
                     OptionMetric(icon: "checkmark.seal.fill", text: "Native format"),
                 ]
-            ),
+            )
         ]
     }
 
@@ -559,14 +603,16 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
                 icon: "doc.badge.gearshape.fill",
                 title: "Persistent JSON",
                 caption: "Exact k-NN • Durable",
-                detail: "Brute-force cosine similarity over persisted vectors. O(n) search but 100% recall. Survives app restarts."
+                detail:
+                    "Brute-force cosine similarity over persisted vectors. O(n) search but 100% recall. Survives app restarts."
             ),
             VectorDBOptionDescriptor(
                 kind: .vecturaHNSW,
                 icon: "point.3.connected.trianglepath.dotted",
                 title: "HNSW Graph",
                 caption: "Approximate • O(log n)",
-                detail: "Hierarchical Navigable Small World graph for sub-ms search on 10K+ vectors. ~95% recall tradeoff."
+                detail:
+                    "Hierarchical Navigable Small World graph for sub-ms search on 10K+ vectors. ~95% recall tradeoff."
             ),
             VectorDBOptionDescriptor(
                 kind: .inMemory,
@@ -606,16 +652,17 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
     private func refreshProviderAvailability() {
         Task {
             #if canImport(CoreAI)
-            if #available(iOS 27.0, macOS 27.0, *) {
-                await CoreAISentenceEmbeddingProvider.shared.awaitReady()
-            }
+                if #available(iOS 27.0, macOS 27.0, *) {
+                    await CoreAISentenceEmbeddingProvider.shared.awaitReady()
+                }
             #endif
 
             var availability: [String: Bool] = [:]
 
             // Check each provider's runtime availability
             for option in embeddingProviderOptions {
-                let service = EmbeddingService.forProvider(id: option.id, targetDimension: option.supportedDimensions.first, allowFallback: false)
+                let service = EmbeddingService.forProvider(
+                    id: option.id, targetDimension: option.supportedDimensions.first, allowFallback: false)
                 availability[option.id] = service.isAvailable
             }
 
@@ -625,7 +672,8 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
 
                 // If current provider is unavailable, suggest fallback
                 if let currentAvailable = availability[self.providerId], !currentAvailable {
-                    Log.warning("[ContainerSettings] Current provider \(self.providerId) is unavailable", category: .embedding)
+                    Log.warning(
+                        "[ContainerSettings] Current provider \(self.providerId) is unavailable", category: .embedding)
                 }
             }
         }
@@ -636,8 +684,8 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
         let previousSyncMode = container.syncMode
 
         if previousSyncMode != .iCloudShared,
-           syncMode == .iCloudShared,
-           !hasICloudSyncAccess
+            syncMode == .iCloudShared,
+            !hasICloudSyncAccess
         {
             syncMode = previousSyncMode
             planEntryPoint = .iCloudSync
@@ -691,11 +739,11 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
         let dbKindChanged = previousDB != dbKind
         let chunkingModeChanged = previousAutoAdapt != autoAdaptDimension
         let translationChanged = previousTranslationLanguage != resolvedTranslationLanguage
-        let chunkingChanged = chunkingModeChanged ||
-            previousChunking?.source != resolvedChunkingDirective?.source ||
-            previousChunking?.targetWordWindow != resolvedChunkingDirective?.targetWordWindow ||
-            previousChunking?.overlapWords != resolvedChunkingDirective?.overlapWords ||
-            previousChunking?.strategy != resolvedChunkingDirective?.strategy
+        let chunkingChanged =
+            chunkingModeChanged || previousChunking?.source != resolvedChunkingDirective?.source
+            || previousChunking?.targetWordWindow != resolvedChunkingDirective?.targetWordWindow
+            || previousChunking?.overlapWords != resolvedChunkingDirective?.overlapWords
+            || previousChunking?.strategy != resolvedChunkingDirective?.strategy
 
         // Mark as user-configured to prevent auto-adapt from immediately overriding
         let userConfiguredChunking = !autoAdaptDimension && chunkingChanged
@@ -708,7 +756,9 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
             if userConfiguredChunking {
                 manualChanges.append("chunking \(chunkingStrategy) \(targetWordWindow)w/\(overlapWords)w")
             }
-            Log.info("[ContainerSettings] User manually configured \(manualChanges.joined(separator: " • "))", category: .ingestion)
+            Log.info(
+                "[ContainerSettings] User manually configured \(manualChanges.joined(separator: " • "))",
+                category: .ingestion)
         }
 
         // CRITICAL: Invalidate the cached vector store BEFORE updating the container, so the
@@ -727,7 +777,9 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
         // is destructive and now happens in `startReembedding`, after the user has agreed to
         // rebuild them.
         if dimensionChanged || providerChanged || dbKindChanged {
-            Log.info("[ContainerSettings] Config changed - invalidating vector store cache for container \(container.id)", category: .vectorDB)
+            Log.info(
+                "[ContainerSettings] Config changed - invalidating vector store cache for container \(container.id)",
+                category: .vectorDB)
             ragService.invalidateVectorStore(for: container.id, clearStorage: false)
         }
 
@@ -750,23 +802,29 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
         }
 
         if dimensionChanged {
-            Log.info("[ContainerSettings] Embedding dimension changed from \(previousDim) to \(dim). Re-embedding required.", category: .embedding)
+            Log.info(
+                "[ContainerSettings] Embedding dimension changed from \(previousDim) to \(dim). Re-embedding required.",
+                category: .embedding)
         }
         if dbKindChanged {
             Log.info("[ContainerSettings] Vector DB changed to \(dbKind.rawValue).", category: .vectorDB)
         }
         if translationChanged {
             let targetDisplay = resolvedTranslationLanguage ?? "none"
-            Log.info("[ContainerSettings] Retrieval translation target changed to \(targetDisplay).", category: .retrieval)
+            Log.info(
+                "[ContainerSettings] Retrieval translation target changed to \(targetDisplay).", category: .retrieval)
         }
 
-        let needsReembed = (providerChanged || dimensionChanged || translationChanged) && !activeContainerDocuments.isEmpty
+        let needsReembed =
+            (providerChanged || dimensionChanged || translationChanged) && !activeContainerDocuments.isEmpty
         let needsRechunk = chunkingChanged && !activeContainerDocuments.isEmpty && !needsReembed
 
         if needsReembed {
             pendingReembedContext = ReembedContext(
                 containerId: container.id,
-                reason: reembedReason(providerChanged: providerChanged, dimensionChanged: dimensionChanged, translationChanged: translationChanged),
+                reason: reembedReason(
+                    providerChanged: providerChanged, dimensionChanged: dimensionChanged,
+                    translationChanged: translationChanged),
                 documentCount: activeContainerDocuments.count
             )
             showingReembedConfirmation = true
@@ -881,7 +939,8 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
             let ftsDocStats = await SQLiteFullTextService.shared.getDocumentStats(containerId: container.id)
 
             // Load top terms for this library only
-            let topTerms = await SQLiteFullTextService.shared.getTopTermsForContainer(containerId: container.id, limit: 20)
+            let topTerms = await SQLiteFullTextService.shared.getTopTermsForContainer(
+                containerId: container.id, limit: 20)
 
             await MainActor.run {
                 containerFTSStats = ftsDocStats
@@ -1037,7 +1096,10 @@ struct SelectableOptionCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) embedding provider. \(subtitle)")
         .accessibilityValue(isActive ? "Currently active" : (isDisabled ? "Unavailable" : "Available"))
-        .accessibilityHint(isDisabled ? "This provider is not available on your device" : "Double tap to select this embedding provider")
+        .accessibilityHint(
+            isDisabled
+                ? "This provider is not available on your device" : "Double tap to select this embedding provider"
+        )
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 
@@ -1138,6 +1200,9 @@ struct SettingHelpCallout: View {
 
 struct AutoIntelligencePanel: View {
     let report: LibraryIntelligenceCenter.IntelligenceReport
+    /// The saved library's model. The Embeddings line shows this, not `report.embedding`: the analysis's pick is never
+    /// applied (see `libraryModelCard` in ContainerSettingsSheet+Search.swift), so showing it read as the library's model.
+    var libraryEmbedding: (providerId: String, dimension: Int)? = nil
     let isAutoEnabled: Bool
     var onToggleAuto: (() -> Void)?
 
@@ -1175,21 +1240,24 @@ struct AutoIntelligencePanel: View {
             InsightLine(
                 icon: "square.stack.3d.down.right",
                 title: "Chunking",
-                value: "\(report.chunking.strategy.displayName) • \(report.chunking.targetWordWindow)w window / \(report.chunking.overlapWords) overlap",
+                value:
+                    "\(report.chunking.strategy.displayName) • \(report.chunking.targetWordWindow)w window / \(report.chunking.overlapWords) overlap",
                 detail: report.chunking.rationales.joined(separator: " · ")
             )
 
             InsightLine(
                 icon: "point.3.connected.trianglepath.dotted",
                 title: "Embeddings",
-                value: "\(friendlyProviderName(report.embedding.providerId)) • \(report.embedding.dimension)D",
-                detail: report.embedding.rationale
+                value: libraryEmbedding.map { "\(friendlyProviderName($0.providerId)) • \($0.dimension)D" }
+                    ?? "Not set",
+                detail: "The library keeps this model. The analysis doesn't change it."
             )
 
             InsightLine(
                 icon: "line.3.horizontal.decrease.circle",
                 title: "Retrieval",
-                value: "\(report.retrieval.fusionStyle.displayName) • vector \(percentage(report.retrieval.vectorWeight)) / lexical \(percentage(report.retrieval.lexicalWeight))",
+                value:
+                    "\(report.retrieval.fusionStyle.displayName) • vector \(percentage(report.retrieval.vectorWeight)) / lexical \(percentage(report.retrieval.lexicalWeight))",
                 detail: retrievalDetails
             )
 
@@ -1223,7 +1291,8 @@ struct AutoIntelligencePanel: View {
                     }
                 }
                 .padding(DSSpacing.sm)
-                .background(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous).fill(Color.orange.opacity(0.08)))
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous).fill(Color.orange.opacity(0.08)))
             }
         }
         .padding(DSSpacing.lg)
@@ -1236,7 +1305,7 @@ struct AutoIntelligencePanel: View {
     private var headline: String {
         let corpus = report.corpus
         guard corpus.documentCount > 0 else {
-            return "No documents yet—ready to profile whatever you drop in."
+            return "No documents yet. Add some and the app profiles them."
         }
         if corpus.hasMath && corpus.technicalDensity > 0.55 {
             return "Treating this as a precision research stack with deep technical context."
@@ -1270,7 +1339,10 @@ struct AutoIntelligencePanel: View {
         if corpus.hasCode {
             fragments.append("code + prose blended")
         }
-        return "Currently orchestrating " + fragments.joined(separator: " • ") + ". We'll keep rebalancing windows and embeddings as you add new domains."
+        return "Currently orchestrating " + fragments.joined(separator: " • ")
+            // Was "We'll keep rebalancing windows and embeddings": the splitting style follows each new file
+            // (`prescanChunkingPlan`), the embedding model never follows the analysis (`libraryModelCard`).
+            + ". New files get a splitting style picked from their text; the embedding model stays as it is."
     }
 
     private var retrievalDetails: String {
@@ -1286,7 +1358,8 @@ struct AutoIntelligencePanel: View {
         }
         let code = dominant.key.rawValue
         let readable = Locale.current.localizedString(forLanguageCode: code) ?? code
-        let extra = report.corpus.languageHypotheses.count > 1
+        let extra =
+            report.corpus.languageHypotheses.count > 1
             ? " + \(report.corpus.languageHypotheses.count - 1) others"
             : ""
         return "\(readable)\(extra) (\(percentage(dominant.value)))"
@@ -1295,7 +1368,8 @@ struct AutoIntelligencePanel: View {
     private func friendlyProviderName(_ providerId: String) -> String {
         switch providerId {
         case "coreml_sentence_embedding":
-            return "Core ML Sentence"
+            // The option's own title in Embedding Model (was "Core ML Sentence").
+            return "Neural Engine (MiniLM)"
         // A Core AI library fell to the default and read "Apple Natural Language" on every Mac with macOS 27,
         // where Core AI is the default for a new library (5.7).
         case "coreai_sentence_embedding":
@@ -1419,8 +1493,8 @@ private struct TopicChip: View {
     }
 }
 
-private extension LibraryIntelligenceCenter.ChunkingPlan.Strategy {
-    var displayName: String {
+extension LibraryIntelligenceCenter.ChunkingPlan.Strategy {
+    fileprivate var displayName: String {
         switch self {
         case .balanced: return "Balanced"
         case .densePrecision: return "Precision"
@@ -1429,8 +1503,8 @@ private extension LibraryIntelligenceCenter.ChunkingPlan.Strategy {
     }
 }
 
-private extension LibraryIntelligenceCenter.RetrievalPlan.FusionStyle {
-    var displayName: String {
+extension LibraryIntelligenceCenter.RetrievalPlan.FusionStyle {
+    fileprivate var displayName: String {
         switch self {
         case .hybrid: return "Hybrid"
         case .vectorOnly: return "Vector-first"
@@ -1439,8 +1513,8 @@ private extension LibraryIntelligenceCenter.RetrievalPlan.FusionStyle {
     }
 }
 
-private extension LibraryIntelligenceCenter.RetrievalPlan.RerankerStrategy {
-    var displayName: String {
+extension LibraryIntelligenceCenter.RetrievalPlan.RerankerStrategy {
+    fileprivate var displayName: String {
         switch self {
         case .none: return "None"
         case .semantic: return "Semantic"

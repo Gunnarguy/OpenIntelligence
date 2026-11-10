@@ -2,17 +2,14 @@
 //  MotherboardHUDView.swift
 //  OpenIntelligence
 //
-//  Full-screen X-Ray overlay showing where Apple Silicon SoC physically
-//  sits behind the iPhone screen. ONE border at the ACTUAL chip location.
+//  Full-screen X-Ray overlay showing where the chip sits inside the device, under the screen. The CPU, GPU and
+//  Neural Engine are all on one die about a centimetre across, so there is one outline for the chip and one for the
+//  Taptic Engine.
 //
-//  CRITICAL: The CPU, GPU, and Neural Engine are ALL ON ONE ~10mm DIE.
-//  They are NOT spread across the screen - they're one tiny chip.
-//
-//  Physical SoC positions from iFixit teardowns:
-//  - iPhone 15 Pro/Max: A17 Pro @ ~38% from left, ~30% from top
-//  - iPhone 16/Plus: A18 @ ~40% from left, ~32% from top
-//  - iPhone 16 Pro/Max: A18 Pro @ ~45% from left, ~27% from top (centralized)
-//  - iPhone 17 Pro/Max: A19 Pro @ similar to 16 Pro
+//  Since 5.8 every position comes from Apple's Self Service Repair images (support.apple.com articles named on each
+//  layout), fetched 2026-11-10. Where Apple's images show the logic board but not the chip on it, the outline is the
+//  board and is labelled so; no chip spot is guessed. Model identifiers from Apple's support pages and the EveryMac
+//  identifier list, fetched 2026-11-10.
 //
 
 import Combine
@@ -24,10 +21,38 @@ import SwiftUI
 
 // MARK: - Device Layout Configuration
 
-/// Physical SoC position for each Apple Intelligence-capable device.
-/// Position normalized (0-1) relative to screen dimensions.
-/// Die size ~10mm = ~6-8% of screen width, made slightly larger for visibility.
-enum DeviceComponentLayout {
+/// What an X-Ray outline marks: the chip package itself, or the logic board it sits on.
+nonisolated enum PlacementSource: Equatable, Sendable {
+    /// The outline is the chip package (the A-series or M-series chip).
+    case chip
+    /// The chip's exact spot on this model is not known, so the outline is the logic board that holds it.
+    case board
+}
+
+/// How sure a measured position is.
+nonisolated enum PlacementConfidence: Equatable, Sendable {
+    case high
+    case medium
+    case low
+    /// No image of this model's insides was found; the spot is the generic one the X-Ray used before 5.8.
+    case unsourced
+}
+
+/// One outline on the X-Ray.
+///
+/// `rect` is normalized to the DISPLAY in portrait with the device's top up and the origin at the top left, as
+/// fractions of the display's width and height. It is converted from measurements taken on the device outline by
+/// `DeviceComponentLayout.displayRect(x:y:)`.
+nonisolated struct ComponentPlacement: Equatable, Sendable {
+    let rect: CGRect
+    let source: PlacementSource
+    let confidence: PlacementConfidence
+    /// Where the position was measured: Apple support article ids (support.apple.com/<id>) or a teardown.
+    let reference: String
+}
+
+/// The X-Ray layout for each device the app can run on.
+nonisolated enum DeviceComponentLayout: Equatable, Sendable {
 
     case iPhone15Pro
     case iPhone15ProMax
@@ -35,14 +60,28 @@ enum DeviceComponentLayout {
     case iPhone16Plus
     case iPhone16Pro
     case iPhone16ProMax
+    case iPhone16e
+    case iPhone17
+    case iPhoneAir
+    case iPhone17e
     case iPhone17Pro
     case iPhone17ProMax
+    case iPhone18Pro
+    case iPhone18ProMax
+    /// iPad mini with A17 Pro or A20 Pro.
     case iPadMini
+    /// iPad Air with M2 or later.
     case iPadAir
+    /// iPad Pro with M4 or M5.
     case iPadPro
+    /// iPad Pro with M1 or M2: no source for its insides.
+    case iPadProM1M2
+    /// iPad Air with M1: no source for its insides.
+    case iPadAirM1
+    /// Anything else, including iPhone Duo (iPhone19,4), whose insides are not mapped yet. Shows no outline.
     case unknown
 
-    /// Detect the current device via utsname()
+    /// Detect the current device via utsname(). In the Simulator, the simulated model's identifier.
     @MainActor
     static var current: DeviceComponentLayout {
         var systemInfo = utsname()
@@ -53,55 +92,65 @@ enum DeviceComponentLayout {
             return identifier + String(UnicodeScalar(UInt8(value)))
         }
 
+        let layout = Self.layout(forIdentifier: identifier)
+        if layout != .unknown { return layout }
+
+        #if targetEnvironment(simulator)
+            // The Simulator reports the Mac's architecture from utsname; the simulated model's own identifier is in
+            // the environment, so a simulated iPhone 17 Pro gets the iPhone 17 Pro layout.
+            let simModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? ""
+            let simulated = Self.layout(forIdentifier: simModel)
+            if simulated != .unknown { return simulated }
+            // An identifier the table has not heard of: the closest layout by screen size, as before 5.8.
+            if simModel.hasPrefix("iPhone") {
+                let screenHeight = simulatorNativeScreenHeight()
+                if screenHeight >= 2796 {
+                    return .iPhone16ProMax
+                } else if screenHeight >= 2556 {
+                    return .iPhone16Pro
+                }
+            }
+        #endif
+        return .unknown
+    }
+
+    /// The layout for a model identifier such as "iPhone18,3". Unknown identifiers give `.unknown`, which draws no
+    /// outline, rather than a guessed spot.
+    static func layout(forIdentifier identifier: String) -> DeviceComponentLayout {
         switch identifier {
         case "iPhone16,1": return .iPhone15Pro
         case "iPhone16,2": return .iPhone15ProMax
-        case "iPhone17,3": return .iPhone16
-        case "iPhone17,4": return .iPhone16Plus
         case "iPhone17,1": return .iPhone16Pro
         case "iPhone17,2": return .iPhone16ProMax
-        case "iPhone18,1", "iPhone18,3": return .iPhone17Pro
-        case "iPhone18,2", "iPhone18,4": return .iPhone17ProMax
-        default:
-            if identifier.hasPrefix("iPad") {
-                let numbers = identifier.replacingOccurrences(of: "iPad", with: "")
-                    .split(separator: ",")
-                    .compactMap { Int($0) }
-                if let major = numbers.first {
-                    if major == 13 { return .iPadPro }  // iPad Pro M1
-                    if major == 14 {
-                        let minor = numbers.count > 1 ? numbers[1] : 0
-                        if minor <= 2 { return .iPadMini }  // iPad mini 6
-                        if minor >= 3 && minor <= 6 { return .iPadPro }  // iPad Pro M2
-                        if minor >= 8 { return .iPadAir }  // iPad Air M2
-                    }
-                    if major == 15 { return .iPadAir }  // iPad Air M3
-                    if major == 16 {
-                        let minor = numbers.count > 1 ? numbers[1] : 0
-                        if minor <= 2 { return .iPadMini }  // iPad mini 7 (A17 Pro)
-                        return .iPadPro  // iPad Pro M4
-                    }
-                    if major >= 17 { return .iPadPro }
-                }
-                return .iPadPro
-            }
+        case "iPhone17,3": return .iPhone16
+        case "iPhone17,4": return .iPhone16Plus
+        case "iPhone17,5": return .iPhone16e
+        case "iPhone18,1": return .iPhone17Pro
+        case "iPhone18,2": return .iPhone17ProMax
+        case "iPhone18,3": return .iPhone17
+        case "iPhone18,4": return .iPhoneAir
+        case "iPhone18,5": return .iPhone17e
+        case "iPhone19,2": return .iPhone18Pro
+        case "iPhone19,3", "iPhone19,7": return .iPhone18ProMax
+        // iPhone19,4 is iPhone Duo, the foldable: no layout yet, so it falls through to `.unknown`.
+        default: break
+        }
 
-            #if targetEnvironment(simulator)
-                let simModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? ""
-                if simModel.hasPrefix("iPhone") {
-                    let screenHeight = simulatorNativeScreenHeight()
-                    if screenHeight >= 2796 {
-                        return .iPhone16ProMax
-                    } else if screenHeight >= 2556 {
-                        return .iPhone16Pro
-                    }
-                } else if simModel.hasPrefix("iPad") {
-                    if simModel.contains("mini") { return .iPadMini }
-                    if simModel.contains("Air") { return .iPadAir }
-                    return .iPadPro
-                }
-            #endif
-            return .unknown
+        guard identifier.hasPrefix("iPad") else { return .unknown }
+        let numbers = identifier.dropFirst("iPad".count).split(separator: ",").compactMap { Int($0) }
+        guard numbers.count == 2 else { return .unknown }
+        let (major, minor) = (numbers[0], numbers[1])
+        switch (major, minor) {
+        case (13, 4...11): return .iPadProM1M2  // iPad Pro M1
+        case (13, 16...17): return .iPadAirM1  // iPad Air M1
+        case (14, 3...6): return .iPadProM1M2  // iPad Pro M2
+        case (14, 8...11): return .iPadAir  // iPad Air M2
+        case (15, 3...6): return .iPadAir  // iPad Air M3 (identifiers not verified against a primary source)
+        case (16, 1...2): return .iPadMini  // iPad mini A17 Pro
+        case (16, 3...6): return .iPadPro  // iPad Pro M4
+        case (16, 8...11): return .iPadAir  // iPad Air M4
+        case (17, 1...4): return .iPadPro  // iPad Pro M5
+        default: return .unknown
         }
     }
 
@@ -124,11 +173,19 @@ enum DeviceComponentLayout {
         case .iPhone16Plus: return "iPhone 16 Plus"
         case .iPhone16Pro: return "iPhone 16 Pro"
         case .iPhone16ProMax: return "iPhone 16 Pro Max"
+        case .iPhone16e: return "iPhone 16e"
+        case .iPhone17: return "iPhone 17"
+        case .iPhoneAir: return "iPhone Air"
+        case .iPhone17e: return "iPhone 17e"
         case .iPhone17Pro: return "iPhone 17 Pro"
         case .iPhone17ProMax: return "iPhone 17 Pro Max"
+        case .iPhone18Pro: return "iPhone 18 Pro"
+        case .iPhone18ProMax: return "iPhone 18 Pro Max"
         case .iPadMini: return "iPad mini"
         case .iPadAir: return "iPad Air"
         case .iPadPro: return "iPad Pro"
+        case .iPadProM1M2: return "iPad Pro"
+        case .iPadAirM1: return "iPad Air"
         case .unknown: return "Unknown Device"
         }
     }
@@ -136,103 +193,222 @@ enum DeviceComponentLayout {
     /// The chip label shown in the HUD.
     ///
     /// This deliberately does **not** come from the layout table above. That table is an
-    /// exact-identifier map and exists to place the SoC glow at the right physical spot
+    /// exact-identifier map and exists to place the outline at the right physical spot
     /// on each board, which genuinely needs per-model data. Using it for the *name* meant
-    /// the HUD carried a third, independently-maintained chip table — and it had already
-    /// drifted: every `.iPadPro` reported "Apple M4", so an M5 iPad Pro was mislabelled,
-    /// and the non-Pro iPhone 17 and iPhone Air were absent from the map entirely and so
-    /// fell through to "Apple Silicon".
+    /// the HUD carried a third, independently-maintained chip table, and it had already
+    /// drifted: every `.iPadPro` reported "Apple M4", so an M5 iPad Pro was mislabelled.
     ///
     /// `DeviceCapabilityService` keys iPhones off the major identifier number and Macs off
     /// the CPU brand string, so it resolves hardware this table has never heard of.
+    @MainActor
     var chipName: String {
         DeviceCapabilityService.shared.chipName
     }
 
-    // MARK: - SoC Position (ONE chip, ONE location)
+    // MARK: - Measured positions
 
-    /// The actual position of the SoC die behind the screen.
-    /// VERIFIED via Vision AI analysis of X-ray images (Feb 2026):
-    /// - iPhone 15 Pro Max: A17 @ x:17%, y:37%
-    /// - iPhone 16 Pro: A18 @ x:13%, y:32%
-    /// - iPhone 16 Pro Max: A18 @ x:14%, y:35%
-    /// - iPhone 17 Pro Max: A19 @ x:38%, y:31% (MORE CENTERED!)
-    var socRect: CGRect {
+    /// How far the display sits inside the device outline on each side, as a fraction of the outline. Apple's locator
+    /// images show the whole device, and the display is inset about 1 to 3% from its edge; 2% is assumed on all four
+    /// sides to turn an outline measurement into a display one.
+    static let displayInset: CGFloat = 0.02
+
+    /// Turns a measurement on the device outline (fractions of the outline, front view, portrait, origin top left)
+    /// into the display's normalized space, clamped to the display.
+    static func displayRect(x: ClosedRange<CGFloat>, y: ClosedRange<CGFloat>) -> CGRect {
+        let span = 1 - 2 * displayInset
+        func map(_ value: CGFloat) -> CGFloat { min(1, max(0, (value - displayInset) / span)) }
+        let x0 = map(x.lowerBound)
+        let x1 = map(x.upperBound)
+        let y0 = map(y.lowerBound)
+        let y1 = map(y.upperBound)
+        return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+    }
+
+    /// Where the chip is, or the logic board when the chip's spot on that board is not known. Nil draws nothing.
+    ///
+    /// Measured on Apple's Self Service Repair locator images (the article ids are in each `reference`), fetched
+    /// 2026-11-10. The iPad entries are approximate: Apple publishes no logic-board image for them, so they mark the
+    /// column the board occupies, never a chip.
+    var socPlacement: ComponentPlacement? {
         switch self {
-        case .iPhone15Pro, .iPhone15ProMax:
-            // Vision AI: A17 label at x:17.3%, y:36.6%
-            // Rectangle [6]: x:8.2%, y:33.7%, w:28.3%, h:13.7%
-            return CGRect(x: 0.08, y: 0.33, width: 0.28, height: 0.12)
-
-        case .iPhone16, .iPhone16Plus:
-            // A18: Similar to 16 Pro
-            return CGRect(x: 0.08, y: 0.30, width: 0.26, height: 0.10)
-
+        case .iPhone15Pro:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.08...0.33, y: 0.30...0.50), source: .chip, confidence: .low,
+                reference: "Apple 104882, 104885; board x 0.04-0.36, y 0.17-0.62")
+        case .iPhone15ProMax:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.10...0.33, y: 0.30...0.54), source: .chip, confidence: .low,
+                reference: "Apple 104927")
+        case .iPhone16:
+            // The board is a band across the top (x 0.05-0.65, y 0.03-0.25) and a column down the left; the column
+            // is outlined. The chip on it is not located.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.03...0.22, y: 0.03...0.70), source: .board, confidence: .medium,
+                reference: "Apple 120643")
+        case .iPhone16Plus:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.03...0.22, y: 0.03...0.70), source: .board, confidence: .medium,
+                reference: "Apple 120672")
         case .iPhone16Pro:
-            // Vision AI: A18 label at x:13.3%, y:32.0%
-            return CGRect(x: 0.08, y: 0.30, width: 0.26, height: 0.10)
-
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.05...0.35, y: 0.20...0.66), source: .board, confidence: .medium,
+                reference: "Apple 120812")
         case .iPhone16ProMax:
-            // Vision AI: A18 label at x:14.3%, y:34.9%
-            // Rectangle [6]: x:8.2%, y:32.9%, w:22.8%, h:8.6%
-            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
-
-        case .iPhone17Pro, .iPhone17ProMax:
-            // Vision AI: A19 label at x:37.5%, y:30.7% - DIFFERENT LAYOUT!
-            // Rectangle [5]: x:35.5%, y:27.5%, w:14.8%, h:9.6%
-            // SoC moved to CENTER of device
-            return CGRect(x: 0.32, y: 0.26, width: 0.20, height: 0.12)
-
-        case .iPadMini:
-            return CGRect(x: 0.12, y: 0.35, width: 0.16, height: 0.12)
-
-        case .iPadAir:
-            return CGRect(x: 0.40, y: 0.44, width: 0.20, height: 0.12)
-
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.05...0.35, y: 0.20...0.66), source: .board, confidence: .medium,
+                reference: "Apple 120829; board taken as the 16 Pro's")
+        case .iPhone16e:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.06...0.29, y: 0.20...0.65), source: .board, confidence: .medium,
+                reference: "Apple 121696")
+        case .iPhone17e:
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.06...0.29, y: 0.20...0.65), source: .board, confidence: .medium,
+                reference: "Apple 125950; board taken as the 16e's")
+        case .iPhone17:
+            // A column down the left plus a band across the top; the column is outlined.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.02...0.24, y: 0.14...0.64), source: .board, confidence: .medium,
+                reference: "Apple 123042, 123045")
+        case .iPhoneAir:
+            // The whole board sits under the camera area at the top. The chip on it is not located.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.05...0.96, y: 0.10...0.27), source: .board, confidence: .medium,
+                reference: "Apple 123061, 123063")
+        case .iPhone17Pro:
+            // Confidence low to medium. Board x 0.06-0.95, y 0.20-0.40.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.30...0.52, y: 0.24...0.36), source: .chip, confidence: .low,
+                reference: "Apple 123375, 123372; iFixit CT scan")
+        case .iPhone17ProMax:
+            // Board x 0.14-0.97, y 0.19-0.36 (Apple 123395, 123392). The chip is assumed to sit where it does on the
+            // 17 Pro.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.30...0.52, y: 0.24...0.36), source: .chip, confidence: .low,
+                reference: "Apple 123395, 123392; chip assumed at the 17 Pro's spot")
+        case .iPhone18Pro:
+            // Confidence medium to high: the chip's cooling mesh shows in Apple's image.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.27...0.51, y: 0.28...0.40), source: .chip, confidence: .medium,
+                reference: "Apple 127411; iFixit teardown")
+        case .iPhone18ProMax:
+            // Scaled from the 18 Pro. Board main block x 0.15-0.50, y 0.20-0.36.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.22...0.45, y: 0.22...0.34), source: .chip, confidence: .low,
+                reference: "Apple 127646, 127639; chip scaled from the 18 Pro")
         case .iPadPro:
-            return CGRect(x: 0.42, y: 0.44, width: 0.16, height: 0.12)
-
+            // APPROXIMATE: no Apple logic-board image exists for iPad. Front view, portrait, USB-C at the bottom.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.37...0.58, y: 0.16...0.89), source: .board, confidence: .low,
+                reference: "approximate, no Apple board image")
+        case .iPadAir:
+            // APPROXIMATE, as for iPad Pro.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.74...0.95, y: 0.14...0.87), source: .board, confidence: .low,
+                reference: "approximate, no Apple board image")
+        case .iPadMini:
+            // APPROXIMATE, as for iPad Pro.
+            return ComponentPlacement(
+                rect: Self.displayRect(x: 0.72...0.96, y: 0.16...0.99), source: .board, confidence: .low,
+                reference: "approximate, no Apple board image")
+        case .iPadProM1M2:
+            // Position not sourced: the generic iPad Pro spot used before 5.8, kept and labelled approximate.
+            return ComponentPlacement(
+                rect: CGRect(x: 0.42, y: 0.44, width: 0.16, height: 0.12), source: .chip, confidence: .unsourced,
+                reference: "position not sourced")
+        case .iPadAirM1:
+            // Position not sourced: the generic iPad Air spot used before 5.8, kept and labelled approximate.
+            return ComponentPlacement(
+                rect: CGRect(x: 0.40, y: 0.44, width: 0.20, height: 0.12), source: .chip, confidence: .unsourced,
+                reference: "position not sourced")
         case .unknown:
-            // Default to iPhone 16 Pro Max position
-            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
+            return nil
         }
     }
 
     // MARK: - Taptic Engine Position
 
-    /// The Taptic Engine (haptic motor) position at the bottom of the device.
-    /// VERIFIED via Vision AI X-ray analysis:
-    /// - iPhone 15/16: LEFT side (x:14-18%, y:90-91%)
-    /// - iPhone 17: RIGHT side (x:63%, y:91%) - ARCHITECTURE CHANGE!
-    var tapticRect: CGRect {
+    /// The Taptic Engine (the haptic motor) near the bottom of the device, in the same display space as
+    /// `socPlacement`. Nil on iPad, which has none, and on unknown devices.
+    var tapticRect: CGRect? {
         switch self {
-        case .iPhone15Pro, .iPhone15ProMax:
-            // Vision AI: "TAPTIC ENGINE" at x:13.8%, y:90.7%
-            return CGRect(x: 0.10, y: 0.88, width: 0.24, height: 0.06)
+        case .iPhone15Pro: return Self.displayRect(x: 0.11...0.39, y: 0.86...0.92)  // Apple 104882
+        case .iPhone15ProMax: return Self.displayRect(x: 0.10...0.36, y: 0.87...0.93)  // Apple 104927
+        case .iPhone16: return Self.displayRect(x: 0.06...0.26, y: 0.76...0.95)  // Apple 120643
+        case .iPhone16Plus: return Self.displayRect(x: 0.06...0.23, y: 0.70...0.88)  // Apple 120672
+        case .iPhone16Pro: return Self.displayRect(x: 0.12...0.42, y: 0.87...0.95)  // Apple 120812
+        case .iPhone16ProMax: return Self.displayRect(x: 0.18...0.47, y: 0.87...0.98)  // Apple 120829
+        case .iPhone16e: return Self.displayRect(x: 0.06...0.29, y: 0.85...0.99)  // Apple 121696
+        case .iPhone17e: return Self.displayRect(x: 0.06...0.33, y: 0.80...0.93)  // Apple 125950
+        case .iPhone17: return Self.displayRect(x: 0.01...0.24, y: 0.76...0.93)  // Apple 123042
+        case .iPhoneAir: return Self.displayRect(x: 0.14...0.41, y: 0.82...0.90)  // Apple 123061
+        case .iPhone17Pro: return Self.displayRect(x: 0.53...0.99, y: 0.87...0.96)  // Apple 123375
+        case .iPhone17ProMax: return Self.displayRect(x: 0.54...0.92, y: 0.88...0.96)  // Apple 123395
+        case .iPhone18Pro: return Self.displayRect(x: 0.58...0.92, y: 0.88...0.94)  // Apple 127411
+        case .iPhone18ProMax: return Self.displayRect(x: 0.55...0.91, y: 0.89...0.96)  // Apple 127646
+        case .iPadMini, .iPadAir, .iPadPro, .iPadProM1M2, .iPadAirM1, .unknown: return nil
+        }
+    }
+}
 
-        case .iPhone16, .iPhone16Plus:
-            // Similar to 16 Pro
-            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
+// MARK: - Placement math
 
-        case .iPhone16Pro:
-            // Vision AI: "TAPTIC ENGINE" at x:17.9%, y:91.0%
-            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
+/// The interface's orientation, in a form the placement math can take on any platform (and in tests).
+///
+/// The cases mean what `UIInterfaceOrientation`'s do: `landscapeLeft` has the Home button side on the LEFT, so the
+/// device's portrait top is on the right of the screen; `landscapeRight` the opposite.
+nonisolated enum XRayInterfaceOrientation: Equatable, Sendable {
+    case portrait
+    case portraitUpsideDown
+    case landscapeLeft
+    case landscapeRight
 
-        case .iPhone16ProMax:
-            // Vision AI: "TAPTIC ENGINE" at x:15.9%, y:89.9%
-            return CGRect(x: 0.12, y: 0.87, width: 0.24, height: 0.06)
+    var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
 
-        case .iPhone17Pro, .iPhone17ProMax:
-            // Vision AI: "TAPTIC ENGINE" at x:62.8%, y:90.7% - MOVED TO RIGHT!
-            // Rectangle [6]: x:61.0%, y:88.5%, w:26.6%, h:4.7%
-            return CGRect(x: 0.58, y: 0.87, width: 0.28, height: 0.06)
+    #if canImport(UIKit)
+        init(_ orientation: UIInterfaceOrientation) {
+            switch orientation {
+            case .portraitUpsideDown: self = .portraitUpsideDown
+            case .landscapeLeft: self = .landscapeLeft
+            case .landscapeRight: self = .landscapeRight
+            default: self = .portrait
+            }
+        }
+    #endif
+}
 
-        case .iPadMini, .iPadAir, .iPadPro:
-            return CGRect(x: 0.38, y: 0.92, width: 0.24, height: 0.04)
-
-        case .unknown:
-            // Default to left-side position
-            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
+nonisolated enum XRayPlacement {
+    /// Maps a rect normalized to the display in portrait (device top up) to points in the interface's coordinates,
+    /// for an interface that fills the screen.
+    ///
+    /// This is the mapping `UIScreen.fixedCoordinateSpace` (always portrait, top up) to the interface does. The app
+    /// uses UIKit's own conversion when it has a window (`HardwareXRayOverlay`), which also covers Split View and Stage
+    /// Manager windows that do not fill the screen; this is the fallback, and what the tests check.
+    ///
+    /// Until 5.8 the X-Ray had landscape left and right the wrong way round, so on an iPad turned one way the outline
+    /// sat on the far side of the screen from the chip.
+    static func interfaceRect(
+        forPortraitRect rect: CGRect, orientation: XRayInterfaceOrientation, portraitScreenSize size: CGSize
+    ) -> CGRect {
+        let w = size.width
+        let h = size.height
+        // The rect in portrait points.
+        let x = rect.minX * w
+        let y = rect.minY * h
+        let width = rect.width * w
+        let height = rect.height * h
+        switch orientation {
+        case .portrait:
+            return CGRect(x: x, y: y, width: width, height: height)
+        case .portraitUpsideDown:
+            return CGRect(x: w - x - width, y: h - y - height, width: width, height: height)
+        case .landscapeLeft:
+            // The device's top is on the right: a point's distance from the top becomes its distance from the right
+            // edge, and its distance from the left side becomes its distance from the top.
+            return CGRect(x: h - y - height, y: x, width: height, height: width)
+        case .landscapeRight:
+            // The device's top is on the left.
+            return CGRect(x: y, y: w - x - width, width: height, height: width)
         }
     }
 }
@@ -290,9 +466,8 @@ enum DeviceComponentLayout {
 
 // MARK: - Full-Screen X-Ray Overlay
 
-/// Transparent overlay showing ONE glowing border at the actual SoC position.
-/// DESIGN: Ultra-subtle background visualization - present but not distracting.
-/// Color blends based on which components are active (CPU/GPU/ANE).
+/// Transparent overlay with one thin outline where the chip (or its logic board) is, and one for the Taptic Engine.
+/// Its colour follows whichever of the CPU, GPU and Neural Engine is busiest.
 struct HardwareXRayOverlay: View {
     private var telemetry = HardwareTelemetryState.shared
     @StateObject private var keyboardObserver = KeyboardHeightObserver()
@@ -300,22 +475,12 @@ struct HardwareXRayOverlay: View {
 
     private let layout = DeviceComponentLayout.current
 
-    /// Orientation the component outlines are currently drawn for.
+    /// Where the outlines are drawn, in this view's own coordinates.
     ///
-    /// This has to be `@State`. `orientRect` used to call a computed property that read
-    /// `scene.effectiveGeometry.interfaceOrientation` directly, which gave SwiftUI no
-    /// dependency to invalidate on, so nothing re-rendered the overlay when the device
-    /// turned. The outlines stayed glued to the interface's coordinate system and turned
-    /// with it, when their entire purpose is to sit over the spot on the board where the
-    /// silicon physically is — a fixed place that does not move when the UI rotates.
-    ///
-    /// It is refreshed from `geometry.size` changes rather than from
-    /// `UIDevice.orientationDidChangeNotification`: the size change lands after the
-    /// rotation transition settles, which is when `effectiveGeometry` is correct, and it
-    /// needs no `beginGeneratingDeviceOrientationNotifications` bookkeeping.
-    #if canImport(UIKit)
-        @State private var renderedOrientation: UIInterfaceOrientation = .portrait
-    #endif
+    /// This has to be `@State`, refreshed from `geometry.size` changes. Reading the scene's orientation straight from
+    /// `body` gave SwiftUI no dependency to invalidate on, so nothing re-rendered the overlay when the device turned.
+    /// The size change lands after the rotation settles, which is when UIKit's coordinate spaces are correct.
+    @State private var frames = XRayFrames()
 
     var showDeviceInfo: Bool = false
     var showSidebar: Bool = false
@@ -323,10 +488,16 @@ struct HardwareXRayOverlay: View {
     /// Explicit initializer. The synthesized memberwise init inherits `private`
     /// from the private stored properties above, so cross-file callers (e.g.
     /// ChatScreen's `showSidebar:` call) cannot see it under older Swift
-    /// compilers — CI failed on exactly that. Keep this internal and defaulted.
+    /// compilers; CI failed on exactly that. Keep this internal and defaulted.
     init(showDeviceInfo: Bool = false, showSidebar: Bool = false) {
         self.showDeviceInfo = showDeviceInfo
         self.showSidebar = showSidebar
+    }
+
+    /// The outlines' frames in the overlay's coordinates.
+    struct XRayFrames: Equatable {
+        var soc: CGRect?
+        var taptic: CGRect?
     }
 
     /// Combined intensity from all active components, guaranteed finite.
@@ -338,13 +509,15 @@ struct HardwareXRayOverlay: View {
         max(0.0, min(1.0, max(telemetry.cpuIntensity, telemetry.gpuIntensity, telemetry.aneIntensity)))
     }
 
-    /// Dominant color based on which component is most active
+    /// Dominant color based on which component is most active. Grey while nothing is.
     private var dominantColor: Color {
         let cpu = telemetry.cpuIntensity
         let gpu = telemetry.gpuIntensity
         let ane = telemetry.aneIntensity
 
-        if ane >= gpu && ane >= cpu {
+        if totalIntensity <= 0.01 {
+            return .gray
+        } else if ane >= gpu && ane >= cpu {
             return HardwareComponent.neuralEngine.color  // Purple
         } else if gpu >= cpu {
             return HardwareComponent.gpu.color  // Cyan
@@ -353,21 +526,22 @@ struct HardwareXRayOverlay: View {
         }
     }
 
-    /// Active component labels
-    private var activeComponents: [String] {
-        var components: [String] = []
-        if telemetry.aneIntensity > 0.01 { components.append("ANE") }
-        if telemetry.gpuIntensity > 0.01 { components.append("GPU") }
-        if telemetry.cpuIntensity > 0.01 { components.append("CPU") }
-        return components
+    /// The label beside the chip outline: the chip's name when the outline is the chip, the board otherwise.
+    private var socLabel: String {
+        guard let placement = layout.socPlacement else { return "" }
+        // "approximate" wherever the place is an estimate (low confidence or no source), so the label never claims
+        // more than the repair images show (refuting review, 2026-11-10).
+        let approximate = placement.confidence == .low || placement.confidence == .unsourced
+        switch placement.source {
+        case .board:
+            return approximate ? "Logic board, \(layout.chipName) inside, approximate" : "Logic board, \(layout.chipName) inside"
+        case .chip:
+            return approximate ? "\(layout.chipName), approximate" : layout.chipName
+        }
     }
 
     #if canImport(UIKit)
         /// Reads the settled interface orientation from the active scene.
-        ///
-        /// Static, and called only from `onAppear`/`onChange`, so the value lands in
-        /// `renderedOrientation` where SwiftUI can depend on it. Reading this straight from
-        /// `body` is what stopped the overlay re-rendering on rotation.
         static func resolveInterfaceOrientation() -> UIInterfaceOrientation {
             guard
                 let scene = UIApplication.shared.connectedScenes.first(where: {
@@ -379,39 +553,56 @@ struct HardwareXRayOverlay: View {
             }
             return scene.effectiveGeometry.interfaceOrientation
         }
+
+        /// The app's own window in the active scene: the largest visible one, which passes over the legend's small
+        /// floating window.
+        static func mainWindow() -> UIWindow? {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+                return nil
+            }
+            return scene.windows.filter { !$0.isHidden }.max { a, b in
+                a.bounds.width * a.bounds.height < b.bounds.width * b.bounds.height
+            }
+        }
     #endif
 
-    private func orientRect(_ rect: CGRect) -> CGRect {
+    /// Places a portrait, display-normalized rect in this overlay's coordinates.
+    ///
+    /// The rect is built in the screen's fixed coordinate space, which is always portrait with the device's top up
+    /// (`UIScreen.fixedCoordinateSpace`), and UIKit converts it into the window, so it lands on the same physical
+    /// spot in every orientation and in a Split View or Stage Manager window that does not fill the screen. Then it is
+    /// moved from window coordinates into this view's, using the view's frame in the window.
+    private func overlayRect(for normalized: CGRect, overlayFrame: CGRect) -> CGRect {
         #if canImport(UIKit)
-            let orientation = renderedOrientation
-            switch orientation {
-            case .landscapeLeft:
-                return CGRect(
-                    x: rect.minY,
-                    y: 1 - rect.minX - rect.width,
-                    width: rect.height,
-                    height: rect.width
-                )
-            case .landscapeRight:
-                return CGRect(
-                    x: 1 - rect.minY - rect.height,
-                    y: rect.minX,
-                    width: rect.height,
-                    height: rect.width
-                )
-            case .portraitUpsideDown:
-                return CGRect(
-                    x: 1 - rect.minX - rect.width,
-                    y: 1 - rect.minY - rect.height,
-                    width: rect.width,
-                    height: rect.height
-                )
-            default:
-                return rect
+            if let window = Self.mainWindow(), let screen = window.windowScene?.screen {
+                let fixed = screen.fixedCoordinateSpace
+                let fixedSize = fixed.bounds.size
+                let inFixed = CGRect(
+                    x: normalized.minX * fixedSize.width,
+                    y: normalized.minY * fixedSize.height,
+                    width: normalized.width * fixedSize.width,
+                    height: normalized.height * fixedSize.height)
+                let inWindow = window.convert(inFixed, from: fixed)
+                return inWindow.offsetBy(dx: -overlayFrame.minX, dy: -overlayFrame.minY)
             }
+            // No window yet: the same mapping by hand, taking the overlay as filling the screen.
+            let orientation = XRayInterfaceOrientation(Self.resolveInterfaceOrientation())
+            let size = overlayFrame.size
+            let portraitSize = orientation.isLandscape ? CGSize(width: size.height, height: size.width) : size
+            return XRayPlacement.interfaceRect(
+                forPortraitRect: normalized, orientation: orientation, portraitScreenSize: portraitSize)
         #else
-            return rect
+            return XRayPlacement.interfaceRect(
+                forPortraitRect: normalized, orientation: .portrait, portraitScreenSize: overlayFrame.size)
         #endif
+    }
+
+    private func refreshFrames(overlayFrame: CGRect) {
+        let updated = XRayFrames(
+            soc: layout.socPlacement.map { overlayRect(for: $0.rect, overlayFrame: overlayFrame) },
+            taptic: layout.tapticRect.map { overlayRect(for: $0, overlayFrame: overlayFrame) })
+        if updated != frames { frames = updated }
     }
 
     private var isMac: Bool {
@@ -432,46 +623,23 @@ struct HardwareXRayOverlay: View {
                 let screenWidth = geometry.size.width
                 let screenHeight = geometry.size.height
 
-                let orientedSoc = orientRect(layout.socRect)
-                let orientedTaptic = orientRect(layout.tapticRect)
-
-                let socFrame = rectToScreen(orientedSoc, width: screenWidth, height: screenHeight)
-                let tapticFrame = rectToScreen(orientedTaptic, width: screenWidth, height: screenHeight)
-
-                let showVisualBorders: Bool = {
-                    #if os(macOS)
-                        return false
-                    #elseif targetEnvironment(macCatalyst)
-                        return false
-                    #else
-                        if ProcessInfo.processInfo.isiOSAppOnMac {
-                            return false
-                        }
-                        return true
-                    #endif
-                }()
-
                 ZStack {
-                    // Show SoC border when any compute component is active
-                    // DESIGN: Ultra-subtle background presence - not distracting
-                    if showVisualBorders && totalIntensity > 0.01 {
+                    // The chip outline shows whenever the HUD is on: faint while idle, brighter as the chip works.
+                    if let socFrame = frames.soc, let placement = layout.socPlacement {
                         GlowingSoCBorder(
                             frame: socFrame,
                             color: dominantColor,
                             intensity: totalIntensity,
                             glowMultiplier: settings.hudGlowIntensity,  // User-controlled
-                            chipName: layout.chipName,
-                            activeComponents: activeComponents,
-                            cpuIntensity: telemetry.cpuIntensity,
-                            gpuIntensity: telemetry.gpuIntensity,
-                            aneIntensity: telemetry.aneIntensity
+                            source: placement.source,
+                            label: socLabel,
+                            containerSize: geometry.size
                         )
                         .allowsHitTesting(false)
                     }
 
-                    // Show Taptic Engine border when haptics fire (if enabled)
-                    // Shows at the physical Taptic Engine location
-                    if showVisualBorders && settings.hudShowTaptic && telemetry.hapticIntensity > 0.01 {
+                    // Show the Taptic Engine outline when haptics fire (if enabled), at its physical location.
+                    if let tapticFrame = frames.taptic, settings.hudShowTaptic, telemetry.hapticIntensity > 0.01 {
                         GlowingTapticBorder(
                             frame: tapticFrame,
                             intensity: telemetry.hapticIntensity,
@@ -480,40 +648,19 @@ struct HardwareXRayOverlay: View {
                         .allowsHitTesting(false)
                     }
 
-                    // REMOVED: FloatingTapticIndicator - users want Taptic in HUD legend only
-
-                    // REMOVED: Activity label - too distracting
-
-                    // Mini legend on LEFT side, below nav bar area
-                    // Persists as long as HUD is enabled; shows triggered components
-                    // COMPACT: Positioned tighter to corner to minimize interference
-                    if isMac {
-                        SiliconLegend(
-                            chipName: layout.chipName,
-                            intensity: max(totalIntensity, telemetry.hapticIntensity),
-                            metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
-                            activities: settings.hudShowMetrics ? telemetry.componentActivities : []
-                        )
-                        .scaleEffect(1.4, anchor: .bottomLeading)
-                        .padding(.bottom, 130)
-                        .padding(.leading, 30)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                        .allowsHitTesting(false)
-                    } else {
-                        // The legend lives in its own floating passthrough window
-                        // (FloatingLegendWindowManager): UIKit navigation chrome
-                        // intercepts touches at the window level, so NO view inside
-                        // the main window can be grabbed near the top of the screen.
-                        // A higher window is the only fundamental fix.
-                        Color.clear
-                            .frame(width: 1, height: 1)
-                            #if canImport(UIKit)
-                                .onAppear { FloatingLegendWindowManager.shared.ensureVisible(settings: settings) }
-                            #endif
-                    }
+                    // The legend lives in its own floating passthrough window
+                    // (FloatingLegendWindowManager): UIKit navigation chrome
+                    // intercepts touches at the window level, so NO view inside
+                    // the main window can be grabbed near the top of the screen.
+                    // A higher window is the only fundamental fix.
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        #if canImport(UIKit)
+                            .onAppear { FloatingLegendWindowManager.shared.ensureVisible(settings: settings) }
+                        #endif
 
                     // Device info (for debugging only; fixed size kept on the Silicon HUD overlay)
-                    if showDeviceInfo && showVisualBorders {
+                    if showDeviceInfo {
                         Text("\(layout.displayName)")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -522,158 +669,173 @@ struct HardwareXRayOverlay: View {
                     }
                 }
                 .ignoresSafeArea()
+                // Re-place the outlines once a rotation or a window resize has landed. On rotation the reader's width
+                // and height swap, so this fires when the new geometry is real; the second pass, a turn of the run
+                // loop later, catches a window whose coordinate space settles after SwiftUI's layout.
+                .onAppear { refreshFrames(overlayFrame: geometry.frame(in: .global)) }
+                .onChange(of: geometry.size) { _, _ in
+                    let overlayFrame = geometry.frame(in: .global)
+                    refreshFrames(overlayFrame: overlayFrame)
+                    Task { @MainActor in refreshFrames(overlayFrame: overlayFrame) }
+                }
                 #if canImport(UIKit)
-                    // Re-read the orientation once the rotation has actually landed. On rotation
-                    // the reader's width and height swap, so this fires exactly when the new
-                    // geometry is real and `effectiveGeometry` reports the settled orientation.
-                    .onAppear { renderedOrientation = Self.resolveInterfaceOrientation() }
-                    .onChange(of: geometry.size) { _, _ in
-                        renderedOrientation = Self.resolveInterfaceOrientation()
+                    // A turn that keeps the size (landscape left to right, a half turn) changes no geometry, so the
+                    // device's own orientation change places the outlines again once the interface has turned.
+                    .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                        let overlayFrame = geometry.frame(in: .global)
+                        Task { @MainActor in refreshFrames(overlayFrame: overlayFrame) }
                     }
                 #endif
             }
             // The GeometryReader itself must ignore ALL safe areas (container AND
-            // keyboard), not just its content: geometry.size feeds rectToScreen's
-            // physical-position mapping. A safe-area-shrunken reader (nav bar top,
-            // home indicator bottom, keyboard) maps "87% down the screen" against
-            // a shortened height, drawing the SoC and Taptic Engine borders above
-            // their true hardware locations.
+            // keyboard), not just its content: its frame feeds the physical-position
+            // mapping. A safe-area-shrunken reader (nav bar top, home indicator bottom,
+            // keyboard) would draw the outlines above their true hardware locations.
             .ignoresSafeArea()
             // Decorative for accessibility (5.7): live hardware numbers that change many times a second and
             // that no task needs. The legend's own window is hidden in UIKit as well (`FloatingLegendWindowManager`).
             .accessibilityHidden(true)
         }
     }
+}
 
-    private func rectToScreen(_ rect: CGRect, width: CGFloat, height: CGFloat) -> CGRect {
-        CGRect(
-            x: rect.minX * width,
-            y: rect.minY * height,
-            width: rect.width * width,
-            height: rect.height * height
-        )
+// MARK: - X-Ray outline style
+
+/// How the X-Ray's outlines look (5.8): a hairline, no glow, brighter as the part works.
+private enum XRayOutlineStyle {
+    static let lineWidth: CGFloat = 1
+    static let chipCornerRadius: CGFloat = 4
+    static let boardCornerRadius: CGFloat = 10
+    static let idleOpacity: Double = 0.25
+    static let busyOpacity: Double = 0.9
+    static let maximumFill: Double = 0.06
+    /// The Glow Intensity slider's default (`SettingsStore.hudGlowIntensity`): at it the outline runs from
+    /// `idleOpacity` to `busyOpacity`; the slider scales that up or down.
+    static let defaultGlow: Double = 0.6
+
+    /// The outline's opacity for an activity level and the user's Glow Intensity, never NaN.
+    static func opacity(intensity: Double, glow: Double) -> Double {
+        let activity = min(1.0, max(0.0, intensity))
+        let scale = min(2.0, max(0.0, glow)) / defaultGlow
+        return min(1.0, max(0.0, (idleOpacity + (busyOpacity - idleOpacity) * activity) * scale))
     }
 }
 
-// MARK: - Glowing SoC Border
+// MARK: - Chip outline
 
-/// ULTRA-SUBTLE border showing the actual SoC location.
-/// Design principles:
-/// - Thin, barely-visible border (background presence, not distracting)
-/// - Minimal glow (just enough to notice if you're looking)
-/// - NO text labels inside (clean, unobtrusive)
-/// - Color-coded by dominant component
-/// - Should NOT take over screen real estate
+/// A hairline outline where the chip (or its logic board) is, with a small label beside it.
 private struct GlowingSoCBorder: View {
     let frame: CGRect
     let color: Color
     let intensity: Double
     var glowMultiplier: Double = 0.6
-    let chipName: String
-    let activeComponents: [String]
-    let cpuIntensity: Double
-    let gpuIntensity: Double
-    let aneIntensity: Double
+    let source: PlacementSource
+    let label: String
+    let containerSize: CGSize
 
-    // MORE VISIBLE: Increased glow for better visibility
-    private var glowRadius: CGFloat { CGFloat((4 + 8 * intensity) * glowMultiplier) }
-    // MORE VISIBLE: Thicker borders
-    private var borderWidth: CGFloat { CGFloat((1.0 + 2.0 * intensity) * max(0.5, glowMultiplier)) }
-    // MORE VISIBLE: Higher base opacity so users can actually see it
-    private var baseOpacity: Double { (0.35 + 0.45 * intensity) * glowMultiplier }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var cornerRadius: CGFloat {
+        source == .chip ? XRayOutlineStyle.chipCornerRadius : XRayOutlineStyle.boardCornerRadius
+    }
+    private var outlineOpacity: Double {
+        XRayOutlineStyle.opacity(intensity: intensity, glow: glowMultiplier)
+    }
+    private var fillOpacity: Double {
+        min(XRayOutlineStyle.maximumFill, XRayOutlineStyle.maximumFill * min(1.0, max(0.0, intensity)))
+    }
+
+    /// The label sits just above the outline, or just below it when the outline starts too near the top.
+    private var labelCenterY: CGFloat {
+        frame.minY > 40 ? frame.minY - 12 : min(containerSize.height - 12, frame.maxY + 12)
+    }
+
+    /// The label's leading edge: the outline's, held far enough from the right edge that the label stays on screen.
+    private var labelMinX: CGFloat {
+        max(8, min(frame.minX, containerSize.width - 200))
+    }
 
     var body: some View {
         ZStack {
-            // Single soft glow layer (not 3 separate ones)
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .strokeBorder(color.opacity(baseOpacity * 0.3), lineWidth: borderWidth + 2)
-                .blur(radius: glowRadius)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(color.opacity(fillOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(color.opacity(outlineOpacity), lineWidth: XRayOutlineStyle.lineWidth)
+                )
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Main border - more visible
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .strokeBorder(color.opacity(baseOpacity), lineWidth: borderWidth)
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            // Inner tint - more visible fill
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .fill(color.opacity(0.05 * intensity))
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            // Corner activity dots (instead of labels)
-            // Three tiny dots at top-right showing which components are active
-            HStack(spacing: 3) {
-                if cpuIntensity > 0.01 {
-                    Circle()
-                        .fill(HardwareComponent.cpu.color.opacity(0.7 + 0.3 * cpuIntensity))
-                        .frame(width: 6, height: 6)
-                }
-                if gpuIntensity > 0.01 {
-                    Circle()
-                        .fill(HardwareComponent.gpu.color.opacity(0.7 + 0.3 * gpuIntensity))
-                        .frame(width: 6, height: 6)
-                }
-                if aneIntensity > 0.01 {
-                    Circle()
-                        .fill(HardwareComponent.neuralEngine.color.opacity(0.7 + 0.3 * aneIntensity))
-                        .frame(width: 6, height: 6)
-                }
+            if !label.isEmpty {
+                // A point at the label's leading edge, with the label hung off it: an overlay takes its own size and
+                // does not change the layout, so the label needs no measuring to start where the outline starts.
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .overlay(alignment: .leading) {
+                        XRayOutlineLabel(text: label, color: color, opacity: max(0.6 * min(1, glowMultiplier / 0.6), outlineOpacity))
+                            .fixedSize()
+                    }
+                    .position(x: labelMinX, y: labelCenterY)
             }
-            .position(x: frame.maxX - 14, y: frame.minY + 10)
         }
-        // FAST animation for real-time profiler feel
-        .animation(.linear(duration: 0.03), value: intensity)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: intensity)
     }
 }
 
-// MARK: - Glowing Taptic Engine Border
+/// The small capsule beside an outline: its name, on the legend's dark blur.
+private struct XRayOutlineLabel: View {
+    let text: String
+    let color: Color
+    let opacity: Double
 
-/// ULTRA-SUBTLE border for the Taptic Engine.
-/// Appears briefly when haptics fire, then fades.
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 5, height: 5)
+            Text(text)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(SiliconLegend.backingOpacity))
+                .background(Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
+        )
+        .opacity(opacity)
+    }
+}
+
+// MARK: - Taptic Engine outline
+
+/// A hairline outline at the Taptic Engine, shown briefly when haptics fire and faded out after.
 private struct GlowingTapticBorder: View {
     let frame: CGRect
     let intensity: Double
     var glowMultiplier: Double = 0.6
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private let hapticColor = HardwareComponent.haptic.color
 
-    // Glow scaled by user preference — boosted so it's actually visible
-    private var glowRadius: CGFloat { CGFloat((6 + 14 * intensity) * max(0.5, glowMultiplier)) }
-    private var borderWidth: CGFloat { CGFloat((1.5 + 2.0 * intensity) * max(0.5, glowMultiplier)) }
-    private var baseOpacity: Double { (0.5 + 0.5 * intensity) * max(0.5, glowMultiplier) }
+    private var outlineOpacity: Double {
+        XRayOutlineStyle.opacity(intensity: intensity, glow: glowMultiplier)
+    }
 
     var body: some View {
-        ZStack {
-            // Single soft glow
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .strokeBorder(hapticColor.opacity(baseOpacity * 0.5), lineWidth: borderWidth + 2)
-                .blur(radius: glowRadius)
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            // Main border - thin
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .strokeBorder(hapticColor.opacity(baseOpacity), lineWidth: borderWidth)
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            // Inner fill — visible flash on fire
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .fill(hapticColor.opacity(0.08 * intensity))
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            // Center indicator dot — bright so it's unmissable
-            Circle()
-                .fill(hapticColor.opacity(0.8 + 0.2 * intensity))
-                .frame(width: 5, height: 5)
-                .position(x: frame.midX, y: frame.midY)
-        }
-        // FAST animation for real-time profiler feel
-        .animation(.linear(duration: 0.02), value: intensity)
+        RoundedRectangle(cornerRadius: XRayOutlineStyle.chipCornerRadius, style: .continuous)
+            .fill(hapticColor.opacity(XRayOutlineStyle.maximumFill * min(1.0, max(0.0, intensity))))
+            .overlay(
+                RoundedRectangle(cornerRadius: XRayOutlineStyle.chipCornerRadius, style: .continuous)
+                    .strokeBorder(hapticColor.opacity(outlineOpacity), lineWidth: XRayOutlineStyle.lineWidth)
+            )
+            .frame(width: frame.width, height: frame.height)
+            .position(x: frame.midX, y: frame.midY)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: intensity)
     }
 }
 
@@ -737,9 +899,9 @@ private struct FloatingTapticIndicator: View {
 private struct SiliconLegend: View {
     /// The tint over the blurred backing behind every piece of the X-Ray's text. It was 0.9 black alone, set for the
     /// 2026-10-15 contrast audit; the owner asked for it more see-through (2026-11-10), so the backing is a dark blur
-    /// (`backingMaterial`) under 0.55 black: the blur evens out what shows through, so white text and the component
+    /// (`backingMaterial`) under 0.65 black: the blur evens out what shows through, so white text and the component
     /// colors keep their contrast.
-    static let backingOpacity: Double = 0.55
+    static let backingOpacity: Double = 0.65
     /// The most the X-Ray grows with Dynamic Type (about the AX2 size).
     static let maximumScale: CGFloat = 1.8
 
@@ -866,127 +1028,127 @@ private struct SiliconLegend: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: (Self.usesCompactLayout ? 1 : 2) * scale) {
-          if Self.usesCompactLayout {
-            compactContent
-          } else {
-            // Chip header - compact single line (Silicon HUD keeps capped @ScaledMetric fixed sizes)
-            HStack(spacing: 3 * scale) {
-                Image(systemName: "cpu")
-                    .font(.system(size: 9 * scale, weight: .medium))
-                    // The icon still brightens with activity; the text does not, so it always reads.
-                    // `min(1.0, max(0.0, x))` in that order: `min(nan, 1.0)` is nan, `max(0.0, nan)` is 0
-                    // (swift probe 2026-09-10), so a NaN intensity cannot reach `.opacity`.
-                    .opacity(0.7 + 0.3 * min(1.0, max(0.0, intensity)))
-                Text(chipName)
-                    .font(.system(size: 9 * scale, weight: .semibold, design: .monospaced))
-            }
-            .foregroundStyle(.white)
-
-            // Per-component breakdown with % contribution bars
-            if !activities.isEmpty {
-                // Compute components (ANE/GPU/CPU) — show % contribution
-                ForEach(activities.filter { $0.percentage >= 0 }, id: \.name) { activity in
-                    HStack(spacing: 3 * scale) {
-                        // Active indicator dot (glows when firing)
-                        Circle()
-                            .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.4))
-                            .frame(width: 4 * scale, height: 4 * scale)
-
-                        // Component name — compact fixed width
-                        Text(activity.name)
-                            .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(componentColor(activity.color))
-                            .frame(width: 28 * scale, alignment: .leading)
-
-                        // Mini percentage bar - narrower
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                // Track
-                                Capsule()
-                                    .fill(Color.white.opacity(0.15))
-                                    .frame(height: 2 * scale)
-
-                                // Fill
-                                Capsule()
-                                    .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.5))
-                                    .frame(
-                                        // `ComponentActivity` guarantees a finite percentage, and
-                                        // geo.size.width is finite by construction. The clamp is
-                                        // here anyway because a non-finite frame dimension makes
-                                        // SwiftUI assert from inside the body getter, where the
-                                        // reported line is the enclosing view rather than this one.
-                                        width: max(
-                                            1,
-                                            min(
-                                                geo.size.width,
-                                                geo.size.width * CGFloat(activity.percentage / 100.0))),
-                                        height: 2 * scale)
-                            }
-                            .frame(height: geo.size.height)
-                        }
-                        .frame(width: 24 * scale, height: 4 * scale)
-
-                        // Percentage text
-                        // Int(Double) TRAPS on a non-finite value, and the `>= 0` filter above does
-                        // not screen +infinity. ComponentActivity now guarantees finite,
-                        // so this is the second line of defence rather than the first.
-                        Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
-                            .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white)
-                            .frame(width: 26 * scale, alignment: .trailing)
-                    }
+            if Self.usesCompactLayout {
+                compactContent
+            } else {
+                // Chip header - compact single line (Silicon HUD keeps capped @ScaledMetric fixed sizes)
+                HStack(spacing: 3 * scale) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 9 * scale, weight: .medium))
+                        // The icon still brightens with activity; the text does not, so it always reads.
+                        // `min(1.0, max(0.0, x))` in that order: `min(nan, 1.0)` is nan, `max(0.0, nan)` is 0
+                        // (swift probe 2026-09-10), so a NaN intensity cannot reach `.opacity`.
+                        .opacity(0.7 + 0.3 * min(1.0, max(0.0, intensity)))
+                    Text(chipName)
+                        .font(.system(size: 9 * scale, weight: .semibold, design: .monospaced))
                 }
+                .foregroundStyle(.white)
 
-                // Taptic Engine — separate indicator, not competing with compute %
-                if let taptic = activities.first(where: { $0.name == "Taptic" }) {
+                // Per-component breakdown with % contribution bars
+                if !activities.isEmpty {
+                    // Compute components (ANE/GPU/CPU) — show % contribution
+                    ForEach(activities.filter { $0.percentage >= 0 }, id: \.name) { activity in
+                        HStack(spacing: 3 * scale) {
+                            // Active indicator dot (glows when firing)
+                            Circle()
+                                .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.4))
+                                .frame(width: 4 * scale, height: 4 * scale)
+
+                            // Component name — compact fixed width
+                            Text(activity.name)
+                                .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(componentColor(activity.color))
+                                .frame(width: 28 * scale, alignment: .leading)
+
+                            // Mini percentage bar - narrower
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    // Track
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.15))
+                                        .frame(height: 2 * scale)
+
+                                    // Fill
+                                    Capsule()
+                                        .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.5))
+                                        .frame(
+                                            // `ComponentActivity` guarantees a finite percentage, and
+                                            // geo.size.width is finite by construction. The clamp is
+                                            // here anyway because a non-finite frame dimension makes
+                                            // SwiftUI assert from inside the body getter, where the
+                                            // reported line is the enclosing view rather than this one.
+                                            width: max(
+                                                1,
+                                                min(
+                                                    geo.size.width,
+                                                    geo.size.width * CGFloat(activity.percentage / 100.0))),
+                                            height: 2 * scale)
+                                }
+                                .frame(height: geo.size.height)
+                            }
+                            .frame(width: 24 * scale, height: 4 * scale)
+
+                            // Percentage text
+                            // Int(Double) TRAPS on a non-finite value, and the `>= 0` filter above does
+                            // not screen +infinity. ComponentActivity now guarantees finite,
+                            // so this is the second line of defence rather than the first.
+                            Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
+                                .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .frame(width: 26 * scale, alignment: .trailing)
+                        }
+                    }
+
+                    // Taptic Engine — separate indicator, not competing with compute %
+                    if let taptic = activities.first(where: { $0.name == "Taptic" }) {
+                        HStack(spacing: 3 * scale) {
+                            Circle()
+                                .fill(componentColor(taptic.color).opacity(taptic.isActive ? 1 : 0.4))
+                                .frame(width: 4 * scale, height: 4 * scale)
+
+                            Text("Tap")
+                                .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(componentColor(taptic.color))
+                                .frame(width: 28 * scale, alignment: .leading)
+
+                            // Show fire count instead of % — it's an output device
+                            Text("×\(taptic.opsCount)")
+                                .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .frame(width: 50 * scale, alignment: .trailing)
+                        }
+                    }
+
+                    // Available RAM. Not a compute percentage, so it follows Taptic in
+                    // the read-only group rather than the bar rows above.
                     HStack(spacing: 3 * scale) {
-                        Circle()
-                            .fill(componentColor(taptic.color).opacity(taptic.isActive ? 1 : 0.4))
-                            .frame(width: 4 * scale, height: 4 * scale)
+                        Image(systemName: "memorychip")
+                            .font(.system(size: 6 * scale, weight: .semibold))
+                            .foregroundStyle(.green)
+                            .frame(width: 4 * scale, alignment: .center)
 
-                        Text("Tap")
+                        Text("RAM")
                             .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(componentColor(taptic.color))
+                            .foregroundStyle(.green)
                             .frame(width: 28 * scale, alignment: .leading)
 
-                        // Show fire count instead of % — it's an output device
-                        Text("×\(taptic.opsCount)")
+                        Text(availableRAMText)
                             .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                             .foregroundStyle(.white)
                             .frame(width: 50 * scale, alignment: .trailing)
                     }
-                }
-
-                // Available RAM. Not a compute percentage, so it follows Taptic in
-                // the read-only group rather than the bar rows above.
-                HStack(spacing: 3 * scale) {
-                    Image(systemName: "memorychip")
-                        .font(.system(size: 6 * scale, weight: .semibold))
-                        .foregroundStyle(.green)
-                        .frame(width: 4 * scale, alignment: .center)
-
-                    Text("RAM")
-                        .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.green)
-                        .frame(width: 28 * scale, alignment: .leading)
-
-                    Text(availableRAMText)
+                } else if !metricsSummary.isEmpty {
+                    // Fallback to compact summary
+                    Text(metricsSummary)
                         .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                         .foregroundStyle(.white)
-                        .frame(width: 50 * scale, alignment: .trailing)
+                        .lineLimit(2)
+                } else {
+                    Text("idle")
+                        .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.8))
                 }
-            } else if !metricsSummary.isEmpty {
-                // Fallback to compact summary
-                Text(metricsSummary)
-                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-            } else {
-                Text("idle")
-                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.8))
             }
-          }
         }
         .padding(.horizontal, 6 * scale)
         .padding(.vertical, 4 * scale)
@@ -1058,12 +1220,16 @@ private struct SiliconLegend: View {
         .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
     }
 
+    /// The component colors as the legend's text shows them: lighter than the outlines' (5.8). Measured on iOS 27
+    /// Simulator screenshots on 2026-11-10 over a white screen, against the see-through backing, the full-strength
+    /// colors read ANE purple 2.3:1, GPU cyan 3.8:1 and CPU orange 4.3:1, under the 4.5:1 small text needs; white read
+    /// 9.5:1. These lighter forms, over the 0.65 tint, are meant to clear 4.5:1 and are measured again the same way.
     private func componentColor(_ name: String) -> Color {
         switch name {
-        case "purple": return HardwareComponent.neuralEngine.color
-        case "cyan": return HardwareComponent.gpu.color
-        case "orange": return HardwareComponent.cpu.color
-        case "pink": return HardwareComponent.haptic.color
+        case "purple": return Color(red: 205 / 255, green: 165 / 255, blue: 255 / 255)
+        case "cyan": return Color(red: 125 / 255, green: 212 / 255, blue: 247 / 255)
+        case "orange": return Color(red: 255 / 255, green: 186 / 255, blue: 92 / 255)
+        case "pink": return Color(red: 255 / 255, green: 192 / 255, blue: 216 / 255)
         default: return .white
         }
     }

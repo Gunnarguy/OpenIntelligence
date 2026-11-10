@@ -27,7 +27,7 @@ enum TourStep: String, CaseIterable, Sendable {
     // Database
     case databaseScope, databaseSections, runCheck
     // Settings and Plans
-    case howItWorks, privateCloud, glossary, technicalDetails, siri, menuBar
+    case howItWorks, privateCloud, glossary, technicalDetails, xray, siri, menuBar
     case redeemCode
 
     var id: String { "tour.\(rawValue)" }
@@ -72,6 +72,7 @@ enum TourStep: String, CaseIterable, Sendable {
         case .privateCloud: "You decide when it's used"
         case .glossary: "Every term explained"
         case .technicalDetails: "Want to see the work?"
+        case .xray: "Where your chip is"
         case .siri: "Ask without opening the app"
         case .menuBar: "Ask from the menu bar"
         case .redeemCode: "Have a code?"
@@ -118,6 +119,7 @@ enum TourStep: String, CaseIterable, Sendable {
         case .privateCloud: "Private Cloud Compute is Apple's server for questions too big for the device. Choose never, or when it may be used. Your documents are searched on your device either way."
         case .glossary: "What each word in the app means, in plain words, for when a screen uses one you don't know."
         case .technicalDetails: "Shows the metrics bar, passage counts and badges under each answer, for when you want the numbers."
+        case .xray: "The outline is where the chip sits under the screen, purple for the Neural Engine, cyan for the GPU, orange for the CPU; on iPhone the bottom one is the Taptic Engine. Unknown spots show the logic board."
         case .siri: "Siri and Shortcuts can ask a question, search your documents and add to a library, without opening the app."
         case .menuBar: "A question box in the Mac's menu bar, one click away from any app."
         case .redeemCode: "Redeem an offer or gift code here."
@@ -164,6 +166,7 @@ enum TourStep: String, CaseIterable, Sendable {
         case .privateCloud: "cloud"
         case .glossary: "character.book.closed"
         case .technicalDetails: "waveform.path.ecg"
+        case .xray: "cpu"
         case .siri: "mic.circle"
         case .menuBar: "menubar.rectangle"
         case .redeemCode: "giftcard"
@@ -183,6 +186,8 @@ enum TourContext {
     /// A Mac or an iPad: where dragging files in is the natural way.
     @Parameter static var isLargeScreen: Bool = false
     @Parameter static var privateCloudAvailable: Bool = false
+    /// The X-Ray has a place to draw on this device (`DeviceComponentLayout.current.socPlacement`, 5.8).
+    @Parameter static var xrayDrawsHere: Bool = false
 
     static let chatOpened = Tips.Event(id: "tour.chatOpened")
     static let settingsOpened = Tips.Event(id: "tour.settingsOpened")
@@ -215,6 +220,10 @@ struct TourTip: Tip {
             rules.append(#Rule(TourContext.chatOpened) { $0.donations.count >= 2 })
         case .moreMenu:
             rules.append(#Rule(TourContext.chatOpened) { $0.donations.count >= 3 })
+        case .xray:
+            // The X-Ray draws nothing on a Mac or on a device with no sourced place (`HardwareXRayOverlay`).
+            rules.append(#Rule(TourContext.$isMac) { $0 == false })
+            rules.append(#Rule(TourContext.$xrayDrawsHere) { $0 == true })
         case .keyboard:
             rules.append(#Rule(TourContext.$isMac) { $0 == true })
             rules.append(#Rule(TourContext.appLaunched) { $0.donations.count >= 3 })
@@ -258,7 +267,7 @@ enum Tour {
         ("librarySettings", [.watchFolder, .searchStyle, .translation]),
         ("atlas", [.atlasSettings, .insights, .allLibraries]),
         ("database", [.databaseScope, .databaseSections, .runCheck]),
-        ("settings", [.howItWorks, .privateCloud, .glossary, .siri, .technicalDetails, .menuBar]),
+        ("settings", [.howItWorks, .privateCloud, .glossary, .siri, .technicalDetails, .xray, .menuBar]),
         ("plans", [.redeemCode]),
     ]
 

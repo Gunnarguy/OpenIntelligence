@@ -101,8 +101,10 @@ extension SettingsView {
                         .labelsHidden()
                         .tint(.accentColor)
                         .onChange(of: settings.showSiliconHUD) { _, _ in
+                            Tour.used(.xray)
                             DSHaptics.toggle()
                         }
+                        .tour(.xray, in: Tour.settings)
                 }
                 .padding(.horizontal, DSSpacing.lg)
                 .padding(.vertical, DSSpacing.md)

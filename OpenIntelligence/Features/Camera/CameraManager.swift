@@ -236,9 +236,10 @@
         /// still-capture path and anything added later.
         ///
         /// The coordinator is created with a nil preview layer, so
-        /// `videoRotationAngleForHorizonLevelPreview` would return 0 and is deliberately not used;
-        /// the preview layer sets its own connection's angle from its own coordinator. Only the
-        /// capture angle matters here.
+        /// `videoRotationAngleForHorizonLevelPreview` would return 0 and is not used here. This is
+        /// only the starting state: nothing in the app ever set the preview layer's angle, and the
+        /// two could disagree, so `attachPreviewLayer` replaces this coordinator once the preview
+        /// is on screen and drives both from the preview's angle (2026-11-10).
         private func startCoordinatingRotation(
             for device: AVCaptureDevice,
             output: AVCaptureVideoDataOutput
@@ -260,6 +261,46 @@
             // lives, so the observation can touch the connection directly.
             rotationObservation = coordinator.observe(
                 \.videoRotationAngleForHorizonLevelCapture,
+                options: [.new]
+            ) { _, change in
+                guard let angle = change.newValue else { return }
+                apply(angle)
+            }
+        }
+
+        /// Drives the preview layer and the analysed frames from **one** angle, the preview's.
+        ///
+        /// **What was wrong before (2026-11-10).** The preview layer's connection was never given
+        /// an angle by this app, so it showed whatever its default was, while the frames Vision
+        /// read followed `videoRotationAngleForHorizonLevelCapture`, which follows gravity and
+        /// ignores the interface. `AVCaptureDevice.h` says the two "may not match" in some
+        /// combinations of device and interface orientation. On a portrait-only iPhone turned
+        /// sideways, or tilted over a desk, the frames came out landscape while the screen stayed
+        /// portrait, and every box was drawn in the wrong place. The overlay's arithmetic is only
+        /// right when the analysed frame is oriented exactly like the picture on screen.
+        ///
+        /// Called once the preview layer is in a window: the coordinator returns 0 for a layer
+        /// that is not in a view hierarchy (`AVCaptureDevice.h`, `previewLayer`). Still photos are
+        /// not touched.
+        func attachPreviewLayer(_ previewLayer: AVCaptureVideoPreviewLayer) {
+            guard let device = videoDevice, let output = videoOutput else { return }
+
+            rotationObservation?.invalidate()
+            let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
+            rotationCoordinator = coordinator
+
+            let apply: (CGFloat) -> Void = { [weak output, weak previewLayer] angle in
+                let connections = [previewLayer?.connection, output?.connection(with: .video)].compactMap { $0 }
+                for connection in connections where connection.isVideoRotationAngleSupported(angle) {
+                    connection.videoRotationAngle = angle
+                }
+            }
+
+            apply(coordinator.videoRotationAngleForHorizonLevelPreview)
+
+            // Delivered on the main queue, like the capture angle above.
+            rotationObservation = coordinator.observe(
+                \.videoRotationAngleForHorizonLevelPreview,
                 options: [.new]
             ) { _, change in
                 guard let angle = change.newValue else { return }
@@ -969,6 +1010,11 @@
                 // nothing in particular.
                 guard box.width > 0.05, box.height > 0.05 else { continue }
 
+                // Nor is most of the frame. Classifying a crop that covers more than 60% of the
+                // picture is classifying the scene again and printing the answer on a box, which
+                // is how a whole-desk box came to be called "Machine" (2026-11-10).
+                guard box.width * box.height <= 0.6 else { continue }
+
                 let key = String(
                     format: "%.2f,%.2f,%.2f,%.2f",
                     (box.minX * 20).rounded() / 20, (box.minY * 20).rounded() / 20,
@@ -993,7 +1039,8 @@
                         type: .object,
                         boundingBox: box,
                         confidence: named.confidence,
-                        preview: named.label
+                        preview: named.label,
+                        isGuess: true
                     )
                 )
             }
@@ -1019,20 +1066,27 @@
 
             // Swift Vision API: the request is a value type and carries its own `perform(on:)`,
             // so there is no handler object and no results-casting through `Any`.
-            guard
-                let results = try? await ClassifyImageRequest().perform(on: crop),
-                let best = results.first(where: { $0.confidence > 0.25 })
-            else { return nil }
+            guard let results = try? await ClassifyImageRequest().perform(on: crop) else { return nil }
 
-            // The classification confidence, not the saliency score. "How sure are we this is a
-            // refrigerator" is the number a reader of the label cares about; "how much does this
-            // region stand out" is an implementation detail of how the box was found.
-            return (
-                best.identifier
-                    .replacingOccurrences(of: "_", with: " ")
-                    .capitalized,
-                best.confidence
-            )
+            // The first result that passes Vision's high-precision filter and is a thing rather
+            // than a parent category or a scene word. Taking the top result above 0.25, which is
+            // what this did, named the owner's monitor "Outdoor" and a keyboard "Machine 98%"
+            // (2026-11-10). See `ObjectLabelPolicy`. Results without a precision-recall curve fall
+            // back to a 0.6 confidence floor rather than passing unchecked.
+            let ranked = results.map { observation in
+                (
+                    identifier: observation.identifier,
+                    passesPrecision: observation.hasPrecisionRecallCurve
+                        ? observation.hasMinimumRecall(0.01, forPrecision: 0.9)
+                        : observation.confidence >= 0.6
+                )
+            }
+            guard let index = ObjectLabelPolicy.acceptedIndex(in: ranked) else { return nil }
+            let best = results[index]
+
+            // Kept for the cache. The box no longer prints it: a crop classification's confidence
+            // says nothing about whether the box sits on the object.
+            return (ObjectLabelPolicy.displayName(best.identifier), best.confidence)
         }
 
         /// Perform frame analysis (called from capture output)
@@ -1040,29 +1094,43 @@
             let requestHandler = VNImageRequestHandler(ciImage: ciImage, options: [:])
 
             var regions: [DetectedRegion] = []
-            var recognizedText = ""
+            var textLines: [String] = []
             let aestheticsScore: Float? = nil
             var humanPoses: [DetectedPose] = []
             var animalPoses: [DetectedPose] = []
+            var sawAnimal = false
 
             // Text recognition (fast mode for real-time)
+            //
+            // Every observation used to be kept, at any confidence and any size, so blur on an
+            // out-of-focus monitor reached the Live Text panel as "48 ty, November10" (the owner's
+            // iPhone, 2026-11-10). A line now has to pass `LiveTextStabilizer.accepts` here, on its
+            // candidate's confidence and its height, and the overlay then requires it to repeat
+            // across frames before showing it.
             let textRequest = VNRecognizeTextRequest { request, error in
                 guard let observations = request.results as? [VNRecognizedTextObservation] else { return }
 
                 for observation in observations {
-                    if let text = observation.topCandidates(1).first?.string {
-                        recognizedText += text + " "
-                        regions.append(
-                            DetectedRegion(
-                                type: .text,
-                                boundingBox: observation.boundingBox,
-                                confidence: observation.confidence,
-                                preview: String(text.prefix(30))
-                            ))
-                    }
+                    guard let candidate = observation.topCandidates(1).first,
+                        LiveTextStabilizer.accepts(
+                            text: candidate.string,
+                            confidence: candidate.confidence,
+                            normalizedHeight: observation.boundingBox.height
+                        )
+                    else { continue }
+                    textLines.append(candidate.string)
+                    regions.append(
+                        DetectedRegion(
+                            type: .text,
+                            boundingBox: observation.boundingBox,
+                            confidence: candidate.confidence,
+                            preview: String(candidate.string.prefix(30))
+                        ))
                 }
             }
             textRequest.recognitionLevel = .fast
+            // Skips text smaller than the acceptance rule would keep anyway, which also saves time.
+            textRequest.minimumTextHeight = Float(LiveTextStabilizer.minimumNormalizedHeight)
 
             // Document detection
             let documentRequest = VNDetectDocumentSegmentationRequest { request, error in
@@ -1080,10 +1148,17 @@
             let classifyRequest = VNClassifyImageRequest { request, error in
                 guard let observations = request.results as? [VNClassificationObservation] else { return }
 
-                // Top 3 classifications with high confidence
+                // Top 3 whole-frame classifications that pass Vision's high-precision filter.
+                // These describe the whole picture and are shown only as Scene chips, never on a
+                // box. A plain 0.3 floor let through parents such as "Consumer Electronics" and
+                // "Machine" whenever any child was likely (2026-11-10).
                 let topClassifications =
                     observations
-                    .filter { $0.confidence > 0.3 }
+                    .filter {
+                        $0.hasPrecisionRecallCurve
+                            ? $0.hasMinimumRecall(0.01, forPrecision: 0.9)
+                            : $0.confidence > 0.6
+                    }
                     .prefix(3)
 
                 for classification in topClassifications {
@@ -1103,6 +1178,7 @@
                 guard let observations = request.results as? [VNRecognizedObjectObservation] else { return }
 
                 for observation in observations {
+                    sawAnimal = true
                     let label = observation.labels.first?.identifier ?? "Animal"
                     regions.append(
                         DetectedRegion(
@@ -1215,7 +1291,7 @@
 
             let frameAnalysis = FrameAnalysis(
                 regions: regions,
-                recognizedText: recognizedText.trimmingCharacters(in: .whitespacesAndNewlines),
+                recognizedText: textLines.joined(separator: " "),
                 aestheticsScore: aestheticsScore,
                 sceneLabels: sceneLabels,
                 detectedObjects: detectedObjects,
@@ -1224,7 +1300,8 @@
                 lensSmudgeDetected: lensSmudgeDetected,
                 // The size Vision actually saw. The overlay needs it to undo the preview layer's
                 // aspect-fill crop, and this is the only place that knows it for certain.
-                sourceSize: ciImage.extent.size
+                sourceSize: ciImage.extent.size,
+                textLines: textLines
             )
 
             // Decide whether the next frame is worth running pose estimation on. The rectangle
@@ -1232,7 +1309,9 @@
             // latch off: a person walking into frame is detected as a rectangle first and gets a
             // skeleton on the frame after.
             sawHumanLastFrame = regions.contains { $0.type == .human }
-            sawAnimalLastFrame = regions.contains { $0.type == .object }
+            // Only a real animal detection. This tested `.object`, which every labelled salient
+            // box also is, so animal skeleton estimation ran whenever a keyboard was in frame.
+            sawAnimalLastFrame = sawAnimal
 
             DispatchQueue.main.async { [weak self] in
                 self?.onFrameAnalyzed?(frameAnalysis)

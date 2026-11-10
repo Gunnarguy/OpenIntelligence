@@ -13,10 +13,12 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var aiFeatureOverridesSection: some View {
-        Section(header: Text("AI features — per-library overrides")) {
-            Text("Control which Apple Intelligence features are active for this library. Where supported, these can diverge from the global defaults.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Section(header: Text("AI features for this library")) {
+            Text(
+                "Control which Apple Intelligence features are active for this library. Where supported, these can diverge from the global defaults."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
 
             Toggle(isOn: $autoTagOnIngestion) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
@@ -47,9 +49,17 @@ extension ContainerSettingsSheet {
                 }
                 .pickerStyle(.menu)
 
-                Text("Choose a target retrieval language for this library. Changing it requires re-indexing existing documents.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                // `RAGService.translatedTextsForEmbedding` translates each passage before it is embedded (import and
+                // rebuild); `translatedQueryForEmbedding` translates each question before its search. The passage text that
+                // is kept, cited and keyword-searched stays as written (only `textForEmbedding` gets the translation). With
+                // no translation for the pair, or a failure, the original text is used (`TranslationService.translate` and
+                // `translateBatch`, and the catch blocks). A change makes Save ask to rebuild (`handleSave`:
+                // `translationChanged` sets `needsReembed`).
+                Text(
+                    "Passages are translated into this language before they're turned into numbers for search, and so is each question, so a question in one language can find a passage written in another. Answers still quote the original text. When Apple's translation for a language pair isn't available, the original text is used. Changing it means rebuilding this library's vectors; Save asks first."
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
         }
@@ -79,9 +89,11 @@ extension ContainerSettingsSheet {
             // Was "All vector operations use Apple's Accelerate framework with Neural Engine optimization." Accelerate
             // is CPU work ("high-performance, energy-efficient computation on the CPU", Apple's Accelerate page, read
             // 2026-10-18), and a large library is searched with Metal under Performance and Maximum (5.7).
-            Text("Vector search uses Apple's Accelerate framework on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal. Batch sizes are set for your device.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Vector search uses Apple's Accelerate framework on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal. Batch sizes are set for your device."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 siliconFeatureRow(
@@ -187,10 +199,12 @@ extension ContainerSettingsSheet {
             }
 
             // Content Detection Grid
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: DSSpacing.sm),
-                GridItem(.flexible(), spacing: DSSpacing.sm),
-            ], spacing: DSSpacing.sm) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: DSSpacing.sm),
+                    GridItem(.flexible(), spacing: DSSpacing.sm),
+                ], spacing: DSSpacing.sm
+            ) {
                 intelligenceStatCell(
                     icon: "doc.text.fill",
                     label: "Documents",
@@ -226,7 +240,8 @@ extension ContainerSettingsSheet {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: DSSpacing.xs) {
                         if report.corpus.hasCode {
-                            contentBadge(icon: "chevron.left.forwardslash.chevron.right", label: "Code", color: .accentColor)
+                            contentBadge(
+                                icon: "chevron.left.forwardslash.chevron.right", label: "Code", color: .accentColor)
                         }
                         if report.corpus.hasMath {
                             contentBadge(icon: "function", label: "Math", color: .accentColor)
@@ -314,9 +329,9 @@ extension ContainerSettingsSheet {
 
     private func complexityLabel(_ score: Double) -> String {
         switch score {
-        case 0 ..< 0.3: return "Simple"
-        case 0.3 ..< 0.6: return "Moderate"
-        case 0.6 ..< 0.8: return "Complex"
+        case 0..<0.3: return "Simple"
+        case 0.3..<0.6: return "Moderate"
+        case 0.6..<0.8: return "Complex"
         default: return "Dense"
         }
     }

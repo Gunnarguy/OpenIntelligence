@@ -1,7 +1,7 @@
 # Onboarding tour: every screen teaches itself (5.8)
 
 Drafted 2026-11-03 at the owner's word ("Yep, go, do it 10x sdk 27 style") and built the same day (`TourTips.swift`).
-**As built: 41 stops.** Left out of the draft below: the two tab-bar tips and the Settings search tip (a tab and a search
+**As built: 42 stops** (41 on 2026-11-03; the X-Ray step added 2026-11-10). Left out of the draft below: the two tab-bar tips and the Settings search tip (a tab and a search
 field take no popover), and the Atlas full-screen tip (the Atlas's existing `AtlasTip` already points there). Groups are
 `.firstAvailable`, not `.ordered`: tips still show in list order, but one whose rules can't pass yet doesn't hold up the
 rest. Each tip's
@@ -113,6 +113,7 @@ Each line: **the control** (file:line) — the tip's title / its one sentence �
 3. **Private Cloud Compute** (`SettingsView+ModelAndCloud.swift:143`) — "You decide when it's used" / "Never, ask each time, or for long questions." — first visit on a device that supports it.
 4. **Plain English** (Glossary) — "Every term explained" / "What each word in the app means." — second visit.
 5. **Appearance › Technical Details** (`SettingsView+AppearanceAndSupport.swift:79`) — "Want to see the work?" / "Show the metrics bar and passage counts under answers." — first Appearance visit.
+5a. **Appearance › Telemetry HUD** (`TourStep.xray`, added 2026-11-10) — "Where your chip is" / what the outline marks, the component colors, the Taptic Engine outline, and that the logic board is outlined where the chip's spot isn't known — first Appearance visit, not on a Mac.
 6. **Siri & Shortcuts** — "Ask without opening the app" / "Siri and Shortcuts can ask, search and add." — second visit.
 7. **Advanced** (`SettingsView+List.swift:233`, keeps `ModelConfigTip`) — unchanged.
 

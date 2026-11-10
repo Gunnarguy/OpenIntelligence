@@ -111,4 +111,23 @@ final class ReleaseFinishTests: XCTestCase {
             (first as AnyObject) === (second as AnyObject),
             "a store still alive is used again, so two stores never replace one library's files")
     }
+
+    // MARK: New Chat survives a relaunch
+
+    func testANewChatWithNothingAskedIsKeptUntilItIsSaved() {
+        let library = UUID()
+        let fresh = UUID()
+        let key = RAGService.unsavedNewThreadKey(library)
+        UserDefaults.standard.set(fresh.uuidString, forKey: key)
+        addTeardownBlock { UserDefaults.standard.removeObject(forKey: key) }
+
+        let older = UUID()
+        XCTAssertEqual(
+            RAGService.unsavedNewThread(for: library, savedThreadIds: [older]), fresh,
+            "the new chat, not the older conversation, opens after a relaunch")
+        XCTAssertNil(
+            RAGService.unsavedNewThread(for: library, savedThreadIds: [fresh, older]),
+            "once saved it is an ordinary conversation")
+        XCTAssertNil(UserDefaults.standard.string(forKey: key), "and its record is dropped")
+    }
 }

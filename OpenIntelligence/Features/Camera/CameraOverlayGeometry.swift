@@ -85,6 +85,41 @@
             )
         }
 
+        /// The part of a box that can be drawn without covering the screen's controls, or nil when
+        /// too little of it is left to be worth drawing.
+        ///
+        /// **What was wrong before (2026-11-10, the owner's iPhone 16 Pro Max).** Boxes were drawn
+        /// at their full converted size over the whole screen, so a saliency box that really is
+        /// partly outside the cropped preview ran off the left and bottom edges, a document box
+        /// ran up under the navigation bar, and its label sat on top of Cancel and the title.
+        /// `viewRect` is right to return a rect that extends past the view; drawing all of it was
+        /// the mistake. `visible` is the open camera area between the top controls and the bottom
+        /// panels, measured by the screen each layout pass.
+        static func clippedRect(_ rect: CGRect, to visible: CGRect, minimumSide: CGFloat = 12) -> CGRect? {
+            guard visible.width > 0, visible.height > 0 else { return nil }
+            let clipped = rect.intersection(visible)
+            guard !clipped.isNull, clipped.width >= minimumSide, clipped.height >= minimumSide else {
+                return nil
+            }
+            return clipped
+        }
+
+        /// Where a box's label goes, as an offset from the box's own top-left corner.
+        ///
+        /// Above the box when there is room for it inside `visible`, otherwise just inside the
+        /// box's top edge, so a box touching the top bar carries its label inside itself instead
+        /// of under the bar. Horizontally it is kept inside `visible`, so a label on a box at the
+        /// right edge does not run off the screen.
+        static func labelOffset(box: CGRect, visible: CGRect, labelSize: CGSize, inset: CGFloat = 4) -> CGPoint {
+            let roomAbove = box.minY - visible.minY
+            let y = roomAbove >= labelSize.height + inset ? -(labelSize.height + inset) : inset
+
+            let maxX = visible.maxX - labelSize.width - inset
+            let wantedX = box.minX + inset
+            let clampedX = max(visible.minX + inset, min(wantedX, maxX))
+            return CGPoint(x: clampedX - box.minX, y: y)
+        }
+
         /// The same conversion for a single point, used by the pose wireframes.
         static func viewPoint(
             normalized: CGPoint,
@@ -97,6 +132,124 @@
                 viewSize: viewSize
             )
             return CGPoint(x: rect.minX, y: rect.minY)
+        }
+    }
+
+    // MARK: - Which labels are honest
+
+    /// Decides whether a classification of one crop may be shown as the name of that box.
+    ///
+    /// **What was wrong before (2026-11-10).** `CameraManager.classify` took the first result
+    /// above 0.25 confidence. `ClassifyImageRequest`'s 1,303 identifiers are a hierarchy, and a
+    /// parent always scores at least as high as its children, so the top result was usually a
+    /// parent or a whole-scene word: the owner's monitor was labelled "Outdoor" (its blue screen
+    /// reads as sky), a box over a keyboard "Machine 98%", a screen with text "Document 56%". The
+    /// 98% was real and meant nothing, because "this crop contains a machine" is easy to be sure of.
+    ///
+    /// Two rules now. A result must pass Vision's own high-precision filter
+    /// (`hasMinimumRecall(0.01, forPrecision: 0.9)`, Apple's documented pattern), and it must not be
+    /// one of the parents or scene words below. The first result that passes both is the name; a
+    /// crop with none is not labelled at all. Every word in `nonObjectIdentifiers` was checked
+    /// against `ClassifyImageRequest().supportedIdentifiers` on macOS 27 on 2026-11-10.
+    nonisolated enum ObjectLabelPolicy {
+        static let nonObjectIdentifiers: Set<String> = [
+            // Scenes and places: a description of where the camera is, not of a thing in a box.
+            "outdoor", "interior_room", "interior_shop", "cityscape", "daytime", "cloudy", "haze",
+            "sky", "blue_sky", "night_sky", "land", "water", "liquid", "light", "kitchen_room",
+            "living_room", "bedroom", "bathroom_room", "dining_room", "classroom", "conference",
+            "cubicle", "restaurant", "structure", "building", "domicile", "road", "road_other", "path",
+            // Parents in the hierarchy: always at least as confident as the specific child.
+            "machine", "consumer_electronics", "container", "conveyance", "material", "textile",
+            "wood_processed", "furniture", "housewares", "appliance", "tool", "office_supplies",
+            "people", "adult", "animal", "mammal", "plant", "foliage", "art", "illustrations", "games",
+            "recreation", "sport", "music", "media", "performance", "celebration", "decoration",
+            "clothing", "headgear", "footwear",
+            // Page-like words. A document has its own detector; a screen or a sheet of paper
+            // classified as "document" says nothing the dashed document box does not.
+            "document", "screenshot", "printed_page", "handwriting",
+        ]
+
+        /// The index of the first acceptable result, or nil.
+        ///
+        /// - Parameter ranked: results in Vision's order (most confident first), each with whether
+        ///   it passed the high-precision filter.
+        static func acceptedIndex(in ranked: [(identifier: String, passesPrecision: Bool)]) -> Int? {
+            ranked.firstIndex(where: { $0.passesPrecision && !nonObjectIdentifiers.contains($0.identifier) })
+        }
+
+        /// "computer_keyboard" becomes "Computer Keyboard".
+        static func displayName(_ identifier: String) -> String {
+            identifier.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    // MARK: - Which text is real
+
+    /// Rules for a line of live text, and the debounce that keeps blur from reaching the panel.
+    ///
+    /// **What was wrong before (2026-11-10).** `performFrameAnalysis` appended every observation
+    /// `VNRecognizeTextRequest` returned, at any confidence and any size, and the panel showed
+    /// whatever the latest single frame said. An out-of-focus monitor produced "48 ty, November10".
+    /// Misreads of blur change from frame to frame; real text read in focus does not. So a line
+    /// must pass the per-frame rules and then be seen in `requiredFrames` of the last
+    /// `windowFrames` analysed frames before it is shown or captured.
+    nonisolated struct LiveTextStabilizer {
+
+        /// `.fast` recognition reports coarse confidences rather than a smooth score (the overlay's
+        /// `filteredRegions` notes 0.5 for most lines). 0.5 keeps those and drops anything lower;
+        /// the frame-to-frame debounce below does most of the work. Not measured on a device.
+        static let minimumConfidence: Float = 0.5
+
+        /// Line height as a fraction of the frame height. 0.012 is about 23 px of a 1920 px
+        /// portrait frame: below that the fast recogniser is mostly guessing.
+        static let minimumNormalizedHeight: CGFloat = 0.012
+
+        private let windowFrames: Int
+        private let requiredFrames: Int
+        private var history: [Set<String>] = []
+
+        init(windowFrames: Int = 4, requiredFrames: Int = 3) {
+            self.windowFrames = max(1, windowFrames)
+            self.requiredFrames = max(1, min(requiredFrames, windowFrames))
+        }
+
+        /// Whether one recognised line is worth considering at all.
+        static func accepts(text: String, confidence: Float, normalizedHeight: CGFloat) -> Bool {
+            guard confidence >= minimumConfidence, normalizedHeight >= minimumNormalizedHeight else {
+                return false
+            }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let alphanumerics = trimmed.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.count
+            // Three letters or digits, and mostly letters or digits: "|||" and ". , ." are not text.
+            return alphanumerics >= 3 && Double(alphanumerics) >= Double(trimmed.count) * 0.5
+        }
+
+        /// The lines of this frame that have also been seen in enough recent frames, in this
+        /// frame's order.
+        mutating func stableLines(from lines: [String]) -> [String] {
+            let keys = lines.map(Self.key)
+            history.append(Set(keys))
+            if history.count > windowFrames { history.removeFirst(history.count - windowFrames) }
+
+            var seen = Set<String>()
+            var result: [String] = []
+            for (line, key) in zip(lines, keys) where !seen.contains(key) {
+                let count = history.reduce(0) { $0 + ($1.contains(key) ? 1 : 0) }
+                if count >= requiredFrames {
+                    seen.insert(key)
+                    result.append(line)
+                }
+            }
+            return result
+        }
+
+        mutating func reset() {
+            history.removeAll()
+        }
+
+        /// Case and spacing do not make two reads of a line different.
+        static func key(_ line: String) -> String {
+            line.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
         }
     }
 
