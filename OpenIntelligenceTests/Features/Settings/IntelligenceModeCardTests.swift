@@ -32,9 +32,10 @@ final class IntelligenceModeCardTests: XCTestCase {
         XCTAssertEqual(steps["phrasings"], [.deepThink, .maximum])
         XCTAssertEqual(steps["turns"], [.standard], "Only Standard reads earlier turns")
         XCTAssertEqual(steps["arrange"], [.standard], "Graph context packing and the passage order are Standard's")
-        XCTAssertEqual(steps["chain"], [.deepThink])
+        XCTAssertEqual(steps["chain"], [.deepThink, .maximum], "Maximum takes the chain after a good search")
+        XCTAssertEqual(steps["research"], [.deepThink])
         XCTAssertEqual(steps["fifty"], [.maximum])
-        XCTAssertEqual(steps["withhold"], [.standard], "Only Standard withholds an answer that fails the gates")
+        XCTAssertEqual(steps["withhold"], [.standard], "Only Standard's gates can withhold; the source-only check is shared")
     }
 
     func testChainPassagesFollowTheWindow() {
@@ -44,7 +45,7 @@ final class IntelligenceModeCardTests: XCTestCase {
             mode: .deepThink, windowTokens: 4_096, windowDescription: "4,096 tokens", deepThinkTarget: 85, maximumLimit: nil,
             privateCloudComputeCompiledIn: false, callout: { _ in "" }, onSelect: { _ in }
         ).steps.first { $0.id == "chain" }?.detail ?? ""
-        XCTAssertTrue(small.contains("up to 4 passages"))
+        XCTAssertTrue(small.contains("read 4 passages"))
         XCTAssertTrue(small.contains("85% sure"))
     }
 }

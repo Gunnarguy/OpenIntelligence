@@ -989,7 +989,13 @@ final class DeviceCapabilityService: @unchecked Sendable {
         guard !isBackgroundCPUSafeIngestionActive else { return .standard }
         let thermal = ProcessInfo.processInfo.thermalState
         guard thermal != .serious, thermal != .critical, !ProcessInfo.processInfo.isLowPowerModeEnabled else { return .standard }
-        var profile = Self.selectedProfile
+        return depth(for: Self.selectedProfile)
+    }
+
+    /// The depth a profile gets on this device when nothing holds it back: the profile after the device's ceiling, so
+    /// an iPad mini shows Maximum as Performance (5.8 review: Settings showed 432 DPI and 400 reranked there).
+    nonisolated func depth(for profile: GPUExecutionProfile) -> Depth {
+        var profile = profile
         let ceiling = Self.maxSafeGPUAccelerationLevel(formFactor: cachedFormFactor, tier: cachedTier)
         if profile == .maximum, ceiling < 0.9 { profile = .performance }
         if profile == .performance, ceiling < 0.6 { profile = .balanced }
@@ -1012,7 +1018,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// What Settings shows for a profile before it is chosen: pages parsed, read and drawn at once, and passages
     /// embedded at once, with that profile's pacing and page size.
     func concurrency(for profile: GPUExecutionProfile) -> (visionParsing: Int, ocr: Int, render: Int, embedding: Int) {
-        let fullDetail = Depth.forProfile(profile).fullDetailPages
+        let fullDetail = depth(for: profile).fullDetailPages
         let parsing = Self.paced(baseVisionParsingConcurrency, for: profile)
         return (parsing, isBackgroundCPUSafeIngestionActive ? 1 : parsing,
                 Self.paced(basePDFRenderingConcurrency(fullDetail: fullDetail), for: profile),

@@ -120,7 +120,7 @@ struct ComputeProfileCard: View {
 
     func workloads(for profile: GPUExecutionProfile) -> [Workload] {
         let concurrency = concurrencyFor(profile)
-        let depth = DeviceCapabilityService.Depth.forProfile(profile)
+        let depth = DeviceCapabilityService.shared.depth(for: profile)
         let deeper = depth != .standard
         let searching = DeviceCapabilityService.coreMLComputeUnits(for: profile)
         let importing = DeviceCapabilityService.embeddingComputeUnits(for: profile)
@@ -144,11 +144,11 @@ struct ComputeProfileCard: View {
                 detail: "Every passage of a new document is embedded, \(concurrency.embeddingParallel) at a time, on "
                     + "\(GPUExecutionProfile.chipNames(importing)). How many at a time is set by the \(chipName)"
                     + (profile == .efficiency ? "; Efficiency takes half, so an import runs cooler and slower with the same result." : ".")
-                    + (profile == .performance
-                        ? " Performance re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced). It steps down while the device is hot, in Low Power Mode or in the background."
+                    + (depth == .performance
+                        ? " \(profile.displayName) re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced). It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : "")
-                    + (profile == .maximum
-                        ? " Maximum draws every page that text recognition reads at 432 DPI (360 otherwise, 432 only for hard pages), runs the layout pass at full size, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds \(concurrency.renderSlots) pages at once to fit them. It steps down while the device is hot, in Low Power Mode or in the background."
+                    + (depth.fullDetailPages
+                        ? " Maximum draws every page that text recognition reads at 432 DPI (360 otherwise, 432 only for hard pages), runs the layout pass at full size, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds \(concurrency.renderSlots) pages at once to fit them. It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : ""),
                 note: nil),
             Workload(
@@ -407,7 +407,7 @@ struct ComputeProfileCard: View {
         let title: String
         let detail: String
         let symbol: String
-        if profile == .maximum {
+        if profile == .maximum, DeviceCapabilityService.shared.depth(for: .maximum).fullDetailPages {
             // Maximum's extra is how hard each job runs, not which chips run it.
             title = "Maximum adds to Performance"
             detail = "Every page read at 432 DPI, layout at full size\nDeeper search: up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages reranked"
@@ -415,14 +415,14 @@ struct ComputeProfileCard: View {
         } else if let previous {
             // What this step adds beyond chips (5.8): Balanced does twice Efficiency's work at once, Performance
             // searches and re-reads deeper. Two lines at most, chips first.
-            let depth = DeviceCapabilityService.Depth.forProfile(profile)
+            let depth = DeviceCapabilityService.shared.depth(for: profile)
             var extras: [String] = []
             if previous == .efficiency, concurrencyFor(profile).renderSlots > concurrencyFor(previous).renderSlots
                 || concurrencyFor(profile).embeddingParallel > concurrencyFor(previous).embeddingParallel
             {
-                extras.append("Twice as much at once: faster imports")
+                extras.append("About twice as much at once")
             }
-            if depth != DeviceCapabilityService.Depth.forProfile(previous) {
+            if depth != DeviceCapabilityService.shared.depth(for: previous) {
                 extras.append("Deeper search: up to \(depth.rerankCeiling) reranked, \(depth.rescueRegions) regions re-read")
             }
             let all = Array((lines + extras).prefix(2))
@@ -500,7 +500,7 @@ struct ComputeProfileCard: View {
         let isOpen = expanded == row.id
         // From Performance up these two jobs run deeper on the same chips (5.8).
         let deeper =
-            DeviceCapabilityService.Depth.forProfile(profile) != .standard && (row.id == "search" || row.id == "import")
+            DeviceCapabilityService.shared.depth(for: profile) != .standard && (row.id == "search" || row.id == "import")
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Button {
                 expanded = isOpen ? nil : row.id
@@ -606,7 +606,7 @@ struct ComputeProfileCard: View {
     /// How hard each job runs, as six tiles in the dots' language (5.8): the value in force now, lit where the
     /// profile turns it up: Performance and Maximum go deeper, Efficiency does fewer at once (5.8).
     private var intensityGrid: some View {
-        let depth = DeviceCapabilityService.Depth.forProfile(profile)
+        let depth = DeviceCapabilityService.shared.depth(for: profile)
         let base = DeviceCapabilityService.Depth.standard
         let pages = concurrencyFor(profile).renderSlots
         let basePages = concurrencyFor(.balanced).renderSlots

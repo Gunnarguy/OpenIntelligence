@@ -50,8 +50,8 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     var description: String {
         switch canonical {
         case .standard: return "One answer, checked by nine gates, searching again when the first search finds little"
-        case .deepThink: return "Several searches at once and a chain of up to 8 reasoning sessions"
-        case .maximum: return "A wider search and up to 50 reasoning sessions, until its findings stop changing"
+        case .deepThink: return "Up to 5 searches, two at a time, and a chain of up to 8 reasoning sessions"
+        case .maximum: return "After a strong search, a wider one and up to 50 reasoning sessions, until its findings stop changing"
         default: return "Comprehensive search"
         }
     }

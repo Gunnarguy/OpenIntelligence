@@ -111,7 +111,10 @@ struct ActiveDeviceCard: View {
     }
 
     private var tileList: [Tile] {
-        let chipSource = isSimulator ? "simulated device" : "\(device.isMac ? "macOS" : "Metal") reports"
+        // The caption names the source actually used: Metal's name when it gave one, else Apple's specs (5.8 review).
+        let fromMetal = AppleDeviceCatalog.chipName(fromMetalDeviceName: device.metalSnapshot.deviceName) == device.chipName
+        let chipSource =
+            isSimulator ? "simulated device" : (device.isMac ? "macOS reports" : (fromMetal ? "Metal reports" : "Apple's specs"))
         let clusters = device.cpuClusters
         let cpuValue =
             clusters.isEmpty
@@ -189,7 +192,7 @@ struct ActiveDeviceCard: View {
                 row("Page detail", maximum ? "432 DPI, every page" : "360 DPI, 432 for hard pages")
                 row("Search", "one matrix pass from \(envelope.batchMatrixMultiplyThreshold) passages")
                 row("Reranked", "up to \(device.activeDepth.rerankCeiling) passages")
-                row("Deep Think stops at", "\(deepThink)% confidence")
+                row("Deep Think aims for", "\(deepThink)% confidence")
             }
             Text(
                 "Core ML decides where each layer runs; the app states a preference. Apple offers no way to read Neural Engine use."

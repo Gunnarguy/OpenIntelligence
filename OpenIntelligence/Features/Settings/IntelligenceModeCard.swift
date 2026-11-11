@@ -5,12 +5,18 @@
 //  The Intelligence Mode page (5.8), in the Compute Profile card's language: a panel, a ladder of three steps, what
 //  each step adds, the steps that differ by mode with a dot per mode, How Much, and what every mode shares.
 //
-//  Every row and figure was traced to the code on 2026-11-10. The list this replaced named four techniques that
-//  run in no mode (HyDE and contextual compression sit on Standard's path after Deep Think and Maximum leave it, and
-//  Standard has both off; nothing fills the entity index; extractive summarization needs `.summarize` to be
-//  extract-first, which it is not), listed Standard-only steps under Deep Think and Maximum (graph context packing,
-//  confidence calibration), and named import steps as mode features. The Context Window section moved here from
-//  Device & Performance: the window is how much of the documents each answer can read.
+//  Every row and figure was traced to the code on 2026-11-10, then checked by a refuting review the same evening,
+//  which found 31 overstatements in the first version (searches "at once" that run first alone and then two at a
+//  time, Maximum's chain path missing, a withholding rule that held for one check of two) and they were corrected.
+//  The list this replaced named four techniques that run in no mode (HyDE and contextual compression sit on
+//  Standard's path after Deep Think and Maximum leave it, and Standard has both off; nothing fills the entity index;
+//  extractive summarization needs `.summarize` to be extract-first, which it is not), listed Standard-only steps under
+//  Deep Think and Maximum (graph context packing, confidence calibration), and named import steps as mode features.
+//  The Context Window section moved here from Device & Performance: the window is how much each answer can read.
+//
+//  Deep Think and Maximum branch on how good their first search was (`AgenticOrchestrator`, `retrievalQuality`):
+//  the strongest search sends Deep Think to its chain and research rounds and Maximum to its 50-session loop; a good
+//  one sends both to the chain; a weaker one gets one synthesis or drafts; a lookup goes to its passage.
 //
 
 import SwiftUI
@@ -22,7 +28,7 @@ struct IntelligenceModeCard: View {
     let windowDescription: String
     /// Deep Think's stopping confidence on this device (`optimizedAgenticConfig().confidenceThreshold`).
     let deepThinkTarget: Int
-    /// "3 a day, 2 left today" on a free plan; nil when Maximum has no daily limit.
+    /// "2 of 3 left" on a free plan; nil when Maximum has no daily limit.
     let maximumLimit: String?
     /// Whether this build can route an answer to Private Cloud Compute.
     let privateCloudComputeCompiledIn: Bool
@@ -72,9 +78,9 @@ struct IntelligenceModeCard: View {
         let detail: String
     }
 
-    /// The steps that differ between modes, each traced to its call site (2026-11-10).
+    /// The steps that differ between modes, each traced to its call site and reviewed (2026-11-10).
     var steps: [Step] {
-        let chainPassages = windowTokens >= 8_000 ? 7 : 4
+        let chainPassages = windowTokens >= 8_000 ? "up to 7" : "4"
         return [
             Step(
                 id: "again", name: "Searches again if the first finds little", icon: "arrow.clockwise",
@@ -83,54 +89,70 @@ struct IntelligenceModeCard: View {
                 detail:
                     "When the first search's best scores are weak, or it finds fewer passages than it needs, Standard "
                     + "searches once more and then retries with the question's plain keywords. Deep Think and Maximum "
-                    + "search several ways from the start."),
+                    + "retry in their own ways, in the row below."),
             Step(
-                id: "phrasings", name: "Searches several phrasings at once", icon: "square.stack.3d.down.right",
+                id: "phrasings", name: "Searches up to 5 phrasings", icon: "square.stack.3d.down.right",
                 stage: .search, modes: [.deepThink, .maximum],
                 engine: "Multi-query expansion, AgenticOrchestrator+Retrieval",
                 detail:
-                    "Up to 5 phrasings of the question are searched in parallel; Apple's model writes some when the "
-                    + "planner has fewer than 3. After a weak search the model names up to 3 terms from the passages and "
-                    + "each is searched once, and a thin result is reworded and searched again. Maximum adds one broad "
-                    + "search and up to 3 variant searches."),
+                    "Up to 5 phrasings of the question are searched, the first alone and then two at a time; Apple's "
+                    + "model writes some when the planner has fewer than 3. If they find nothing, the question's own "
+                    + "words are searched. After a weak search the model names up to 3 terms from the passages and each "
+                    + "is searched once; after a good one the question is reworded and searched again. After the "
+                    + "strongest searches Maximum adds a broad search and up to 3 variants, one after another."),
             Step(
                 id: "turns", name: "Reads earlier turns of the chat", icon: "bubble.left.and.bubble.right",
                 stage: .answer, modes: [.standard],
                 engine: "Conversation memory, query rewriting",
                 detail:
-                    "Standard rewrites a vague follow-up from the recent turns with Apple's model and reads them when "
-                    + "it answers. Deep Think and Maximum record the turn but answer from the question alone."),
+                    "Standard reads the recent turns when it answers, and rewrites a vague follow-up from them with "
+                    + "Apple's model when query rewriting is on, except for simple lookups. Deep Think and Maximum record "
+                    + "the turn but answer from the question alone."),
             Step(
-                id: "arrange", name: "Arranges the passages for the model", icon: "rectangle.compress.vertical",
+                id: "arrange", name: "Puts the best passages where the model reads", icon: "rectangle.compress.vertical",
                 stage: .answer, modes: [.standard],
                 engine: "Lost-in-the-middle order, graph context packing",
-                detail: "The best passage goes first and the second best last (not for step-by-step instructions). For questions that investigate, compare or ask for findings it "
-                    + "adds each passage's section, its neighbours and one related passage, within the window. Deep "
-                    + "Think and Maximum order passages by score."),
+                detail:
+                    "When four or more whole passages fit, the best goes first and the second best last (not for "
+                    + "step-by-step instructions or lookups). For questions that investigate, compare or ask for findings "
+                    + "it adds each passage's section, the passages either side and passages one link away, within the "
+                    + "window. Deep Think's chain reads first the sections Apple's model picks from the titles."),
             Step(
                 id: "chain", name: "Reasons in a chain of sessions", icon: "link",
-                stage: .answer, modes: [.deepThink],
+                stage: .answer, modes: [.deepThink, .maximum],
                 engine: "Reasoning chain, AgenticOrchestrator+ReasoningChain",
-                detail: "After a strong search, up to 8 sessions on Apple's model, each reading up to \(chainPassages) "
-                    + "passages and the findings so far. From the fifth it can stop once it is \(deepThinkTarget)% sure, "
-                    + "has covered the question and stops finding anything new. If parts are still uncovered, up to 5 "
-                    + "research rounds search again. A weaker search gets one synthesis or three drafts, and a lookup goes "
-                    + "straight to its passage."),
+                detail:
+                    "After a strong search in Deep Think, or a good one in either mode, sessions on Apple's model each "
+                    + "read \(chainPassages) passages and the findings so far. Deep Think stops at 8 sessions; after four "
+                    + "it can stop once it is \(deepThinkTarget)% sure, has covered the question, and has stopped learning "
+                    + "or read most of the sources. Maximum's chain runs until it has read every distinct part, up to 50. "
+                    + "A weaker search gets one synthesis, or three drafts and then a broader or split search; a lookup "
+                    + "goes straight to its passage."),
+            Step(
+                id: "research", name: "Searches again for what it missed", icon: "arrow.triangle.branch",
+                stage: .answer, modes: [.deepThink],
+                engine: "Research rounds, AgenticOrchestrator+Research",
+                detail:
+                    "After the strongest searches, when parts of the question are still uncovered or the answer reads "
+                    + "as a miss, up to 5 rounds of searching and answering again."),
             Step(
                 id: "fifty", name: "Up to 50 sessions over every passage", icon: "infinity",
                 stage: .answer, modes: [.maximum],
                 engine: "Maximum's loop, AgenticOrchestrator+Maximum",
                 detail:
-                    "After a strong search, sessions read 3 passages each, enough to cover the passages found one and "
-                    + "a half times (8 to 50 sessions), with a running summary every fifth session. The answer is written "
-                    + "from everything found, and it stops early when its findings stop changing."),
+                    "After the strongest searches only. Each session reads the relevant sentences of 3 passages, up to "
+                    + "2,500 characters, enough sessions to cover the passages found one and a half times (8 to 50), "
+                    + "with a running summary every fifth. The answer is written from everything found, it stops early "
+                    + "when its findings stop changing, and these sessions stay on the device."),
             Step(
-                id: "withhold", name: "Holds back an answer that fails its checks", icon: "hand.raised",
+                id: "withhold", name: "Its checks can withhold the answer", icon: "hand.raised",
                 stage: .check, modes: [.standard],
                 engine: "Verification gates A to I, VerificationGateService",
                 detail:
-                    "Every mode runs the nine checks after it answers. Only Standard withholds an answer that fails "
-                    + "them; Deep Think and Maximum show the result as a label."
+                    "In Standard a failed critical check (A retrieval confidence, C numbers, E meaning) can withhold the "
+                    + "answer. In Deep Think and Maximum the checks only label it, and they are skipped when the "
+                    + "source-only check has run. In every mode that check, on lookups, can withhold an answer the "
+                    + "passages do not support."
             ),
         ]
     }
@@ -178,13 +200,13 @@ struct IntelligenceModeCard: View {
         switch mode.canonical {
         case .deepThink:
             return [
-                StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "up to 5 at once", lit: 4),
+                StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "up to 5, 2 at a time", lit: 4),
                 StageFigure(title: "REASON", symbol: "brain", value: "up to 8 sessions", lit: 4),
                 StageFigure(title: "CHECK", symbol: "checkmark.seal", value: "9 checks, labels", lit: 4),
             ]
         case .maximum:
             return [
-                StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "5 at once, then 4", lit: 6),
+                StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "up to 5, then up to 4", lit: 6),
                 StageFigure(title: "REASON", symbol: "brain", value: "up to 50 sessions", lit: 6),
                 StageFigure(title: "CHECK", symbol: "checkmark.seal", value: "9 checks, labels", lit: 4),
             ]
@@ -192,7 +214,7 @@ struct IntelligenceModeCard: View {
             return [
                 StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "1, again if thin", lit: 2),
                 StageFigure(title: "REASON", symbol: "brain", value: "1 answer", lit: 1),
-                StageFigure(title: "CHECK", symbol: "checkmark.seal", value: "9 checks, holds back", lit: 6),
+                StageFigure(title: "CHECK", symbol: "checkmark.seal", value: "9 checks, can withhold", lit: 6),
             ]
         }
     }
@@ -354,7 +376,7 @@ struct IntelligenceModeCard: View {
         if let previous {
             title = "\(mode.displayName) adds to \(previous.displayName)"
             // Steps first, then what How Much turns up, two lines at most, as on the Compute Profile card.
-            let extra = mode.canonical == .maximum ? ["A broad search and 3 variants, neighbours ±5"] : ["Neighbours ±3"]
+            let extra = mode.canonical == .maximum ? ["A broad search and up to 3 variants, neighbours ±5"] : ["Neighbours ±3"]
             detail = Array((added.map(\.name) + extra).prefix(2)).joined(separator: "\n")
             symbol = "plus.circle.fill"
         } else {
@@ -518,12 +540,12 @@ struct IntelligenceModeCard: View {
     }
 
     private var tiles: [Tile] {
-        let chainPassages = windowTokens >= 8_000 ? 7 : 4
+        let chainPassages = windowTokens >= 8_000 ? "up to 7" : "4"
         switch mode.canonical {
         case .deepThink:
             return [
                 Tile(name: "Window", value: windowDescription, icon: "ruler", up: false),
-                Tile(name: "Each session", value: "up to \(chainPassages) passages", icon: "doc.text", up: false),
+                Tile(name: "Each session", value: "\(chainPassages) passages", icon: "doc.text", up: false),
                 Tile(name: "Neighbours", value: "±3", icon: "arrow.left.and.right", up: true),
                 Tile(name: "Sessions", value: "up to 8", icon: "link", up: true),
                 Tile(name: "Aims for", value: "\(deepThinkTarget)% sure", icon: "flag.checkered", up: false),
@@ -532,7 +554,7 @@ struct IntelligenceModeCard: View {
         case .maximum:
             return [
                 Tile(name: "Window", value: windowDescription, icon: "ruler", up: false),
-                Tile(name: "Each session", value: "3 passages", icon: "doc.text", up: false),
+                Tile(name: "Each session", value: "2,500 chars", icon: "doc.text", up: false),
                 Tile(name: "Neighbours", value: "±5", icon: "arrow.left.and.right", up: true),
                 Tile(name: "Sessions", value: "up to 50", icon: "infinity", up: true),
                 Tile(name: "Stops", value: "when settled", icon: "flag.checkered", up: false),
@@ -542,7 +564,7 @@ struct IntelligenceModeCard: View {
             return [
                 Tile(name: "Window", value: windowDescription, icon: "ruler", up: false),
                 Tile(name: "Evidence", value: "up to 10,000 chars", icon: "doc.text", up: false),
-                Tile(name: "Neighbours", value: "±2", icon: "arrow.left.and.right", up: false),
+                Tile(name: "Neighbours", value: "±2 to ±8", icon: "arrow.left.and.right", up: false),
                 Tile(name: "Sessions", value: "1", icon: "link", up: false),
                 Tile(name: "Stops", value: "after one answer", icon: "flag.checkered", up: false),
                 Tile(name: "Chat history", value: "Read", icon: "bubble.left.and.bubble.right", up: false),
@@ -583,23 +605,23 @@ struct IntelligenceModeCard: View {
             ),
             (
                 "Adds neighbouring passages",
-                "±2 in Standard, ±3 in Deep Think, ±5 in Maximum, more for step-by-step instructions, within a token budget."
+                "±2 in Standard (±5 across topics, ±8 for step-by-step instructions), ±3 in Deep Think, ±5 in Maximum, within a token budget."
             ),
-            ("Document summaries for overview questions", "When summaries are on for the library."),
+            ("Document summaries for overview questions", "When query routing is on and the library has summaries."),
             (
                 "Nine checks on the answer",
-                "Gates A to I: confidence, coverage, numbers, contradiction, meaning, quotes, quality, completeness and library isolation."
+                "Gates A to I: confidence, coverage, numbers, contradiction, meaning, quotes, quality, completeness and mixed-domain isolation. In Standard completeness and isolation pass without a check, and the meaning check needs the passages' vectors."
             ),
             (
                 "A confidence score",
-                "Standard's from the top score, the margin and the number of passages; Deep Think's and Maximum's from relevance and citations."
+                "Standard's from the top score, the margin and the number of passages; Deep Think's from relevance and citations; Maximum's loop from its sessions' progress blended with its self-check."
             ),
         ]
         if privateCloudComputeCompiledIn {
             rows.append(
                 (
                     "Private Cloud Compute, with your permission",
-                    "For an answer too large for this device. Its window is 32,768 tokens, and Standard then reads up to 45,000 characters of your documents."
+                    "When you choose it, or for an answer too large for this device; Maximum's loop sessions stay on the device. The app plans for a 32,768-token window there, and Standard then reads up to 45,000 characters of your documents."
                 ))
         }
         return rows
