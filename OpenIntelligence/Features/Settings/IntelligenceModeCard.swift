@@ -537,39 +537,56 @@ struct IntelligenceModeCard: View {
         let icon: String
         /// Above Standard's value.
         let up: Bool
+        /// One line under the value, so every tile in every mode has the same height.
+        var caption: String = ""
     }
 
+    /// The same six tiles in the same places for every mode, only the values change (the owner, 2026-11-10: three
+    /// tiles changed name from one mode to the next). Lit where a mode goes further than Standard.
     private var tiles: [Tile] {
-        let chainPassages = windowTokens >= 8_000 ? "up to 7" : "4"
+        let chainPassages = windowTokens >= 8_000 ? "up to 7 passages" : "up to 4 passages"
+        let reads: String
+        let neighbours: String
+        let sessions: String
+        let stops: String
+        let stopsCaption: String
+        let readsCaption: String
+        let chat: String
         switch mode.canonical {
         case .deepThink:
-            return [
-                Tile(name: "Window", value: windowDescription, icon: "ruler", up: false),
-                Tile(name: "Each session", value: "\(chainPassages) passages", icon: "doc.text", up: false),
-                Tile(name: "Neighbours", value: "±3", icon: "arrow.left.and.right", up: true),
-                Tile(name: "Sessions", value: "up to 8", icon: "link", up: true),
-                Tile(name: "Aims for", value: "\(deepThinkTarget)% sure", icon: "flag.checkered", up: false),
-                Tile(name: "Chat history", value: "Not read", icon: "bubble.left.and.bubble.right", up: false),
-            ]
+            reads = chainPassages
+            neighbours = "±3"
+            sessions = "up to 8"
+            stops = "\(deepThinkTarget)% sure, covered"
+            stopsCaption = "and nothing new to read"
+            readsCaption = "each session"
+            chat = "Not read"
         case .maximum:
-            return [
-                Tile(name: "Window", value: windowDescription, icon: "ruler", up: false),
-                Tile(name: "Each session", value: "2,500 chars", icon: "doc.text", up: false),
-                Tile(name: "Neighbours", value: "±5", icon: "arrow.left.and.right", up: true),
-                Tile(name: "Sessions", value: "up to 50", icon: "infinity", up: true),
-                Tile(name: "Stops", value: "when settled", icon: "flag.checkered", up: false),
-                Tile(name: "Daily use", value: maximumLimit ?? "No limit", icon: "calendar", up: false),
-            ]
+            reads = "up to 2,500 chars"
+            neighbours = "±5"
+            sessions = "up to 50"
+            stops = "findings settle"
+            stopsCaption = "or at 50 sessions"
+            readsCaption = "best sentences, each session"
+            chat = "Not read"
         default:
-            return [
-                Tile(name: "Window", value: windowDescription, icon: "ruler", up: false),
-                Tile(name: "Evidence", value: "up to 10,000 chars", icon: "doc.text", up: false),
-                Tile(name: "Neighbours", value: "±2 to ±8", icon: "arrow.left.and.right", up: false),
-                Tile(name: "Sessions", value: "1", icon: "link", up: false),
-                Tile(name: "Stops", value: "after one answer", icon: "flag.checkered", up: false),
-                Tile(name: "Chat history", value: "Read", icon: "bubble.left.and.bubble.right", up: false),
-            ]
+            reads = "up to 10,000 chars"
+            neighbours = "±2 to ±8"
+            sessions = "1"
+            stops = "one answer"
+            stopsCaption = "after its checks"
+            readsCaption = "of passages, on this device"
+            chat = "Read"
         }
+        let deeper = mode.canonical != .standard
+        return [
+            Tile(name: "Window", value: windowDescription, icon: "ruler", up: false, caption: "Apple's model reports"),
+            Tile(name: "Reads each pass", value: reads, icon: "doc.text", up: false, caption: readsCaption),
+            Tile(name: "Neighbours", value: neighbours, icon: "arrow.left.and.right", up: deeper, caption: "passages either side"),
+            Tile(name: "Sessions", value: sessions, icon: "link", up: deeper, caption: "on Apple's model"),
+            Tile(name: "Stops when", value: stops, icon: "flag.checkered", up: false, caption: stopsCaption),
+            Tile(name: "Chat history", value: chat, icon: "bubble.left.and.bubble.right", up: false, caption: "earlier turns"),
+        ]
     }
 
     private var howMuch: some View {
@@ -579,8 +596,8 @@ struct IntelligenceModeCard: View {
             LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
                 ForEach(tiles, id: \.name) { tile in
                     SpecTile(
-                        name: tile.name, value: tile.value, icon: tile.icon, tint: tile.up ? tint : nil,
-                        marker: tile.up ? "bolt.fill" : nil)
+                        name: tile.name, value: tile.value, icon: tile.icon, caption: tile.caption,
+                        tint: tile.up ? tint : nil, marker: tile.up ? "bolt.fill" : nil)
                 }
             }
         }

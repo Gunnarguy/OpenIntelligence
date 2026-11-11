@@ -84,8 +84,13 @@ extension SettingsView {
         // The same nesting as Device & Performance's Compute Profile: a page card, a section with its header and badge,
         // and the card on its own surface inside it (5.8).
         VStack(alignment: .leading, spacing: DSSpacing.md) {
+            // Maximum's daily use on a free plan rides in the badge, so the How Much tiles stay the same six in every
+            // mode (5.8). Any paid plan, Lifetime included, has no limit and shows the mode alone.
             SettingsSectionHeader(
-                icon: "sparkles.rectangle.stack", title: "Intelligence Mode", badge: mode.displayName,
+                icon: "sparkles.rectangle.stack", title: "Intelligence Mode",
+                badge: mode == .maximum && !entitlementStore.hasUnlimitedMaximumMode
+                    ? "Maximum · \(entitlementStore.maximumModeRemainingUses) of \(QuotaPolicy.freeMaximumModeDailyLimit) left"
+                    : mode.displayName,
                 badgeColor: IntelligenceModeCard.color(for: mode))
             IntelligenceModeCard(
                 mode: settings.ragQualityMode.canonical,
