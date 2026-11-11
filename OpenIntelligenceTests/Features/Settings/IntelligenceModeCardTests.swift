@@ -45,7 +45,7 @@ final class IntelligenceModeCardTests: XCTestCase {
             mode: .deepThink, windowTokens: 4_096, windowDescription: "4,096 tokens", deepThinkTarget: 85, maximumLimit: nil,
             privateCloudComputeCompiledIn: false, callout: { _ in "" }, onSelect: { _ in }
         ).steps.first { $0.id == "chain" }?.detail ?? ""
-        XCTAssertTrue(small.contains("read 4 passages"))
+        XCTAssertTrue(small.contains("read up to 4 passages"))
         XCTAssertTrue(small.contains("85% sure"))
     }
 }

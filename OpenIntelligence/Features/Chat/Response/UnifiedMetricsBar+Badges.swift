@@ -298,7 +298,7 @@ extension UnifiedMetricsBar {
                 Text("•")
                     .scaledFont(size: 5)
                     .opacity(0.4)
-                Text("\(device.chipName)")
+                Text("\(device.chipDisplayName)")
                     .scaledFont(size: 9, weight: .medium)
                     .opacity(0.8)
                 Text(device.memoryDescription.replacingOccurrences(of: " ", with: ""))

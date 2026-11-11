@@ -122,7 +122,13 @@ extension SettingsView {
             // the multiplier was never measured.
             // "GPU level ≥ 60%" named a percentage the GPU setting no longer shows; the gate is
             // `searchesLargeLibrariesOnGPU(for:)` with the stores' own thresholds (5.7).
-            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) on the CPU. With the Compute Profile on Performance or Maximum, Metal shaders take over cosine similarity for a library of 1,000 passages or more and the diversity step for more than 50 results. Below that, from \(deviceService.batchMatrixMultiplyThreshold) passages the CPU scores them all in one matrix pass.")
+            // 5.8 review: no BLAS call exists; the diversity step's GPU part compares candidates, and its picking is CPU work.
+            Text(
+                "Vector math uses Apple's Accelerate framework (vDSP) on the CPU. With the Compute Profile on Performance or Maximum, Metal shaders score a library of 1,000 passages or more, and the diversity step compares more than 50 candidates on the GPU before picking on the CPU. "
+                    + (deviceService.batchMatrixMultiplyThreshold == Int.max
+                        ? "On the CPU, passages are scored one at a time."
+                        : "On the CPU, from \(deviceService.batchMatrixMultiplyThreshold) passages a library is scored in one matrix pass.")
+            )
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -136,7 +142,7 @@ extension SettingsView {
                 siliconFeatureRow(
                     icon: "square.grid.3x3.fill",
                     label: "Metal GPU Shaders",
-                    detail: "3-tier: threadgroup/SIMD4/scalar"
+                    detail: "Threadgroup kernel; SIMD4 for long vectors"
                 )
                 siliconFeatureRow(
                     icon: "text.line.first.and.arrowtriangle.forward",
@@ -146,7 +152,7 @@ extension SettingsView {
                 siliconFeatureRow(
                     icon: "lock.fill",
                     label: "Library Isolation",
-                    detail: "Queries stay scoped to the active library"
+                    detail: "In the app, the active library; Siri and Shortcuts name theirs"
                 )
             }
 
@@ -190,7 +196,7 @@ extension SettingsView {
                     Image(systemName: "shield.lefthalf.filled")
                         .font(.caption)
                         .foregroundStyle(DSColors.readable(.orange))
-                    Text("On the \(deviceService.chipName), \(gpuProfile.displayName) runs as \(deviceService.activeGPUExecutionProfile.displayName), to keep long imports stable.")
+                    Text("On the \(deviceService.chipDisplayName), \(gpuProfile.displayName) runs as \(deviceService.activeGPUExecutionProfile.displayName), to keep long imports stable\(gpuProfile == .maximum ? "; it still loads its Core ML models for prediction speed" : "").")
                         .font(.caption2)
                         .foregroundStyle(DSColors.readable(.orange))
                 }
@@ -204,7 +210,7 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 ComputeProfileCard(
                     profile: $gpuProfile,
-                    chipName: deviceService.chipName,
+                    chipName: deviceService.chipDisplayName,
                     backgroundGPUProfiles: computeBackgroundGPUProfiles(deviceService),
                     systemOffersBackgroundGPU: computeSystemOffersBackgroundGPU,
                     deviceNoun: computeDeviceNoun(deviceService),
@@ -232,7 +238,8 @@ extension SettingsView {
             // Everything under the card is folded into one row (5.8): it repeated the card in a second layout and
             // pushed the section past one screen on an iPhone 16 Pro Max (the owner, 2026-11-10).
             FoldedDetails(title: "More detail") {
-            Text("Applies from the next import, and to searching from the next launch.")
+            // 5.8 review: depth and pacing are read at each use; only the embedding model's chips wait for it to load.
+            Text("Depth and pacing apply at once; the embedding model's chips change with the next import and for searching from the next launch, as does Maximum's prediction-speed loading.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -252,8 +259,8 @@ extension SettingsView {
 
                 Text(
                     settings.showTechnicalDetails
-                        ? "PDFs and images now use one automatic source-preservation strategy. The engine raises OCR detail, structure recovery, and visual analysis when pages are garbled, table-heavy, columnar, image-heavy, or small-text risky, and stays lighter on clean text-native pages."
-                        : "A PDF page or an image gets a closer reading when it needs one: text that comes out garbled, tables, columns, pictures or small print. A page whose text is already clean gets a lighter one."
+                        ? "Each PDF page is analysed first: the engine raises OCR detail, structure recovery and visual analysis when a page is garbled, table-heavy, columnar, image-heavy or small-text risky, and stays lighter on clean text-native pages; Maximum reads every page it recognises at full detail. A standalone image gets one fixed reading."
+                        : "A PDF page gets a closer reading when it needs one: text that comes out garbled, tables, columns, pictures or small print. A page whose text is already clean gets a lighter one, and an image gets one fixed reading."
                 )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -271,12 +278,14 @@ extension SettingsView {
                 gpuSettingRow(
                     icon: "cpu",
                     label: "Embedding, searching",
-                    value: deviceService.preferredComputeUnitsDescription
+                    value: EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
+                        ? "Core AI on the GPU (new libraries)" : deviceService.preferredComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "cube.transparent",
                     label: "Embedding, importing",
-                    value: deviceService.embeddingComputeUnitsDescription
+                    value: EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
+                        ? "Core AI on the GPU (new libraries)" : deviceService.embeddingComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "doc.text.image",
@@ -286,7 +295,7 @@ extension SettingsView {
                 gpuSettingRow(
                     icon: "function",
                     label: "Large searches",
-                    value: deviceService.useMetalForVectorOps ? "Metal on the GPU" : "Accelerate on the CPU"
+                    value: deviceService.useMetalForVectorOps ? "Metal on the GPU from 1,000 passages" : "Accelerate on the CPU"
                 )
             }
             .animation(DSAnimations.fastEase, value: gpuProfile)
@@ -299,30 +308,31 @@ extension SettingsView {
                 Text("Pipeline Concurrency")
                     .font(.subheadline.weight(.medium))
                 // The profile paces these since 5.8: Efficiency does half as much at once.
-                Text("Set by the \(deviceService.chipName). Efficiency does half as much at once, and Maximum holds fewer pages, to fit full-detail pages.")
+                Text("Set by the \(deviceService.chipDisplayName) and its memory, and lower in a background import. Efficiency does about half as much at once, and Maximum can hold fewer pages, to fit full-detail pages.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 gpuSettingRow(
                     icon: "doc.text.image",
-                    label: "Vision Parsing",
+                    label: "Pages per batch",
                     value: "\(deviceService.visionParsingConcurrency) pages"
                 )
                 gpuSettingRow(
                     icon: "waveform",
-                    label: "OCR Extraction",
+                    label: "Older OCR path",
                     value: "\(deviceService.ocrExtractionConcurrency) pages"
                 )
                 gpuSettingRow(
                     icon: "photo.stack",
-                    label: "PDF Render Slots",
-                    value: "\(deviceService.pdfRenderingConcurrency) concurrent "
-                        + (deviceService.isMaximumFidelityActive ? "(432 DPI)" : "(adaptive 360/432 DPI)")
+                    label: "Page images",
+                    value: "up to \(deviceService.pdfRenderingConcurrency) held "
+                        + (deviceService.isMaximumFidelityActive ? "(432 DPI)" : "(360-432 DPI)")
                 )
                 gpuSettingRow(
                     icon: "cube.transparent",
                     label: "Embedding",
-                    value: "\(deviceService.embeddingConcurrency) parallel"
+                    value: EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
+                        ? "one at a time (Core AI)" : "up to \(deviceService.embeddingConcurrency) at a time"
                 )
             }
             .animation(DSAnimations.fastEase, value: gpuProfile)
@@ -350,11 +360,13 @@ extension SettingsView {
             let noun = deviceService.formFactor.deviceNoun
             let allowance = deviceService.backgroundGPUAllowance
             let admitting = deviceService.backgroundGPUProfiles
+            let system = noun == "iPad" ? "iPadOS" : "iOS"
+            // 5.8 review: a file already being embedded keeps the model it loaded, so "without it" was too strong.
             guard BackgroundTaskService.shared.systemOffersBackgroundGPU else {
-                return "In the background, iOS doesn't offer this \(noun) the GPU, so an import goes on there without it."
+                return "In the background, \(system) doesn't offer this \(noun) the GPU, so an import there doesn't ask for it; a file already being embedded keeps the model it loaded."
             }
             guard !admitting.isEmpty else {
-                return "In the background, no profile asks iOS to keep the GPU for an import on this \(noun)."
+                return "In the background, no profile asks \(system) to keep the GPU for an import on this \(noun)."
             }
             let when: String
             if allowance.chargingOnly {
@@ -367,9 +379,9 @@ extension SettingsView {
             guard admitting.contains(profile) else {
                 let names = ListFormatter.localizedString(byJoining: admitting.map(\.displayName))
                 let verb = admitting.count == 1 ? "does" : "do"
-                return "In the background, \(profile.displayName) doesn't ask iOS to keep the GPU for an import on this \(noun). \(names) \(verb), \(when)."
+                return "In the background, \(profile.displayName) doesn't ask \(system) to keep the GPU for an import on this \(noun). \(names) \(verb), \(when)."
             }
-            return "In the background, an import asks iOS to keep the GPU \(when), unless Low Power Mode is on, the \(noun) is hot, memory is short or iOS has asked apps to use less."
+            return "In the background, an import asks \(system) to keep the GPU \(when), unless Low Power Mode is on, the \(noun) is hot, memory is critically low or, from \(system) 27, the system asks apps to use less. \(system) decides whether to grant it."
         #else
             return "On a Mac, this setting works the same way while the app is in the background."
         #endif

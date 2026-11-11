@@ -25,8 +25,8 @@ nonisolated enum AppleDeviceCatalog {
     /// The model for an identifier such as "iPhone17,2", or nil for one this build does not know.
     ///
     /// Names: Xcode 27.0's `iPhoneOS.platform/usr/standalone/device_traits.db`, column `ProductDescription`, read
-    /// 2026-11-10. Three identifiers have no usable name there and come from AppleDB (the same source the X-Ray uses, 2026-11-10):
-    /// iPhone19,4 is the iPhone Duo and iPad19,1 and 19,2 the iPad mini (A20 Pro).
+    /// 2026-11-10. iPhone19,4 is listed there only as "iPhone" and iPad19,1 and 19,2 are absent; their names come from AppleDB, a
+    /// third-party database (the same source the X-Ray uses, 2026-11-10): the iPhone Duo and the iPad mini (A20 Pro).
     /// Chips: Apple's Tech Specs (support.apple.com/docs/iphone, /docs/ipad) and its newsroom announcements, read
     /// 2026-11-10; the iPhone 17e's from apple.com/iphone-17e/specs ("A19 chip").
     static func model(forIdentifier identifier: String) -> Model? {
@@ -38,7 +38,24 @@ nonisolated enum AppleDeviceCatalog {
         func add(_ identifiers: [String], _ name: String, _ chip: String) {
             for identifier in identifiers { table[identifier] = Model(name: name, chip: chip) }
         }
-        // iPhone
+        // iPhone (the older models iOS 26 runs on, added after the 5.8 review: they showed "iPhone" with no model name)
+        add(["iPhone12,1"], "iPhone 11", "A13 Bionic")
+        add(["iPhone12,3"], "iPhone 11 Pro", "A13 Bionic")
+        add(["iPhone12,5"], "iPhone 11 Pro Max", "A13 Bionic")
+        add(["iPhone12,8"], "iPhone SE (2nd generation)", "A13 Bionic")
+        add(["iPhone13,1"], "iPhone 12 mini", "A14 Bionic")
+        add(["iPhone13,2"], "iPhone 12", "A14 Bionic")
+        add(["iPhone13,3"], "iPhone 12 Pro", "A14 Bionic")
+        add(["iPhone13,4"], "iPhone 12 Pro Max", "A14 Bionic")
+        add(["iPhone14,2"], "iPhone 13 Pro", "A15 Bionic")
+        add(["iPhone14,3"], "iPhone 13 Pro Max", "A15 Bionic")
+        add(["iPhone14,4"], "iPhone 13 mini", "A15 Bionic")
+        add(["iPhone14,5"], "iPhone 13", "A15 Bionic")
+        add(["iPhone14,6"], "iPhone SE (3rd generation)", "A15 Bionic")
+        add(["iPhone14,7"], "iPhone 14", "A15 Bionic")
+        add(["iPhone14,8"], "iPhone 14 Plus", "A15 Bionic")
+        add(["iPhone15,2"], "iPhone 14 Pro", "A16 Bionic")
+        add(["iPhone15,3"], "iPhone 14 Pro Max", "A16 Bionic")
         add(["iPhone15,4"], "iPhone 15", "A16 Bionic")
         add(["iPhone15,5"], "iPhone 15 Plus", "A16 Bionic")
         add(["iPhone16,1"], "iPhone 15 Pro", "A17 Pro")
@@ -57,6 +74,14 @@ nonisolated enum AppleDeviceCatalog {
         add(["iPhone19,3", "iPhone19,7"], "iPhone 18 Pro Max", "A20 Pro")
         add(["iPhone19,4"], "iPhone Duo", "A20 Pro")
         // iPad
+        add(["iPad8,1", "iPad8,2", "iPad8,3", "iPad8,4"], "iPad Pro (11-inch)", "A12X Bionic")
+        add(["iPad8,5", "iPad8,6", "iPad8,7", "iPad8,8"], "iPad Pro (12.9-inch) (3rd generation)", "A12X Bionic")
+        add(["iPad8,9", "iPad8,10"], "iPad Pro (11-inch) (2nd generation)", "A12Z Bionic")
+        add(["iPad8,11", "iPad8,12"], "iPad Pro (12.9-inch) (4th generation)", "A12Z Bionic")
+        add(["iPad11,1", "iPad11,2"], "iPad mini (5th generation)", "A12 Bionic")
+        add(["iPad11,3", "iPad11,4"], "iPad Air (3rd generation)", "A12 Bionic")
+        add(["iPad11,6", "iPad11,7"], "iPad (8th generation)", "A12 Bionic")
+        add(["iPad12,1", "iPad12,2"], "iPad (9th generation)", "A13 Bionic")
         add(["iPad13,1", "iPad13,2"], "iPad Air (4th generation)", "A14 Bionic")
         add(["iPad13,4", "iPad13,5", "iPad13,6", "iPad13,7"], "iPad Pro (11-inch) (3rd generation)", "M1")
         add(["iPad13,8", "iPad13,9", "iPad13,10", "iPad13,11"], "iPad Pro (12.9-inch) (5th generation)", "M1")
@@ -83,14 +108,16 @@ nonisolated enum AppleDeviceCatalog {
 
     /// Apple's own Neural Engine figure for a chip, in trillions of operations per second, and the words Apple used,
     /// or nil where Apple published none. Read on Apple's newsroom pages, 2026-11-10: A14 "up to 11 trillion operations
-    /// per second" (iPad Air, 2020/09), A15 "15.8 trillion" (iPhone 13 Pro, 2021/09), A16 "nearly 17 trillion" (iPhone
+    /// per second" (iPad Air, 2020/09), A12 and A12X "up to 5 trillion" (iPhone XS 2018/09, iPad Pro 2018/10), A15 "15.8 trillion" (iPhone 13 Pro, 2021/09), A16 "nearly 17 trillion" (iPhone
     /// 14 Pro, 2022/09), M1 "11 trillion" (2020/11), M1 Ultra "22 trillion" (2022/03), M2 "15.8 trillion" (2022/06), M2
     /// Pro and M2 Max "15.8 trillion" (2023/01), M2 Ultra "31.6 trillion" (2023/06), M4 "38 trillion" (2024/05). The A17
-    /// Pro, A18 and A18 Pro announcements give none (they say "up to 2x faster" and "faster"), nor does any A19, A20, M3
+    /// Pro, A18 and A18 Pro announcements give none (they say "up to 2x faster" and "faster"), nor does the A13's (it names the
+    /// CPU's accelerators) or the A12Z's, nor does any A19, A20, M3
     /// or M5 page, so those return nil and the screens say Apple publishes none. The Metal name drops "Bionic", so both
     /// spellings are listed.
     static func neuralEngineFigure(forChip chip: String) -> (value: Double, text: String)? {
         switch chip {
+        case "A12", "A12 Bionic", "A12X", "A12X Bionic": return (5, "5")
         case "A14", "A14 Bionic": return (11, "11")
         case "A15", "A15 Bionic": return (15.8, "15.8")
         case "A16", "A16 Bionic": return (17, "nearly 17")

@@ -744,24 +744,17 @@ struct OnboardingChecklistView: View {
             // Device & Performance screen uses, so this cannot drift from that card.
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
-                    deviceChip(icon: "cpu", text: deviceService.chipName, term: .chip)
+                    deviceChip(icon: "cpu", text: deviceService.chipDisplayName, term: .chip)
                     if let tops = deviceService.npuTopsDescription {
                         deviceChip(icon: "sparkles", text: tops, term: .tops)
                     }
-                    if deviceService.memoryGB >= 1 {
+                    if deviceService.memoryGB >= 1, deviceService.metalSnapshot.hasUnifiedMemory {
                         deviceChip(icon: "memorychip", text: deviceService.memoryDescription, term: .unifiedMemory)
                     }
                 }
 
-                // The second row is the point of the first: numbers the app runs with on this device, so the
-                // "catered to your hardware" claim is checkable. Until 5.8 it showed a vector batch and an embedding
-                // batch that nothing read, and a Neural Engine core count by tier ("16-core" on an A20 Pro, which has
-                // two 16-core engines). Both values here are read where the work runs: `EmbeddingService` takes
-                // `embeddingBatchSize`, the PDF renderer `pdfRenderingConcurrency`.
-                HStack(spacing: DSSpacing.xs) {
-                    deviceChip(icon: "square.grid.3x3", text: "\(deviceService.embeddingBatchSize)/batch", term: .embedBatch)
-                    deviceChip(icon: "doc.on.doc", text: "\(deviceService.pdfRenderingConcurrency) pages at once", term: .ocr)
-                }
+                // The second row (a batch size and pages at once) is gone (5.8 review): the samples are Markdown, so no
+                // page was drawn, and the embedding batch is a progress slice, at its floor of 16 on most iPhones.
             }
             .padding(.top, DSSpacing.xxs)
 
@@ -817,10 +810,6 @@ struct OnboardingChecklistView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text("Those batch sizes were chosen for this device, not defaults.")
-                .scaledFont(size: 10)
-                .foregroundStyle(palette.ink(0.35))
-                .fixedSize(horizontal: false, vertical: true)
 
             Button {
                 DSHaptics.selection()

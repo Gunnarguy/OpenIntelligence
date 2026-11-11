@@ -92,7 +92,7 @@ struct ActiveDeviceCard: View {
             case .unavailable(.appleIntelligenceNotEnabled):
                 return ("Apple Intelligence off", false)
             case .unavailable(.modelNotReady):
-                return ("Model downloading", false)
+                return ("Model not ready", false)
             case .unavailable:
                 return ("Model unavailable", false)
             }
@@ -111,33 +111,40 @@ struct ActiveDeviceCard: View {
     }
 
     private var tileList: [Tile] {
-        // The caption names the source actually used: Metal's name when it gave one, else Apple's specs (5.8 review).
+        // Each caption names the source actually used (5.8 reviews). In the Simulator, memory, CPU and the GPU are the
+        // Mac's, and the captions say so.
         let fromMetal = AppleDeviceCatalog.chipName(fromMetalDeviceName: device.metalSnapshot.deviceName) == device.chipName
-        let chipSource =
-            isSimulator ? "simulated device" : (fromMetal ? "Metal reports" : (device.isMac ? "macOS reports" : "Apple's specs"))
+        let chipSource: String = {
+            if isSimulator { return "simulated device" }
+            if !device.chipIdentified { return "not reported" }
+            return fromMetal ? "Metal reports" : (device.isMac ? "macOS reports" : "Apple's specs")
+        }()
+        let hostSource = isSimulator ? "the Mac running it" : "\(systemName) reports"
         let clusters = device.cpuClusters
         let cpuValue =
             clusters.isEmpty
-            ? "\(ProcessInfo.processInfo.processorCount) cores"
+            ? "\(ProcessInfo.processInfo.processorCount) threads"
             : clusters.map { "\($0.cores)" }.joined(separator: " + ") + " cores"
-        let cpuSource = clusters.isEmpty ? "\(systemName) reports" : clusters.map(\.name).joined(separator: " + ")
+        let cpuSource = isSimulator ? hostSource : (clusters.isEmpty ? hostSource : clusters.map(\.name).joined(separator: " + "))
         let tops = device.npuTopsDescription
+        let intel = device.chipName.contains("Intel")
+        let workingSet = device.metalSnapshot.recommendedWorkingSetMB > 0 ? device.metalSnapshot.workingSetDescription : "Unavailable"
         return [
-            Tile(id: "Chip", icon: "cpu", value: device.chipName, source: chipSource),
-            Tile(id: "Memory", icon: "memorychip", value: device.memoryDescription, source: "\(systemName) reports"),
+            Tile(id: "Chip", icon: "cpu", value: device.chipDisplayName, source: chipSource),
+            Tile(id: "Memory", icon: "memorychip", value: device.memoryDescription, source: hostSource),
             Tile(id: "CPU", icon: "square.grid.2x2", value: cpuValue, source: cpuSource),
             Tile(
-                id: "Neural Engine", icon: "brain", value: tops ?? "No figure",
-                source: tops == nil ? "Apple publishes none" : "Apple's figure"),
+                id: "Neural Engine", icon: "brain", value: intel ? "None" : (tops ?? "No figure"),
+                source: intel ? "Intel chip" : (tops == nil ? "Apple publishes none" : "Apple's figure")),
             Tile(
-                id: "GPU budget", icon: "square.stack.3d.up", value: device.metalSnapshot.workingSetDescription,
-                source: "Metal's working set"),
+                id: "GPU budget", icon: "square.stack.3d.up", value: workingSet,
+                source: isSimulator ? "the Mac's GPU" : "Metal's working set"),
             // Thermals moved to the Live System Monitor below (5.8): this card is what the hardware is, that one what
             // it is doing.
             Tile(
                 id: "GPU family", icon: "square.grid.3x3",
-                value: device.metalSnapshot.highestAppleFamily.map { "Apple \($0)" } ?? "Unavailable",
-                source: "Metal reports"),
+                value: device.metalSnapshot.highestAppleFamily.map { "Apple \($0)" } ?? "None",
+                source: isSimulator ? "the Mac's GPU" : (device.metalSnapshot.highestAppleFamily == nil ? "no Apple GPU family" : "Metal reports")),
         ]
     }
 
@@ -149,51 +156,36 @@ struct ActiveDeviceCard: View {
         }
     }
 
-    static func thermalText(_ state: ProcessInfo.ThermalState) -> String {
-        switch state {
-        case .nominal: return "Nominal"
-        case .fair: return "Fair"
-        case .serious: return "Serious"
-        case .critical: return "Critical"
-        @unknown default: return "Unknown"
-        }
-    }
-
-    static func thermalIcon(_ state: ProcessInfo.ThermalState) -> String {
-        switch state {
-        case .nominal: return "thermometer.low"
-        case .fair: return "thermometer.medium"
-        case .serious, .critical: return "thermometer.high"
-        @unknown default: return "thermometer.medium"
-        }
-    }
-
-    // MARK: What the app sets
-
     private var internals: some View {
         let envelope = device.hardwareExecutionEnvelope
         let metal = envelope.metal
         let maximum = device.isMaximumFidelityActive
-        let textRecognition = DeviceCapabilityService.thermallyLimitedVisionConcurrency(
-            ceiling: envelope.visionOperationConcurrency, thermalState: thermalState)
+        // The thermal limit applies on a Mac only (`VisionOCRThrottle.currentVisionConcurrencyLimit`).
+        let textRecognition = device.isMac
+            ? DeviceCapabilityService.thermallyLimitedVisionConcurrency(
+                ceiling: envelope.visionOperationConcurrency, thermalState: thermalState)
+            : envelope.visionOperationConcurrency
+        let coreAI = EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
         let deepThink = Int(device.optimizedAgenticConfig().confidenceThreshold * 100)
         return VStack(alignment: .leading, spacing: DSSpacing.sm) {
             section("THE HARDWARE REPORTS") {
-                row("Device ID", envelope.deviceIdentifier)
+                row("Device ID", device.isMac && !isSimulator ? (DeviceCapabilityService.macModelIdentifier() ?? envelope.deviceIdentifier) : envelope.deviceIdentifier)
                 row("Metal device", metal.deviceName)
                 row("Unified memory", metal.hasUnifiedMemory ? "Yes" : "No")
                 row("Threadgroup", "\(metal.maxThreadsPerThreadgroup) threads • \(metal.maxThreadgroupMemoryKB) KB")
             }
             section("THE APP SETS") {
-                row("Core ML asks for", envelope.coreMLRoute)
-                row("Embedding asks for", envelope.embeddingRoute)
-                row("Text recognition", "\(textRecognition) at once • \(envelope.visionCooldownMilliseconds) ms apart")
-                row("Pages held at once", "\(envelope.pdfRenderSlots)")
-                row("Page detail", maximum ? "432 DPI, every page" : "360 DPI, 432 for hard pages")
+                // The embedding model's request; the reranker always asks for the CPU and Neural Engine (5.8 review).
+                row("Search embedding asks for", coreAI ? "Core AI, GPU" : envelope.coreMLRoute)
+                row("Import embedding asks for", coreAI ? "Core AI, GPU" : envelope.embeddingRoute)
+                row("Reranker asks for", "CPU + Neural Engine")
+                row("Text recognition", "up to \(textRecognition) at once • \(envelope.visionCooldownMilliseconds) ms pause")
+                row("Page images held", "up to \(envelope.pdfRenderSlots)")
+                row("Page detail", maximum ? "432 DPI for recognised pages" : "360 DPI, 432 for hard pages")
                 row("Search", envelope.batchMatrixMultiplyThreshold == Int.max
                     ? "one passage at a time" : "one matrix pass from \(envelope.batchMatrixMultiplyThreshold) passages")
-                row("Reranked", "up to \(device.activeDepth.rerankCeiling) passages")
-                row("Deep Think aims for", "\(deepThink)% confidence")
+                row("Reranked", "up to \(device.activeDepth.rerankCeiling) per pass")
+                row("Deep Think's chain aims for", "\(deepThink)% confidence")
             }
             Text(
                 "Core ML decides where each layer runs; the app states a preference. Apple offers no way to read Neural Engine use."

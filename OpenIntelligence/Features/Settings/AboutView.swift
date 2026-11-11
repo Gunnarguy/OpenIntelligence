@@ -172,7 +172,7 @@ struct AboutView: View {
                             if let model = deviceService.modelName {
                                 LabeledContent("Model", value: model)
                             }
-                            LabeledContent("Device Chip", value: deviceService.chipName)
+                            LabeledContent("Device Chip", value: deviceService.chipDisplayName)
                             LabeledContent("iOS Version", value: deviceCapabilities.iOSVersion)
                                 .monospacedDigit()
                             // Apple's own figure where it published one (ten chips); the row is left out elsewhere

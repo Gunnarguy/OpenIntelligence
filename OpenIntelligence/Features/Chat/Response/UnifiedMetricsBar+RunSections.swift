@@ -177,12 +177,14 @@ extension UnifiedMetricsBar {
         // engines" (machinelearning.apple.com/research/introducing-apple-foundation-models, read 2026-10-19), so the
         // Neural Engine is named. A 2026-10-18 change took it out after reading only the Foundation Models pages,
         // which name no chip, and was reverted the next day.
+        // 5.8 review: an on-device answer can come from Quotes only, which runs no model, and the app cannot see which
+        // unit Apple's model used, so the line names the chip and Apple's figure, not "Neural Engine" as the engine.
         case .onDevice:
-            return device.npuTopsDescription.map { "\(device.chipName) Neural Engine • \($0)" } ?? "\(device.chipName) Neural Engine"
+            return "\(device.chipDisplayName) • on this device" + (device.npuTopsDescription.map { " • Neural Engine \($0)" } ?? "")
         case .privateCloudCompute:
             return "Private Cloud Compute • Encrypted"
         case .unknown:
-            return "\(device.chipName)"
+            return device.chipDisplayName
         }
     }
 
@@ -495,7 +497,7 @@ extension UnifiedMetricsBar {
                     // Chip
                     statusPill(
                         icon: "cpu",
-                        title: device.chipName,
+                        title: device.chipDisplayName,
                         subtitle: device.memoryDescription,
                         color: .purple
                     )

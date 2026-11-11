@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-11-10 about 16:20 PT
+Updated: 2026-11-11 about 03:00 PT
 Branch/worktree: `main`, primary checkout
 Last verified commit: b1b91cd7
 
@@ -9,6 +9,19 @@ Last verified commit: b1b91cd7
 **Ship 5.8** (owner, 2026-11-10: "I feel like I should ship 5.8"). The board is 5.8 and Future Backlog only. What
 remains: benchmark day (2026-11-11), the owner's short device pass, then a Xcode Cloud build and the App Store Connect
 submission at his word. Every commit carries `[ci skip]` until he asks for a build.
+
+## Overnight 2026-11-10/11 (read this first)
+
+The owner asked that every line on Device & Performance, Intelligence Mode and the screens that share their figures be
+true to the code, nothing overstated. Done in these commits after b1b91cd7: Active Device from Apple's figures and the
+hardware (`AppleDeviceCatalog`, `ActiveDeviceCard`); the compute profile ramp (`DeviceCapabilityService.Depth`,
+`paced`); Intelligence Mode rebuilt in the Compute Profile card's style with the context window moved there
+(`IntelligenceModeCard`); one header and one tile everywhere (`SettingsCardParts`); Deep Think and Maximum fuse by
+score (`rankedForFusion`, `OI_RETRIEVAL_ABLATE=fusionScoreOrder` restores the old order). Three review rounds: a
+Claude refuting review (31 fixed), three Gemini 4 Carbon jobs (~150 findings, swarm outputs in the session scratchpad,
+not kept), then a Claude fact-check of the Gemini-sourced text (23 corrected). Gemini was wrong where checked twice
+(A13 has no Neural Engine figure; the older OCR path is live). Everything is Simulator-tested; nothing here is checked
+on his phone yet.
 
 ## Status
 
@@ -73,7 +86,12 @@ headroom) was running in the background; its report is not in the repo yet.
 
 ## Exact Next Action
 
-Start benchmark day: run the extraction-fidelity set three times on one build, `OI_COMPUTE_PROFILE=balanced`, then
-`performance`, then `maximum`, and compare; then tables 158 and QASPER 246 the same way. Each profile ships its depth
-only if it reads and finds at least as well as Balanced. The Active Device card (2026-11-10, b1b91cd7) and the
-profile ramp still wait on the owner's look on his phone.
+1. Read `/private/tmp/oi-bench-profiles/*.log` if the overnight profile benchmark ran (script
+   `scripts/bench_compute_profiles.sh`, run after a `build-for-testing` into `/private/tmp/oi-test-build`: the 8-PDF extraction set and the olmOCR-Bench 160 under
+   `OI_COMPUTE_PROFILE=balanced|performance|maximum`). Score with
+   `python3 scripts/extraction_fidelity.py /private/tmp/oi-fidelity/pdfs prof-performance --compare prof-balanced`
+   (and `prof-maximum`), and `python3 scripts/olmocr_bench_score.py /private/tmp/olmocr-bench prof160-maximum --list /private/tmp/olmocr-bench/run160.txt --compare prof160-balanced`.
+   Record in `BenchmarkRuns/` and `LEDGER.md`. A profile keeps its depth only if it reads at least as well as Balanced.
+2. Then the retrieval side: QASPER 246 and tables 158 per profile, and the fusion fix with and without
+   `OI_RETRIEVAL_ABLATE=fusionScoreOrder`.
+3. The owner looks at Device & Performance and Intelligence Mode on his phone.

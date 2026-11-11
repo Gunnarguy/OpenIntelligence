@@ -334,7 +334,7 @@ extension GlossaryTermID {
                 icon: "cpu",
                 section: .hardware,
                 plain: "The processor in this device. The app works out which one it is and sizes its own work to match, so it does more per second on newer hardware instead of running the same way everywhere.",
-                technical: "Read from the hardware: the name Metal gives the GPU (\"Apple A18 Pro GPU\", \"Apple M3 Pro\") on any device; where Metal gives none, the Mac's CPU brand string or Apple's Tech Specs for the device identifier (`AppleDeviceCatalog`). The ceilings the app sets follow from it together with the memory the system reports.",
+                technical: "The name Metal gives the GPU on any device (\"Apple A18 Pro GPU\", \"Apple M3 Pro\"); where Metal gives none, the Mac's CPU brand string or Apple's Tech Specs for an iPhone or iPad identifier (`AppleDeviceCatalog`). The ceilings the app sets follow the device identifier's tier and the memory the system reports.",
                 seeAlso: [.neuralEngine, .unifiedMemory, .tops],
                 synonyms: ["processor", "silicon", "soc", "a19", "m4", "apple silicon"]
             )
@@ -345,8 +345,8 @@ extension GlossaryTermID {
                 term: "Neural Engine",
                 icon: "cpu.fill",
                 section: .hardware,
-                plain: "A part of the chip that does nothing but machine learning. It is the reason a phone can index a whole book without getting as hot as it would if the main processor did the same work.",
-                technical: "16 cores on most Apple Intelligence chips, in Apple's specs; the Ultra chips have 32, and the A20 Pro in the iPhone 18 Pro, 18 Pro Max and Duo (and the 512 GB iPad mini) has two 16-core engines. The app asks Core ML for it through each model's `MLModelConfiguration.computeUnits`, and Core ML makes the final scheduling decision, so this is a stated preference rather than a guarantee that the Neural Engine ran. On a Mac, new libraries embed with Core AI, which runs on the GPU.",
+                plain: "A part of the chip built for machine learning. On an iPhone or iPad the app asks for it, along with the processor and sometimes the graphics chip, when it turns your documents into searchable vectors.",
+                technical: "16 cores on most Apple Intelligence chips, in Apple's specs; M1 Ultra, M2 Ultra and M3 Ultra have 32, and the A20 Pro in the iPhone 18 Pro, 18 Pro Max and Duo (and the 512 GB iPad mini) has two 16-core engines. The app asks Core ML for it through each model's `MLModelConfiguration.computeUnits`, and Core ML makes the final scheduling decision, so this is a stated preference rather than a guarantee that the Neural Engine ran. On a Mac, new libraries embed with Core AI on the GPU, and the Simulator runs Core ML on the CPU.",
                 seeAlso: [.tops, .chip, .vector],
                 synonyms: ["ane", "npu", "16-core", "core ml", "coreml"]
             )
@@ -358,7 +358,7 @@ extension GlossaryTermID {
                 icon: "sparkles",
                 section: .hardware,
                 plain: "Trillions of operations per second. It is Apple's rating for the Neural Engine in a chip, in the way horsepower is a rating for an engine. Apple gives the number for some chips only, so on the others the app shows none rather than an estimate.",
-                technical: "Apple's published figure, looked up by chip and not measured on your device. Apple's newsroom states one for A14 (11), A15 (15.8), A16 (nearly 17), M1 (11), M1 Ultra (22), M2, M2 Pro and M2 Max (15.8), M2 Ultra (31.6) and M4 (38); the A17 Pro, A18, A19, A20, M3 and M5 announcements give multipliers instead, so the app shows none for them. Apple exposes no live Neural Engine occupancy API, so no app can report real utilisation.",
+                technical: "Apple's published figure, looked up by chip and not measured on your device. Apple's newsroom states one for A12 and A12X (5), A14 (11), A15 (15.8), A16 (nearly 17), M1 (11), M1 Ultra (22), M2, M2 Pro and M2 Max (15.8), M2 Ultra (31.6) and M4 (38); the A12Z, A13, A17 Pro, A18, A19, A20, M3 and M5 announcements give none, so the app shows none for them. Apple exposes no live Neural Engine occupancy API, so no app can report real utilisation.",
                 seeAlso: [.neuralEngine, .chip],
                 synonyms: ["tera operations", "38 tops", "npu", "throughput", "rating"]
             )
@@ -369,8 +369,8 @@ extension GlossaryTermID {
                 term: "Embed batch",
                 icon: "square.grid.3x3",
                 section: .hardware,
-                plain: "How many passages the import hands to the model together. The model embeds them side by side rather than one trip each, and the number follows how much your device embeds at once.",
-                technical: "`embeddingBatchSize` in `DeviceCapabilityService`: the embedding concurrency for this device, at least 16, which `EmbeddingService` uses for each call while an import reports progress. Larger batches spread the model's per-call cost over more work.",
+                plain: "How many passages an import hands over together before it reports progress. The model still embeds each passage on its own: several side by side on most devices, one at a time for a newer library on a Mac.",
+                technical: "`embeddingBatchSize` in `DeviceCapabilityService`: the embedding concurrency, at least 16, used by `EmbeddingService` to slice an import for progress reports. Each prediction embeds one passage; `CoreMLSentenceEmbeddingProvider` runs more than 4 in parallel tasks, `CoreAISentenceEmbeddingProvider` runs them in turn.",
                 seeAlso: [.vector, .searchBatch, .unifiedMemory],
                 synonyms: ["batch", "batch size", "32/batch", "per batch"]
             )
@@ -381,8 +381,8 @@ extension GlossaryTermID {
                 term: "Search batch",
                 icon: "magnifyingglass",
                 section: .hardware,
-                plain: "Once a library holds enough passages, the app compares all of them against your question in one block instead of one at a time, which is what lets it search a whole library in a single pass.",
-                technical: "`batchMatrixMultiplyThreshold`: from this many passages the CPU scores the whole library with one `vDSP_mmul` in `BNNSVectorDatabase` (16 to 100, by device). A library of 1,000 passages or more goes to Metal instead under Performance and Maximum.",
+                plain: "On most devices, once a library holds enough passages, the app compares all of them against your question in one block instead of one at a time. Devices that can't run Apple Intelligence compare them one at a time.",
+                technical: "`batchMatrixMultiplyThreshold`: from this many passages the CPU scores the whole library with one `vDSP_mmul` in `BNNSVectorDatabase` (16 to 100 by device tier; never on a device below Apple Intelligence's tiers). Under Performance and Maximum a library of 1,000 passages or more goes to Metal instead, unless the import is a background one without the GPU.",
                 seeAlso: [.vector, .embedBatch, .hybridSearch],
                 synonyms: ["matrix", "one pass", "similarity", "vdsp", "accelerate"]
             )
@@ -393,8 +393,8 @@ extension GlossaryTermID {
                 term: "Unified memory",
                 icon: "memorychip",
                 section: .hardware,
-                plain: "Memory that the processor, the graphics cores and the Neural Engine all share, so work does not have to be copied between them before it can be done. More of it means more of your library can be in flight at once.",
-                technical: "Read from `ProcessInfo.physicalMemory` and shown as the system reports it, to a tenth of a gigabyte; Apple publishes no memory figure for any iPhone. It scales concurrency ceilings and how many full-resolution PDF pages are held at once.",
+                plain: "Memory that the processor, the graphics cores and the Neural Engine share, so work does not have to be copied between them. On the larger chips more of it lets more of your library be in flight at once.",
+                technical: "Read from `ProcessInfo.physicalMemory` and shown to a tenth of a gigabyte (a value within 0.05 of a whole number shows as whole); Apple publishes no memory figure for any iPhone. On the top-tier chips (M-series, A20 Pro) it scales some concurrency ceilings, and on every device it bounds how many full-resolution PDF pages are held at once.",
                 seeAlso: [.chip, .embedBatch, .gpuProfile],
                 synonyms: ["ram", "memory", "gb", "shared memory"]
             )

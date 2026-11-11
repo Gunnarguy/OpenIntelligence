@@ -74,7 +74,7 @@ extension UnifiedMetricsBar {
 
         return HStack(spacing: DSSpacing.sm) {
             // Chip
-            compactMetric(icon: "cpu", value: device.chipName, color: .purple)
+            compactMetric(icon: "cpu", value: device.chipDisplayName, color: .purple)
 
             // Thermal
             compactMetric(
@@ -367,7 +367,7 @@ extension UnifiedMetricsBar {
                 systemMetricCell(
                     icon: "cpu",
                     label: "Processor",
-                    value: deviceService.chipName,
+                    value: deviceService.chipDisplayName,
                     detail: "\(state.activeProcessorCount)/\(state.processorCount) cores",
                     color: .purple
                 )

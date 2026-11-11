@@ -131,59 +131,73 @@ struct ComputeProfileCard: View {
         // profile's Core ML units apply to a library made with Core ML).
         let coreAI = EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
         let coreAINote =
-            " On this Mac a new library embeds with Core AI, which runs on the GPU in every profile; these Core ML units "
-            + "apply to a library made with Core ML."
+            " On this Mac a new library embeds with Core AI, which runs on the GPU in every profile and one passage at a "
+            + "time; these Core ML units apply to a library made with Core ML."
+        // These sentences name their exception paths after the Gemini review (2026-11-10); each was then checked
+        // against the code by a Claude reviewer on 2026-11-11, and the ones it refuted were corrected.
         return [
             Workload(
                 id: "search", name: "Search by meaning", icon: "magnifyingglass",
                 chips: coreAI ? [.gpu] : Self.chips(searching),
-                engine: coreAI ? "Core AI on the GPU (new Mac libraries)" : "Core ML, MLComputeUnits \(Self.unitsName(searching))",
-                detail: "Each question is turned into a 384-number embedding by the app's embedding model. Core ML may "
-                    + "place each of its layers on \(GPUExecutionProfile.chipNames(searching)), and picks the fastest."
+                engine: coreAI
+                    ? "Core AI on the GPU (new Mac libraries)" : "Core ML, asks for MLComputeUnits \(Self.unitsName(searching))",
+                detail: "A question is usually turned into one 384-number embedding by the app's embedding model (some "
+                    + "searches embed several phrasings, and a repeated one can come from a cache). Core ML decides "
+                    + "where each layer runs among \(GPUExecutionProfile.chipNames(searching)). The model's chips are set "
+                    + "when it loads, so a change applies to searching from the next launch."
                     + (coreAI ? coreAINote : "")
                     + (deeper
-                        ? " \(profile.displayName) also reranks up to \(depth.rerankCeiling) passages (250 in Balanced) and takes up to \(depth.keywordLimit) keyword results (60)"
-                            + (profile == .maximum ? ", and loads its models for prediction speed." : ".")
-                        : ""),
+                        ? " In a Standard search \(profile.displayName) reranks up to \(depth.rerankCeiling) passages (250 in Balanced) and takes up to \(depth.keywordLimit) keyword results (60); Deep Think's and Maximum's narrower searches stop at their own smaller numbers."
+                        : "")
+                    + (profile == .maximum ? " Maximum also loads its Core ML models for prediction speed." : ""),
                 note: nil),
             Workload(
                 id: "import", name: "Import documents", icon: "square.and.arrow.down",
                 chips: coreAI ? [.gpu] : Self.chips(importing),
-                engine: coreAI ? "Core AI on the GPU (new Mac libraries)" : "Core ML, MLComputeUnits \(Self.unitsName(importing))",
-                detail: "Every passage of a new document is embedded, \(concurrency.embeddingParallel) at a time, on "
-                    + "\(GPUExecutionProfile.chipNames(importing)). How many at a time is set by the \(chipName)"
-                    + (profile == .efficiency ? "; Efficiency takes half, so an import runs cooler and slower, reading just as deeply." : ".")
+                engine: coreAI
+                    ? "Core AI on the GPU (new Mac libraries)" : "Core ML, asks for MLComputeUnits \(Self.unitsName(importing))",
+                detail: "A new document's passages are handed to the embedding model up to \(concurrency.embeddingParallel) "
+                    + "at a time (Core ML runs more than 4 side by side), on \(GPUExecutionProfile.chipNames(importing)). "
+                    + "How many is set by the \(chipName) and its memory"
+                    + (profile == .efficiency
+                        ? "; Efficiency takes about half, so an import runs cooler and slower, with the same search depth and re-reading. Its pages skip the extra cleanup pass."
+                        : ".")
+                    + " A background import without the GPU asks for the CPU and Neural Engine."
                     + (coreAI ? coreAINote : "")
                     + (depth == .performance
                         ? " \(profile.displayName) re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced). It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : "")
                     + (depth.fullDetailPages
-                        ? " Maximum draws every page that text recognition reads at 432 DPI (360 otherwise, 432 only for hard pages), runs the layout pass at full size, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds \(concurrency.renderSlots) pages at once to fit them. It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
+                        ? " Maximum draws the pages text recognition reads at 432 DPI (other profiles: 360, and 432 for hard pages), runs the layout pass at full size on every page, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds up to \(concurrency.renderSlots) pages at once to fit them. A quick first check of the text layer and the pictures inside a page use lower resolutions. It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : ""),
                 note: nil),
             Workload(
-                id: "cleanup", name: "Scanned-page cleanup", icon: "doc.viewfinder",
+                id: "cleanup", name: "Extra page cleanup", icon: "doc.viewfinder",
                 chips: cleanup ? [.gpu] : [],
                 engine: cleanup ? "Core Image on a Metal context" : "Off",
                 detail: cleanup
-                    ? "After a PDF page is drawn (on the CPU), Core Image runs an extra cleanup on the GPU: sharpening and "
-                        + "contrast chosen for the page, before text recognition reads it."
-                    : "No extra pass: a page goes to text recognition as drawn. Text recognition still prepares each "
-                        + "page on the GPU, as in every profile.",
+                    ? "After a PDF page is drawn for text recognition, Core Image runs one more fixed cleanup on the GPU "
+                        + "before it is read. Not in a background import without the GPU, and not for a standalone image."
+                    : "No extra pass. Every profile still prepares each PDF page for text recognition on the GPU.",
                 note: nil),
             Workload(
                 id: "large", name: "Large searches (1,000+)", icon: "square.stack.3d.up",
-                chips: large ? [.gpu] : [.cpu],
-                engine: large ? "Metal compute on the GPU" : "Accelerate on the CPU",
+                chips: large ? [.cpu, .gpu] : [.cpu],
+                engine: large ? "Metal on the GPU, the rest on the CPU" : "Accelerate on the CPU",
                 detail: large
-                    ? "The vector search runs on the GPU once a library holds 1,000 passages or more, and so does the "
-                        + "diversity step once a search keeps more than 50 results. Smaller ones stay on the CPU."
+                    ? "A library of 1,000 passages or more is scored on the GPU, and the step that keeps results varied "
+                        + "compares more than 50 candidates there; its final picking, smaller libraries, a search inside "
+                        + "one document and a background import without the GPU stay on the CPU."
                     : "Every vector search and diversity step runs on the CPU with Accelerate, however large the library.",
                 note: nil),
+            // A Mac doesn't pause an import in the background, so there it keeps the import's chips (5.8 review: the row
+            // showed no GPU on a Mac while the note said the setting works the same way).
             Workload(
                 id: "background", name: "GPU in the background", icon: "moon.zzz",
-                chips: backgroundGPU ? [.gpu] : [],
-                engine: backgroundGPU ? "Continued processing task with the GPU resource" : "No GPU in the background",
+                chips: deviceNoun == "Mac" ? (coreAI ? [.gpu] : Self.chips(importing)) : (backgroundGPU ? [.gpu] : []),
+                engine: deviceNoun == "Mac"
+                    ? "Same as in front"
+                    : (backgroundGPU ? "Continued processing task, GPU when the system allows" : "No GPU request in the background"),
                 detail: backgroundNote(profile),
                 // The detail already says iOS does not offer it; the note repeated the sentence (5.8).
                 note: nil
@@ -420,7 +434,7 @@ struct ComputeProfileCard: View {
         if profile == .maximum, DeviceCapabilityService.shared.depth(for: .maximum).fullDetailPages {
             // Maximum's extra is how hard each job runs, not which chips run it.
             title = "Maximum adds to Performance"
-            detail = "Every page read at 432 DPI, layout at full size\nDeeper search: up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages reranked"
+            detail = "Pages read at 432 DPI, layout at full size\nStandard searches rerank up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages"
             symbol = "bolt.circle.fill"
         } else if let previous {
             // What this step adds beyond chips (5.8): Balanced does twice Efficiency's work at once, Performance
@@ -433,7 +447,7 @@ struct ComputeProfileCard: View {
                 extras.append("About twice as much at once")
             }
             if depth != DeviceCapabilityService.shared.depth(for: previous) {
-                extras.append("Deeper search: up to \(depth.rerankCeiling) reranked, \(depth.rescueRegions) regions re-read")
+                extras.append("Deeper search: up to \(depth.rerankCeiling) reranked, up to \(depth.rescueRegions) regions re-read")
             }
             let all = Array((lines + extras).prefix(2))
             title =
@@ -442,12 +456,14 @@ struct ComputeProfileCard: View {
                 : "\(profile.displayName) adds to \(previous.displayName)"
             detail =
                 all.isEmpty
-                ? "Every job uses the same chips and the same depth."
+                ? (profile == .maximum
+                    ? "Same chips and depth; it only loads its Core ML models for prediction speed."
+                    : "Every job uses the same chips and the same depth.")
                 : all.joined(separator: "\n")
             symbol = all.isEmpty ? "equal.circle.fill" : "plus.circle.fill"
         } else {
             title = "The base step"
-            detail = "The CPU and the Neural Engine only. Each step to the right adds to it."
+            detail = "The CPU and Neural Engine for the jobs this setting picks. Each step to the right uses more of the chip or works harder."
             symbol = "circle.dashed"
         }
         return HStack(alignment: .top, spacing: DSSpacing.sm) {
@@ -622,16 +638,17 @@ struct ComputeProfileCard: View {
         let basePages = concurrencyFor(.balanced).renderSlots
         // Each tile against Balanced: 1 deeper or more at once, -1 fewer at once, 0 the same.
         let tiles: [(String, String, String, Int)] = [
-            ("Page detail", depth.fullDetailPages ? "432 DPI" : "360-432", "doc.viewfinder", depth.fullDetailPages ? 1 : 0),
-            ("Layout pass", depth.fullDetailPages ? "Full size" : "Half", "rectangle.split.2x2", depth.fullDetailPages ? 1 : 0),
+            ("Page detail", depth.fullDetailPages ? "432 DPI" : "360-432 DPI", "doc.viewfinder", depth.fullDetailPages ? 1 : 0),
+            ("Layout pass", depth.fullDetailPages ? "Full, every page" : "Full on hard pages", "rectangle.split.2x2", depth.fullDetailPages ? 1 : 0),
             ("Pages at once", "\(pages)", "square.stack", pages > basePages ? 1 : (pages < basePages ? -1 : 0)),
-            ("Re-read", "\(depth.rescueRegions) regions", "arrow.clockwise", depth.rescueRegions > base.rescueRegions ? 1 : 0),
-            ("Reranked", "up to \(depth.rerankCeiling)", "arrow.up.arrow.down", depth.rerankCeiling > base.rerankCeiling ? 1 : 0),
-            ("Keywords", "up to \(depth.keywordLimit)", "textformat", depth.keywordLimit > base.keywordLimit ? 1 : 0),
+            ("Re-read", "up to \(depth.rescueRegions) regions", "arrow.clockwise", depth.rescueRegions > base.rescueRegions ? 1 : 0),
+            ("Reranked per search", "up to \(depth.rerankCeiling)", "arrow.up.arrow.down", depth.rerankCeiling > base.rerankCeiling ? 1 : 0),
+            ("Keywords per search", "up to \(depth.keywordLimit)", "textformat", depth.keywordLimit > base.keywordLimit ? 1 : 0),
         ]
         let tint = Self.color(for: profile)
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            SettingsGroupLabel(text: "HOW HARD")
+            // Ceilings: a hot device, Low Power Mode or a background import without the GPU steps them down (5.8 review).
+            SettingsGroupLabel(text: "HOW HARD, AT MOST")
             LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
                 ForEach(tiles, id: \.0) { tile in
                     SpecTile(
@@ -668,15 +685,15 @@ struct ComputeProfileCard: View {
                 fixedRow(
                     "Reranking passages", chips: [.cpu, .neuralEngine],
                     detail:
-                        "Core ML, MLComputeUnits .cpuAndNeuralEngine: the reranker scores each passage against your question."
+                        "Core ML asks for .cpuAndNeuralEngine in every profile: the reranker scores the top candidates against your question. How many it scores, and Maximum's prediction-speed loading, follow the profile."
                 )
                 fixedRow(
                     "Writing the answer", chips: [],
                     detail:
-                        "Apple's own model, on the device or in Private Cloud Compute as your route allows. Not set here.")
+                        "Apple's own model, on the device or in Private Cloud Compute as your route allows; Quotes only writes none. The app can't see which chips Apple's model uses, so none are lit. Not set here.")
                 fixedRow(
-                    "Reading text in images and scans", chips: [.gpu],
-                    detail: "Vision; each page is prepared for recognition on the GPU.")
+                    "Preparing pages for text recognition", chips: [.gpu],
+                    detail: "Core Image prepares each PDF page on the GPU before Vision reads it; Vision decides where recognition itself runs. How many pages at once, their detail and re-reads follow the profile (How Hard).")
                 // "Pages at a time" left this list in 5.8: Efficiency halves it, and How Hard shows it per profile.
             }
         }

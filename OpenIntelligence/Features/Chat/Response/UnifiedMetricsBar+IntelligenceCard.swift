@@ -212,10 +212,11 @@ extension UnifiedMetricsBar {
 
     func thermalDetail(_ thermal: ProcessInfo.ThermalState) -> String {
         switch thermal {
-        case .nominal: return "Optimal performance"
+        // Apple's descriptions of ProcessInfo.ThermalState (5.8 review: the app does not throttle at .serious).
+        case .nominal: return "Within normal limits"
         case .fair: return "Slightly elevated"
-        case .serious: return "Throttling active"
-        case .critical: return "Maximum throttling"
+        case .serious: return "High"
+        case .critical: return "Hurting performance"
         @unknown default: return "Unknown"
         }
     }

@@ -85,7 +85,7 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
             effects: [
                 "Searching by meaning: \(Self.chipNames(searching))",
                 "Importing: \(Self.chipNames(importing))",
-                cleanupOnGPU ? "Scanned PDF pages: an extra cleanup pass on the GPU" : "Scanned PDF pages: no extra cleanup pass",
+                cleanupOnGPU ? "PDF pages: an extra cleanup pass on the GPU" : "PDF pages: no extra cleanup pass",
                 "Large searches on the \(largeSearchesOnGPU ? "GPU" : "CPU")"
             ]
         )
@@ -95,13 +95,14 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
     private var plainSummary: String {
         switch self {
         case .efficiency:
-            return "Coolest and quietest. Keeps the graphics processor out of everything this setting covers."
+            // 5.8 review: page preparation and a Mac's Core AI use the GPU in every profile, so "everything" was false.
+            return "Coolest. The jobs this setting picks stay off the graphics processor, and imports do about half as much at once."
         case .balanced:
-            return "The default. Imports can add the graphics processor, and scanned PDF pages get an extra cleanup pass on it."
+            return "The default. Imports can add the graphics processor, and PDF pages get an extra cleanup pass on it."
         case .performance:
-            return "Everything this setting covers can use the graphics processor, large searches included."
+            return "Searching and large searches can add the graphics processor too, and Standard searches go deeper."
         case .maximum:
-            return "Performance, turned up: full-detail pages and deeper search. Slower imports, warmer device."
+            return "Performance, turned up where the device allows: full-detail pages and deeper search. Slower imports, warmer device."
         }
     }
 
@@ -353,6 +354,28 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// "38 TOPS" where Apple published a figure for this chip, nil elsewhere.
     var npuTopsDescription: String? { AppleDeviceCatalog.neuralEngineFigure(forChip: cachedChipName).map { "\($0.text) TOPS" } }
+
+    /// Whether the chip has a real name ("A18 Pro", "M3 Pro") rather than a fallback noun ("iPhone", "Apple Silicon",
+    /// "Intel Mac") or the Simulator's host description (5.8 review: those were shown as the chip).
+    var chipIdentified: Bool {
+        cachedChipName.range(of: "^[AM][0-9]", options: .regularExpression) != nil || cachedChipName == "Intel Mac"
+    }
+
+    /// The chip name for a screen: the name, or "Chip not identified". The Simulator keeps its "Simulator on M3 Pro".
+    var chipDisplayName: String {
+        if chipIdentified || cachedChipName.hasPrefix("Simulator") { return cachedChipName }
+        return "Chip not identified"
+    }
+
+    /// A Mac's model identifier ("Mac15,7") from `hw.model`; `uname` gives only "arm64" there (5.8 review).
+    nonisolated static func macModelIdentifier() -> String? {
+        var size = 0
+        guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("hw.model", &buffer, &size, nil, 0) == 0 else { return nil }
+        let model = String(cString: buffer)
+        return model.isEmpty ? nil : model
+    }
 
     /// Memory the system reports (`ProcessInfo.physicalMemory`), in GB.
     var memoryGB: Double { cachedMemoryGB }

@@ -143,10 +143,10 @@ extension SettingsView {
         case .standard:
             return "Checks the answer against your documents, and searches more when the first search is thin. The fastest."
         case .deepThink:
-            return "Searches up to 5 phrasings and builds the answer in a chain of sessions, for comparisons and questions that need several passages."
+            return "Searches up to 5 phrasings and can build the answer in a chain of sessions, for comparisons and questions that need several passages."
         case .maximum:
             // The daily limit is a How Much tile (5.8), so this stays two lines like the other modes.
-            return "After its strongest searches, up to 50 sessions over every passage found, stopping when its findings stop changing. The slowest."
+            return "After its strongest searches, up to 50 sessions over the passages found, stopping when its findings settle. Usually the slowest."
         default:
             return mode.description
         }
