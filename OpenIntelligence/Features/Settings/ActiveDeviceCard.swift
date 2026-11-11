@@ -235,6 +235,7 @@ struct ActiveDeviceCard: View {
                 row("Pages held at once", "\(envelope.pdfRenderSlots)")
                 row("Page detail", maximum ? "432 DPI, every page" : "360 DPI, 432 for hard pages")
                 row("Search", "one matrix pass from \(envelope.batchMatrixMultiplyThreshold) passages")
+                row("Reranked", "up to \(device.activeDepth.rerankCeiling) passages")
                 row("Deep Think stops at", "\(deepThink)% confidence")
             }
             Text(

@@ -469,8 +469,12 @@ final class DeviceCapabilityService: @unchecked Sendable {
         GPUExecutionProfile(legacyLevel: activeGPUAccelerationLevel)
     }
 
-    /// Actual Vision OCR concurrency ceiling used to avoid Metal command buffer instability.
-    var visionOperationConcurrency: Int {
+    /// Actual Vision OCR concurrency ceiling used to avoid Metal command buffer instability, paced by the profile
+    /// (`paced(_:for:)`: Efficiency takes half, 5.8).
+    var visionOperationConcurrency: Int { Self.paced(baseVisionOperationConcurrency, for: Self.selectedProfile) }
+
+    /// The chip's ceiling before the profile paces it.
+    private var baseVisionOperationConcurrency: Int {
         if isBackgroundCPUSafeIngestionActive {
             return 1
         }
@@ -681,7 +685,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
     ///
     /// IMPORTANT: Mac needs LOWER values despite more power!
     /// macOS Metal command buffer scheduling differs from iOS.
-    var visionParsingConcurrency: Int {
+    var visionParsingConcurrency: Int { Self.paced(baseVisionParsingConcurrency, for: Self.selectedProfile) }
+
+    private var baseVisionParsingConcurrency: Int {
         if isBackgroundCPUSafeIngestionActive {
             return 1
         }
@@ -745,6 +751,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// This prevents the OOM crash where 10 × 206 MB = 2 GB of images were held simultaneously.
     /// Quality is UNCHANGED: still 360 DPI, same preprocessing, same Vision accuracy.
     var pdfRenderingConcurrency: Int {
+        Self.paced(basePDFRenderingConcurrency(fullDetail: isMaximumFidelityActive), for: Self.selectedProfile)
+    }
+
+    /// Pages held at once before the profile paces it; `fullDetail` is Maximum's 432 DPI, full-size layout page.
+    private func basePDFRenderingConcurrency(fullDetail: Bool) -> Int {
         if isBackgroundCPUSafeIngestionActive {
             return 1
         }
@@ -753,11 +764,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
         // 206 MB per page. Maximum reads every page at 432 DPI with the layout pass at full size, about 592 MB a
         // page (411 MB at 360 DPI x 1.44), so fewer pages are held at once: 2 on an 8 GB iPhone against 4.
         let maxSafeMemoryMB = (cachedMemoryGB * 1024.0) * 0.15
-        let megabytesPerPage = isMaximumFidelityActive ? MaximumFidelity.megabytesPerPage : 206.0
+        let megabytesPerPage = fullDetail ? MaximumFidelity.megabytesPerPage : 206.0
         // Two pages at least in Maximum: an "8 GB" iPhone reports about 7.5, which rounded Maximum down to one page
         // at a time (the owner's iPhone, 2026-11-10). Two full-detail pages (1.2 GB) are less than the four
         // full-size pages (1.6 GB) every profile already holds for a document of tables.
-        let maxPagesByRam = max(isMaximumFidelityActive ? 2 : 1, Int(maxSafeMemoryMB / megabytesPerPage))
+        let maxPagesByRam = max(fullDetail ? 2 : 1, Int(maxSafeMemoryMB / megabytesPerPage))
 
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             if cachedTier == .unsupported {
@@ -781,7 +792,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Metal Feature Set: SIMD-scoped matrix multiply available on Apple7+.
     /// STABLE: Reduced after Metal synchronizeResource crashes.
     /// GPU boost mode disabled - caused Metal command buffer conflicts.
-    var embeddingConcurrency: Int {
+    var embeddingConcurrency: Int { Self.paced(baseEmbeddingConcurrency, for: Self.selectedProfile) }
+
+    private var baseEmbeddingConcurrency: Int {
         if isBackgroundCPUSafeIngestionActive {
             return 2
         }
@@ -938,24 +951,98 @@ final class DeviceCapabilityService: @unchecked Sendable {
         static let keywordLimit = 120
     }
 
-    /// Whether Maximum's extra work runs now: the profile is Maximum after the device's ceiling, the import is not in
-    /// the background's CPU-safe mode, the device is not hot, and Low Power Mode is off.
-    nonisolated var isMaximumFidelityActive: Bool {
-        guard !isBackgroundCPUSafeIngestionActive else { return false }
-        guard Self.maximumProfileSelected else { return false }
-        // A device whose ceiling lowers Maximum to Performance (iPad mini) runs as Performance here too.
-        guard Self.maxSafeGPUAccelerationLevel(formFactor: cachedFormFactor, tier: cachedTier) >= 0.9 else { return false }
-        let thermal = ProcessInfo.processInfo.thermalState
-        return thermal != .serious && thermal != .critical && !ProcessInfo.processInfo.isLowPowerModeEnabled
+    /// How deeply each job reads and searches, per profile (5.8). Until 5.8 every profile below Maximum ran the same
+    /// depth and Maximum jumped to the top values; the owner asked (2026-11-10) for the steps to ramp. Depth never
+    /// goes below Balanced's values, which are the ones 5.7 shipped and measured: accuracy comes first, so Efficiency
+    /// saves energy by doing fewer things at once (`paced(_:for:)`), not by reading less. Performance's values are the
+    /// midpoint between Balanced and Maximum and, like Maximum's, are unmeasured until benchmark day (2026-11-11).
+    nonisolated struct Depth: Equatable, Sendable {
+        /// Hard regions re-read per page.
+        let rescueRegions: Int
+        /// Passages the reranker scores at most, and at least.
+        let rerankCeiling: Int
+        let rerankFloor: Int
+        /// Keyword-search results taken at most.
+        let keywordLimit: Int
+        /// Every page text recognition reads is drawn at 432 DPI and gets the layout pass at full size (otherwise
+        /// 360 DPI, and 432 and full size only for hard pages).
+        let fullDetailPages: Bool
+
+        static let standard = Depth(rescueRegions: 12, rerankCeiling: 250, rerankFloor: 100, keywordLimit: 60, fullDetailPages: false)
+        static let performance = Depth(rescueRegions: 18, rerankCeiling: 325, rerankFloor: 125, keywordLimit: 90, fullDetailPages: false)
+        static let maximum = Depth(
+            rescueRegions: MaximumFidelity.rescueRegions, rerankCeiling: MaximumFidelity.rerankCeiling,
+            rerankFloor: MaximumFidelity.rerankFloor, keywordLimit: MaximumFidelity.keywordLimit, fullDetailPages: true)
+
+        static func forProfile(_ profile: GPUExecutionProfile) -> Depth {
+            switch profile {
+            case .efficiency, .balanced: return .standard
+            case .performance: return .performance
+            case .maximum: return .maximum
+            }
+        }
     }
 
-    /// The stored profile is Maximum. Read from defaults so any thread can ask. `OI_MAXIMUM_FIDELITY=on` or `off` in
-    /// the environment overrides it, so a benchmark can compare the two on one build.
-    nonisolated static var maximumProfileSelected: Bool {
-        if ProcessInfo.processInfo.environment["OI_MAXIMUM_FIDELITY"] == "on" { return true }
-        if ProcessInfo.processInfo.environment["OI_MAXIMUM_FIDELITY"] == "off" { return false }
-        return UserDefaults.standard.string(forKey: GPUDefaults.profile) == GPUExecutionProfile.maximum.rawValue
+    /// The depth in force now: the stored profile after the device's ceiling (an iPad mini runs Maximum as
+    /// Performance), and Balanced's depth in a background CPU-safe import, while the device is hot, or in Low Power Mode.
+    nonisolated var activeDepth: Depth {
+        guard !isBackgroundCPUSafeIngestionActive else { return .standard }
+        let thermal = ProcessInfo.processInfo.thermalState
+        guard thermal != .serious, thermal != .critical, !ProcessInfo.processInfo.isLowPowerModeEnabled else { return .standard }
+        var profile = Self.selectedProfile
+        let ceiling = Self.maxSafeGPUAccelerationLevel(formFactor: cachedFormFactor, tier: cachedTier)
+        if profile == .maximum, ceiling < 0.9 { profile = .performance }
+        if profile == .performance, ceiling < 0.6 { profile = .balanced }
+        return .forProfile(profile)
     }
+
+    /// Whether Maximum's full-detail pages are in force now (`activeDepth`).
+    nonisolated var isMaximumFidelityActive: Bool { activeDepth.fullDetailPages }
+
+    /// How many things a job does at once under a profile (5.8): Efficiency takes half the chip's ceiling, rounded up,
+    /// so an import runs cooler and slower with the same result; the other profiles take the ceiling, which is set for
+    /// stability on each chip and is not raised. A ceiling of 1 stays 1.
+    nonisolated static func paced(_ ceiling: Int, for profile: GPUExecutionProfile) -> Int {
+        switch profile {
+        case .efficiency: return max(1, (ceiling + 1) / 2)
+        case .balanced, .performance, .maximum: return ceiling
+        }
+    }
+
+    /// What Settings shows for a profile before it is chosen: pages parsed, read and drawn at once, and passages
+    /// embedded at once, with that profile's pacing and page size.
+    func concurrency(for profile: GPUExecutionProfile) -> (visionParsing: Int, ocr: Int, render: Int, embedding: Int) {
+        let fullDetail = Depth.forProfile(profile).fullDetailPages
+        let parsing = Self.paced(baseVisionParsingConcurrency, for: profile)
+        return (parsing, isBackgroundCPUSafeIngestionActive ? 1 : parsing,
+                Self.paced(basePDFRenderingConcurrency(fullDetail: fullDetail), for: profile),
+                Self.paced(baseEmbeddingConcurrency, for: profile))
+    }
+
+    /// The stored profile, readable from any thread. `OI_COMPUTE_PROFILE` (efficiency, balanced, performance,
+    /// maximum) overrides it for depth and pacing, and `OI_MAXIMUM_FIDELITY=on` or `off` (maximum or balanced), so a
+    /// benchmark can compare profiles on one build.
+    nonisolated static var selectedProfile: GPUExecutionProfile {
+        let environment = ProcessInfo.processInfo.environment
+        if let profile = environment["OI_COMPUTE_PROFILE"].flatMap(profileNamed) { return profile }
+        if environment["OI_MAXIMUM_FIDELITY"] == "on" { return .maximum }
+        if environment["OI_MAXIMUM_FIDELITY"] == "off" { return .balanced }
+        return UserDefaults.standard.string(forKey: GPUDefaults.profile).flatMap(profileNamed) ?? .balanced
+    }
+
+    /// A profile from its stored name, matched by hand so any thread can call it.
+    nonisolated private static func profileNamed(_ name: String) -> GPUExecutionProfile? {
+        switch name {
+        case "efficiency": return .efficiency
+        case "balanced": return .balanced
+        case "performance": return .performance
+        case "maximum": return .maximum
+        default: return nil
+        }
+    }
+
+    /// The stored profile is Maximum (`selectedProfile`).
+    nonisolated static var maximumProfileSelected: Bool { selectedProfile == .maximum }
 
     /// Whether large searches use Metal (`searchesLargeLibrariesOnGPU(for:)`).
     var useMetalForVectorOps: Bool {

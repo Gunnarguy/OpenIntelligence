@@ -299,11 +299,12 @@ extension SettingsView {
                     systemOffersBackgroundGPU: computeSystemOffersBackgroundGPU,
                     deviceNoun: computeDeviceNoun(deviceService),
                     backgroundNote: { backgroundImportNote(for: $0, deviceService: deviceService) },
-                    concurrency: ComputeProfileCard.Concurrency(
-                        visionParsingPages: deviceService.visionParsingConcurrency,
-                        ocrPages: deviceService.ocrExtractionConcurrency,
-                        renderSlots: deviceService.pdfRenderingConcurrency,
-                        embeddingParallel: deviceService.embeddingConcurrency),
+                    concurrencyFor: { profile in
+                        let pace = deviceService.concurrency(for: profile)
+                        return ComputeProfileCard.Concurrency(
+                            visionParsingPages: pace.visionParsing, ocrPages: pace.ocr, renderSlots: pace.render,
+                            embeddingParallel: pace.embedding)
+                    },
                     onSelect: { profile in
                         withAnimation(DSAnimations.snappySpring) { gpuProfile = profile }
                         DeviceCapabilityService.shared.gpuExecutionProfile = profile

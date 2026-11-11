@@ -27,7 +27,9 @@ struct ComputeProfileCard: View {
     let deviceNoun: String
     /// What an import in the background does with a profile on this device, in words (Settings' own rule text).
     let backgroundNote: (GPUExecutionProfile) -> String
-    let concurrency: Concurrency
+    /// Pages and passages a job does at once under each profile (`DeviceCapabilityService.concurrency(for:)`): Efficiency
+    /// takes half the chip's ceiling (5.8).
+    let concurrencyFor: (GPUExecutionProfile) -> Concurrency
     var onSelect: (GPUExecutionProfile) -> Void
 
     struct Concurrency {
@@ -117,6 +119,9 @@ struct ComputeProfileCard: View {
     }
 
     func workloads(for profile: GPUExecutionProfile) -> [Workload] {
+        let concurrency = concurrencyFor(profile)
+        let depth = DeviceCapabilityService.Depth.forProfile(profile)
+        let deeper = depth != .standard
         let searching = DeviceCapabilityService.coreMLComputeUnits(for: profile)
         let importing = DeviceCapabilityService.embeddingComputeUnits(for: profile)
         let cleanup = DeviceCapabilityService.cleansScannedPagesOnGPU(for: profile)
@@ -128,18 +133,22 @@ struct ComputeProfileCard: View {
                 engine: "Core ML, MLComputeUnits \(Self.unitsName(searching))",
                 detail: "Each question is turned into a 384-number embedding by the app's embedding model. Core ML may "
                     + "place each of its layers on \(GPUExecutionProfile.chipNames(searching)), and picks the fastest."
-                    + (profile == .maximum
-                        ? " Maximum also reranks up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages (250 otherwise), takes up to \(DeviceCapabilityService.MaximumFidelity.keywordLimit) keyword results (60), and loads its models for prediction speed."
+                    + (deeper
+                        ? " \(profile.displayName) also reranks up to \(depth.rerankCeiling) passages (250 in Balanced) and takes up to \(depth.keywordLimit) keyword results (60)"
+                            + (profile == .maximum ? ", and loads its models for prediction speed." : ".")
                         : ""),
                 note: nil),
             Workload(
                 id: "import", name: "Import documents", icon: "square.and.arrow.down", chips: Self.chips(importing),
                 engine: "Core ML, MLComputeUnits \(Self.unitsName(importing))",
                 detail: "Every passage of a new document is embedded, \(concurrency.embeddingParallel) at a time, on "
-                    + "\(GPUExecutionProfile.chipNames(importing)). How many at a time is set by the \(chipName), not by "
-                    + "the profile."
+                    + "\(GPUExecutionProfile.chipNames(importing)). How many at a time is set by the \(chipName)"
+                    + (profile == .efficiency ? "; Efficiency takes half, so an import runs cooler and slower with the same result." : ".")
+                    + (profile == .performance
+                        ? " Performance re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced). It steps down while the device is hot, in Low Power Mode or in the background."
+                        : "")
                     + (profile == .maximum
-                        ? " Maximum draws every page that text recognition reads at 432 DPI (360 otherwise, 432 only for hard pages), runs the layout pass at full size, re-reads up to \(DeviceCapabilityService.MaximumFidelity.rescueRegions) hard regions a page (12), and holds \(concurrency.renderSlots) pages at once to fit them. It steps down while the device is hot, in Low Power Mode or in the background."
+                        ? " Maximum draws every page that text recognition reads at 432 DPI (360 otherwise, 432 only for hard pages), runs the layout pass at full size, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds \(concurrency.renderSlots) pages at once to fit them. It steps down while the device is hot, in Low Power Mode or in the background."
                         : ""),
                 note: nil),
             Workload(
@@ -403,15 +412,28 @@ struct ComputeProfileCard: View {
             detail = "Every page read at 432 DPI, layout at full size\nDeeper search: up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages reranked"
             symbol = "bolt.circle.fill"
         } else if let previous {
+            // What this step adds beyond chips (5.8): Balanced does twice Efficiency's work at once, Performance
+            // searches and re-reads deeper. Two lines at most, chips first.
+            let depth = DeviceCapabilityService.Depth.forProfile(profile)
+            var extras: [String] = []
+            if previous == .efficiency, concurrencyFor(profile).renderSlots > concurrencyFor(previous).renderSlots
+                || concurrencyFor(profile).embeddingParallel > concurrencyFor(previous).embeddingParallel
+            {
+                extras.append("Twice as much at once: faster imports")
+            }
+            if depth != DeviceCapabilityService.Depth.forProfile(previous) {
+                extras.append("Deeper search: up to \(depth.rerankCeiling) reranked, \(depth.rescueRegions) regions re-read")
+            }
+            let all = Array((lines + extras).prefix(2))
             title =
-                lines.isEmpty
+                all.isEmpty
                 ? "On this \(deviceNoun), \(profile.displayName) runs exactly like \(previous.displayName)"
                 : "\(profile.displayName) adds to \(previous.displayName)"
             detail =
-                lines.isEmpty
-                ? "Every job uses the same chips. It differs only where it lets an import in the background keep the GPU."
-                : lines.joined(separator: "\n")
-            symbol = lines.isEmpty ? "equal.circle.fill" : "plus.circle.fill"
+                all.isEmpty
+                ? "Every job uses the same chips and the same depth."
+                : all.joined(separator: "\n")
+            symbol = all.isEmpty ? "equal.circle.fill" : "plus.circle.fill"
         } else {
             title = "The base step"
             detail = "The CPU and the Neural Engine only. Each step to the right adds to it."
@@ -582,27 +604,33 @@ struct ComputeProfileCard: View {
     /// How hard each job runs, as six tiles in the dots' language (5.8): the value in force now, lit where the
     /// profile turns it up. Only Maximum does; the tiles show that at a glance instead of a second list under the card.
     private var intensityGrid: some View {
-        typealias Max = DeviceCapabilityService.MaximumFidelity
-        let on = profile == .maximum
-        let tiles: [(String, String, String)] = [
-            ("Page detail", on ? "432 DPI" : "360-432", "doc.viewfinder"),
-            ("Layout pass", on ? "Full size" : "Half", "rectangle.split.2x2"),
-            ("Pages at once", "\(concurrency.renderSlots)", "square.stack"),
-            ("Re-read", "\(on ? Max.rescueRegions : 12) regions", "arrow.clockwise"),
-            ("Reranked", "up to \(on ? Max.rerankCeiling : 250)", "arrow.up.arrow.down"),
-            ("Keywords", "up to \(on ? Max.keywordLimit : 60)", "textformat"),
+        let depth = DeviceCapabilityService.Depth.forProfile(profile)
+        let base = DeviceCapabilityService.Depth.standard
+        let pages = concurrencyFor(profile).renderSlots
+        let basePages = concurrencyFor(.balanced).renderSlots
+        // Each tile against Balanced: 1 deeper or more at once, -1 fewer at once, 0 the same.
+        let tiles: [(String, String, String, Int)] = [
+            ("Page detail", depth.fullDetailPages ? "432 DPI" : "360-432", "doc.viewfinder", depth.fullDetailPages ? 1 : 0),
+            ("Layout pass", depth.fullDetailPages ? "Full size" : "Half", "rectangle.split.2x2", depth.fullDetailPages ? 1 : 0),
+            ("Pages at once", "\(pages)", "square.stack", pages > basePages ? 1 : (pages < basePages ? -1 : 0)),
+            ("Re-read", "\(depth.rescueRegions) regions", "arrow.clockwise", depth.rescueRegions > base.rescueRegions ? 1 : 0),
+            ("Reranked", "up to \(depth.rerankCeiling)", "arrow.up.arrow.down", depth.rerankCeiling > base.rerankCeiling ? 1 : 0),
+            ("Keywords", "up to \(depth.keywordLimit)", "textformat", depth.keywordLimit > base.keywordLimit ? 1 : 0),
         ]
+        let tint = Self.color(for: profile)
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("HOW HARD")
                 .scaledFont(size: 9, weight: .semibold, design: .monospaced)
                 .foregroundStyle(.secondary)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 3), spacing: DSSpacing.xs) {
                 ForEach(tiles, id: \.0) { tile in
+                    let up = tile.3 > 0
+                    let down = tile.3 < 0
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 3) {
-                            Image(systemName: on ? "bolt.fill" : tile.2)
+                            Image(systemName: up ? "bolt.fill" : (down ? "tortoise.fill" : tile.2))
                                 .scaledFont(size: 8, weight: .bold)
-                                .foregroundStyle(on ? Self.color(for: .maximum) : .secondary)
+                                .foregroundStyle(up ? tint : .secondary)
                             Text(tile.0)
                                 .scaledFont(size: 9, weight: .medium)
                                 .foregroundStyle(.secondary)
@@ -611,7 +639,7 @@ struct ComputeProfileCard: View {
                         }
                         Text(tile.1)
                             .scaledFont(size: 12, weight: .bold, design: .rounded)
-                            .foregroundStyle(on ? Self.color(for: .maximum) : .primary)
+                            .foregroundStyle(up ? tint : (down ? .secondary : .primary))
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                             .contentTransition(.numericText())
@@ -621,13 +649,14 @@ struct ComputeProfileCard: View {
                     .padding(.vertical, DSSpacing.xs)
                     .background(
                         RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .fill(on ? Self.color(for: .maximum).opacity(0.10) : Color.secondary.opacity(0.07))
+                            .fill(up ? tint.opacity(0.10) : Color.secondary.opacity(0.07))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .strokeBorder(Self.color(for: .maximum).opacity(on ? 0.5 : 0), lineWidth: 1)
+                            .strokeBorder(tint.opacity(up ? 0.5 : 0), lineWidth: 1)
                     )
                     .accessibilityElement(children: .combine)
+                    .accessibilityValue(up ? "more than Balanced" : (down ? "fewer than Balanced" : "same as Balanced"))
                 }
             }
         }
@@ -665,10 +694,7 @@ struct ComputeProfileCard: View {
                 fixedRow(
                     "Reading text in images and scans", chips: [.gpu],
                     detail: "Vision; each page is prepared for recognition on the GPU.")
-                fixedRow(
-                    "Pages at a time", chips: [],
-                    detail: "\(concurrency.visionParsingPages) parsed, \(concurrency.ocrPages) read by text recognition, "
-                        + "\(concurrency.renderSlots) drawn at once: set by the \(chipName).")
+                // "Pages at a time" left this list in 5.8: Efficiency halves it, and How Hard shows it per profile.
             }
         }
         .animation(reduceMotion ? nil : .snappy, value: showsFixed)

@@ -1230,11 +1230,9 @@ class HybridSearchService {
         // Run vector search and FTS5 search concurrently as two independent ranked lists.
         // Neither result set influences the other — they're merged purely via RRF.
         let vectorCandidateMultiplier = topK > 50 ? 2 : 3
-        // FTS5 is fast; retrieve a generous pool. Maximum (the compute profile) takes up to 120 (5.8).
-        let fts5Limit = min(
-            topK * 3,
-            DeviceCapabilityService.shared.isMaximumFidelityActive
-                ? DeviceCapabilityService.MaximumFidelity.keywordLimit : 60)
+        // FTS5 is fast; retrieve a generous pool: up to 60 in Efficiency and Balanced, 90 in Performance, 120 in
+        // Maximum (the compute profile, 5.8).
+        let fts5Limit = min(topK * 3, DeviceCapabilityService.shared.activeDepth.keywordLimit)
 
         async let vectorTask = vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
         async let fts5Task = SQLiteFullTextService.shared.searchChunks(

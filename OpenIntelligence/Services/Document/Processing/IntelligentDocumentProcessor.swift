@@ -276,9 +276,8 @@ actor IntelligentDocumentProcessor {
             return lhs.boundingBox.minX < rhs.boundingBox.minX
         }
 
-        let limit =
-            DeviceCapabilityService.shared.isMaximumFidelityActive
-            ? DeviceCapabilityService.MaximumFidelity.rescueRegions : 12
+        // 12 in Efficiency and Balanced, 18 in Performance, 24 in Maximum (5.8).
+        let limit = DeviceCapabilityService.shared.activeDepth.rescueRegions
         return Array(prioritized.prefix(limit))
     }
 

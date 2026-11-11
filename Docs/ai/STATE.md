@@ -2,7 +2,7 @@
 
 Updated: 2026-11-10 about 16:20 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 02a728f1
+Last verified commit: b1b91cd7
 
 ## Objective
 
@@ -62,7 +62,7 @@ headroom) was running in the background; its report is not in the repo yet.
 
 ## Blockers / Unknowns
 
-- **Maximum and the retrieval fix are unmeasured.** Benchmark day: Maximum vs Balanced (`OI_MAXIMUM_FIDELITY`) on extraction fidelity, tables 158, QASPER 246; 5.7 vs 5.8; presets High Precision, Technical Manual, Exploratory; iOS 27 structured-generation failure rate; title-row fix on the 515 page checks; `fastPrediction` on and off (embedding and rerank ms).
+- **Maximum, Performance's new depth and the retrieval fix are unmeasured.** Benchmark day: Balanced, Performance and Maximum (`OI_COMPUTE_PROFILE=balanced|performance|maximum`; Performance reranks 325, 90 keywords, 18 regions since 2026-11-10) on extraction fidelity, tables 158, QASPER 246; 5.7 vs 5.8; presets High Precision, Technical Manual, Exploratory; iOS 27 structured-generation failure rate; title-row fix on the 515 page checks; `fastPrediction` on and off (embedding and rerank ms).
 - **GPU vector search** (Performance, Maximum) measured slower than CPU on an M3 Pro (`BenchmarkRuns/2026-10-19-metal-vs-vdsp-search`); not measured on iPhone. Measure, then move large searches to the CPU if it holds.
 - **Settings values nothing reads**: done 2026-11-10 for `vectorBatchSize` (removed) and `embeddingBatchSize` (now the batch `EmbeddingService` uses). `maxChunksPerSearchYield` is defined in `DeviceCapabilityService` and read by nothing, shown nowhere; remove or wire it up.
 - White Chat cause unknown (recovery in place). Rest of the Mac save crash needs `BNNSVectorDatabase.swift` named. `renderPageForParsing` still on the main thread.
@@ -71,6 +71,7 @@ headroom) was running in the background; its report is not in the repo yet.
 
 ## Exact Next Action
 
-Start benchmark day: run the extraction-fidelity set twice on one build, `OI_MAXIMUM_FIDELITY=off` then `on`, and
-compare; then tables 158 and QASPER 246 the same way. Before that, if the owner names another Settings screen to
-change, do that first (he said one related screen is next).
+Start benchmark day: run the extraction-fidelity set three times on one build, `OI_COMPUTE_PROFILE=balanced`, then
+`performance`, then `maximum`, and compare; then tables 158 and QASPER 246 the same way. Each profile ships its depth
+only if it reads and finds at least as well as Balanced. The Active Device card (2026-11-10, b1b91cd7) and the
+profile ramp still wait on the owner's look on his phone.

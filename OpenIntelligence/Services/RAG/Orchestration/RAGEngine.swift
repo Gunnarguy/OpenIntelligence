@@ -373,10 +373,11 @@ actor RAGEngine {
         // - Medium corpus: topK * 5 (50 candidates for topK=10)
         // - Large corpus: cap at 250 to bound latency (cross-encoder is O(n))
         // Always at least 100 to maintain existing behavior for normal queries.
-        // Maximum (the compute profile) scores more: up to 400, at least 150 (5.8).
-        let maximum = DeviceCapabilityService.shared.isMaximumFidelityActive
-        let ceiling = maximum ? DeviceCapabilityService.MaximumFidelity.rerankCeiling : 250
-        let floor = maximum ? DeviceCapabilityService.MaximumFidelity.rerankFloor : 100
+        // The compute profile scores more from Performance up (5.8): 250 and 100 in Efficiency and Balanced, 325 and 125
+        // in Performance, 400 and 150 in Maximum.
+        let depth = DeviceCapabilityService.shared.activeDepth
+        let ceiling = depth.rerankCeiling
+        let floor = depth.rerankFloor
         let adaptiveCeiling = min(chunks.count, max(floor, min(ceiling, topK * 5)))
         let candidateChunks = Array(chunks.prefix(adaptiveCeiling))
         // Say when the ceiling leaves candidates out (roadmap F-03, 5.7): a passage past it never
