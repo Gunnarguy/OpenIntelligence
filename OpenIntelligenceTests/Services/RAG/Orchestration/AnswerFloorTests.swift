@@ -117,6 +117,8 @@ final class AnswerFloorTests: XCTestCase {
         XCTAssertGreaterThan(Max.keywordLimit, 60)
         XCTAssertGreaterThan(Max.rescueRegions, 12)
         XCTAssertEqual(Int(8.0 * 1024 * 0.15 / Max.megabytesPerPage), 2)
+        // A reported 7.5 GB rounds to one; the code holds two at least in Maximum.
+        XCTAssertEqual(Int(7.5 * 1024 * 0.15 / Max.megabytesPerPage), 1)
     }
 
     /// Statistical values make a question a value question, by whole words.

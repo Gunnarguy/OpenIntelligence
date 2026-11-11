@@ -491,9 +491,6 @@ extension SettingsView {
 
             // Until 5.7: "Choose how OpenIntelligence schedules GPU-capable work...". The profiles cover the Core ML
             // embedding model, the Core Image cleanup of scanned pages and Metal vector search, never Apple's model.
-            Text("Which of your chips the app's own work may use. Apple's frameworks pick among the ones allowed.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if deviceService.activeGPUExecutionProfile != gpuProfile {
                 HStack(spacing: DSSpacing.xs) {
@@ -532,17 +529,18 @@ extension SettingsView {
 
                 // One line (5.8): the background rule now sits in its job's row on the card, and "Same in every profile"
                 // says what the setting does not cover; three paragraphs here repeated both (the owner, 2026-11-10).
-                Text("Applies from the next import, and to searching from the next launch.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
-            .padding(DSSpacing.md)
+            .padding(DSSpacing.sm)
             .background(DSColors.surface)
             .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             .animation(DSAnimations.fastEase, value: gpuProfile)
 
-            Divider()
-                .padding(.vertical, DSSpacing.xxs)
+            // Everything under the card is folded into one row (5.8): it repeated the card in a second layout and
+            // pushed the section past one screen on an iPhone 16 Pro Max (the owner, 2026-11-10).
+            FoldedDetails(title: "More detail") {
+            Text("Applies from the next import, and to searching from the next launch.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack(spacing: DSSpacing.sm) {
@@ -623,7 +621,8 @@ extension SettingsView {
                 gpuSettingRow(
                     icon: "photo.stack",
                     label: "PDF Render Slots",
-                    value: "\(deviceService.pdfRenderingConcurrency) concurrent (adaptive 360/432 DPI)"
+                    value: "\(deviceService.pdfRenderingConcurrency) concurrent "
+                        + (deviceService.isMaximumFidelityActive ? "(432 DPI)" : "(adaptive 360/432 DPI)")
                 )
                 gpuSettingRow(
                     icon: "cube.transparent",
@@ -632,6 +631,7 @@ extension SettingsView {
                 )
             }
             .animation(DSAnimations.fastEase, value: gpuProfile)
+            }
             }
             // Until 5.7 a warning here said Maximum "may cause device heating during large document ingestion".
             // An import runs the same rules in Balanced, Performance and Maximum while the app is open, so the

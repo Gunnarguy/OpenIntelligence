@@ -217,9 +217,10 @@ struct ComputeProfileCard: View {
             Text(profile.engagement.summary)
                 .scaledFont(size: 11)
                 .foregroundStyle(.secondary)
-                .lineLimit(3, reservesSpace: true)
+                .lineLimit(2, reservesSpace: true)
             addsBanner
             jobsList
+            intensityGrid
             sameEverywhere
         }
         .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.82), value: profile)
@@ -518,7 +519,7 @@ struct ComputeProfileCard: View {
                         .scaledFont(size: 10, weight: .semibold, design: .monospaced)
                         .foregroundStyle(
                             Self.color(for: profile) == .secondary ? Color.primary : Self.color(for: profile))
-                    Text(row.note.map { "\(row.detail) \($0)" } ?? row.detail)
+                    Text(row.detail)
                         .scaledFont(size: 11)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -574,6 +575,62 @@ struct ComputeProfileCard: View {
         }
         .frame(height: 22)
         .accessibilityHidden(true)
+    }
+
+    // MARK: How hard
+
+    /// How hard each job runs, as six tiles in the dots' language (5.8): the value in force now, lit where the
+    /// profile turns it up. Only Maximum does; the tiles show that at a glance instead of a second list under the card.
+    private var intensityGrid: some View {
+        typealias Max = DeviceCapabilityService.MaximumFidelity
+        let on = profile == .maximum
+        let tiles: [(String, String, String)] = [
+            ("Page detail", on ? "432 DPI" : "360-432", "doc.viewfinder"),
+            ("Layout pass", on ? "Full size" : "Half", "rectangle.split.2x2"),
+            ("Pages at once", "\(concurrency.renderSlots)", "square.stack"),
+            ("Re-read", "\(on ? Max.rescueRegions : 12) regions", "arrow.clockwise"),
+            ("Reranked", "up to \(on ? Max.rerankCeiling : 250)", "arrow.up.arrow.down"),
+            ("Keywords", "up to \(on ? Max.keywordLimit : 60)", "textformat"),
+        ]
+        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            Text("HOW HARD")
+                .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 3), spacing: DSSpacing.xs) {
+                ForEach(tiles, id: \.0) { tile in
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 3) {
+                            Image(systemName: on ? "bolt.fill" : tile.2)
+                                .scaledFont(size: 8, weight: .bold)
+                                .foregroundStyle(on ? Self.color(for: .maximum) : .secondary)
+                            Text(tile.0)
+                                .scaledFont(size: 9, weight: .medium)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        Text(tile.1)
+                            .scaledFont(size: 12, weight: .bold, design: .rounded)
+                            .foregroundStyle(on ? Self.color(for: .maximum) : .primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .contentTransition(.numericText())
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                            .fill(on ? Self.color(for: .maximum).opacity(0.10) : Color.secondary.opacity(0.07))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                            .strokeBorder(Self.color(for: .maximum).opacity(on ? 0.5 : 0), lineWidth: 1)
+                    )
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
     }
 
     // MARK: Same in every profile
@@ -636,5 +693,37 @@ struct ComputeProfileCard: View {
         }
         .padding(.horizontal, DSSpacing.xs)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A row that opens what is under it, closed at first (5.8): the detail under the Compute Profile card.
+struct FoldedDetails<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+    @State private var isOpen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            Button {
+                isOpen.toggle()
+            } label: {
+                HStack {
+                    Text(title)
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isOpen {
+                content()
+            }
+        }
+        .animation(reduceMotion ? nil : .snappy, value: isOpen)
     }
 }

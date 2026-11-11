@@ -101,7 +101,7 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
         case .performance:
             return "Everything this setting covers can use the graphics processor, large searches included."
         case .maximum:
-            return "Performance, turned up: every page read at full detail, deeper search when you ask. Slower imports and a warmer device, for the most careful reading."
+            return "Performance, turned up: full-detail pages and deeper search. Slower imports, warmer device."
         }
     }
 
@@ -829,7 +829,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
         // page (411 MB at 360 DPI x 1.44), so fewer pages are held at once: 2 on an 8 GB iPhone against 4.
         let maxSafeMemoryMB = (cachedMemoryGB * 1024.0) * 0.15
         let megabytesPerPage = isMaximumFidelityActive ? MaximumFidelity.megabytesPerPage : 206.0
-        let maxPagesByRam = max(1, Int(maxSafeMemoryMB / megabytesPerPage))
+        // Two pages at least in Maximum: an "8 GB" iPhone reports about 7.5, which rounded Maximum down to one page
+        // at a time (the owner's iPhone, 2026-11-10). Two full-detail pages (1.2 GB) are less than the four
+        // full-size pages (1.6 GB) every profile already holds for a document of tables.
+        let maxPagesByRam = max(isMaximumFidelityActive ? 2 : 1, Int(maxSafeMemoryMB / megabytesPerPage))
 
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             if cachedTier == .unsupported {
