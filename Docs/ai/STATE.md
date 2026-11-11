@@ -2,7 +2,7 @@
 
 Updated: 2026-11-10 about 16:20 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 967c6e41
+Last verified commit: 02a728f1
 
 ## Objective
 
@@ -31,12 +31,12 @@ erased before each run and has no speech model). Nothing below is checked on a d
 | Defects fixed for every profile | `VisionOCRThrottle` limits read at each use; import embedding batch follows the chip |
 | Trace | Three new lines: which penalty moved the reranker's pick, why a lookup is a definition, why a call was not held in the background |
 
-## Uncommitted (build `b0agjqu3b` was running when this was written)
+## Just landed (02a728f1)
 
-`ComputeProfileCard.swift`, `SettingsView+Device.swift`, `DeviceCapabilityService.swift`, `AnswerFloorTests.swift`,
-`CHANGELOG.md`: six "How hard" tiles on the card, everything under the card folded into a "More detail" row
-(`FoldedDetails`), Maximum holds at least 2 pages at once (it had rounded to 1 on a 7.5 GB iPhone). Commit only if
-`/private/tmp/oi-finish/test.log` shows 0 failures; the owner then checks the section fits one screen on his phone.
+Six "How hard" tiles on the Compute Profile card, everything under the card folded into a "More detail" row
+(`FoldedDetails`), Maximum holds at least 2 pages at once. Installed 16:12; the owner checks it fits one screen.
+A read-only audit of every per-device capability claim (background GPU, tier numbers, device mapping, unused
+headroom) was running in the background; its report is not in the repo yet.
 
 ## Active Constraints
 
@@ -71,7 +71,6 @@ erased before each run and has no speech model). Nothing below is checked on a d
 
 ## Exact Next Action
 
-Read `/private/tmp/claude-501/-Users-gunnarhostetler-Documents-GitHub-OpenIntelligence/a5622f44-45c7-4cc5-bbb8-ff09ee2a7ccb/tasks/b0agjqu3b.output`.
-If it shows 0 failures and "installed", commit the five uncommitted files with `[ci skip]` and push; if it shows a
-build error, fix it in `ComputeProfileCard.swift` or `SettingsView+Device.swift` and run `chain2.sh` again. Then start
-benchmark day with Maximum vs Balanced on the extraction-fidelity set.
+Start benchmark day: run the extraction-fidelity set twice on one build, `OI_MAXIMUM_FIDELITY=off` then `on`, and
+compare; then tables 158 and QASPER 246 the same way. Before that, if the owner names another Settings screen to
+change, do that first (he said one related screen is next).
