@@ -90,7 +90,7 @@ extension ContainerSettingsSheet {
             // is CPU work ("high-performance, energy-efficient computation on the CPU", Apple's Accelerate page, read
             // 2026-10-18), and a large library is searched with Metal under Performance and Maximum (5.7).
             Text(
-                "Vector search uses Apple's Accelerate framework on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal. Batch sizes are set for your device."
+                "Vector search uses Apple's Accelerate framework on the CPU. With the Compute Profile on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -114,16 +114,7 @@ extension ContainerSettingsSheet {
             }
 
             HStack(spacing: DSSpacing.md) {
-                siliconInfoPill(
-                    icon: "square.stack.3d.up",
-                    label: "Vector",
-                    value: "\(DeviceCapabilityService.shared.vectorBatchSize)"
-                )
-                siliconInfoPill(
-                    icon: "text.badge.checkmark",
-                    label: "Embed",
-                    value: "\(DeviceCapabilityService.shared.embeddingBatchSize)"
-                )
+                // "Vector" and "Embed" batch pills removed (5.8): nothing reads either value.
                 siliconInfoPill(
                     icon: "square.grid.3x3",
                     label: "Matrix",

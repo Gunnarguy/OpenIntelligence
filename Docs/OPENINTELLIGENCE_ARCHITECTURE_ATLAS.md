@@ -116,13 +116,22 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   `switch`, so lookup is compile-time total and returns no optional. Consumers attach a definition rather than
   restating one: `.definedTerm(_:)` on any view, `GlossaryInfoButton` on list rows, and `GlossaryView` as the
   searchable index. Wired at `OnboardingChecklistView` (pipeline capsules, metric strip, device chips),
-  `HowItWorksView` (the four pipeline stages), and `SettingsView` (Hardware Envelope rows, Silicon RAG batch
-  pills, the Neural Engine TOPS line, and the `Plain English` entry). The technical register's expansion state
+  `HowItWorksView` (the four pipeline stages), and `SettingsView` (the Silicon RAG rows and the `Plain English`
+  entry; the Hardware Envelope rows, the batch pills and the TOPS line went with the 5.8 `ActiveDeviceCard`). The technical register's expansion state
   is one shared `AppStorage` key, so it is a per-user preference rather than per-popover state.
   `GlossaryTests` enforces that a plain definition contains no code identifier, model name, framework name or
-  backtick, and pins the two hedges that must not be edited out: TOPS as a per-chip lookup rather than a
-  measurement, and Core ML rather than the app deciding whether the Neural Engine runs.
+  backtick, and pins the two hedges that must not be edited out: TOPS as Apple's published per-chip figure,
+  looked up rather than measured, and Core ML rather than the app deciding whether the Neural Engine runs.
   `[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: Glossary.swift, GlossaryTests.swift]`
+- **Device facts come only from Apple or the hardware (5.8).** `AppleDeviceCatalog` holds model names from Xcode
+  27.0's `device_traits.db`, chips from Apple's Tech Specs, and Neural Engine TOPS only for the seven chips Apple
+  published a figure for (M1, M1 Ultra, M2, M2 Pro, M2 Max, M2 Ultra, M4); `DeviceCapabilityService.npuTops` is
+  nil elsewhere and every screen omits the figure. The chip name on a device is the one Metal reports
+  (`resolvedChipName`), on a Mac the brand string. `ActiveDeviceCard` shows model, chip, memory as reported, CPU
+  clusters (`hw.perflevelN`), the Metal working set and the live thermal state, each with its source, and folds what
+  the app sets (Core ML routes, text-recognition and page concurrency, page DPI, the matrix-search threshold, Deep
+  Think's stopping confidence). `AppleDeviceCatalogTests` pins the TOPS list, the chip names and the iPad mappings.
+  `[evidence_level: code_verified+documented, confidence: high, evidence_source: AppleDeviceCatalog.swift, ActiveDeviceCard.swift, Apple newsroom and Tech Specs read 2026-11-10]`
 - `HowItWorksView` narrates the pipeline in order; `GlossaryView` defines single words out of order. They are
   deliberately not copies of each other, and each stage in the former links to the latter rather than
   restating a definition.

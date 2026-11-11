@@ -25,71 +25,12 @@ extension SettingsView {
         let deviceService = DeviceCapabilityService.shared
 
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            HStack {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .foregroundStyle(Color.accentColor)
-                Text("Active Device")
-                    .font(.headline)
-                Spacer()
-
-                // Device tier badge
-                Text(deviceService.tier.displayName)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(tierColor(for: deviceService.tier).opacity(0.15))
-                    .foregroundStyle(tierColor(for: deviceService.tier))
-                    .clipShape(Capsule())
-            }
-
-            // Chip & Memory info (dynamic)
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack(spacing: DSSpacing.sm) {
-                    Image(systemName: "cpu")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                    Text(deviceService.chipName)
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    Text("\(String(format: "%.0f", deviceService.memoryGB)) GB RAM")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                // The first figure a curious user meets in Settings, and the one most
-                // likely to be mistaken for a live measurement. Its definition says
-                // plainly that it is a per-chip lookup rather than something the app
-                // measured here.
-                if settings.showTechnicalDetails {
-                    HStack(spacing: DSSpacing.xs) {
-                        Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        GlossaryInfoButton(termID: .tops, size: .caption2)
-                        Spacer(minLength: 0)
-                    }
-                }
-
-                HStack(spacing: DSSpacing.md) {
-                    // Was "\(maxSteps) max sessions": 5 on an iPhone 15 Pro and 13 on an 18 GB M3 Pro, while Deep Think's
-                    // chain stops at 8 sessions on every device (`AgenticPolicyService.maxSessionsForMode`). What does
-                    // differ by device is the confidence it aims for (`optimizedAgenticConfig`) (5.7).
-                    deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "aims for \(Int(deviceService.optimizedAgenticConfig().confidenceThreshold * 100))%")
-                    deviceCapabilityPill(icon: "flame", label: "Thermal", value: deviceService.hasThermalHeadroom ? "High" : "Standard")
-                }
-            }
-            .padding(DSSpacing.md)
-            .background(DSColors.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            // What this device is and reports, each value with its source; with Technical Details on, a fold of what
+            // the app sets for it (5.8). Replaced the tier badge, the TOPS and cooling line, the Deep Think and Thermal
+            // pills and the Hardware Envelope (`ActiveDeviceCard`).
+            ActiveDeviceCard(showsInternals: settings.showTechnicalDetails)
 
             Divider()
-
-            // Device ID, Metal ceilings and Core ML routes: internals, with Technical Details on (5.7).
-            if settings.showTechnicalDetails {
-                hardwareEnvelopeSection(deviceService: deviceService)
-
-                Divider()
-            }
 
             // Context Window
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
@@ -209,110 +150,6 @@ extension SettingsView {
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
-    private func tierColor(for tier: DeviceCapabilityTier) -> Color {
-        switch tier {
-        case .unsupported: return .secondary
-        case .baseline: return .secondary
-        case .enhanced: return .accentColor
-        case .advanced: return .accentColor
-        case .ultraAdvanced: return .accentColor
-        }
-    }
-
-    @ViewBuilder
-    private func deviceCapabilityPill(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: DSSpacing.xs) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(label)
-                .font(.caption2)
-            Text(value)
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, DSSpacing.sm)
-        .padding(.vertical, DSSpacing.xs)
-        .background(Color.secondary.opacity(0.1))
-        .clipShape(Capsule())
-    }
-
-            @ViewBuilder
-            private func hardwareEnvelopeSection(deviceService: DeviceCapabilityService) -> some View {
-                let envelope = deviceService.hardwareExecutionEnvelope
-                let minImageBudgetMB = envelope.pdfPageMemory360MB * envelope.pdfRenderSlots
-                let maxImageBudgetMB = envelope.pdfPageMemory432MB * envelope.pdfRenderSlots
-                let imageBudgetText = "\(envelope.pdfRenderSlots) pages • ~\(minImageBudgetMB)-\(maxImageBudgetMB) MB @ adaptive 360-432 DPI"
-                let gpuCeilingText: String = {
-                    if envelope.activeGPUAccelerationLevel < envelope.requestedGPUAccelerationLevel {
-                        return "\(Int(envelope.activeGPUAccelerationLevel * 100))% active of \(Int(envelope.requestedGPUAccelerationLevel * 100))% requested"
-                    }
-                    return "Up to \(Int(envelope.maxSafeGPUAccelerationLevel * 100))% safe on this device"
-                }()
-
-                VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                    HStack(spacing: DSSpacing.sm) {
-                        Image(systemName: "cpu.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                        Text("Hardware Envelope")
-                            .font(.subheadline.weight(.medium))
-                        Spacer()
-                        Text("Core ML + Metal")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, DSSpacing.sm)
-                            .padding(.vertical, DSSpacing.xxs)
-                            .background(Color.accentColor.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-
-                    Text("These ceilings come from public hardware signals the app can inspect safely: device ID, chip mapping, RAM, Metal working-set budget, threadgroup limits, and crash-tested Vision/Core ML guardrails. Apple does not expose live Neural Engine occupancy.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    // This is the densest jargon in the app, and it is reached by anyone
-                    // curious enough to open Device & Performance rather than only by
-                    // developers. The rows that name a concept carry its definition; the
-                    // rows that report a raw system value do not, because there is nothing
-                    // to define about a Metal device name.
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        hardwareLimitRow(icon: "number", label: "Device ID", value: envelope.deviceIdentifier, term: .chip)
-                        hardwareLimitRow(icon: "memorychip", label: "Metal Device", value: envelope.metal.deviceName)
-                        hardwareLimitRow(icon: "square.stack.3d.up", label: "Unified Memory", value: "\(envelope.metal.hasUnifiedMemory ? "Yes" : "No") • \(envelope.metal.workingSetDescription) working set", term: .unifiedMemory)
-                        hardwareLimitRow(icon: "square.grid.3x3.fill", label: "Threadgroup Ceiling", value: "\(envelope.metal.maxThreadsPerThreadgroup) threads • \(envelope.metal.maxThreadgroupMemoryKB) KB shared")
-                        hardwareLimitRow(icon: "gauge.with.needle", label: "GPU Ceiling", value: gpuCeilingText, term: .gpuProfile)
-                        hardwareLimitRow(icon: "cpu", label: "CoreML Route", value: envelope.coreMLRoute, term: .neuralEngine)
-                        hardwareLimitRow(icon: "text.badge.checkmark", label: "Embedding Route", value: envelope.embeddingRoute, term: .vector)
-                        hardwareLimitRow(icon: "eye.fill", label: "Vision / ADM 3 Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown", term: .ocr)
-                        hardwareLimitRow(icon: "photo.stack", label: "Adaptive PDF Budget", value: imageBudgetText, term: .ocr)
-                        hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+", term: .searchBatch)
-                    }
-                }
-                .padding(DSSpacing.md)
-                .background(DSColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-            }
-
-            @ViewBuilder
-            private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {
-                HStack(spacing: DSSpacing.sm) {
-                    Image(systemName: icon)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16)
-                    Text(label)
-                        .font(.caption.weight(.medium))
-                    if let term {
-                        GlossaryInfoButton(termID: term, size: .caption2)
-                    }
-                    Spacer()
-                    Text(value)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
     @ViewBuilder
     private func contextInfoPill(icon: String, label: String, value: String) -> some View {
         HStack(spacing: DSSpacing.xs) {
@@ -328,17 +165,6 @@ extension SettingsView {
         .padding(.vertical, DSSpacing.xs)
         .background(Color.secondary.opacity(0.1))
         .clipShape(Capsule())
-    }
-
-    @ViewBuilder
-    private func neuralEngineInfoRow(icon: String, label: String) -> some View {
-        HStack(spacing: DSSpacing.xs) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(label)
-                .font(.caption2)
-        }
-        .foregroundStyle(.secondary)
     }
 
     // MARK: - Silicon-Native RAG Engine Section
@@ -369,7 +195,7 @@ extension SettingsView {
             // the multiplier was never measured.
             // "GPU level ≥ 60%" named a percentage the GPU setting no longer shows; the gate is
             // `searchesLargeLibrariesOnGPU(for:)` with the stores' own thresholds (5.7).
-            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) on the CPU. With the GPU setting on Performance or Maximum, Metal shaders take over cosine similarity for a library of 1,000 passages or more and the diversity step for more than 50 results. Batch sizes are set for the \(deviceService.chipName).")
+            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) on the CPU. With the Compute Profile on Performance or Maximum, Metal shaders take over cosine similarity for a library of 1,000 passages or more and the diversity step for more than 50 results. Below that, from \(deviceService.batchMatrixMultiplyThreshold) passages the CPU scores them all in one matrix pass.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -387,8 +213,8 @@ extension SettingsView {
                 )
                 siliconFeatureRow(
                     icon: "text.line.first.and.arrowtriangle.forward",
-                    label: "Semantic Chunking",
-                    detail: "Topic boundaries via embeddings"
+                    label: "Section Boundaries",
+                    detail: "Headings, tables, sentence ends"
                 )
                 siliconFeatureRow(
                     icon: "lock.fill",
@@ -397,26 +223,8 @@ extension SettingsView {
                 )
             }
 
-            // Batch size info
-            HStack(spacing: DSSpacing.md) {
-                siliconInfoPill(
-                    icon: "square.stack.3d.up",
-                    label: "Vector Batch",
-                    value: "\(deviceService.vectorBatchSize)",
-                    term: .searchBatch
-                )
-                siliconInfoPill(
-                    icon: "text.badge.checkmark",
-                    label: "Embed Batch",
-                    value: "\(deviceService.embeddingBatchSize)",
-                    term: .embedBatch
-                )
-                siliconInfoPill(
-                    icon: "square.grid.3x3.fill",
-                    label: "Matrix @",
-                    value: "\(deviceService.batchMatrixMultiplyThreshold)+"
-                )
-            }
+            // "Vector Batch" and "Embed Batch" pills removed (5.8): nothing reads either value. The CPU's one-pass
+            // threshold is in the text above.
         }
         .padding(DSSpacing.md)
         .background(DSColors.surfaceElevated)
@@ -436,31 +244,6 @@ extension SettingsView {
             Text(detail)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func siliconInfoPill(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {
-        let pill = HStack(spacing: DSSpacing.xs) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(label)
-                .font(.caption2)
-            Text(value)
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(Color.accentColor)
-        .padding(.horizontal, DSSpacing.sm)
-        .padding(.vertical, DSSpacing.xs)
-        .background(Color.accentColor.opacity(0.15))
-        .clipShape(Capsule())
-
-        if let term {
-            pill
-                .contentShape(Capsule())
-                .definedTerm(term)
-        } else {
-            pill
         }
     }
 

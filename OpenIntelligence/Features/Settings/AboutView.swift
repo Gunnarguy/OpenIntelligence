@@ -169,14 +169,20 @@ struct AboutView: View {
                             // number and Macs off the CPU brand string, so it already
                             // resolves A19/A20 and M5 and does not need a new table for
                             // hardware that has not shipped yet.
+                            if let model = deviceService.modelName {
+                                LabeledContent("Model", value: model)
+                            }
                             LabeledContent("Device Chip", value: deviceService.chipName)
                             LabeledContent("iOS Version", value: deviceCapabilities.iOSVersion)
                                 .monospacedDigit()
-                            LabeledContent("Neural Engine", value: "\(deviceService.npuTops) TOPS")
+                            // Apple's own figure where it published one (seven chips); the row is left out elsewhere
+                            // rather than filled with an estimate (5.8). "AI Tier" was the app's internal ceiling class.
+                            if let tops = deviceService.npuTopsDescription {
+                                LabeledContent("Neural Engine", value: tops)
+                                    .monospacedDigit()
+                            }
+                            LabeledContent("Memory", value: deviceService.memoryDescription)
                                 .monospacedDigit()
-                            LabeledContent("Memory", value: String(format: "%.0f GB", deviceService.memoryGB))
-                                .monospacedDigit()
-                            LabeledContent("AI Tier", value: deviceService.tier.displayName)
                         }
                         .font(.subheadline)
                     }

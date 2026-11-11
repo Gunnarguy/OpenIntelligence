@@ -2185,3 +2185,31 @@ was set for needles past rank 100, and its cost is decided by the iPhone measure
 ms), so a search costs a fraction of a second more; the app grows about 68 MB; the first launch after an install
 compiles the model for the Neural Engine (about 50 s on the Mac). The tokenizer is now the model's own byte-pair
 encoding, no longer a copy of the embedder's. `RerankerModelTests` pins the token ids and both functions' scores.
+
+## 2026-11-10 - Device facts are Apple's published figures or the hardware's own report, never estimates
+
+**Context.** The owner asked for every value on the Active Device card and the Hardware Envelope to be
+accurate, "none of it inferred or fabricated". Tracing each value found a Neural Engine TOPS figure for every
+chip where Apple publishes one for seven (its newsroom and Tech Specs pages, read 2026-11-10); chip names and iPad
+models wrong in the identifier tables; "Active cooling" on an iPad Pro; a "Thermal: High" pill that was a fixed
+rule by device type; memory rounded to a size the device never reported; and two batch sizes nothing reads. The
+2026-08-11 entry above kept the figures because they were "true, measured where claimed"; the TOPS figures were
+neither, which that entry did not know.
+
+**Decision.** A device fact the app shows has one of four sources, and the screen names it: the hardware (Metal's
+device name and limits, `sysctl`, `ProcessInfo`), Apple's published specification (`AppleDeviceCatalog`, with the
+page and date in its comments), Xcode's own device database for model names, or the live state. Where none exists,
+the screen says so ("Apple publishes none") rather than estimating. The chip name on a device is the one Metal
+reports, so a new chip is named correctly without a table update. Tiers and ceilings, which are the app's own
+choices, are shown under "What the app sets", apart from what the hardware reports.
+
+**Alternatives.**
+
+- *Keep estimates, labelled as estimates.* Rejected: a labelled estimate next to measured values still reads as a
+  specification, and the 5.7 glossary already called the table "published" figures when most were not.
+- *Show Apple's relative figures ("2x faster than A16").* Rejected for the card: a multiplier against another chip
+  is not a property of this device a reader can use.
+
+**Consequences.** Most devices show no TOPS figure. A new Apple chip needs no code to be named, but its TOPS stays
+hidden until Apple publishes one and `AppleDeviceCatalog.neuralEngineTOPS` lists it. `AppleDeviceCatalogTests`
+fails if a figure Apple did not publish is added.

@@ -214,27 +214,6 @@ enum DeviceCapabilityTier: String, Sendable, Comparable {
         }
     }
 
-    /// Approximate NPU TOPS (Tera Operations Per Second)
-    var estimatedNPUTops: Int {
-        switch self {
-        case .baseline: return 35 // A17 Pro
-        case .enhanced: return 38 // A18 Pro (estimated)
-        case .advanced: return 45 // A19 Pro (projected)
-        case .ultraAdvanced: return 55 // Future
-        case .unsupported: return 0
-        }
-    }
-
-    /// Neural Engine core count
-    var neuralEngineCores: Int {
-        switch self {
-        case .baseline: return 16 // A17 Pro
-        case .enhanced: return 16 // A18/A18 Pro
-        case .advanced: return 16 // A19 (projected)
-        case .ultraAdvanced: return 16 // M-series typically 16
-        case .unsupported: return 0
-        }
-    }
 }
 
 /// Device form factor
@@ -254,24 +233,6 @@ enum DeviceFormFactor: String, Sendable {
         case .iPadMini, .iPadAir, .iPadPro: return "iPad"
         case .mac: return "Mac"
         case .unknown: return "device"
-        }
-    }
-
-    /// Whether the chassis is known to be actively cooled.
-    ///
-    /// `nil` for Mac, deliberately. This returned `true` for every Mac, which is wrong for
-    /// the fanless MacBook Air, and there is no public API that reports fan presence. The
-    /// form factor cannot answer the question, so it no longer pretends to; the one caller
-    /// falls back to the live `ProcessInfo.thermalState` the app already monitors, which is
-    /// both measured and more useful than a claim about the enclosure.
-    ///
-    /// iPad and iPhone are safe to state: no iPhone or iPad has a fan, and the iPad Pro's
-    /// vapour chamber is the closest thing, which is why it reads `true` here.
-    var hasActiveCooling: Bool? {
-        switch self {
-        case .iPadPro: return true
-        case .iPhone, .iPadMini, .iPadAir: return false
-        case .mac, .unknown: return nil
         }
     }
 
@@ -295,6 +256,8 @@ struct MetalHardwareSnapshot: Sendable {
     let maxBufferLengthMB: Int
     let maxThreadsPerThreadgroup: Int
     let maxThreadgroupMemoryKB: Int
+    /// The highest `MTLGPUFamily.appleN` the GPU reports supporting (9 on an A17 Pro or A18 Pro), nil without Metal.
+    var highestAppleFamily: Int? = nil
 
     static let unavailable = MetalHardwareSnapshot(
         deviceName: "Metal unavailable",
@@ -319,7 +282,7 @@ struct HardwareExecutionEnvelope: Sendable {
     let chipName: String
     let formFactor: DeviceFormFactor
     let memoryGB: Double
-    let npuTops: Int
+    let npuTops: Double?
     let metal: MetalHardwareSnapshot
     let maxSafeGPUAccelerationLevel: Double
     let requestedGPUAccelerationLevel: Double
@@ -331,11 +294,7 @@ struct HardwareExecutionEnvelope: Sendable {
     let visionPipelinePages: Int
     let ocrPipelinePages: Int
     let pdfRenderSlots: Int
-    let pdfPageMemory360MB: Int
-    let pdfPageMemory432MB: Int
     let embeddingConcurrency: Int
-    let embeddingBatchSize: Int
-    let vectorBatchSize: Int
     let batchMatrixMultiplyThreshold: Int
 }
 
@@ -359,18 +318,24 @@ final class DeviceCapabilityService: @unchecked Sendable {
     private let cachedMemoryGB: Double
     private let cachedFormFactor: DeviceFormFactor
     private let cachedDeviceIdentifier: String
-    private let cachedNPUTops: Int // Accurate TOPS for this specific chip
     private let cachedMetalSnapshot: MetalHardwareSnapshot
+    private let cachedCPUClusters: [(name: String, cores: Int)]
 
     private init() {
-        let (tier, chip, formFactor, identifier, tops) = Self.detectFullCapability()
+        let (tier, chip, formFactor, identifier) = Self.detectFullCapability()
+        let metal = Self.detectMetalHardwareSnapshot()
+        #if targetEnvironment(simulator)
+            let isSimulator = true
+        #else
+            let isSimulator = false
+        #endif
         cachedTier = tier
-        cachedChipName = chip
+        cachedChipName = Self.resolvedChipName(tableName: chip, metalDeviceName: metal.deviceName, isSimulator: isSimulator)
         cachedFormFactor = formFactor
         cachedDeviceIdentifier = identifier
-        cachedNPUTops = tops
         cachedMemoryGB = Self.detectMemoryGB()
-        cachedMetalSnapshot = Self.detectMetalHardwareSnapshot()
+        cachedMetalSnapshot = metal
+        cachedCPUClusters = Self.detectCPUClusters()
 
         Self.migrateGPUExecutionProfile(in: .standard)
     }
@@ -383,11 +348,26 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Chip name (e.g., "A17 Pro", "A18", "M2")
     var chipName: String { cachedChipName }
 
-    /// Accurate NPU TOPS for this specific chip
-    var npuTops: Int { cachedNPUTops }
+    /// Apple's own Neural Engine figure for this chip, or nil where Apple has published none (5.8: most chips).
+    var npuTops: Double? { AppleDeviceCatalog.neuralEngineTOPS(forChip: cachedChipName) }
 
-    /// Available RAM in GB
+    /// "38 TOPS" where Apple published a figure for this chip, nil elsewhere.
+    var npuTopsDescription: String? { npuTops.map { "\(AppleDeviceCatalog.topsDescription($0)) TOPS" } }
+
+    /// Memory the system reports (`ProcessInfo.physicalMemory`), in GB.
     var memoryGB: Double { cachedMemoryGB }
+
+    /// "7.5 GB" or "18 GB": the reported memory, never rounded to a whole size.
+    var memoryDescription: String { AppleDeviceCatalog.memoryDescription(gigabytes: cachedMemoryGB) }
+
+    /// The model's name ("iPhone 16 Pro Max") from Xcode's device database, or nil for a Mac or an unknown model.
+    var modelName: String? {
+        let identifier = cachedDeviceIdentifier.replacingOccurrences(of: "Simulator:", with: "")
+        return AppleDeviceCatalog.model(forIdentifier: identifier)?.name
+    }
+
+    /// CPU core clusters as the system names and counts them, e.g. [("Performance", 2), ("Efficiency", 4)].
+    var cpuClusters: [(name: String, cores: Int)] { cachedCPUClusters }
 
     /// Metal device limits exposed via public APIs
     var metalSnapshot: MetalHardwareSnapshot { cachedMetalSnapshot }
@@ -411,12 +391,6 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Whether this is a Mac
     var isMac: Bool {
         cachedFormFactor == .mac
-    }
-
-    /// Whether device has thermal headroom for sustained workloads
-    var hasThermalHeadroom: Bool {
-        // iPads have more thermal mass, iPad Pro has fan, Macs have active cooling
-        isIPad || isMac || cachedTier >= .advanced
     }
 
     /// Whether Apple Intelligence is available on this device
@@ -605,19 +579,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
             visionPipelinePages: visionParsingConcurrency,
             ocrPipelinePages: ocrExtractionConcurrency,
             pdfRenderSlots: pdfRenderingConcurrency,
-            pdfPageMemory360MB: estimatedPDFPageMegabytes(at: 360),
-            pdfPageMemory432MB: estimatedPDFPageMegabytes(at: 432),
             embeddingConcurrency: embeddingConcurrency,
-            embeddingBatchSize: embeddingBatchSize,
-            vectorBatchSize: vectorBatchSize,
             batchMatrixMultiplyThreshold: batchMatrixMultiplyThreshold
         )
-    }
-
-    func estimatedPDFPageMegabytes(at dpi: Int) -> Int {
-        let baselineMB = 206.0
-        let scaleFactor = Double(dpi) / 360.0
-        return Int((baselineMB * scaleFactor * scaleFactor).rounded())
     }
 
     /// Maximum recommended concurrent agentic steps
@@ -665,49 +629,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     // MARK: - Vector Operation Batch Sizes (Accelerate/BNNS)
 
-    /// Recommended batch size for vector similarity operations using Accelerate/BNNS.
-    ///
-    /// These values are tuned for the Neural Engine memory bandwidth and cache hierarchy:
-    /// - Smaller batches: Better for thermal-constrained devices (iPhone)
-    /// - Larger batches: Better for high-bandwidth devices (iPad Pro, M-series)
-    ///
-    /// Used by BNNSVectorDatabase for vDSP_mmul batch matrix operations.
-    /// STABLE: Reduced after Metal command buffer crashes at MAX POWER.
-    var vectorBatchSize: Int {
-        // CRANKED: Larger batch sizes amortize dispatch overhead.
-        // Apple9+ 64-bit atomics enable lock-free batch coordination.
-        // vDSP_mmul is highly optimized for these sizes on Apple Silicon.
-        switch cachedTier {
-        case .unsupported: return 128
-        case .baseline: return 512    // A17 Pro: vDSP handles this easily
-        case .enhanced: return 768    // A18 Pro: larger batches for throughput
-        case .advanced: return 1024   // A19 Pro: full SIMD utilization
-        case .ultraAdvanced: 
-            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
-            return min(16384, 1536 * ramMultiplier) // M-series: maximum batch throughput
-        }
-    }
-
-    /// Recommended batch size for embedding generation.
-    ///
-    /// Larger batches amortize CoreML model loading overhead.
-    /// Metal Feature Set: Apple9+ has 256KB implicit imageblock and improved memory.
-    /// MiniLM-L6-v2 uses ~100MB; these batch sizes fit comfortably.
-    /// STABLE: Reduced for pipeline stability.
-    var embeddingBatchSize: Int {
-        // CRANKED: Larger batches amortize CoreML model loading overhead.
-        // MiniLM-L6-v2 uses ~100MB; these batch sizes fit comfortably.
-        // Bigger batches = fewer model invocations = faster ingestion.
-        switch cachedTier {
-        case .unsupported: return 8
-        case .baseline: return 24   // A17 Pro: boosted from 16
-        case .enhanced: return 32   // A18 Pro: boosted from 24
-        case .advanced: return 48   // A19 Pro: full throughput
-        case .ultraAdvanced: 
-            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
-            return min(512, 64 * ramMultiplier) // M-series: maximum batch
-        }
-    }
+    /// Passages handed to the embedding model in one call during an import: the concurrency, at least 16
+    /// (`EmbeddingService`). The tier table this name used to hold (24, 32, 48, up to 512) was read by nothing but
+    /// Settings, onboarding and the library sheet (5.8).
+    var embeddingBatchSize: Int { max(16, embeddingConcurrency) }
 
     /// Threshold above which to use batch matrix multiply vs individual dot products.
     ///
@@ -1163,7 +1088,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     // MARK: - Detection Logic
 
-    private static func detectFullCapability() -> (DeviceCapabilityTier, String, DeviceFormFactor, String, Int) {
+    private static func detectFullCapability() -> (DeviceCapabilityTier, String, DeviceFormFactor, String) {
         var systemInfo = utsname()
         uname(&systemInfo)
         let machineMirror = Mirror(reflecting: systemInfo.machine)
@@ -1177,214 +1102,114 @@ final class DeviceCapabilityService: @unchecked Sendable {
             // In simulator, get the simulated device from environment
             if let simDevice = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
                 if simDevice.hasPrefix("iPhone") {
-                    let (tier, chip, tops) = detectiPhoneCapability(identifier: simDevice)
-                    return (tier, chip, .iPhone, "Simulator:\(simDevice)", tops)
+                    let (tier, chip) = detectiPhoneCapability(identifier: simDevice)
+                    return (tier, chip, .iPhone, "Simulator:\(simDevice)")
                 }
                 if simDevice.hasPrefix("iPad") {
-                    let (tier, chip, formFactor, tops) = detectiPadCapabilityFull(identifier: simDevice)
-                    return (tier, chip, formFactor, "Simulator:\(simDevice)", tops)
+                    let (tier, chip, formFactor) = detectiPadCapabilityFull(identifier: simDevice)
+                    return (tier, chip, formFactor, "Simulator:\(simDevice)")
                 }
             }
 
             // Detect the HOST Mac's capabilities for accurate performance estimation
             // The simulator runs on your Mac, so we can use Mac-level performance
             let hostMac = detectHostMacCapability()
-            return (hostMac.tier, "Simulator on \(hostMac.chip)", .mac, "Simulator:HostMac", hostMac.tops)
+            return (hostMac.tier, "Simulator on \(hostMac.chip)", .mac, "Simulator:HostMac")
         #else
         // iPhone detection
         if identifier.hasPrefix("iPhone") {
-            let (tier, chip, tops) = detectiPhoneCapability(identifier: identifier)
-            return (tier, chip, .iPhone, identifier, tops)
+            let (tier, chip) = detectiPhoneCapability(identifier: identifier)
+            return (tier, chip, .iPhone, identifier)
         }
 
         // iPad detection (also covers iPad apps running on Mac via compatibility)
         if identifier.hasPrefix("iPad") {
-            let (tier, chip, formFactor, tops) = detectiPadCapabilityFull(identifier: identifier)
+            let (tier, chip, formFactor) = detectiPadCapabilityFull(identifier: identifier)
             // Check if we're actually running on a Mac (iPad app on Mac)
             if ProcessInfo.processInfo.isiOSAppOnMac {
                 // Running as iPad app on Mac - detect the actual Mac
                 let hostMac = detectHostMacCapability()
-                return (hostMac.tier, hostMac.chip, .mac, "iPadAppOnMac:\(identifier)", hostMac.tops)
+                return (hostMac.tier, hostMac.chip, .mac, "iPadAppOnMac:\(identifier)")
             }
 
-            return (tier, chip, formFactor, identifier, tops)
+            return (tier, chip, formFactor, identifier)
         }
 
         // Mac detection (native Mac apps via Catalyst or macOS natively)
         if identifier.hasPrefix("Mac") || identifier.hasPrefix("iMac") || identifier == "arm64" || identifier == "x86_64" {
             let hostMac = detectHostMacCapability()
-            return (hostMac.tier, hostMac.chip, .mac, identifier, hostMac.tops)
+            return (hostMac.tier, hostMac.chip, .mac, identifier)
         }
 
         // Fallback for a device family this build does not recognise. The app only
         // runs on iOS and macOS, so an unmatched prefix means new hardware rather
         // than old, and `.unsupported` would disable four retrieval features over a
         // string this build has simply never seen. Full features at mid ceilings.
-        return (.advanced, "Apple Device", .unknown, identifier, 18)
+        return (.advanced, "Apple Device", .unknown, identifier)
         #endif
     }
 
-    /// Detect host Mac capabilities using sysctl for accurate chip identification
-    /// This is used when running in Simulator or as iPad app on Mac
-    private static func detectHostMacCapability() -> (tier: DeviceCapabilityTier, chip: String, tops: Int) {
-        // Try to get the actual chip brand string from sysctl
-        // This works on macOS but may fail in iOS Simulator
+    /// The Mac's chip from `machdep.cpu.brand_string`, which Apple silicon fills with "Apple M3 Pro", "Apple M5 Max"
+    /// or, on a MacBook Neo, "Apple A18 Pro" (5.8). The name is the brand string after "Apple ", read rather than
+    /// matched against a list, so a chip newer than this build is named as the Mac names it. It used to be a chain of
+    /// `contains` checks that also returned a Neural Engine figure per chip, most of them never published by Apple,
+    /// and a MacBook Neo matched none of it and was called "Apple Silicon".
+    private static func detectHostMacCapability() -> (tier: DeviceCapabilityTier, chip: String) {
         var size = 0
-        let result = sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
+        var brand = ""
+        if sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 0 {
+            var buffer = [CChar](repeating: 0, count: size)
+            if sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 {
+                brand = String(cString: buffer)
+            }
+        }
 
-        // Check if sysctl succeeded and returned a valid size
-        guard result == 0, size > 0 else {
-            // Fallback: Check if we're on Apple Silicon by looking at architecture
+        guard brand.hasPrefix("Apple ") else {
             #if arch(arm64)
-                // We're on Apple Silicon but can't determine exact chip
-                // Use ProcessInfo to get some hints
-                // This branch only runs when `machdep.cpu.brand_string` is unreadable, so
-                // the chip is genuinely unknown. It used to name one anyway, inferring the
-                // *class* from installed RAM: >=128GB became "M-series Ultra", >=64 "Max",
-                // >=32 "Pro". RAM does not determine chip class. A 32GB MacBook Air would
-                // report itself as an M-series Pro, and the label would then appear in
-                // About and the Silicon HUD as though it had been detected.
-                //
-                // Reporting "Apple Silicon" is the honest answer to a question this code
-                // cannot answer. RAM still scales the ceilings that genuinely depend on it,
-                // through `cachedMemoryGB`, which is measured rather than inferred.
-                let physicalMemory = ProcessInfo.processInfo.physicalMemory
-                let memoryGB = Double(physicalMemory) / (1024 * 1024 * 1024)
-
+                // The brand string is unreadable, so the chip is genuinely unknown and is
+                // named "Apple Silicon" rather than guessed. Memory, which is measured, picks
+                // the ceilings that depend on it.
+                let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
                 if memoryGB >= 32 {
-                    return (.ultraAdvanced, "Apple Silicon", 38)
+                    return (.ultraAdvanced, "Apple Silicon")
                 } else if memoryGB >= 16 {
-                    return (.advanced, "Apple Silicon", 18)
-                } else {
-                    return (.enhanced, "Apple Silicon", 16)
+                    return (.advanced, "Apple Silicon")
                 }
+                return (.enhanced, "Apple Silicon")
             #else
-                // Intel Mac - not Apple Intelligence capable
-                return (.unsupported, "Intel Mac", 0)
+                return (.unsupported, "Intel Mac")
             #endif
         }
 
-        var brandString = [CChar](repeating: 0, count: size)
-        sysctlbyname("machdep.cpu.brand_string", &brandString, &size, nil, 0)
+        let chip = String(brand.dropFirst("Apple ".count)).trimmingCharacters(in: .whitespaces)
+        return (macTier(forChip: chip), chip)
+    }
 
-        // Safely convert to String
-        let cpuBrand = String(cString: brandString)
-
-        // Check if we got a valid string
-        guard !cpuBrand.isEmpty else {
-            #if arch(arm64)
-                return (.advanced, "Apple Silicon", 18)
-            #else
-                return (.unsupported, "Intel Mac", 0)
-            #endif
+    /// The ceiling tier for a Mac chip, unchanged from 5.7 for every chip it already knew: M1, M1 Pro and M1 Max
+    /// `.enhanced`, M1 Ultra and every M2 and later `.ultraAdvanced` (see the note in `optimizedAgenticConfig` and the
+    /// thermal handling in `thermallyLimitedVisionConcurrency`, which follows the live state rather than the tier).
+    /// An A-series chip in a Mac (the MacBook Neo's A18 Pro) or a name this build cannot read is `.advanced`, the
+    /// ceiling 5.7 gave a Mac it could not identify.
+    nonisolated static func macTier(forChip chip: String) -> DeviceCapabilityTier {
+        if chip.hasPrefix("M1") {
+            return chip.contains("Ultra") ? .ultraAdvanced : .enhanced
         }
-
-        // Parse Apple Silicon chip from brand string
-        // Examples: "Apple M1", "Apple M2 Pro", "Apple M3 Max", "Apple M4"
-        if cpuBrand.contains("Apple") {
-            if cpuBrand.contains("M5 Ultra") {
-                return (.ultraAdvanced, "M5 Ultra", 90)
-            } else if cpuBrand.contains("M5 Max") {
-                return (.ultraAdvanced, "M5 Max", 45)
-            } else if cpuBrand.contains("M5 Pro") {
-                return (.ultraAdvanced, "M5 Pro", 45)
-            } else if cpuBrand.contains("M5") {
-                // Base M5 is `.ultraAdvanced`, same as M5 Pro and M5 Max.
-                //
-                // It was briefly `.advanced` to stop a fanless MacBook Air taking Mac
-                // Studio ceilings. That reasoning does not hold. `.advanced` is the
-                // A-series tier — every ceiling in it is commented "A19" or "A19 Pro" —
-                // so the demotion handed a Mac laptop iPhone-sized batches and
-                // concurrency. Base M5, M5 Pro and M5 Max all report the same 45 TOPS;
-                // only Ultra differs at 90. And thermal is already handled by
-                // measurement rather than by tier: `maxSafeGPUAccelerationLevel` returns
-                // 1.0 for every Mac, and `AdaptivePipelineOptimizer` subscribes to
-                // `thermalStateDidChangeNotification` and drops the optimisation level
-                // whenever the live state leaves `.nominal`. A static guess about
-                // cooling is redundant next to that, and `detectMacCapability`'s
-                // model-ID path already returned `.ultraAdvanced` for the same chip,
-                // so the two paths disagreed about one machine.
-                return (.ultraAdvanced, "M5", 45)
-            } else if cpuBrand.contains("M4 Ultra") {
-                return (.ultraAdvanced, "M4 Ultra", 76)
-            } else if cpuBrand.contains("M4 Max") {
-                return (.ultraAdvanced, "M4 Max", 38)
-            } else if cpuBrand.contains("M4 Pro") {
-                return (.ultraAdvanced, "M4 Pro", 38)
-            } else if cpuBrand.contains("M4") {
-                // See the M5 note above. Base M4, M4 Pro and M4 Max all report 38 TOPS.
-                return (.ultraAdvanced, "M4", 38)
-            } else if cpuBrand.contains("M3 Ultra") {
-                return (.ultraAdvanced, "M3 Ultra", 36)
-            } else if cpuBrand.contains("M3 Max") {
-                return (.ultraAdvanced, "M3 Max", 18)
-            } else if cpuBrand.contains("M3 Pro") {
-                return (.ultraAdvanced, "M3 Pro", 18)
-            } else if cpuBrand.contains("M3") {
-                // Same 18 TOPS as M3 Pro and M3 Max. See the M5 note.
-                return (.ultraAdvanced, "M3", 18)
-            } else if cpuBrand.contains("M2 Ultra") {
-                return (.ultraAdvanced, "M2 Ultra", 32)
-            } else if cpuBrand.contains("M2 Max") {
-                return (.ultraAdvanced, "M2 Max", 16)
-            } else if cpuBrand.contains("M2 Pro") {
-                return (.ultraAdvanced, "M2 Pro", 16)
-            } else if cpuBrand.contains("M2") {
-                // Same 16 TOPS as M2 Pro and M2 Max. See the M5 note.
-                return (.ultraAdvanced, "M2", 16)
-            } else if cpuBrand.contains("M1 Ultra") {
-                return (.ultraAdvanced, "M1 Ultra", 22)
-            } else if cpuBrand.contains("M1 Max") {
-                return (.enhanced, "M1 Max", 11)
-            } else if cpuBrand.contains("M1 Pro") {
-                return (.enhanced, "M1 Pro", 11)
-            } else if cpuBrand.contains("M1") {
-                return (.enhanced, "M1", 11)
-            }
-
-            // Forward scaling for Apple Silicon newer than this build knows about.
-            // The chain above is exact for M1 through M5; without this an M6 matched
-            // nothing and fell through to the generic "Apple Silicon" label at 18
-            // TOPS, which is an M3-era figure, so a brand-new Mac was named wrongly
-            // and given ceilings two generations stale. iPhone and iPad already
-            // compute forward from the identifier; this brings Mac in line.
-            //
-            // Base variants stay `.advanced` rather than `.ultraAdvanced`, matching
-            // the M3/M4/M5 precedent set when a fanless MacBook Air was found taking
-            // the same concurrency and batch ceilings as a Mac Studio. TOPS continues
-            // to separate the variants.
-            if let generation = appleSiliconGeneration(in: cpuBrand), generation >= 6 {
-                // ~15% per generation, anchored on M5's 45.
-                let baseTops = 45 + (generation - 5) * 7
-                if cpuBrand.contains("Ultra") {
-                    return (.ultraAdvanced, "M\(generation) Ultra", baseTops * 2)
-                } else if cpuBrand.contains("Max") {
-                    return (.ultraAdvanced, "M\(generation) Max", baseTops)
-                } else if cpuBrand.contains("Pro") {
-                    return (.ultraAdvanced, "M\(generation) Pro", baseTops)
-                }
-                // Base variants take the same tier as their Pro and Max siblings, per
-                // the M5 note above. On a Mac even a base chip is M-series.
-                return (.ultraAdvanced, "M\(generation)", baseTops)
-            }
+        if let generation = appleSiliconGeneration(in: chip), generation >= 2 {
+            return .ultraAdvanced
         }
-
-        // Fallback - assume modern Apple Silicon if we can't determine
-        #if arch(arm64)
-            return (.advanced, "Apple Silicon", 18)
-        #else
-            return (.unsupported, "Intel Mac", 0)
-        #endif
+        return .advanced
     }
 
     private static func detectCapabilityTier() -> (DeviceCapabilityTier, String) {
-        let (tier, chip, _, _, _) = detectFullCapability()
+        let (tier, chip, _, _) = detectFullCapability()
         return (tier, chip)
     }
 
-    private static func detectiPhoneCapability(identifier: String) -> (DeviceCapabilityTier, String, Int) {
-        // Extract major/minor version numbers from identifier
-        // Format: iPhoneXX,Y where XX is major generation
+    /// Tier and chip for an iPhone identifier. The chip comes from `AppleDeviceCatalog` (Apple's Tech Specs); the tier
+    /// is the generation, unchanged from 5.7. An identifier the catalog does not know is named "iPhone" rather than
+    /// guessed, and on a real device `resolvedChipName` replaces it with the chip Metal reports.
+    nonisolated static func detectiPhoneCapability(identifier: String) -> (DeviceCapabilityTier, String) {
+        let chip = AppleDeviceCatalog.model(forIdentifier: identifier)?.chip ?? "iPhone"
         let numbers = identifier.replacingOccurrences(of: "iPhone", with: "")
             .split(separator: ",")
             .compactMap { Int($0) }
@@ -1394,154 +1219,81 @@ final class DeviceCapabilityService: @unchecked Sendable {
             // newer than this build, not older. `.unsupported` would strip HyDE,
             // parent-document retrieval, contextual compression and iterative
             // retrieval via AdaptivePipelineOptimizer, so it is the wrong answer
-            // here. `.advanced` keeps every feature on at mid-range ceilings, which
-            // is the conservative choice for hardware we genuinely cannot identify.
-            return (.advanced, "iPhone", 40)
+            // here. `.advanced` keeps every feature on at mid-range ceilings.
+            return (.advanced, chip)
         }
 
         let major = numbers[0]
         let minor = numbers[1]
 
-        // iPhone generations (major number in identifier):
-        // iPhone 15 Pro/Pro Max: iPhone16,1 / iPhone16,2 (A17 Pro - 35 TOPS)
-        // iPhone 15/15 Plus: iPhone15,4 / iPhone15,5 (A16 - NOT AI capable)
-        // iPhone 16 series: iPhone17,x (A18/A18 Pro - 35/38 TOPS)
-        // iPhone 17 series: iPhone18,x (A19/A19 Pro - projected 40/45 TOPS)
-
         switch major {
         case 16:
-            // iPhone 15 Pro (16,1) and Pro Max (16,2) have A17 Pro
-            if minor <= 2 {
-                return (.baseline, "A17 Pro", 35)
-            }
-            // iPhone 15 (16,3) and 15 Plus (16,4) have A16 - NOT AI capable
-            return (.unsupported, "A16 Bionic", 0)
-
+            // iPhone 15 Pro (16,1) and 15 Pro Max (16,2): A17 Pro.
+            return minor <= 2 ? (.baseline, chip) : (.unsupported, chip)
         case 17:
-            // iPhone 16 series (2024)
-            // Pro models (17,1 and 17,2) have A18 Pro
-            // Standard models (17,3 and 17,4) have A18
-            if minor <= 2 {
-                return (.enhanced, "A18 Pro", 38)
-            }
-            return (.enhanced, "A18", 35)
-
+            return (.enhanced, chip)  // iPhone 16 family: A18 and A18 Pro
         case 18:
-            // iPhone 17 series (2025)
-            if minor <= 2 {
-                return (.advanced, "A19 Pro", 45)
-            }
-            return (.advanced, "A19", 40)
-
-            case 19:
-                // iPhone 18 series (2026)
-                if minor <= 2
-            {
-                return (.ultraAdvanced, "A20 Pro", 50)
-            }
-
-            return (.ultraAdvanced, "A20", 48)
-
-            case 20...:
-            // Future iPhones
-            return (.ultraAdvanced, "A\(major + 1) Pro", 55)
-
+            return (.advanced, chip)  // iPhone 17 family and iPhone Air: A19 and A19 Pro
+        case 19...:
+            return (.ultraAdvanced, chip)  // iPhone 18 Pro, Pro Max and Duo: A20 Pro, and later
         default:
-            return (.unsupported, "Legacy iPhone", 0)
+            // iPhone 15 and 15 Plus (A16 Bionic) and older: not Apple Intelligence devices.
+            return (.unsupported, chip)
         }
     }
 
-    /// Full iPad detection returning tier, chip, form factor, AND accurate TOPS
-    private static func detectiPadCapabilityFull(identifier: String) -> (DeviceCapabilityTier, String, DeviceFormFactor, Int) {
+    /// Tier, chip and form factor for an iPad identifier (5.8). The chip and the model come from `AppleDeviceCatalog`;
+    /// the tiers are 5.7's for every iPad it identified correctly. It misidentified five families: the iPad Air
+    /// (5th generation, 13,16-17) and the M4 iPad Air (16,8-11) were called iPad Pro, the iPad (10th generation,
+    /// 13,18-19, A14 Bionic) an M1 iPad Pro, the iPad (A16, 15,7-8) an M3 iPad Air, and the iPad mini (A20 Pro, 19,1-2)
+    /// an "M7" iPad Pro. The A14 and A16 iPads are not on Apple's Apple Intelligence list (support.apple.com/121115,
+    /// 2026-11-05: "iPad mini (A17 Pro and A20 Pro), iPad models with M1 or later").
+    nonisolated static func detectiPadCapabilityFull(identifier: String) -> (DeviceCapabilityTier, String, DeviceFormFactor) {
+        let chip = AppleDeviceCatalog.model(forIdentifier: identifier)?.chip ?? "iPad"
         let numbers = identifier.replacingOccurrences(of: "iPad", with: "")
             .split(separator: ",")
             .compactMap { Int($0) }
 
         guard numbers.count >= 2 else {
-            // An unparseable identifier on a device running this app means hardware
-            // newer than this build, not older. `.unsupported` would strip HyDE,
-            // parent-document retrieval, contextual compression and iterative
-            // retrieval via AdaptivePipelineOptimizer, so it is the wrong answer
-            // here. `.advanced` keeps every feature on at mid-range ceilings, which
-            // is the conservative choice for hardware we genuinely cannot identify.
-            return (.advanced, "iPad", .iPadAir, 18)
+            // Newer than this build: every feature on at mid-range ceilings (see the iPhone note).
+            return (.advanced, chip, .iPadAir)
         }
 
         let major = numbers[0]
         let minor = numbers[1]
 
-        // Comprehensive iPad model mapping with form factors and accurate TOPS:
-        // M1: 11 TOPS (16-core Neural Engine)
-        // M2: 15.8 TOPS (16-core Neural Engine, improved)
-        // M3: 18 TOPS (16-core Neural Engine, 3nm)
-        // M4: 38 TOPS (16-core Neural Engine, major upgrade)
-        //
-        // iPad13,4-11 = iPad Pro M1 (2021) - 11" and 12.9"
-        // iPad14,1-2 = iPad mini 6 (A15 - NOT Apple Intelligence capable)
-        // iPad14,3-6 = iPad Pro M2 (2022) - 11" and 12.9"
-        // iPad14,8-9 = iPad Air M2 (2024) - 11" and 13"
-        // iPad15,3-6 = iPad Air M3 (2025)
-        // iPad16,3-6 = iPad Pro M4 (2024) - 11" and 13" OLED
-        // iPad17+ = Future iPads (M5+)
-
-        switch major {
-        case 13:
-            // iPad Pro M1 (2021) - 11 TOPS
-            if minor >= 4 {
-                return (.enhanced, "M1", .iPadPro, 11)
-            }
-            return (.unsupported, "Legacy iPad", .iPadAir, 0)
-
-        case 14:
-            // iPad mini 6 (14,1-2) has A15 - 15.8 TOPS but not AI capable
-            if minor <= 2 {
-                return (.unsupported, "A15 Bionic", .iPadMini, 0)
-            }
-            // iPad Pro M2 (14,3-6) - 2022 - 15.8 TOPS
-            if minor >= 3, minor <= 6 {
-                return (.ultraAdvanced, "M2", .iPadPro, 16)
-            }
-            // iPad Air M2 (14,8-9) - 2024 - 15.8 TOPS
-            if minor >= 8 {
-                return (.enhanced, "M2", .iPadAir, 16)
-            }
-            // An unenumerated minor inside a family this build knows is Apple
-            // Intelligence capable. Inherit the family rather than dropping to
-            // `.unsupported`, which would disable four retrieval features over a
-            // model number.
-            return (.enhanced, "iPad", .iPadAir, 16)
-
-        case 15:
-            // iPad Air M3 (2025) - 18 TOPS
-            return (.advanced, "M3", .iPadAir, 18)
-
-        case 16:
-            // iPad16,1 and iPad16,2 are the iPad mini 7, which runs an A17 Pro — not an
-            // M4 iPad Pro. This case returned the Pro unconditionally, so a mini 7
-            // reported "M4" and an iPad Pro form factor, and every batch size and
-            // concurrency ceiling downstream was sized for the wrong chip.
-            if minor <= 2 {
-                return (.baseline, "A17 Pro", .iPadMini, 35)
-            }
-            // iPad Pro M4 (2024) - OLED models - 38 TOPS
-            return (.ultraAdvanced, "M4", .iPadPro, 38)
-
-        case 17:
-            // iPad Pro M5 (2026) - projected ~45 TOPS
-            return (.ultraAdvanced, "M5", .iPadPro, 45)
-
-        case 18...:
-            // Future iPads - assume Pro tier with increasing TOPS
-            let estimatedTops = 45 + (major - 17) * 5
-        return (.ultraAdvanced, "M\(major - 12)", .iPadPro, estimatedTops)
-
-        default:
-            return (.unsupported, "Legacy iPad", .iPadAir, 0)
+        switch (major, minor) {
+        case (13, 4...11): return (.enhanced, chip, .iPadPro)  // iPad Pro M1, 11-inch and 12.9-inch
+        case (13, 16...17): return (.enhanced, chip, .iPadAir)  // iPad Air (5th generation), M1
+        case (13, 18...19): return (.unsupported, chip, .iPadAir)  // iPad (10th generation), A14 Bionic
+        case (13, 12...): return (.enhanced, chip, .iPadAir)  // an unlisted model in the M1 family
+        case (13, _): return (.unsupported, chip, .iPadAir)  // iPad Air (4th generation), A14 Bionic
+        case (14, 1...2): return (.unsupported, chip, .iPadMini)  // iPad mini (6th generation), A15 Bionic
+        case (14, 3...6): return (.ultraAdvanced, chip, .iPadPro)  // iPad Pro M2
+        case (14, _): return (.enhanced, chip, .iPadAir)  // iPad Air M2, 11-inch and 13-inch
+        case (15, 7...8): return (.unsupported, chip, .iPadAir)  // iPad (A16)
+        case (15, _): return (.advanced, chip, .iPadAir)  // iPad Air M3
+        case (16, 1...2): return (.baseline, chip, .iPadMini)  // iPad mini (A17 Pro)
+        case (16, 8...11): return (.ultraAdvanced, chip, .iPadAir)  // iPad Air M4
+        case (16, _): return (.ultraAdvanced, chip, .iPadPro)  // iPad Pro M4
+        case (17, _): return (.ultraAdvanced, chip, .iPadPro)  // iPad Pro M5
+        case (19, 1...2): return (.ultraAdvanced, chip, .iPadMini)  // iPad mini (A20 Pro)
+        case (18..., _): return (.ultraAdvanced, chip, .iPadPro)  // newer than this build
+        default: return (.unsupported, chip, .iPadAir)
         }
     }
 
-    /// Detect Mac capability - all Apple Silicon Macs are capable
-    /// Returns (tier, chipName, accurateTOPS)
+    /// The chip name the screens show and the ceilings key off (5.8). On a device it is the chip Metal names
+    /// ("Apple A18 Pro GPU" on the owner's iPhone 16 Pro Max), which the hardware reports and no table can get wrong;
+    /// the table's name is the fallback when Metal gives none. The Simulator keeps the simulated device's name,
+    /// because its Metal device is the Mac's.
+    nonisolated static func resolvedChipName(tableName: String, metalDeviceName: String, isSimulator: Bool) -> String {
+        guard !isSimulator, let metalChip = AppleDeviceCatalog.chipName(fromMetalDeviceName: metalDeviceName) else {
+            return tableName
+        }
+        return metalChip
+    }
+
     /// Generation number out of an Apple Silicon brand string, e.g. "Apple M6 Max" -> 6.
     ///
     /// Deliberately anchored to a standalone `M<digits>` token so it cannot match the
@@ -1556,151 +1308,32 @@ final class DeviceCapabilityService: @unchecked Sendable {
         return Int(brandString[range].dropFirst())
     }
 
-    private static func detectMacCapability(identifier: String) -> (DeviceCapabilityTier, String, Int) {
-        // Mac identifiers use format: MacXX,Y
-        //
-        // M-series Neural Engine TOPS (actual Apple specs):
-        // M1: 11 TOPS (16-core Neural Engine)
-        // M1 Pro/Max: 11 TOPS (same Neural Engine)
-        // M1 Ultra: 22 TOPS (2x Neural Engines)
-        // M2: 15.8 TOPS (16-core Neural Engine, improved)
-        // M2 Pro/Max: 15.8 TOPS
-        // M2 Ultra: 31.6 TOPS (2x Neural Engines)
-        // M3: 18 TOPS (16-core Neural Engine, 3nm)
-        // M3 Pro/Max: 18 TOPS
-        // M4: 38 TOPS (16-core Neural Engine, major upgrade)
-        // M4 Pro: 38 TOPS
-        // M4 Max: 38 TOPS (single die)
-        // M5 (2025-2026): ~45 TOPS projected
-        //
-        // Notable Mac identifiers:
-        // Mac13,x = M1 Pro/Max/Ultra Macs (2021)
-        // Mac14,2 = MacBook Air M2 (2022)
-        // Mac14,3 = Mac mini M2 (2023)
-        // Mac14,5 = MacBook Pro 14" M2 Pro (2023)
-        // Mac14,6 = MacBook Pro 16" M2 Pro (2023)
-        // Mac14,7 = MacBook Pro 13" M2 (2022)
-        // Mac14,8 = Mac Pro M2 Ultra (2023)
-        // Mac14,9 = MacBook Pro 14" M2 Max (2023)
-        // Mac14,10 = MacBook Pro 16" M2 Max (2023)
-        // Mac14,12 = Mac mini M2 Pro (2023)
-        // Mac14,13 = Mac Studio M2 Max (2023)
-        // Mac14,14 = Mac Studio M2 Ultra (2023)
-        // Mac14,15 = MacBook Air 15" M2 (2023)
-        // Mac15,3 = MacBook Pro 14" M3 (2023)
-        // Mac15,4 = iMac 24" M3 (2023)
-        // Mac15,5 = iMac 24" M3 (2023)
-        // Mac15,6 = MacBook Pro 14" M3 Pro (2023)
-        // Mac15,7 = MacBook Pro 16" M3 Pro (2023)
-        // Mac15,8 = MacBook Pro 14" M3 Max (2023)
-        // Mac15,9 = MacBook Pro 16" M3 Max (2023)
-        // Mac15,10 = MacBook Pro 16" M3 Max (2023)
-        // Mac15,11 = MacBook Pro 14" M3 Max (2023)
-        // Mac15,12 = MacBook Air 13" M3 (2024)
-        // Mac15,13 = MacBook Air 15" M3 (2024)
-        // Mac16,x = M4 Macs (2024-2025)
-        // Mac17,x = M5 Macs (2025-2026)
-
-        let numbers = identifier.replacingOccurrences(of: "Mac", with: "")
-            .split(separator: ",")
-            .compactMap { Int($0) }
-
-        guard !numbers.isEmpty else {
-            // If we can't parse but it starts with "Mac", assume modern Apple Silicon
-            return (.ultraAdvanced, "Apple Silicon Mac", 38)
+    /// The CPU's core clusters as the system names and counts them (`hw.perflevelN.name` and `.physicalcpu`), for
+    /// example [("Performance", 2), ("Efficiency", 4)] on an A18 Pro. Apple calls the top cores "super cores" from the
+    /// A20 Pro and M5 on, so the names are read, not assumed. Empty where the system reports no clusters.
+    nonisolated static func detectCPUClusters() -> [(name: String, cores: Int)] {
+        var levels = 0
+        var size = MemoryLayout<Int32>.size
+        var value: Int32 = 0
+        guard sysctlbyname("hw.nperflevels", &value, &size, nil, 0) == 0 else { return [] }
+        levels = Int(value)
+        var clusters: [(name: String, cores: Int)] = []
+        for level in 0 ..< max(0, levels) {
+            var cores: Int32 = 0
+            var coreSize = MemoryLayout<Int32>.size
+            guard sysctlbyname("hw.perflevel\(level).physicalcpu", &cores, &coreSize, nil, 0) == 0, cores > 0 else { continue }
+            var nameSize = 0
+            var name = "Level \(level)"
+            if sysctlbyname("hw.perflevel\(level).name", nil, &nameSize, nil, 0) == 0, nameSize > 0 {
+                var buffer = [CChar](repeating: 0, count: nameSize)
+                if sysctlbyname("hw.perflevel\(level).name", &buffer, &nameSize, nil, 0) == 0 {
+                    let read = String(cString: buffer)
+                    if !read.isEmpty { name = read }
+                }
+            }
+            clusters.append((name, Int(cores)))
         }
-
-        let major = numbers[0]
-        let minor = numbers.count >= 2 ? numbers[1] : 1
-
-        switch major {
-        case 13:
-            // Mac13,x = M1 Pro/Max/Ultra Macs (2021)
-            // Minor 1-2: Mac Studio M1 Max/Ultra
-            if minor == 2 {
-                return (.ultraAdvanced, "M1 Ultra", 22) // 2x Neural Engines
-            }
-            return (.enhanced, "M1 Pro/Max", 11)
-
-        case 14:
-            // Mac14,x = M2 family
-            switch minor {
-            case 8:
-                // Mac Pro M2 Ultra
-                return (.ultraAdvanced, "M2 Ultra", 32)
-            case 14:
-                // Mac Studio M2 Ultra
-                return (.ultraAdvanced, "M2 Ultra", 32)
-            case 5, 6, 12:
-                // M2 Pro (MacBook Pro, Mac mini Pro)
-                return (.ultraAdvanced, "M2 Pro", 16)
-            case 9, 10, 13:
-                // M2 Max (MacBook Pro, Mac Studio Max)
-                return (.ultraAdvanced, "M2 Max", 16)
-            default:
-                // Base M2 (MacBook Air, MacBook Pro 13", Mac mini)
-                return (.enhanced, "M2", 16)
-            }
-
-        case 15:
-            // Mac15,x = M3 family
-            switch minor {
-            case 6, 7:
-                // MacBook Pro M3 Pro
-                return (.ultraAdvanced, "M3 Pro", 18)
-            case 8, 9, 10, 11:
-                // MacBook Pro M3 Max
-                return (.ultraAdvanced, "M3 Max", 18)
-            default:
-                // Base M3 (iMac, MacBook Air, base MacBook Pro 14")
-                return (.advanced, "M3", 18)
-            }
-
-        case 16:
-            // Mac16,x = M4 family (2024-2025)
-            // M4 has significantly upgraded Neural Engine: 38 TOPS
-            switch minor {
-            case 1 ... 4:
-                // M4 MacBook Pro, iMac, Mac mini
-                return (.ultraAdvanced, "M4", 38)
-            case 5 ... 8:
-                // M4 Pro variants
-                return (.ultraAdvanced, "M4 Pro", 38)
-            case 9 ... 12:
-                // M4 Max variants
-                return (.ultraAdvanced, "M4 Max", 38)
-            default:
-                return (.ultraAdvanced, "M4", 38)
-            }
-
-            case 17:
-                // Mac17,x = M5 family (2025-2026)
-                // Projected ~45 TOPS based on typical generational improvement
-                switch minor
-            {
-            case 1 ... 4:
-                return (.ultraAdvanced, "M5", 45)
-            case 5 ... 8:
-                return (.ultraAdvanced, "M5 Pro", 45)
-            case 9 ... 12:
-                return (.ultraAdvanced, "M5 Max", 45)
-            case 13...:
-                return (.ultraAdvanced, "M5 Ultra", 90) // Dual-die
-            default:
-                return (.ultraAdvanced, "M5", 45)
-            }
-
-        case 18...:
-            // Future Macs (M6+)
-            // Estimate TOPS based on generation with ~15% improvement per year
-            let chipGen = major - 12 // Mac18 = M6, Mac19 = M7, etc.
-        let estimatedTops = 45 + (major - 17) * 7 // ~15% annual improvement
-        return (.ultraAdvanced, "M\(chipGen)", estimatedTops)
-
-        default:
-            // Intel Macs (Mac12 and below) - not Apple Intelligence capable
-            return (.unsupported, "Intel Mac", 0)
-        }
+        return clusters
     }
 
     private static func detectMemoryGB() -> Double {
@@ -1726,7 +1359,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
             recommendedWorkingSetMB: Int(device.recommendedMaxWorkingSetSize / 1_048_576),
             maxBufferLengthMB: Int(device.maxBufferLength / 1_048_576),
             maxThreadsPerThreadgroup: threadCount,
-            maxThreadgroupMemoryKB: Int(device.maxThreadgroupMemoryLength / 1024)
+            maxThreadgroupMemoryKB: Int(device.maxThreadgroupMemoryLength / 1024),
+            highestAppleFamily: (1 ... 11).reversed().first { family in
+                MTLGPUFamily(rawValue: 1000 + family).map { device.supportsFamily($0) } ?? false
+            }
         )
     }
 
@@ -1776,7 +1412,7 @@ extension DeviceCapabilityService {
             • Tier: \(tier.displayName)(\(tier.rawValue))
                 • Chip: \(chipName)
                 • Memory: \(String(format: "%.1f", memoryGB)) GB
-            • NPU: \(npuTops) TOPS
+            • Neural Engine: \(npuTopsDescription ?? "Apple publishes no figure")
                 • Metal: \(metalSnapshot.deviceName) • \(metalSnapshot.workingSetDescription) working set
                 • Form Factor: \(formFactor.rawValue)
                 • Apple Intelligence: \(supportsAppleIntelligence ? "✓" : "✗")

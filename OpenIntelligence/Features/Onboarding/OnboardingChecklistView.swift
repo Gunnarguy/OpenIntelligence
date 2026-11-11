@@ -745,26 +745,22 @@ struct OnboardingChecklistView: View {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
                     deviceChip(icon: "cpu", text: deviceService.chipName, term: .chip)
-                    if deviceService.npuTops > 0 {
-                        deviceChip(icon: "sparkles", text: "\(deviceService.npuTops) TOPS", term: .tops)
+                    if let tops = deviceService.npuTopsDescription {
+                        deviceChip(icon: "sparkles", text: tops, term: .tops)
                     }
                     if deviceService.memoryGB >= 1 {
-                        deviceChip(icon: "memorychip", text: "\(Int(deviceService.memoryGB)) GB", term: .unifiedMemory)
+                        deviceChip(icon: "memorychip", text: deviceService.memoryDescription, term: .unifiedMemory)
                     }
                 }
 
-                // The second row is the point of the first. Anyone can print a chip name;
-                // these are numbers the app derived from this specific device and is
-                // actually running with, so the "catered to your hardware" claim is
-                // checkable rather than decorative. All four come from
-                // `DeviceCapabilityService`, which scales them from measured RAM and the
-                // resolved tier.
+                // The second row is the point of the first: numbers the app runs with on this device, so the
+                // "catered to your hardware" claim is checkable. Until 5.8 it showed a vector batch and an embedding
+                // batch that nothing read, and a Neural Engine core count by tier ("16-core" on an A20 Pro, which has
+                // two 16-core engines). Both values here are read where the work runs: `EmbeddingService` takes
+                // `embeddingBatchSize`, the PDF renderer `pdfRenderingConcurrency`.
                 HStack(spacing: DSSpacing.xs) {
                     deviceChip(icon: "square.grid.3x3", text: "\(deviceService.embeddingBatchSize)/batch", term: .embedBatch)
-                    deviceChip(icon: "magnifyingglass", text: "\(deviceService.vectorBatchSize) search", term: .searchBatch)
-                    if deviceService.tier.neuralEngineCores > 0 {
-                        deviceChip(icon: "cpu.fill", text: "\(deviceService.tier.neuralEngineCores)-core ANE", term: .neuralEngine)
-                    }
+                    deviceChip(icon: "doc.on.doc", text: "\(deviceService.pdfRenderingConcurrency) pages at once", term: .ocr)
                 }
             }
             .padding(.top, DSSpacing.xxs)

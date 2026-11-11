@@ -178,7 +178,7 @@ extension UnifiedMetricsBar {
         // Neural Engine is named. A 2026-10-18 change took it out after reading only the Foundation Models pages,
         // which name no chip, and was reverted the next day.
         case .onDevice:
-            return "\(device.chipName) Neural Engine • \(device.npuTops) TOPS"
+            return device.npuTopsDescription.map { "\(device.chipName) Neural Engine • \($0)" } ?? "\(device.chipName) Neural Engine"
         case .privateCloudCompute:
             return "Private Cloud Compute • Encrypted"
         case .unknown:
@@ -496,7 +496,7 @@ extension UnifiedMetricsBar {
                     statusPill(
                         icon: "cpu",
                         title: device.chipName,
-                        subtitle: "\(device.npuTops)T neural",
+                        subtitle: device.memoryDescription,
                         color: .purple
                     )
 

@@ -389,53 +389,9 @@ enum DeviceChip: String {
         return self != .older
     }
 
-    var performanceRating: String {
-        switch self {
-        case .mSeries:
-            return "Exceptional"
-        case .a18Pro:
-            return "Elite"
-        case .a18:
-            return "Very Good"
-        case .a17Pro:
-            return "Excellent"
-        case .a17:
-            return "Very Good"
-        case .a16Bionic:
-            return "Very Good"
-        case .a15Bionic, .a14Bionic:
-            return "Good"
-        case .a13Bionic:
-            return "Moderate"
-        case .older:
-            return "Limited"
-        }
-    }
-
-    var neuralEnginePerformance: String {
-        switch self {
-        case .mSeries:
-            return "16-core, 15.8 TOPS"
-        case .a18Pro:
-            return "16-core, 45 TOPS"
-        case .a18:
-            return "16-core, 20 TOPS"
-        case .a17Pro:
-            return "16-core, 35 TOPS"
-        case .a17:
-            return "16-core, 18 TOPS"
-        case .a16Bionic:
-            return "16-core, 17 TOPS"
-        case .a15Bionic:
-            return "16-core, 15.8 TOPS"
-        case .a14Bionic:
-            return "16-core, 11 TOPS"
-        case .a13Bionic:
-            return "8-core, 6 TOPS"
-        case .older:
-            return "Not available"
-        }
-    }
+    // `performanceRating` ("Elite", "Exceptional") and `neuralEnginePerformance` ("16-core, 45 TOPS" for A18 Pro
+    // and similar figures Apple never published) were read by nothing and were removed in 5.8. The figures the
+    // screens show come from `AppleDeviceCatalog`.
 }
 
 // MARK: - Device Capabilities Structure

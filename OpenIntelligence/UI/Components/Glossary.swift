@@ -334,7 +334,7 @@ extension GlossaryTermID {
                 icon: "cpu",
                 section: .hardware,
                 plain: "The processor in this device. The app works out which one it is and sizes its own work to match, so it does more per second on newer hardware instead of running the same way everywhere.",
-                technical: "Resolved from the `uname` device identifier through a mapping table in `DeviceCapabilityService`, not from a marketing string. Every other figure on this panel is derived from it together with measured RAM.",
+                technical: "Read from the hardware: on an iPhone or iPad the name Metal gives the GPU (\"Apple A18 Pro GPU\"), on a Mac the CPU brand string. The device identifier and Apple's Tech Specs (`AppleDeviceCatalog`) are the fallback. The ceilings the app sets follow from it together with the memory the system reports.",
                 seeAlso: [.neuralEngine, .unifiedMemory, .tops],
                 synonyms: ["processor", "silicon", "soc", "a19", "m4", "apple silicon"]
             )
@@ -346,7 +346,7 @@ extension GlossaryTermID {
                 icon: "cpu.fill",
                 section: .hardware,
                 plain: "A part of the chip that does nothing but machine learning. It is the reason a phone can index a whole book without getting as hot as it would if the main processor did the same work.",
-                technical: "16 cores on every Apple Intelligence capable chip. The app asks for it through Core ML's `preferredComputeUnits`, and Core ML makes the final scheduling decision, so this is a stated preference rather than a guarantee that the Neural Engine ran.",
+                technical: "16 cores on most Apple Intelligence chips, in Apple's specs; the A20 Pro in the iPhone 18 Pro, 18 Pro Max and Duo has two 16-core engines, and M1 Ultra and M2 Ultra have 32 cores. The app asks for it through Core ML's `preferredComputeUnits`, and Core ML makes the final scheduling decision, so this is a stated preference rather than a guarantee that the Neural Engine ran.",
                 seeAlso: [.tops, .chip, .vector],
                 synonyms: ["ane", "npu", "16-core", "core ml", "coreml"]
             )
@@ -357,8 +357,8 @@ extension GlossaryTermID {
                 term: "TOPS",
                 icon: "sparkles",
                 section: .hardware,
-                plain: "Trillions of operations per second. It is a rating for the Neural Engine in this chip, in the way horsepower is a rating for an engine. A higher number means more headroom, not that anything is running at that rate right now.",
-                technical: "A published per-chip figure looked up from the device identifier. It is not measured on your device, and entries for unreleased silicon are marked as projections in the source. Apple exposes no live Neural Engine occupancy API, so no app can report real utilisation.",
+                plain: "Trillions of operations per second. It is Apple's rating for the Neural Engine in a chip, in the way horsepower is a rating for an engine. Apple gives the number for only a few chips, so on most devices the app shows none rather than an estimate.",
+                technical: "Apple's published figure, looked up by chip and not measured on your device. Apple states one for M1 (11), M1 Ultra (22), M2, M2 Pro and M2 Max (15.8), M2 Ultra (31.6) and M4 (38); for every A-series chip and from M3 on it gives multipliers instead, so the app shows none. Apple exposes no live Neural Engine occupancy API, so no app can report real utilisation.",
                 seeAlso: [.neuralEngine, .chip],
                 synonyms: ["tera operations", "38 tops", "npu", "throughput", "rating"]
             )
@@ -369,8 +369,8 @@ extension GlossaryTermID {
                 term: "Embed batch",
                 icon: "square.grid.3x3",
                 section: .hardware,
-                plain: "How many passages get handed to the model in one go. One trip carrying thirty passages beats thirty trips carrying one. This number was chosen for your chip and memory rather than copied from a default.",
-                technical: "`embeddingBatchSize` in `DeviceCapabilityService`, resolved from the device tier and scaled by measured RAM on M-series. Larger batches amortise Core ML invocation overhead across more work.",
+                plain: "How many passages get handed to the model in one go during an import. One trip carrying thirty passages beats thirty trips carrying one. The number follows how much your device embeds at once.",
+                technical: "`embeddingBatchSize` in `DeviceCapabilityService`: the embedding concurrency for this device, at least 16, which `EmbeddingService` uses for each call while an import reports progress. Larger batches spread the model's per-call cost over more work.",
                 seeAlso: [.vector, .searchBatch, .unifiedMemory],
                 synonyms: ["batch", "batch size", "32/batch", "per batch"]
             )
@@ -381,10 +381,10 @@ extension GlossaryTermID {
                 term: "Search batch",
                 icon: "magnifyingglass",
                 section: .hardware,
-                plain: "How many stored passages get compared against your question at the same time. Doing it in one large block is what lets the app search a whole library in a single pass instead of one passage at a time.",
-                technical: "`vectorBatchSize`, the width handed to `vDSP_mmul` for batched cosine similarity in `BNNSVectorDatabase`. Tier-derived and RAM-scaled, and reduced from its original values after Metal command buffer instability at the top setting.",
+                plain: "Once a library holds enough passages, the app compares all of them against your question in one block instead of one at a time, which is what lets it search a whole library in a single pass.",
+                technical: "`batchMatrixMultiplyThreshold`: from this many passages the CPU scores the whole library with one `vDSP_mmul` in `BNNSVectorDatabase` (16 to 100, by device). A library of 1,000 passages or more goes to Metal instead under Performance and Maximum.",
                 seeAlso: [.vector, .embedBatch, .hybridSearch],
-                synonyms: ["768 search", "vector batch", "similarity", "vdsp", "accelerate"]
+                synonyms: ["matrix", "one pass", "similarity", "vdsp", "accelerate"]
             )
 
         case .unifiedMemory:
@@ -394,7 +394,7 @@ extension GlossaryTermID {
                 icon: "memorychip",
                 section: .hardware,
                 plain: "Memory that the processor, the graphics cores and the Neural Engine all share, so work does not have to be copied between them before it can be done. More of it means more of your library can be in flight at once.",
-                technical: "Read from `ProcessInfo.physicalMemory`, which is measured rather than inferred from the model name. It scales batch sizes, concurrency ceilings and the budget for full-resolution PDF page images.",
+                technical: "Read from `ProcessInfo.physicalMemory` and shown as the system reports it, to a tenth of a gigabyte, never rounded to a whole size: Apple publishes no memory figure for any iPhone. It scales concurrency ceilings and how many full-resolution PDF pages are held at once.",
                 seeAlso: [.chip, .embedBatch, .gpuProfile],
                 synonyms: ["ram", "memory", "gb", "shared memory"]
             )

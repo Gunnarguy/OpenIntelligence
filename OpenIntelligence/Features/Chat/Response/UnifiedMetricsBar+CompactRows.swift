@@ -99,12 +99,14 @@ extension UnifiedMetricsBar {
                 )
             }
 
-            // NPU
-            compactMetric(
-                icon: "brain.head.profile",
-                value: "\(device.npuTops)T",
-                color: .blue
-            )
+            // Neural Engine: Apple's own figure, shown only for the seven chips Apple published one for (5.8).
+            if let tops = device.npuTops {
+                compactMetric(
+                    icon: "brain.head.profile",
+                    value: "\(AppleDeviceCatalog.topsDescription(tops))T",
+                    color: .blue
+                )
+            }
 
             Spacer()
 
@@ -370,12 +372,13 @@ extension UnifiedMetricsBar {
                     color: .purple
                 )
 
-                // NPU
+                // Neural Engine: Apple's figure where it published one; the cell says so where it did not (5.8). The
+                // detail was the app's internal tier name.
                 systemMetricCell(
                     icon: "brain.head.profile",
                     label: "Neural Engine",
-                    value: "\(deviceService.npuTops) TOPS",
-                    detail: deviceService.tier.displayName,
+                    value: deviceService.npuTopsDescription ?? "No figure",
+                    detail: deviceService.npuTops == nil ? "Apple publishes none" : "Apple's figure",
                     color: .blue
                 )
             }
@@ -386,8 +389,9 @@ extension UnifiedMetricsBar {
                     statusPill(icon: "leaf.fill", text: "Low Power Mode", color: .orange)
                 }
 
-                if deviceService.hasThermalHeadroom && !state.isConstrained {
-                    statusPill(icon: "thermometer.snowflake", text: "Thermal Headroom", color: .green)
+                // The live thermal state, not a fixed guess by device type (5.8).
+                if state.thermalState == .nominal && !state.isConstrained {
+                    statusPill(icon: "thermometer.snowflake", text: "Thermals nominal", color: .green)
                 }
 
                 if state.isCharging {

@@ -301,15 +301,10 @@ extension UnifiedMetricsBar {
                 Text("\(device.chipName)")
                     .scaledFont(size: 9, weight: .medium)
                     .opacity(0.8)
-                Text("\(Int(device.memoryGB))GB")
+                Text(device.memoryDescription.replacingOccurrences(of: " ", with: ""))
                     .scaledFont(size: 8, weight: .semibold, design: .monospaced)
                     .monospacedDigit()
                     .opacity(0.7)
-                // Show Neural Engine TOPS for visual confirmation
-                Text("\(device.npuTops)T")
-                    .scaledFont(size: 8, weight: .medium, design: .monospaced)
-                    .monospacedDigit()
-                    .opacity(0.6)
             }
 
             // TTFT when available (only during processing)

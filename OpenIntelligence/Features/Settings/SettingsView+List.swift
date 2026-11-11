@@ -391,28 +391,6 @@ extension SettingsView {
         return budget > 0 ? "\(budget.formatted()) tokens" : "Unavailable"
     }
 
-    /// Cooling line for the Active Device card.
-    ///
-    /// This used to read "Active cooling" on every Mac, because the form factor asserted
-    /// it. The MacBook Air is fanless and no public API reports fan presence, so on Mac
-    /// the app now reports the live `ProcessInfo.thermalState` it already monitors instead
-    /// of a claim about the enclosure. Measured beats guessed, and it is the more useful
-    /// number anyway.
-    var coolingDescription: String {
-        switch DeviceCapabilityService.shared.formFactor.hasActiveCooling {
-        case .some(true): return "Active cooling"
-        case .some(false): return "Passive cooling"
-        case .none:
-            switch ProcessInfo.processInfo.thermalState {
-            case .nominal: return "Thermals nominal"
-            case .fair: return "Thermals fair"
-            case .serious: return "Thermals serious"
-            case .critical: return "Thermals critical"
-            @unknown default: return "Thermals unknown"
-            }
-        }
-    }
-
     /// Compact identity row at the top of the index.
     ///
     /// The full `heroCard` is a ~500pt tall centred panel — a reasonable opening for a

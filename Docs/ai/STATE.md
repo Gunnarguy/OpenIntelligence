@@ -64,7 +64,7 @@ headroom) was running in the background; its report is not in the repo yet.
 
 - **Maximum and the retrieval fix are unmeasured.** Benchmark day: Maximum vs Balanced (`OI_MAXIMUM_FIDELITY`) on extraction fidelity, tables 158, QASPER 246; 5.7 vs 5.8; presets High Precision, Technical Manual, Exploratory; iOS 27 structured-generation failure rate; title-row fix on the 515 page checks; `fastPrediction` on and off (embedding and rerank ms).
 - **GPU vector search** (Performance, Maximum) measured slower than CPU on an M3 Pro (`BenchmarkRuns/2026-10-19-metal-vs-vdsp-search`); not measured on iPhone. Measure, then move large searches to the CPU if it holds.
-- **Settings values nothing reads**: `vectorBatchSize`, `embeddingBatchSize`, `maxChunksPerSearchYield` appear in Settings, library settings, the setup checklist and the glossary. Remove or wire up (use `oi-claim-audit`).
+- **Settings values nothing reads**: done 2026-11-10 for `vectorBatchSize` (removed) and `embeddingBatchSize` (now the batch `EmbeddingService` uses). `maxChunksPerSearchYield` is defined in `DeviceCapabilityService` and read by nothing, shown nowhere; remove or wire it up.
 - White Chat cause unknown (recovery in place). Rest of the Mac save crash needs `BNNSVectorDatabase.swift` named. `renderPageForParsing` still on the main thread.
 - Device checks not done: Deep Think leave-and-return, hazard-ratio question again, X-Ray on the chip, setup card and its Live Activity on a fresh install, New Chat after relaunch, Spotlight tap (row `3ff49a74d54f81fea954d76ff336595e`), Instruments traces (Deep Think, 900-page import).
 - Notion: X-Ray row `41449a74d54f81e4abfec4bba6a66124` In Progress; rows for Maximum, the hazard-ratio fix and the Deep Think cut-off are not filed yet.

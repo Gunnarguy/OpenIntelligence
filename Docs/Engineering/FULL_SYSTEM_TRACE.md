@@ -638,15 +638,14 @@ claiming to add hardware. `[evidence_level: code_verified, confidence: exact]`
 
 Tiers: `.baseline` (A17 Pro), `.enhanced` (A18), `.advanced` (A19), `.ultraAdvanced` (M-series
 and later), `.unsupported` (`:133-138`), detected from `utsname`, the CPU brand string, and
-physical memory, with TOPS looked up per chip (`:1038-1330`). The scaling M5 and later chips need
+physical memory; since 5.8 the chip name on a device is the one Metal reports and TOPS is Apple's figure where it published one (`AppleDeviceCatalog`). The scaling M5 and later chips need
 was fixed 2026-08-26 after a new Mac was tiered as M3-era.
 
 | Consumer | Range | Where |
 |---|---|---|
 | `maxConcurrentAgenticSteps` | 3 → 32 | `:527` |
 | `agenticStepCooldownMs` | 100 → 0 | `:551` |
-| `vectorBatchSize` | 128 → 16,384 | `:583` |
-| `embeddingBatchSize` | 8 → 512 | `:603` |
+| `embeddingBatchSize` | concurrency, at least 16 (5.8; `vectorBatchSize` and the old tier table were read by nothing and are removed) | `DeviceCapabilityService` |
 | `batchMatrixMultiplyThreshold` | `Int.max` → 16 | `:619` |
 | `visionParsingConcurrency` | 2 → 64, RAM-scaled on Mac | `:675` |
 | `pdfRenderingConcurrency` | 1 → 64, capped by a per-page memory estimate | `:739` |
