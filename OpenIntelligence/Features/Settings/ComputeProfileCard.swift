@@ -127,14 +127,20 @@ struct ComputeProfileCard: View {
                 id: "search", name: "Search by meaning", icon: "magnifyingglass", chips: Self.chips(searching),
                 engine: "Core ML, MLComputeUnits \(Self.unitsName(searching))",
                 detail: "Each question is turned into a 384-number embedding by the app's embedding model. Core ML may "
-                    + "place each of its layers on \(GPUExecutionProfile.chipNames(searching)), and picks the fastest.",
+                    + "place each of its layers on \(GPUExecutionProfile.chipNames(searching)), and picks the fastest."
+                    + (profile == .maximum
+                        ? " Maximum also reranks up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages (250 otherwise), takes up to \(DeviceCapabilityService.MaximumFidelity.keywordLimit) keyword results (60), and loads its models for prediction speed."
+                        : ""),
                 note: nil),
             Workload(
                 id: "import", name: "Import documents", icon: "square.and.arrow.down", chips: Self.chips(importing),
                 engine: "Core ML, MLComputeUnits \(Self.unitsName(importing))",
                 detail: "Every passage of a new document is embedded, \(concurrency.embeddingParallel) at a time, on "
                     + "\(GPUExecutionProfile.chipNames(importing)). How many at a time is set by the \(chipName), not by "
-                    + "the profile.",
+                    + "the profile."
+                    + (profile == .maximum
+                        ? " Maximum draws every page that text recognition reads at 432 DPI (360 otherwise, 432 only for hard pages), runs the layout pass at full size, re-reads up to \(DeviceCapabilityService.MaximumFidelity.rescueRegions) hard regions a page (12), and holds \(concurrency.renderSlots) pages at once to fit them. It steps down while the device is hot, in Low Power Mode or in the background."
+                        : ""),
                 note: nil),
             Workload(
                 id: "cleanup", name: "Scanned-page cleanup", icon: "doc.viewfinder",
@@ -390,7 +396,12 @@ struct ComputeProfileCard: View {
         let title: String
         let detail: String
         let symbol: String
-        if let previous {
+        if profile == .maximum {
+            // Maximum's extra is how hard each job runs, not which chips run it.
+            title = "Maximum adds to Performance"
+            detail = "Every page read at 432 DPI, layout at full size\nDeeper search: up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages reranked"
+            symbol = "bolt.circle.fill"
+        } else if let previous {
             title =
                 lines.isEmpty
                 ? "On this \(deviceNoun), \(profile.displayName) runs exactly like \(previous.displayName)"
@@ -463,6 +474,8 @@ struct ComputeProfileCard: View {
 
     private func jobRow(_ row: Workload, added: Set<Chip>) -> some View {
         let isOpen = expanded == row.id
+        // In Maximum these two jobs run harder on the same chips.
+        let deeper = profile == .maximum && (row.id == "search" || row.id == "import")
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Button {
                 expanded = isOpen ? nil : row.id
@@ -483,6 +496,11 @@ struct ComputeProfileCard: View {
                             .scaledFont(size: 8, weight: .bold)
                             .foregroundStyle(.tertiary)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
+                        Image(systemName: "bolt.fill")
+                            .scaledFont(size: 9, weight: .bold)
+                            .foregroundStyle(Self.color(for: .maximum))
+                            .opacity(deeper ? 1 : 0)
+                            .accessibilityLabel(deeper ? "Runs harder in Maximum" : "")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(Chip.allCases) { chip in
@@ -531,7 +549,7 @@ struct ComputeProfileCard: View {
         .padding(.horizontal, DSSpacing.xs)
         .background(
             RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .fill(Self.color(for: profile).opacity(added.isEmpty ? 0 : 0.10))
+                .fill(Self.color(for: profile).opacity(added.isEmpty && !deeper ? 0 : 0.10))
         )
         .accessibilityElement(children: .combine)
         .accessibilityHint(isOpen ? row.detail : "Shows what runs it")

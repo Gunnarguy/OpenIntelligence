@@ -108,6 +108,17 @@ final class AnswerFloorTests: XCTestCase {
         XCTAssertEqual(RAGEngine.computeTOCPenalty(content: results, isTable: false), 0)
     }
 
+    /// Maximum (the compute profile) turns work up, never down, and its page memory keeps an 8 GB iPhone at two pages.
+    func testMaximumFidelityRaisesEveryFigureItNames() {
+        typealias Max = DeviceCapabilityService.MaximumFidelity
+        XCTAssertEqual(Max.renderScale, 6.0)
+        XCTAssertGreaterThan(Max.rerankCeiling, 250)
+        XCTAssertGreaterThan(Max.rerankFloor, 100)
+        XCTAssertGreaterThan(Max.keywordLimit, 60)
+        XCTAssertGreaterThan(Max.rescueRegions, 12)
+        XCTAssertEqual(Int(8.0 * 1024 * 0.15 / Max.megabytesPerPage), 2)
+    }
+
     /// Statistical values make a question a value question, by whole words.
     func testStatisticalValueWordsMakeAValueQuestion() {
         XCTAssertTrue(RAGService.namesAStatisticalValue("what is the hazard ratio for somatic comorbidities?"))

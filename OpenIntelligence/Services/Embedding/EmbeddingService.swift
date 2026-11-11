@@ -311,7 +311,9 @@ class EmbeddingService {
             }
 
             // With progress handler, process in smaller batches to report progress
-            let batchSize = 16 // Report progress every 16 chunks
+            // Progress is reported per batch. At least 16; as many as the chip embeds at once where that is more (5.8):
+            // a fixed 16 kept an A19's 20 and a Mac's up to 128 from ever applying during an import.
+            let batchSize = max(16, DeviceCapabilityService.shared.embeddingConcurrency)
             var allEmbeddings: [[Float]] = []
             allEmbeddings.reserveCapacity(texts.count)
 

@@ -237,6 +237,10 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             do {
                 let config = MLModelConfiguration()
                 config.computeUnits = computeUnits
+                // Maximum favours prediction speed over load time, memory and disk (5.8).
+                if DeviceCapabilityService.maximumProfileSelected {
+                    config.optimizationHints.specializationStrategy = .fastPrediction
+                }
                 let loaded = try MLModel(contentsOf: url, configuration: config)
                 Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc on first use - compute: \(computeDesc)", category: .embedding)
                 return loaded
@@ -248,6 +252,10 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             do {
                 let config = MLModelConfiguration()
                 config.computeUnits = computeUnits
+                // Maximum favours prediction speed over load time, memory and disk (5.8).
+                if DeviceCapabilityService.maximumProfileSelected {
+                    config.optimizationHints.specializationStrategy = .fastPrediction
+                }
                 let loaded = try MLModel(contentsOf: sourceURL, configuration: config)
                 Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlpackage (fallback)", category: .embedding)
                 return loaded

@@ -276,7 +276,10 @@ actor IntelligentDocumentProcessor {
             return lhs.boundingBox.minX < rhs.boundingBox.minX
         }
 
-        return Array(prioritized.prefix(12))
+        let limit =
+            DeviceCapabilityService.shared.isMaximumFidelityActive
+            ? DeviceCapabilityService.MaximumFidelity.rescueRegions : 12
+        return Array(prioritized.prefix(limit))
     }
 
     private func rescuePriority(for type: DocumentRegionType) -> Int {

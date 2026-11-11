@@ -115,6 +115,11 @@ actor RAGEngine {
                         let config = MLModelConfiguration()
                         config.computeUnits = .cpuAndNeuralEngine
                         config.functionName = "len\(length)"
+                        // Maximum asks Core ML to favour prediction speed over load time, memory and disk (5.8). It
+                        // is a separate compiled form, so the first launch after choosing Maximum prepares search again.
+                        if DeviceCapabilityService.maximumProfileSelected {
+                            config.optimizationHints.specializationStrategy = .fastPrediction
+                        }
                         loaded.append((length, try MLModel(contentsOf: url, configuration: config)))
                     } catch {
                         Log.error(
@@ -368,7 +373,11 @@ actor RAGEngine {
         // - Medium corpus: topK * 5 (50 candidates for topK=10)
         // - Large corpus: cap at 250 to bound latency (cross-encoder is O(n))
         // Always at least 100 to maintain existing behavior for normal queries.
-        let adaptiveCeiling = min(chunks.count, max(100, min(250, topK * 5)))
+        // Maximum (the compute profile) scores more: up to 400, at least 150 (5.8).
+        let maximum = DeviceCapabilityService.shared.isMaximumFidelityActive
+        let ceiling = maximum ? DeviceCapabilityService.MaximumFidelity.rerankCeiling : 250
+        let floor = maximum ? DeviceCapabilityService.MaximumFidelity.rerankFloor : 100
+        let adaptiveCeiling = min(chunks.count, max(floor, min(ceiling, topK * 5)))
         let candidateChunks = Array(chunks.prefix(adaptiveCeiling))
         // Say when the ceiling leaves candidates out (roadmap F-03, 5.7): a passage past it never
         // reaches the reranker, whatever its score would have been, and nothing showed it happening.

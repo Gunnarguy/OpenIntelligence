@@ -1039,3 +1039,12 @@ where another file now uses the name, checked by `prove_move.py` (0 lines added,
 | `RAGService+QueryPipeline.swift` (6,531) | itself (1,000: the query entry points and `queryInternal`), `+QueryExits` (949: the early answers and the two catch bodies), `+QueryPreparation` (967: runtime context, library, top-K, query cache, vocabulary, rewriting, expansion, intent, HyDE, embedding, the plan log and routing), `+QueryRetrieval` (1,412: search, filters, reranking, MMR, parent and cross-reference expansion, iterative and external evidence), `+QueryContext` (1,401: compression, graph packing, corrective retrieval, context assembly and budget, the audit snapshot), `+QueryAnswer` (937: generation setup, citations, integrity, verification, quality, the source-only check, confidence and the response) |
 
 `[evidence_level: test_verified, confidence: high, evidence_source: StructuredParsingGoldenTests parse-b6 == parse-f1 (13 items), ImportGoldenTests import-i23 == import-f2 (32 items) and StandardPipelineGoldenTests standard-e14 == standard-f3, iOS Simulator, iOS device and macOS builds, 2026-11-07]`
+
+## Maximum, the compute profile, turns the work up (added 2026-11-10, for 5.8; unmeasured)
+
+With the Compute Profile set to Maximum, the app in front, the device not hot and Low Power Mode off
+(`DeviceCapabilityService.isMaximumFidelityActive`; constants in `DeviceCapabilityService.MaximumFidelity`;
+`OI_MAXIMUM_FIDELITY=on|off` overrides it for a benchmark): reading is turned up (432 DPI, full-size layout pass, 24 rescue regions, fewer pages at once; `Docs/INGESTION_PIPELINE.md`) and so is search depth (rerank up to 400, 120 keyword results; `Docs/RETRIEVAL_PIPELINE.md`); the embedding model and the reranker load with `fastPrediction`. The Compute Profile card (`ComputeProfileCard`) states each figure from the same constants.
+Until this change the profiles only chose which chips may run a job. None of it is measured: benchmark day
+(2026-11-11) compares Maximum with Balanced, and it ships only if it reads and finds at least as well.
+`[evidence_level: code_verified, confidence: low until measured]`

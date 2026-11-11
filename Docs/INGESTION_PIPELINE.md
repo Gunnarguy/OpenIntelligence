@@ -1566,3 +1566,12 @@ identically to the commit before (`BenchmarkRuns/2026-11-06-decomposition/PLAN.m
 | I21 | G (picks the library and its embedding service and, when the provider resolves to another one or another dimension, saves the corrected settings and clears the library's vectors) into `resolveEmbeddingService` |
 | I22 | C (computes the file's hash (nil when it cannot be read) and records it with the storage path on the tracked item) into `hashAndRecordDocument` |
 | I23 | B (resolves the library this import goes to: the one it was queued for if it still exists, redirected to the person's own library unless it is onboarding or a rebuild) into `resolveImportLibrary` |
+
+## Maximum, the compute profile, turns the work up (added 2026-11-10, for 5.8; unmeasured)
+
+With the Compute Profile set to Maximum, the app in front, the device not hot and Low Power Mode off
+(`DeviceCapabilityService.isMaximumFidelityActive`; constants in `DeviceCapabilityService.MaximumFidelity`;
+`OI_MAXIMUM_FIDELITY=on|off` overrides it for a benchmark): every page read by text recognition is drawn at 432 DPI (`preferredOCRRenderScale`), the layout pass runs at full size on every page (`shouldPreferHighResolutionStructure`), up to 24 hard regions a page are re-read (`prioritizedRescueRegions`), and `pdfRenderingConcurrency` holds fewer pages at once (592 MB a page). The embedding model loads with Core ML's `fastPrediction` specialization. Separately, for every profile: `VisionOCRThrottle` reads its limit and cooldown at each use (they were fixed at the launch's first Vision call), and an import's embedding batch is the chip's `embeddingConcurrency` when that is above 16.
+Until this change the profiles only chose which chips may run a job. None of it is measured: benchmark day
+(2026-11-11) compares Maximum with Balanced, and it ships only if it reads and finds at least as well.
+`[evidence_level: code_verified, confidence: low until measured]`

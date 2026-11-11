@@ -578,12 +578,12 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 gpuSettingRow(
                     icon: "cpu",
-                    label: "Embedding model, searching",
+                    label: "Embedding, searching",
                     value: deviceService.preferredComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "cube.transparent",
-                    label: "Embedding model, importing",
+                    label: "Embedding, importing",
                     value: deviceService.embeddingComputeUnitsDescription
                 )
                 gpuSettingRow(
@@ -606,7 +606,7 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Pipeline Concurrency")
                     .font(.subheadline.weight(.medium))
-                Text("Set by the \(deviceService.chipName), not by the profile.")
+                Text("Set by the \(deviceService.chipName). Maximum holds fewer pages at once, to fit full-detail pages.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
@@ -728,13 +728,22 @@ extension SettingsView {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .frame(width: 16)
+            // One line each, shrinking before wrapping (5.8): "Embedding model, searching" and its value wrapped to two
+            // lines in some profiles and one in others, so the rows under the Compute Profile card moved when the
+            // profile changed (the owner's iPhone, 2026-11-10).
             Text(label)
                 .font(.caption)
-            Spacer()
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .layoutPriority(1)
+            Spacer(minLength: DSSpacing.sm)
             Text(value)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
+        .frame(height: 20)
     }
 
 }

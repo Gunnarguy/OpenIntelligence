@@ -289,6 +289,10 @@ class DocumentProcessor {
         for analysis: PageComplexityAnalysis?,
         documentTextLayerGarbled: Bool
     ) -> CGFloat {
+        // Maximum reads every page at 432 DPI (5.8).
+        if DeviceCapabilityService.shared.isMaximumFidelityActive {
+            return DeviceCapabilityService.MaximumFidelity.renderScale
+        }
         guard let analysis else {
             return documentTextLayerGarbled ? 6.0 : 5.0
         }
@@ -360,6 +364,11 @@ class DocumentProcessor {
         documentTextLayerGarbled: Bool
     ) -> Bool {
         if documentTextLayerGarbled {
+            return true
+        }
+        // Maximum runs the layout pass at full size on every page (5.8); `pdfRenderingConcurrency` holds fewer pages
+        // at once to fit them.
+        if DeviceCapabilityService.shared.isMaximumFidelityActive {
             return true
         }
 

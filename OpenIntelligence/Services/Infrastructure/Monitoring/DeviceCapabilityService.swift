@@ -101,7 +101,7 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
         case .performance:
             return "Everything this setting covers can use the graphics processor, large searches included."
         case .maximum:
-            return "The same as Performance, except on an iPhone 15 Pro or Pro Max, where an import in the background can also keep the graphics processor while the phone charges."
+            return "Performance, turned up: every page read at full detail, deeper search when you ask. Slower imports and a warmer device, for the most careful reading."
         }
     }
 
@@ -825,9 +825,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
 
         // Dynamically scale based on RAM: Allocate up to 15% of total system RAM for PDF image buffers
-        // 206 MB per page. 
+        // 206 MB per page. Maximum reads every page at 432 DPI with the layout pass at full size, about 592 MB a
+        // page (411 MB at 360 DPI x 1.44), so fewer pages are held at once: 2 on an 8 GB iPhone against 4.
         let maxSafeMemoryMB = (cachedMemoryGB * 1024.0) * 0.15
-        let maxPagesByRam = max(1, Int(maxSafeMemoryMB / 206.0))
+        let megabytesPerPage = isMaximumFidelityActive ? MaximumFidelity.megabytesPerPage : 206.0
+        let maxPagesByRam = max(1, Int(maxSafeMemoryMB / megabytesPerPage))
 
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             if cachedTier == .unsupported {
@@ -987,6 +989,44 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
 
         return Self.cleansScannedPagesOnGPU(for: activeGPUExecutionProfile)
+    }
+
+    /// What Maximum turns up beyond which chips may run a job (5.8). Until 5.8 Maximum differed from Performance only in
+    /// a background import's GPU on an iPhone 15 Pro; the owner asked (2026-11-10) for it to be a real maximum on every
+    /// device. Each value is how hard or how carefully a job runs; none is measured yet (benchmark day 2026-11-11
+    /// decides whether it ships).
+    nonisolated enum MaximumFidelity {
+        /// Every page read by text recognition is drawn at 432 DPI (scale 6.0); other profiles use 360 unless a page
+        /// has small print, tables, columns or a garbled text layer.
+        static let renderScale: CGFloat = 6.0
+        /// Memory for one page at 432 DPI with its layout pass at full size.
+        static let megabytesPerPage: Double = 592
+        /// Hard regions re-read per page (12 in other profiles).
+        static let rescueRegions = 24
+        /// Passages the reranker scores at most (250 in other profiles), and its floor (100).
+        static let rerankCeiling = 400
+        static let rerankFloor = 150
+        /// Keyword-search results taken at most (60 in other profiles).
+        static let keywordLimit = 120
+    }
+
+    /// Whether Maximum's extra work runs now: the profile is Maximum after the device's ceiling, the import is not in
+    /// the background's CPU-safe mode, the device is not hot, and Low Power Mode is off.
+    nonisolated var isMaximumFidelityActive: Bool {
+        guard !isBackgroundCPUSafeIngestionActive else { return false }
+        guard Self.maximumProfileSelected else { return false }
+        // A device whose ceiling lowers Maximum to Performance (iPad mini) runs as Performance here too.
+        guard Self.maxSafeGPUAccelerationLevel(formFactor: cachedFormFactor, tier: cachedTier) >= 0.9 else { return false }
+        let thermal = ProcessInfo.processInfo.thermalState
+        return thermal != .serious && thermal != .critical && !ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
+    /// The stored profile is Maximum. Read from defaults so any thread can ask. `OI_MAXIMUM_FIDELITY=on` or `off` in
+    /// the environment overrides it, so a benchmark can compare the two on one build.
+    nonisolated static var maximumProfileSelected: Bool {
+        if ProcessInfo.processInfo.environment["OI_MAXIMUM_FIDELITY"] == "on" { return true }
+        if ProcessInfo.processInfo.environment["OI_MAXIMUM_FIDELITY"] == "off" { return false }
+        return UserDefaults.standard.string(forKey: GPUDefaults.profile) == GPUExecutionProfile.maximum.rawValue
     }
 
     /// Whether large searches use Metal (`searchesLargeLibrariesOnGPU(for:)`).

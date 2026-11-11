@@ -97,16 +97,19 @@ nonisolated private func synchronizeGPU() {
 /// Device-tier-aware maximum concurrent Vision operations
 /// Higher-tier devices (A18 Pro, M-series) can sustain more parallel Vision ops
 /// Lower-tier devices are limited to 2 to prevent Metal command buffer overflow
-nonisolated private let maxConcurrentVisionOps: Int = {
+/// Read at every use (5.8). As a constant it kept whatever the first Vision call of the launch saw: an import that
+/// began in the background held text recognition to one page at a time until the app was restarted, and one that
+/// began in front never dropped to one in the background.
+nonisolated private var maxConcurrentVisionOps: Int {
     DeviceCapabilityService.shared.visionOperationConcurrency
-}()
+}
 
 /// Cooldown time between Vision operations (seconds)
 /// Brief delay to let GPU command buffers settle
 /// High-tier devices use shorter cooldown
-nonisolated private let gpuCooldownSeconds: TimeInterval = {
+nonisolated private var gpuCooldownSeconds: TimeInterval {
     DeviceCapabilityService.shared.visionOperationCooldownSeconds
-}()
+}
 
 // MARK: - Actor-Based Async Semaphore (Apple-approved approach)
 
