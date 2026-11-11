@@ -184,7 +184,7 @@ struct IntelligenceModeCard: View {
             ]
         case .maximum:
             return [
-                StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "up to 9", lit: 6),
+                StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "5 at once, then 4", lit: 6),
                 StageFigure(title: "REASON", symbol: "brain", value: "up to 50 sessions", lit: 6),
                 StageFigure(title: "CHECK", symbol: "checkmark.seal", value: "9 checks, labels", lit: 4),
             ]
@@ -354,7 +354,7 @@ struct IntelligenceModeCard: View {
         if let previous {
             title = "\(mode.displayName) adds to \(previous.displayName)"
             // Steps first, then what How Much turns up, two lines at most, as on the Compute Profile card.
-            let extra = mode.canonical == .maximum ? ["Up to 9 searches, neighbours ±5"] : ["Neighbours ±3"]
+            let extra = mode.canonical == .maximum ? ["A broad search and 3 variants, neighbours ±5"] : ["Neighbours ±3"]
             detail = Array((added.map(\.name) + extra).prefix(2)).joined(separator: "\n")
             symbol = "plus.circle.fill"
         } else {
@@ -526,7 +526,7 @@ struct IntelligenceModeCard: View {
                 Tile(name: "Each session", value: "up to \(chainPassages) passages", icon: "doc.text", up: false),
                 Tile(name: "Neighbours", value: "±3", icon: "arrow.left.and.right", up: true),
                 Tile(name: "Sessions", value: "up to 8", icon: "link", up: true),
-                Tile(name: "Stops at", value: "\(deepThinkTarget)% sure", icon: "flag.checkered", up: false),
+                Tile(name: "Aims for", value: "\(deepThinkTarget)% sure", icon: "flag.checkered", up: false),
                 Tile(name: "Chat history", value: "Not read", icon: "bubble.left.and.bubble.right", up: false),
             ]
         case .maximum:
@@ -544,7 +544,7 @@ struct IntelligenceModeCard: View {
                 Tile(name: "Evidence", value: "up to 10,000 chars", icon: "doc.text", up: false),
                 Tile(name: "Neighbours", value: "±2", icon: "arrow.left.and.right", up: false),
                 Tile(name: "Sessions", value: "1", icon: "link", up: false),
-                Tile(name: "Stops", value: "after one pass", icon: "flag.checkered", up: false),
+                Tile(name: "Stops", value: "after one answer", icon: "flag.checkered", up: false),
                 Tile(name: "Chat history", value: "Read", icon: "bubble.left.and.bubble.right", up: false),
             ]
         }
@@ -599,7 +599,7 @@ struct IntelligenceModeCard: View {
             rows.append(
                 (
                     "Private Cloud Compute, with your permission",
-                    "For an answer too large for this device; in Deep Think and Maximum also for one drawn from more than one document. Its window is 32,768 tokens."
+                    "For an answer too large for this device. Its window is 32,768 tokens, and Standard then reads up to 45,000 characters of your documents."
                 ))
         }
         return rows
