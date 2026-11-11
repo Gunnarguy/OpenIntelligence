@@ -383,6 +383,13 @@ document-name mapping (see the note in `run_one`). Budget accordingly and do not
 Rebuild or verify the corpus with `scripts/build_external_fixtures.py`; `--check` is offline and
 compares against `fixtures.lock.json`.
 
+> **Superseded, 2026-11-11.** Apple's model generates in the iOS 27.0 Simulator on this Mac after about a minute
+> of `modelNotReady` (measured 2026-10, auto memory `simulator-demo-copy-pipeline`). The app's own guards still
+> switch its model off there, so a run through the app needs the demo copy, and tests that bring their own model
+> (Evaluations, `ModelEnvironmentProbeTests`) work as they are. Where each kind of run can go, and what it costs
+> the owner: the `testing-routes` skill. The August text below is kept as the record.
+> `[evidence_level: measured, confidence: high]`
+
 **5b. Do not run the benchmark on the iOS Simulator. Measured 2026-08-12.** It is the obviously
 right destination on paper: a simulator has its own filesystem container, so it cannot pollute the
 real app library, and it is the platform this app ships on. It does not work, because **Apple
@@ -482,6 +489,11 @@ generations), and app launch to first frame on device is **0.69s**, of which 0.5
 rendering. The `Hang detected: 4.5s` lines in console captures are therefore **not** launch cost.
 
 ### Deep Think has never been benchmarked
+
+> **Out of date, 2026-11-11.** Deep Think was graded after this was written: `paired-retry` 2/8 and
+> `postfix-citations` 3/8 against Standard's 4/7 and 5/8 (QASPER, pool 10, `BenchmarkRuns/LEDGER.md`). What is still
+> true: Maximum's answers have never been graded, and every answer grade since 5.8 is Standard only.
+> `[evidence_level: measured, confidence: high, evidence_source: LEDGER.md rows paired-retry, postfix-citations]`
 
 Every run in `BenchmarkRuns/` is `modes: ["standard"]`. There is no baseline and no timing
 history for `deep-think` or `maximum`, which means the mode the 2026-08-18 reasoning-chain
