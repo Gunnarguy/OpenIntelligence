@@ -90,7 +90,7 @@ extension ContainerSettingsSheet {
             // is CPU work ("high-performance, energy-efficient computation on the CPU", Apple's Accelerate page, read
             // 2026-10-18), and a large library is searched with Metal under Performance and Maximum (5.7).
             Text(
-                "Vector search uses Apple's Accelerate framework on the CPU. With the Compute Profile on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal."
+                "Vector search uses Apple's Accelerate framework on the CPU. With the Compute Profile on Performance or Full Power, a library of 1,000 passages or more is searched on the GPU with Metal."
             )
             .font(.caption)
             .foregroundStyle(.secondary)

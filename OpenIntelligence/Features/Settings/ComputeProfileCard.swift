@@ -147,9 +147,9 @@ struct ComputeProfileCard: View {
                     + "when it loads, so a change applies to searching from the next launch."
                     + (coreAI ? coreAINote : "")
                     + (deeper
-                        ? " In a Standard search \(profile.displayName) reranks up to \(depth.rerankCeiling) passages (250 in Balanced) and takes up to \(depth.keywordLimit) keyword results (60); Deep Think's and Maximum's narrower searches stop at their own smaller numbers."
+                        ? " In a Standard search \(profile.displayName) reranks up to \(depth.rerankCeiling) passages (250 in Balanced) and takes up to \(depth.keywordLimit) keyword results (60); the Deep Think and Maximum answer modes search more narrowly and stop at smaller numbers."
                         : "")
-                    + (profile == .maximum ? " Maximum also loads its Core ML models for prediction speed." : ""),
+                    + (profile == .maximum ? " Full Power also loads its Core ML models for prediction speed." : ""),
                 note: nil),
             Workload(
                 id: "import", name: "Import documents", icon: "square.and.arrow.down",
@@ -168,7 +168,7 @@ struct ComputeProfileCard: View {
                         ? " \(profile.displayName) re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced). It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : "")
                     + (depth.fullDetailPages
-                        ? " Maximum draws the pages text recognition reads at 432 DPI (other profiles: 360, and 432 for hard pages), runs the layout pass at full size on every page, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds up to \(concurrency.renderSlots) pages at once to fit them. A quick first check of the text layer and the pictures inside a page use lower resolutions. It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
+                        ? " Full Power draws the pages text recognition reads at 432 DPI (other profiles: 360, and 432 for hard pages), runs the layout pass at full size on every page, re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced), and holds up to \(concurrency.renderSlots) pages at once to fit them. A quick first check of the text layer and the pictures inside a page use lower resolutions. It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : ""),
                 note: nil),
             Workload(
@@ -433,7 +433,7 @@ struct ComputeProfileCard: View {
         let symbol: String
         if profile == .maximum, DeviceCapabilityService.shared.depth(for: .maximum).fullDetailPages {
             // Maximum's extra is how hard each job runs, not which chips run it.
-            title = "Maximum adds to Performance"
+            title = "Full Power adds to Performance"
             detail = "Pages read at 432 DPI, layout at full size\nStandard searches rerank up to \(DeviceCapabilityService.MaximumFidelity.rerankCeiling) passages"
             symbol = "bolt.circle.fill"
         } else if let previous {
@@ -685,7 +685,7 @@ struct ComputeProfileCard: View {
                 fixedRow(
                     "Reranking passages", chips: [.cpu, .neuralEngine],
                     detail:
-                        "Core ML asks for .cpuAndNeuralEngine in every profile: the reranker scores the top candidates against your question. How many it scores, and Maximum's prediction-speed loading, follow the profile."
+                        "Core ML asks for .cpuAndNeuralEngine in every profile: the reranker scores the top candidates against your question. How many it scores, and Full Power's prediction-speed loading, follow the profile."
                 )
                 fixedRow(
                     "Writing the answer", chips: [],

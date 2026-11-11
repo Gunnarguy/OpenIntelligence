@@ -124,7 +124,7 @@ extension SettingsView {
             // `searchesLargeLibrariesOnGPU(for:)` with the stores' own thresholds (5.7).
             // 5.8 review: no BLAS call exists; the diversity step's GPU part compares candidates, and its picking is CPU work.
             Text(
-                "Vector math uses Apple's Accelerate framework (vDSP) on the CPU. With the Compute Profile on Performance or Maximum, Metal shaders score a library of 1,000 passages or more, and the diversity step compares more than 50 candidates on the GPU before picking on the CPU. "
+                "Vector math uses Apple's Accelerate framework (vDSP) on the CPU. With the Compute Profile on Performance or Full Power, Metal shaders score a library of 1,000 passages or more, and the diversity step compares more than 50 candidates on the GPU before picking on the CPU. "
                     + (deviceService.batchMatrixMultiplyThreshold == Int.max
                         ? "On the CPU, passages are scored one at a time."
                         : "On the CPU, from \(deviceService.batchMatrixMultiplyThreshold) passages a library is scored in one matrix pass.")
@@ -239,7 +239,7 @@ extension SettingsView {
             // pushed the section past one screen on an iPhone 16 Pro Max (the owner, 2026-11-10).
             FoldedDetails(title: "More detail") {
             // 5.8 review: depth and pacing are read at each use; only the embedding model's chips wait for it to load.
-            Text("Depth and pacing apply at once; the embedding model's chips change with the next import and for searching from the next launch, as does Maximum's prediction-speed loading.")
+            Text("Depth and pacing apply at once; the embedding model's chips change with the next import and for searching from the next launch, as does Full Power's prediction-speed loading.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -259,7 +259,7 @@ extension SettingsView {
 
                 Text(
                     settings.showTechnicalDetails
-                        ? "Each PDF page is analysed first: the engine raises OCR detail, structure recovery and visual analysis when a page is garbled, table-heavy, columnar, image-heavy or small-text risky, and stays lighter on clean text-native pages; Maximum reads every page it recognises at full detail. A standalone image gets one fixed reading."
+                        ? "Each PDF page is analysed first: the engine raises OCR detail, structure recovery and visual analysis when a page is garbled, table-heavy, columnar, image-heavy or small-text risky, and stays lighter on clean text-native pages; Full Power reads every page it recognises at full detail. A standalone image gets one fixed reading."
                         : "A PDF page gets a closer reading when it needs one: text that comes out garbled, tables, columns, pictures or small print. A page whose text is already clean gets a lighter one, and an image gets one fixed reading."
                 )
                     .font(.caption)
@@ -308,7 +308,7 @@ extension SettingsView {
                 Text("Pipeline Concurrency")
                     .font(.subheadline.weight(.medium))
                 // The profile paces these since 5.8: Efficiency does half as much at once.
-                Text("Set by the \(deviceService.chipDisplayName) and its memory, and lower in a background import. Efficiency does about half as much at once, and Maximum can hold fewer pages, to fit full-detail pages.")
+                Text("Set by the \(deviceService.chipDisplayName) and its memory, and lower in a background import. Efficiency does about half as much at once, and Full Power can hold fewer pages, to fit full-detail pages.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 

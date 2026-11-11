@@ -382,7 +382,7 @@ extension GlossaryTermID {
                 icon: "magnifyingglass",
                 section: .hardware,
                 plain: "On most devices, once a library holds enough passages, the app compares all of them against your question in one block instead of one at a time. Devices that can't run Apple Intelligence compare them one at a time.",
-                technical: "`batchMatrixMultiplyThreshold`: from this many passages the CPU scores the whole library with one `vDSP_mmul` in `BNNSVectorDatabase` (16 to 100 by device tier; never on a device below Apple Intelligence's tiers). Under Performance and Maximum a library of 1,000 passages or more goes to Metal instead, unless the import is a background one without the GPU.",
+                technical: "`batchMatrixMultiplyThreshold`: from this many passages the CPU scores the whole library with one `vDSP_mmul` in `BNNSVectorDatabase` (16 to 100 by device tier; never on a device below Apple Intelligence's tiers). Under Performance and Full Power a library of 1,000 passages or more goes to Metal instead, unless the import is a background one without the GPU.",
                 seeAlso: [.vector, .embedBatch, .hybridSearch],
                 synonyms: ["matrix", "one pass", "similarity", "vdsp", "accelerate"]
             )

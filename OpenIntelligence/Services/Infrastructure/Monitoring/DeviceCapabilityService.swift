@@ -36,7 +36,9 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
         case .efficiency: return "Efficiency"
         case .balanced: return "Balanced"
         case .performance: return "Performance"
-        case .maximum: return "Maximum"
+        // "Full Power" since 5.8 (the owner, 2026-11-11): "Maximum" is also an Intelligence Mode, and the two were
+        // confused. The stored value stays "maximum", so a saved setting carries over.
+        case .maximum: return "Full Power"
         }
     }
 
