@@ -1129,8 +1129,14 @@ extension AgenticOrchestrator {
         var firstSeen: [UUID: Int] = [:]
         let k: Float = 60.0  // RRF constant
 
+        // Each search ranked by score before its ranks are fused (5.8). Every search comes back from
+        // `executeFullRetrievalPipeline` in lost-in-the-middle order, best first and second best last, so fusing in that
+        // order gave each search's second-best passage its worst rank and the third best its second (found by the
+        // Intelligence Mode trace, 2026-11-10). Ranking here fixes it for any search, whatever order it returns.
+        let fusionScoreOrder = !RetrievalAblation.isOff(.fusionScoreOrder)
         for results in allResults {
-            for (rank, chunk) in results.enumerated() {
+            let ranked = fusionScoreOrder ? Self.rankedForFusion(results) : results
+            for (rank, chunk) in ranked.enumerated() {
                 let rrfScore = 1.0 / (k + Float(rank + 1))
                 if firstSeen[chunk.chunk.id] == nil { firstSeen[chunk.chunk.id] = firstSeen.count }
 
@@ -1752,4 +1758,19 @@ extension AgenticOrchestrator {
             ?? 0
     }
 
+}
+
+extension AgenticOrchestrator {
+    /// A search's passages from highest score to lowest, ties in the order the search gave them, which is the rank
+    /// reciprocal rank fusion should read (5.8). Pure, so the shipping order is the tested one.
+    nonisolated static func rankedForFusion(_ results: [RetrievedChunk]) -> [RetrievedChunk] {
+        results.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.similarityScore != rhs.element.similarityScore {
+                    return lhs.element.similarityScore > rhs.element.similarityScore
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
 }

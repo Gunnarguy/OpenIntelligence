@@ -114,22 +114,7 @@ extension SettingsView {
     @ViewBuilder
     private func siliconNativeRAGSection(deviceService: DeviceCapabilityService) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            // Header
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "bolt.horizontal.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-                Text("Silicon-Native RAG Engine")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                Text("Accelerate")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xxs)
-                    .background(Color.accentColor.opacity(0.15))
-                    .clipShape(Capsule())
-            }
+            SettingsSectionHeader(icon: "bolt.horizontal.fill", title: "Silicon-Native RAG Engine", badge: "Accelerate")
 
             // "4x faster" removed 2026-08-06. No benchmark supporting it exists in
             // `Benchmarks/` or the evaluation docs, same class as the `1,000x` dedup and
@@ -194,25 +179,8 @@ extension SettingsView {
 
     private func gpuAccelerationSection(deviceService: DeviceCapabilityService) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            // Header
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "cpu")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-                // "GPU Acceleration" until 5.8: the profiles move work between the CPU, the Neural Engine and the GPU.
-                Text("Compute Profile")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-
-                // Mode badge
-                Text(gpuModeName)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(gpuModeColor)
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xxs)
-                    .background(gpuModeColor.opacity(0.15))
-                    .clipShape(Capsule())
-            }
+            // "GPU Acceleration" until 5.8: the profiles move work between the CPU, the Neural Engine and the GPU.
+            SettingsSectionHeader(icon: "cpu", title: "Compute Profile", badge: gpuModeName, badgeColor: gpuModeColor)
 
             // Until 5.7: "Choose how OpenIntelligence schedules GPU-capable work...". The profiles cover the Core ML
             // embedding model, the Core Image cleanup of scanned pages and Metal vector search, never Apple's model.
@@ -330,7 +298,8 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Pipeline Concurrency")
                     .font(.subheadline.weight(.medium))
-                Text("Set by the \(deviceService.chipName). Maximum holds fewer pages at once, to fit full-detail pages.")
+                // The profile paces these since 5.8: Efficiency does half as much at once.
+                Text("Set by the \(deviceService.chipName). Efficiency does half as much at once, and Maximum holds fewer pages, to fit full-detail pages.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 

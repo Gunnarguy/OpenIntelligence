@@ -175,7 +175,8 @@ struct ComputeProfileCard: View {
                 chips: backgroundGPU ? [.gpu] : [],
                 engine: backgroundGPU ? "Continued processing task with the GPU resource" : "No GPU in the background",
                 detail: backgroundNote(profile),
-                note: systemOffersBackgroundGPU ? nil : "iOS doesn't offer this \(deviceNoun) the GPU in the background."
+                // The detail already says iOS does not offer it; the note repeated the sentence (5.8).
+                note: nil
             ),
         ]
     }
@@ -620,44 +621,15 @@ struct ComputeProfileCard: View {
         ]
         let tint = Self.color(for: profile)
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Text("HOW HARD")
-                .scaledFont(size: 9, weight: .semibold, design: .monospaced)
-                .foregroundStyle(.secondary)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 3), spacing: DSSpacing.xs) {
+            SettingsGroupLabel(text: "HOW HARD")
+            LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
                 ForEach(tiles, id: \.0) { tile in
-                    let up = tile.3 > 0
-                    let down = tile.3 < 0
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 3) {
-                            Image(systemName: up ? "bolt.fill" : (down ? "tortoise.fill" : tile.2))
-                                .scaledFont(size: 8, weight: .bold)
-                                .foregroundStyle(up ? tint : .secondary)
-                            Text(tile.0)
-                                .scaledFont(size: 9, weight: .medium)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        Text(tile.1)
-                            .scaledFont(size: 12, weight: .bold, design: .rounded)
-                            .foregroundStyle(up ? tint : (down ? .secondary : .primary))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .contentTransition(.numericText())
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(
-                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .fill(up ? tint.opacity(0.10) : Color.secondary.opacity(0.07))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .strokeBorder(tint.opacity(up ? 0.5 : 0), lineWidth: 1)
-                    )
-                    .accessibilityElement(children: .combine)
-                    .accessibilityValue(up ? "more than Balanced" : (down ? "fewer than Balanced" : "same as Balanced"))
+                    SpecTile(
+                        name: tile.0, value: tile.1, icon: tile.2,
+                        tint: tile.3 > 0 ? tint : nil,
+                        marker: tile.3 > 0 ? "bolt.fill" : (tile.3 < 0 ? "tortoise.fill" : nil),
+                        muted: tile.3 < 0)
+                        .accessibilityValue(tile.3 > 0 ? "more than Balanced" : (tile.3 < 0 ? "fewer than Balanced" : "same as Balanced"))
                 }
             }
         }

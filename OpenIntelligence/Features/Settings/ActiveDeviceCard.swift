@@ -24,7 +24,6 @@ struct ActiveDeviceCard: View {
     let showsInternals: Bool
 
     @State private var thermalState = ProcessInfo.processInfo.thermalState
-    @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     private var device: DeviceCapabilityService { .shared }
 
@@ -62,45 +61,27 @@ struct ActiveDeviceCard: View {
         .onReceive(NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)) { _ in
             thermalState = ProcessInfo.processInfo.thermalState
         }
-        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
-            lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-        }
     }
 
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("ACTIVE DEVICE")
-                    .scaledFont(size: 9, weight: .semibold, design: .monospaced)
-                    .foregroundStyle(.secondary)
-                Text(device.modelName ?? device.formFactor.deviceNoun)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            Spacer(minLength: DSSpacing.sm)
-            intelligenceBadge
+        // The shared section header, its badge Apple Intelligence's live state (5.8), then the model.
+        let (text, ready) = Self.intelligenceState()
+        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            SettingsSectionHeader(
+                icon: device.isMac ? "laptopcomputer" : (device.isIPad ? "ipad" : "iphone"), title: "Active Device",
+                badge: text, badgeColor: ready ? .accentColor : .secondary)
+            Text(device.modelName ?? device.formFactor.deviceNoun)
+                .scaledFont(size: 12, weight: .bold, design: .monospaced)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .accessibilityLabel("Model: \(device.modelName ?? device.formFactor.deviceNoun)")
         }
     }
 
     /// Apple Intelligence as the model reports it now (`SystemLanguageModel.default.availability`), not the device's
     /// tier: the badge used to show the app's own tier name ("Standard", "Enhanced", "Ultimate").
-    private var intelligenceBadge: some View {
-        let (text, ready) = Self.intelligenceState()
-        return HStack(spacing: 3) {
-            Image(systemName: ready ? "checkmark.circle.fill" : "exclamationmark.circle")
-            Text(text)
-        }
-        .scaledFont(size: 10, weight: .semibold)
-        .foregroundStyle(ready ? Color.accentColor : .secondary)
-        .padding(.horizontal, DSSpacing.sm)
-        .padding(.vertical, DSSpacing.xxs)
-        .background(Capsule().fill((ready ? Color.accentColor : Color.secondary).opacity(0.12)))
-        .accessibilityLabel("Apple Intelligence: \(text)")
-    }
-
     static func intelligenceState() -> (String, Bool) {
         #if canImport(FoundationModels)
             switch SystemLanguageModel.default.availability {
@@ -138,7 +119,6 @@ struct ActiveDeviceCard: View {
             : clusters.map { "\($0.cores)" }.joined(separator: " + ") + " cores"
         let cpuSource = clusters.isEmpty ? "\(systemName) reports" : clusters.map(\.name).joined(separator: " + ")
         let tops = device.npuTopsDescription
-        let thermal = Self.thermalText(thermalState)
         return [
             Tile(id: "Chip", icon: "cpu", value: device.chipName, source: chipSource),
             Tile(id: "Memory", icon: "memorychip", value: device.memoryDescription, source: "\(systemName) reports"),
@@ -149,45 +129,19 @@ struct ActiveDeviceCard: View {
             Tile(
                 id: "GPU budget", icon: "square.stack.3d.up", value: device.metalSnapshot.workingSetDescription,
                 source: "Metal's working set"),
+            // Thermals moved to the Live System Monitor below (5.8): this card is what the hardware is, that one what
+            // it is doing.
             Tile(
-                id: "Thermals", icon: Self.thermalIcon(thermalState), value: thermal,
-                source: lowPower ? "Low Power Mode on" : "live"),
+                id: "GPU family", icon: "square.grid.3x3",
+                value: device.metalSnapshot.highestAppleFamily.map { "Apple \($0)" } ?? "Unavailable",
+                source: "Metal reports"),
         ]
     }
 
     private var tiles: some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 2), spacing: DSSpacing.xs
-        ) {
+        LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
             ForEach(tileList) { tile in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 3) {
-                        Image(systemName: tile.icon)
-                            .scaledFont(size: 8, weight: .bold)
-                        Text(tile.id)
-                            .scaledFont(size: 9, weight: .medium)
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(.secondary)
-                    Text(tile.value)
-                        .scaledFont(size: 13, weight: .bold, design: .rounded)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .contentTransition(.numericText())
-                    Text(tile.source)
-                        .scaledFont(size: 8, weight: .regular)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DSSpacing.sm)
-                .padding(.vertical, DSSpacing.xs)
-                .background(
-                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                        .fill(Color.secondary.opacity(0.07))
-                )
-                .accessibilityElement(children: .combine)
+                SpecTile(name: tile.id, value: tile.value, icon: tile.icon, caption: tile.source)
             }
         }
     }
@@ -224,7 +178,6 @@ struct ActiveDeviceCard: View {
             section("THE HARDWARE REPORTS") {
                 row("Device ID", envelope.deviceIdentifier)
                 row("Metal device", metal.deviceName)
-                row("GPU family", metal.highestAppleFamily.map { "Apple \($0)" } ?? "Unavailable")
                 row("Unified memory", metal.hasUnifiedMemory ? "Yes" : "No")
                 row("Threadgroup", "\(metal.maxThreadsPerThreadgroup) threads • \(metal.maxThreadgroupMemoryKB) KB")
             }

@@ -80,7 +80,13 @@ extension SettingsView {
     /// entity linking) and put Standard-only steps under Deep Think and Maximum; the trace is in the card's header.
     @ViewBuilder
     var retrievalCard: some View {
+        let mode = settings.ragQualityMode.canonical
+        // The same nesting as Device & Performance's Compute Profile: a page card, a section with its header and badge,
+        // and the card on its own surface inside it (5.8).
         VStack(alignment: .leading, spacing: DSSpacing.md) {
+            SettingsSectionHeader(
+                icon: "sparkles.rectangle.stack", title: "Intelligence Mode", badge: mode.displayName,
+                badgeColor: IntelligenceModeCard.color(for: mode))
             IntelligenceModeCard(
                 mode: settings.ragQualityMode.canonical,
                 windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true),
@@ -104,6 +110,9 @@ extension SettingsView {
                     }
                 }
             )
+            .padding(DSSpacing.sm)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             if settings.selectedModel == .onDeviceAnalysis {
                 Text("Quotes only answers in Standard. Deep Think and Maximum need Apple's model to reason, so they run when you choose it under Apple Intelligence.")
@@ -111,6 +120,9 @@ extension SettingsView {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(DSSpacing.md)
+        .background(DSColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .padding(DSSpacing.lg)
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
@@ -124,15 +136,12 @@ extension SettingsView {
     private func modeCallout(for mode: RAGQualityMode) -> String {
         switch mode.canonical {
         case .standard:
-            return "Searches your documents and checks the answer against them, searching again only when the first search finds little. The fastest mode."
+            return "Checks the answer against your documents, and searches again only when the first search finds little. The fastest."
         case .deepThink:
-            return "Can search several ways and build the answer in steps, for comparisons and questions that need more than one passage."
+            return "Searches several ways and can build the answer in steps, for comparisons and questions that need several passages."
         case .maximum:
-            let work = "Can make up to 50 passes over your documents, fewer when only a few passages match, and stops when its findings stop changing."
-            if entitlementStore.hasUnlimitedMaximumMode {
-                return "\(work) Slowest, with no daily limit on your plan."
-            }
-            return "\(work) Slowest. Free plans get \(QuotaPolicy.freeMaximumModeDailyLimit) a day, and you have \(entitlementStore.maximumModeRemainingUses) left today."
+            // The daily limit is a How Much tile (5.8), so this stays two lines like the other modes.
+            return "Up to 50 passes, fewer when few passages match, stopping when its findings stop changing. The slowest."
         default:
             return mode.description
         }

@@ -153,7 +153,7 @@ struct IntelligenceModeCard: View {
             Text(callout(mode))
                 .scaledFont(size: 11)
                 .foregroundStyle(.secondary)
-                .lineLimit(3, reservesSpace: true)
+                .lineLimit(2, reservesSpace: true)
             addsBanner
             stepsList
             howMuch
@@ -197,14 +197,24 @@ struct IntelligenceModeCard: View {
         }
     }
 
+    /// Each stage keeps its colour in every mode, as the CPU, Neural Engine and GPU do on the Compute Profile card.
+    static func stageColor(_ title: String) -> Color {
+        switch title {
+        case "SEARCH": return .cyan
+        case "REASON": return .pink
+        default: return .green
+        }
+    }
+
     private var panel: some View {
         let tint = Self.color(for: mode)
         return VStack(spacing: DSSpacing.xs) {
             HStack {
                 Image(systemName: mode.icon)
                     .scaledFont(size: 11, weight: .semibold)
-                Text("APPLE'S MODEL • \(windowDescription.uppercased())")
-                    .scaledFont(size: 10, weight: .bold, design: .monospaced)
+                // The same header as the Compute Profile's chip: the thing at work, then the step in its colour.
+                Text("Apple's model · \(windowDescription)")
+                    .scaledFont(size: 12, weight: .bold, design: .monospaced)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
@@ -217,18 +227,20 @@ struct IntelligenceModeCard: View {
 
             HStack(spacing: DSSpacing.sm) {
                 ForEach(stageFigures, id: \.title) { figure in
+                    let color = Self.stageColor(figure.title)
+                    let share = Double(figure.lit) / 6
                     VStack(spacing: 3) {
                         Image(systemName: figure.symbol)
-                            .scaledFont(size: 14, weight: .semibold)
+                            .scaledFont(size: 15, weight: .semibold)
                             .foregroundStyle(Color.white)
                             .symbolEffect(.bounce, value: sweep)
-                        Text(figure.title)
-                            .scaledFont(size: 9, weight: .bold, design: .monospaced)
-                            .foregroundStyle(Color.white.opacity(0.7))
+                        Text(figure.title.capitalized)
+                            .scaledFont(size: 10, weight: .bold)
+                            .foregroundStyle(Color.white)
                         HStack(spacing: 2) {
                             ForEach(0..<6, id: \.self) { index in
                                 Capsule()
-                                    .fill(index < figure.lit ? tint : Color.white.opacity(0.12))
+                                    .fill(index < figure.lit ? color : Color.white.opacity(0.12))
                                     .frame(height: 4)
                             }
                         }
@@ -246,13 +258,14 @@ struct IntelligenceModeCard: View {
                         RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(
                                 RadialGradient(
-                                    colors: [tint.opacity(0.18 + 0.07 * Double(figure.lit)), tint.opacity(0.06)],
+                                    colors: [color.opacity(0.30 + 0.45 * share), color.opacity(0.10)],
                                     center: .center, startRadius: 2, endRadius: 70))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .strokeBorder(tint.opacity(0.75), lineWidth: 1)
+                            .strokeBorder(color.opacity(0.95), lineWidth: 1)
                     )
+                    .shadow(color: color.opacity(0.25 + 0.5 * share), radius: 4 + 12 * share)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(figure.title.capitalized): \(figure.value)")
                 }
@@ -276,7 +289,12 @@ struct IntelligenceModeCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .strokeBorder(tint.opacity(0.8), lineWidth: 1.2)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: ["SEARCH", "REASON", "CHECK"].map(Self.stageColor), startPoint: .leading, endPoint: .trailing),
+                    lineWidth: 1.2
+                )
+                .opacity(0.8)
         )
         .phaseAnimator(reduceMotion ? [0.0] : [0.0, 1.0, 0.0], trigger: sweep) { view, phase in
             view.brightness(phase * 0.08).scaleEffect(1 + phase * 0.01)
@@ -335,12 +353,9 @@ struct IntelligenceModeCard: View {
         let symbol: String
         if let previous {
             title = "\(mode.displayName) adds to \(previous.displayName)"
-            let lines = added.map(\.name)
-            let dropped = steps.filter { $0.modes.contains(previous) && !$0.modes.contains(mode) }.map(\.name)
-            detail = Array(
-                (lines + dropped.map { "Leaves out: \($0.prefix(1).lowercased())\($0.dropFirst())" }).prefix(2)
-            )
-            .joined(separator: "\n")
+            // Steps first, then what How Much turns up, two lines at most, as on the Compute Profile card.
+            let extra = mode.canonical == .maximum ? ["Up to 9 searches, neighbours ±5"] : ["Neighbours ±3"]
+            detail = Array((added.map(\.name) + extra).prefix(2)).joined(separator: "\n")
             symbol = "plus.circle.fill"
         } else {
             title = "The base step"
@@ -538,43 +553,12 @@ struct IntelligenceModeCard: View {
     private var howMuch: some View {
         let tint = Self.color(for: mode)
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Text("HOW MUCH")
-                .scaledFont(size: 9, weight: .semibold, design: .monospaced)
-                .foregroundStyle(.secondary)
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 3), spacing: DSSpacing.xs
-            ) {
+            SettingsGroupLabel(text: "HOW MUCH")
+            LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
                 ForEach(tiles, id: \.name) { tile in
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 3) {
-                            Image(systemName: tile.up ? "bolt.fill" : tile.icon)
-                                .scaledFont(size: 8, weight: .bold)
-                                .foregroundStyle(tile.up ? tint : .secondary)
-                            Text(tile.name)
-                                .scaledFont(size: 9, weight: .medium)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        Text(tile.value)
-                            .scaledFont(size: 12, weight: .bold, design: .rounded)
-                            .foregroundStyle(tile.up ? tint : .primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                            .contentTransition(.numericText())
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(
-                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .fill(tile.up ? tint.opacity(0.10) : Color.secondary.opacity(0.07))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .strokeBorder(tint.opacity(tile.up ? 0.5 : 0), lineWidth: 1)
-                    )
-                    .accessibilityElement(children: .combine)
+                    SpecTile(
+                        name: tile.name, value: tile.value, icon: tile.icon, tint: tile.up ? tint : nil,
+                        marker: tile.up ? "bolt.fill" : nil)
                 }
             }
         }
@@ -638,8 +622,7 @@ struct IntelligenceModeCard: View {
                 showsShared.toggle()
             } label: {
                 HStack {
-                    Text("SAME IN EVERY MODE")
-                        .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                    SettingsGroupLabel(text: "SAME IN EVERY MODE")
                     Spacer()
                     Image(systemName: "chevron.down")
                         .scaledFont(size: 8, weight: .bold)

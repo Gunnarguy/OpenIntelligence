@@ -17,111 +17,36 @@ struct LiveSystemMonitorWrapper: View {
         let state = systemMonitor.currentState
 
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            // Header with live indicator
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                Text("Live System Monitor")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                HStack(spacing: DSSpacing.xs) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 6, height: 6)
-                    Text("Live")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(DSColors.readable(.green))
-                }
-            }
+            // The shared header and tiles of Device & Performance (5.8); the thermal state lives here, the hardware facts
+            // on Active Device above.
+            SettingsSectionHeader(
+                icon: "gauge.with.dots.needle.bottom.50percent", title: "Live System Monitor", badge: "Live",
+                badgeColor: .green, live: true)
 
-            // Live metrics grid
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: DSSpacing.sm),
-                GridItem(.flexible(), spacing: DSSpacing.sm),
-            ], spacing: DSSpacing.sm) {
-                // Thermal - Apple's official ProcessInfo.ThermalState terminology
-                liveMetricCard(
+            LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
+                // Thermal: Apple's ProcessInfo.ThermalState terms.
+                SpecTile(
+                    name: "Thermals", value: state.thermalStateName,
                     icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
-                    label: "Thermal State",
-                    value: state.thermalStateName,
-                    detail: thermalDetailText(state.thermalState),
-                    color: thermalStateColor(state.thermalState)
-                )
-
-                // Battery
-                liveMetricCard(
+                    caption: thermalDetailText(state.thermalState),
+                    tint: state.thermalState == .nominal ? nil : thermalStateColor(state.thermalState))
+                SpecTile(
+                    name: "Battery", value: state.batteryDisplayString,
                     icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
-                    label: "Battery Level",
-                    value: state.batteryDisplayString,
-                    detail: batteryDetailText(state),
-                    color: batteryStateColor(level: state.batteryLevel, isCharging: state.isCharging)
-                )
-
-                // Memory
-                liveMetricCard(
-                    icon: state.memoryPressure.icon,
-                    label: "Available RAM",
-                    value: formatMemorySize(state.availableMemoryMB),
-                    detail: state.memoryPressure.rawValue,
-                    color: memoryPressureColor(state.memoryPressure)
-                )
-
-                // Pipeline Optimization
-                liveMetricCard(
-                    icon: "slider.horizontal.3",
-                    label: "Pipeline Mode",
-                    value: state.optimizationLevel.displayName,
-                    detail: pipelineDetailText(state.optimizationLevel),
-                    color: pipelineOptColor(state.optimizationLevel)
-                )
-            }
-
-            // Status pills row
-            HStack(spacing: DSSpacing.sm) {
-                // Cores
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "cpu")
-                        .font(.caption2)
-                    Text("\(state.activeProcessorCount)/\(state.processorCount) cores")
-                        .font(.caption2.weight(.medium))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DSSpacing.sm)
-                .padding(.vertical, DSSpacing.xs)
-                .background(DSColors.surfaceElevated)
-                .clipShape(Capsule())
-
-                if state.isLowPowerModeEnabled {
-                    HStack(spacing: DSSpacing.xs) {
-                        Image(systemName: "leaf.fill")
-                            .font(.caption2)
-                        Text("Low Power")
-                            .font(.caption2.weight(.medium))
-                    }
-                    .foregroundStyle(DSColors.readable(.orange))
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(DSColors.chipBackground(for: .orange))
-                    .clipShape(Capsule())
-                }
-
-                if state.isCharging {
-                    HStack(spacing: DSSpacing.xs) {
-                        Image(systemName: "bolt.fill")
-                            .font(.caption2)
-                        Text("Charging")
-                            .font(.caption2.weight(.medium))
-                    }
-                    .foregroundStyle(DSColors.readable(.green))
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(DSColors.chipBackground(for: .green))
-                    .clipShape(Capsule())
-                }
-
-                Spacer()
+                    caption: state.isCharging ? "Charging" : batteryDetailText(state))
+                SpecTile(
+                    name: "Free memory", value: formatMemorySize(state.availableMemoryMB), icon: state.memoryPressure.icon,
+                    caption: state.memoryPressure.rawValue)
+                SpecTile(
+                    name: "Pipeline", value: state.optimizationLevel.displayName, icon: "slider.horizontal.3",
+                    caption: pipelineDetailText(state.optimizationLevel))
+                SpecTile(
+                    name: "Cores active", value: "\(state.activeProcessorCount) of \(state.processorCount)", icon: "cpu",
+                    caption: "the system reports")
+                SpecTile(
+                    name: "Low Power", value: state.isLowPowerModeEnabled ? "On" : "Off", icon: "leaf",
+                    caption: "Low Power Mode",
+                    tint: state.isLowPowerModeEnabled ? .orange : nil)
             }
 
             // Status message
@@ -147,7 +72,7 @@ struct LiveSystemMonitorWrapper: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
-                    Text("All systems nominal — full performance")
+                    Text("All systems nominal: full performance")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -164,43 +89,11 @@ struct LiveSystemMonitorWrapper: View {
             .padding(.top, DSSpacing.xxs)
         }
         .padding(DSSpacing.md)
-        .background(DSColors.surface)
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helper Views
-
-    @ViewBuilder
-    private func liveMetricCard(icon: String, label: String, value: String, detail: String = "", color: Color) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            // Label row
-            HStack(spacing: DSSpacing.xs) {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundStyle(color)
-                Text(label)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            // Value - prominent
-            Text(value)
-                .font(.subheadline.weight(.bold))
-                .monospacedDigit()
-                .foregroundStyle(.primary)
-
-            // Detail if provided
-            if !detail.isEmpty {
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DSSpacing.sm)
-        .background(DSColors.chipBackground(for: color))
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-    }
 
     // MARK: - Helper Functions
 

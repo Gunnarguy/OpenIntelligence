@@ -44,6 +44,9 @@ nonisolated enum RetrievalAblation {
         case deepThinkLostInMiddle
         /// Deep Think's multi-query blend of reranker score and reciprocal rank fusion; off, it sorts by reranker score.
         case multiQueryBlend
+        /// Reciprocal rank fusion ranks each search's passages by score (5.8); off, by the order the search returned,
+        /// which since 5.8 is the lost-in-the-middle order.
+        case fusionScoreOrder
     }
 
     /// The rules switched off for this process, read once.
