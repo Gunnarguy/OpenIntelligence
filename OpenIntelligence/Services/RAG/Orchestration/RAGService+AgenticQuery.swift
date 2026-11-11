@@ -460,7 +460,9 @@ extension RAGService {
         // Pro; what differs by device is the confidence it aims for. Maximum's step budget is its 50 sessions.
         let modeDetail =
             isUnlimitedMode
-            ? "Reasoning until \(Int(optimizedConfig.confidenceThreshold * 100))% confident (up to \(optimizedConfig.maxSteps) sessions)"
+            // Maximum's 98% target is unreachable by the code's own comment, and the loop stops when its findings stop
+            // changing (`executeTrueUnlimitedReasoning`), so the timeline says that (5.8).
+            ? "Reasoning in up to \(optimizedConfig.maxSteps) sessions, until its findings stop changing"
             : "Starting multi-step reasoning (a chain of up to 8 sessions, aiming for \(Int(optimizedConfig.confidenceThreshold * 100))% confidence on the \(deviceService.chipName))"
 
         // Always start agentic work from a clean FM session.

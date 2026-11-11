@@ -108,7 +108,7 @@ extension SettingsView {
             .init(
                 id: .intelligenceMode, group: .intelligence,
                 title: "Intelligence Mode",
-                subtitle: "Standard, Deep Think, or Maximum",
+                subtitle: "Standard, Deep Think or Maximum, and how much each reads",
                 icon: "sparkles", tint: .accentColor,
                 keywords: ["standard", "deep think", "maximum", "quality", "reasoning", "verification", "gates", "agentic"]
             ),
@@ -136,7 +136,7 @@ extension SettingsView {
             .init(
                 id: .devicePerformance, group: .device,
                 title: "Device & Performance",
-                subtitle: "Chip, memory, GPU profile, and limits",
+                subtitle: "Your chip, memory and Compute Profile",
                 icon: "cpu", tint: .secondary,
                 keywords: ["chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "context window", "batch", "languages"]
             ),
@@ -490,7 +490,18 @@ extension SettingsView {
         case .glossary:
             GlossaryView()
         case .intelligenceMode:
-            detailScroll { retrievalCard }
+            detailScroll {
+                retrievalCard
+                #if DEBUG
+                    .onAppear {
+                        // The window the card was given to show (5.8 journal); the card moved here from Device &
+                        // Performance with the context window.
+                        VerificationJournal.record(
+                            "settings.contextWindow",
+                            ["tokens": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true))"])
+                    }
+                #endif
+            }
         case .appleIntelligence:
             detailScroll {
                 modelSelectionCard
@@ -501,17 +512,7 @@ extension SettingsView {
         case .librariesSync:
             detailScroll { sharedWorkspaceCard }
         case .devicePerformance:
-            detailScroll {
-                contextWindowCard
-                #if DEBUG
-                    .onAppear {
-                        // The window the card was given to show (5.8 journal).
-                        VerificationJournal.record(
-                            "settings.contextWindow",
-                            ["tokens": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true))"])
-                    }
-                #endif
-            }
+            detailScroll { contextWindowCard }
         case .appearance:
             detailScroll { appearanceCard }
         case .notifications:

@@ -497,8 +497,9 @@ struct ComputeProfileCard: View {
 
     private func jobRow(_ row: Workload, added: Set<Chip>) -> some View {
         let isOpen = expanded == row.id
-        // In Maximum these two jobs run harder on the same chips.
-        let deeper = profile == .maximum && (row.id == "search" || row.id == "import")
+        // From Performance up these two jobs run deeper on the same chips (5.8).
+        let deeper =
+            DeviceCapabilityService.Depth.forProfile(profile) != .standard && (row.id == "search" || row.id == "import")
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Button {
                 expanded = isOpen ? nil : row.id
@@ -521,9 +522,9 @@ struct ComputeProfileCard: View {
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                         Image(systemName: "bolt.fill")
                             .scaledFont(size: 9, weight: .bold)
-                            .foregroundStyle(Self.color(for: .maximum))
+                            .foregroundStyle(Self.color(for: profile))
                             .opacity(deeper ? 1 : 0)
-                            .accessibilityLabel(deeper ? "Runs harder in Maximum" : "")
+                            .accessibilityLabel(deeper ? "Runs deeper in \(profile.displayName)" : "")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(Chip.allCases) { chip in
@@ -602,7 +603,7 @@ struct ComputeProfileCard: View {
     // MARK: How hard
 
     /// How hard each job runs, as six tiles in the dots' language (5.8): the value in force now, lit where the
-    /// profile turns it up. Only Maximum does; the tiles show that at a glance instead of a second list under the card.
+    /// profile turns it up: Performance and Maximum go deeper, Efficiency does fewer at once (5.8).
     private var intensityGrid: some View {
         let depth = DeviceCapabilityService.Depth.forProfile(profile)
         let base = DeviceCapabilityService.Depth.standard

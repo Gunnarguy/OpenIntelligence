@@ -32,66 +32,8 @@ extension SettingsView {
 
             Divider()
 
-            // Context Window
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack(spacing: DSSpacing.sm) {
-                    Image(systemName: "ruler")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                    Text(settings.showTechnicalDetails ? "Context Window" : "How Much the Model Reads")
-                        .font(.subheadline.weight(.medium))
-                }
-
-                // Dynamic explanation based on mode
-                let agenticConfig = DeviceCapabilityService.shared.optimizedAgenticConfig()
-                if settings.ragQualityMode.canonical == .maximum {
-                    // Corrected 2026-10-15: the window is the one this device reports (8,192 on the owner's Mac,
-                    // not 4K), "exhaustive Neural Engine synthesis" named hardware the app can't see, and Self-RAG 2.0
-                    // is Maximum's check of the answer against its sources (`AgenticOrchestrator`), not what passes
-                    // between sessions.
-                    Text(
-                        settings.showTechnicalDetails
-                            ? "Maximum chains several reasoning sessions on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed findings from the last, and then checks the answer against its sources (Self-RAG 2.0)."
-                            : "Maximum asks Apple's model several times in a row, each time with room for \(onDeviceWindowDescription) on this device and a summary of what it found before, then checks the answer against your documents.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text(
-                        settings.showTechnicalDetails
-                            ? "Deep Think's reasoning chain runs up to 8 sessions in a row on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last, and research rounds can follow it when parts of the question are still uncovered. On the \(DeviceCapabilityService.shared.chipName) it aims for \(Int(agenticConfig.confidenceThreshold * 100))% confidence, and from the fifth session it can stop early once it has that confidence, has covered the question's parts and stops finding anything new."
-                            : "Deep Think asks Apple's model up to 8 times in a row, each time with room for \(onDeviceWindowDescription) on this device and a summary of what it found before, and it can search again for parts of the question it hasn't covered. On the \(DeviceCapabilityService.shared.chipName) it aims to be \(Int(agenticConfig.confidenceThreshold * 100))% sure, and from the fifth time it can stop once it is, has covered the question and isn't finding anything new.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(
-                        settings.showTechnicalDetails
-                            ? "Standard runs one pass of Apple's model over the passages that fit its window (\(onDeviceWindowDescription) on this device), with verification gates and graph context packing. Use Deep Think or Maximum when you want several reasoning sessions."
-                            : "Standard asks Apple's model once, with the passages that fit in \(onDeviceWindowDescription) on this device, and checks the answer against them. Deep Think and Maximum ask several times.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: DSSpacing.md) {
-                    if settings.ragQualityMode.canonical == .maximum {
-                        contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Per Session" : "Each Time", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "checkmark.seal", label: "Answer Check", value: settings.showTechnicalDetails ? "Self-RAG 2.0" : "Against your documents")
-                    } else if settings.ragQualityMode.canonical == .deepThink {
-                        contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Per Session" : "Each Time", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: settings.showTechnicalDetails ? "Chain" : "Times", value: settings.showTechnicalDetails ? "up to 8 sessions" : "up to 8")
-                    } else {
-                        // "If Complex: 3 sessions (12K)" was untrue: Standard chains sessions only when a developer
-                        // turns on `forceReasoningChain` (RAGService, `useReasoningChain`).
-                        contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Single Pass" : "Room", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: settings.showTechnicalDetails ? "Sessions" : "Times", value: "1")
-                    }
-                }
-            }
-            .padding(DSSpacing.md)
-            .background(DSColors.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-            .animation(DSAnimations.fastEase, value: settings.ragQualityMode)
-
-            Divider()
+            // Context Window moved to the Intelligence Mode page (5.8): how much each answer can read is a fact about
+            // the answer modes, and it sat here between the device and the compute profile.
 
             // Silicon-Native RAG Engine: vDSP, Metal shaders and batch sizes, with Technical Details on (5.7).
             if settings.showTechnicalDetails {

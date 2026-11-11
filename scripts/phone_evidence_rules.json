@@ -2092,7 +2092,7 @@
     {
       "row": "The GPU setting claimed work the code didn't do, its import-panel button changed nothing, and the window and Deep Think's limits weren't the device's own",
       "url": "https://app.notion.com/p/3fe49a74d54f8164a5fee6f0f53805ec",
-      "needs": "In the Mac app open Settings > Device & Performance and the Glossary's Context window entry.",
+      "needs": "In the Mac app open Settings > Intelligence Mode (the context window moved there in 5.8) and the Glossary's Context window entry.",
       "all": [
         {
           "e": "settings.contextWindow",

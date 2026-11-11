@@ -49,9 +49,9 @@ enum RAGQualityMode: String, Identifiable, Sendable {
 
     var description: String {
         switch canonical {
-        case .standard: return "Full pipeline with verification gates, graph context & extractive QA"
-        case .deepThink: return "Multi-step reasoning + intent routing + calibrated confidence"
-        case .maximum: return "Highest-effort reasoning with deeper search and stricter verification"
+        case .standard: return "One answer, checked by nine gates, searching again when the first search finds little"
+        case .deepThink: return "Several searches at once and a chain of up to 8 reasoning sessions"
+        case .maximum: return "A wider search and up to 50 reasoning sessions, until its findings stop changing"
         default: return "Comprehensive search"
         }
     }
