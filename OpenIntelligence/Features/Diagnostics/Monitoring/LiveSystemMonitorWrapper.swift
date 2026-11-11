@@ -34,8 +34,10 @@ struct LiveSystemMonitorWrapper: View {
                     name: "Battery", value: state.batteryDisplayString,
                     icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
                     caption: state.isCharging ? "Charging" : batteryDetailText(state))
+                // On an iPhone or iPad this is the memory left for this app (`os_proc_available_memory`), not the
+                // device's free memory (5.8 review); on a Mac it is the system's free memory.
                 SpecTile(
-                    name: "Free memory", value: formatMemorySize(state.availableMemoryMB), icon: state.memoryPressure.icon,
+                    name: Self.memoryTileName, value: formatMemorySize(state.availableMemoryMB), icon: state.memoryPressure.icon,
                     caption: state.memoryPressure.rawValue)
                 SpecTile(
                     name: "Pipeline", value: state.optimizationLevel.displayName, icon: "slider.horizontal.3",
@@ -97,12 +99,22 @@ struct LiveSystemMonitorWrapper: View {
 
     // MARK: - Helper Functions
 
+    private static var memoryTileName: String {
+        #if os(iOS) && !targetEnvironment(simulator)
+            return "Memory for app"
+        #else
+            return "Free memory"
+        #endif
+    }
+
     private func thermalDetailText(_ thermal: ProcessInfo.ThermalState) -> String {
         switch thermal {
-        case .nominal: return "Optimal performance"
+        // Apple's own descriptions of ProcessInfo.ThermalState (5.8 review: "Throttling active" claimed an effect the
+        // app does not apply at .serious).
+        case .nominal: return "Within normal limits"
         case .fair: return "Slightly elevated"
-        case .serious: return "Throttling active"
-        case .critical: return "Maximum throttling"
+        case .serious: return "High"
+        case .critical: return "Hurting performance"
         @unknown default: return "Unknown state"
         }
     }

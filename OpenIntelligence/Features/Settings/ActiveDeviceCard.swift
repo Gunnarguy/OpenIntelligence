@@ -5,7 +5,7 @@
 //  The Active Device card in Device & Performance (5.8): what this device is and what it reports, every value with
 //  where it came from, and under a fold what the app sets for it.
 //
-//  Through 5.7 this card showed a Neural Engine figure for every chip (Apple publishes one for seven), "Active
+//  Through 5.7 this card showed a Neural Engine figure for every chip (Apple publishes one for ten: A14, A15, A16, M1, M1 Ultra, M2, M2 Pro, M2 Max, M2 Ultra, M4), "Active
 //  cooling" on an iPad Pro, a "Thermal: High" pill that was a fixed guess by device type, a capability tier named
 //  like the answer modes, memory rounded to a whole number the device never reported, and a Hardware Envelope with
 //  two batch sizes nothing reads, a per-page memory figure for a page much larger than a letter page and a "GPU
@@ -114,7 +114,7 @@ struct ActiveDeviceCard: View {
         // The caption names the source actually used: Metal's name when it gave one, else Apple's specs (5.8 review).
         let fromMetal = AppleDeviceCatalog.chipName(fromMetalDeviceName: device.metalSnapshot.deviceName) == device.chipName
         let chipSource =
-            isSimulator ? "simulated device" : (device.isMac ? "macOS reports" : (fromMetal ? "Metal reports" : "Apple's specs"))
+            isSimulator ? "simulated device" : (fromMetal ? "Metal reports" : (device.isMac ? "macOS reports" : "Apple's specs"))
         let clusters = device.cpuClusters
         let cpuValue =
             clusters.isEmpty
@@ -190,7 +190,8 @@ struct ActiveDeviceCard: View {
                 row("Text recognition", "\(textRecognition) at once • \(envelope.visionCooldownMilliseconds) ms apart")
                 row("Pages held at once", "\(envelope.pdfRenderSlots)")
                 row("Page detail", maximum ? "432 DPI, every page" : "360 DPI, 432 for hard pages")
-                row("Search", "one matrix pass from \(envelope.batchMatrixMultiplyThreshold) passages")
+                row("Search", envelope.batchMatrixMultiplyThreshold == Int.max
+                    ? "one passage at a time" : "one matrix pass from \(envelope.batchMatrixMultiplyThreshold) passages")
                 row("Reranked", "up to \(device.activeDepth.rerankCeiling) passages")
                 row("Deep Think aims for", "\(deepThink)% confidence")
             }

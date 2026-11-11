@@ -3,7 +3,7 @@
 //  OpenIntelligenceTests
 //
 //  The device facts the Active Device card, About, the metrics bar and onboarding show (5.8): only what Apple
-//  published or the hardware reports. Until 5.8 every chip had a Neural Engine figure (Apple gives one for seven),
+//  published or the hardware reports. Until 5.8 every chip had a Neural Engine figure (Apple gives one for ten),
 //  the iPhone 18 Pro Max and Duo were called "A20" and the iPhone Air "A19", and four iPad families were named as
 //  other iPads.
 //
@@ -19,6 +19,7 @@ final class AppleDeviceCatalogTests: XCTestCase {
 
     func testOnlyApplesPublishedFiguresAreReturned() {
         let published: [String: Double] = [
+            "A14": 11, "A14 Bionic": 11, "A15 Bionic": 15.8, "A16": 17, "A16 Bionic": 17,
             "M1": 11, "M1 Ultra": 22, "M2": 15.8, "M2 Pro": 15.8, "M2 Max": 15.8, "M2 Ultra": 31.6, "M4": 38,
         ]
         for (chip, tops) in published {
@@ -30,6 +31,7 @@ final class AppleDeviceCatalogTests: XCTestCase {
         ] {
             XCTAssertNil(AppleDeviceCatalog.neuralEngineTOPS(forChip: chip), "Apple publishes no figure for \(chip)")
         }
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineFigure(forChip: "A16")?.text, "nearly 17", "Apple's own words")
         XCTAssertEqual(AppleDeviceCatalog.topsDescription(38), "38")
         XCTAssertEqual(AppleDeviceCatalog.topsDescription(15.8), "15.8")
     }

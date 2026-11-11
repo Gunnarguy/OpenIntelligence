@@ -2190,7 +2190,7 @@ encoding, no longer a copy of the embedder's. `RerankerModelTests` pins the toke
 
 **Context.** The owner asked for every value on the Active Device card and the Hardware Envelope to be
 accurate, "none of it inferred or fabricated". Tracing each value found a Neural Engine TOPS figure for every
-chip where Apple publishes one for seven (its newsroom and Tech Specs pages, read 2026-11-10); chip names and iPad
+chip where Apple publishes one for ten (its newsroom and Tech Specs pages, read 2026-11-10); chip names and iPad
 models wrong in the identifier tables; "Active cooling" on an iPad Pro; a "Thermal: High" pill that was a fixed
 rule by device type; memory rounded to a size the device never reported; and two batch sizes nothing reads. The
 2026-08-11 entry above kept the figures because they were "true, measured where claimed"; the TOPS figures were

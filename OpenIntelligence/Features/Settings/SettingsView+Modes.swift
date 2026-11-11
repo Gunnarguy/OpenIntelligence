@@ -141,7 +141,7 @@ extension SettingsView {
     private func modeCallout(for mode: RAGQualityMode) -> String {
         switch mode.canonical {
         case .standard:
-            return "Checks the answer against your documents, and searches again only when the first search finds little. The fastest."
+            return "Checks the answer against your documents, and searches more when the first search is thin. The fastest."
         case .deepThink:
             return "Searches up to 5 phrasings and builds the answer in a chain of sessions, for comparisons and questions that need several passages."
         case .maximum:

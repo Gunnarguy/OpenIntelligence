@@ -352,7 +352,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
     var npuTops: Double? { AppleDeviceCatalog.neuralEngineTOPS(forChip: cachedChipName) }
 
     /// "38 TOPS" where Apple published a figure for this chip, nil elsewhere.
-    var npuTopsDescription: String? { npuTops.map { "\(AppleDeviceCatalog.topsDescription($0)) TOPS" } }
+    var npuTopsDescription: String? { AppleDeviceCatalog.neuralEngineFigure(forChip: cachedChipName).map { "\($0.text) TOPS" } }
 
     /// Memory the system reports (`ProcessInfo.physicalMemory`), in GB.
     var memoryGB: Double { cachedMemoryGB }

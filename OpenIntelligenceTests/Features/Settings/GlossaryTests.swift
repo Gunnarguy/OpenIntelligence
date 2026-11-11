@@ -246,7 +246,7 @@ final class GlossaryTests: XCTestCase {
     /// The TOPS definition must keep saying it is a lookup rather than a measurement.
     ///
     /// `DeviceCapabilityService.npuTops` is Apple's published figure, looked up by chip, for the
-    /// seven chips Apple gives one for (5.8; until then a table of estimates). Apple exposes
+    /// ten chips Apple gives one for (5.8; until then a table of estimates). Apple exposes
     /// no live Neural Engine occupancy API. This repository has already withdrawn a `65
     /// tok/s` figure and three invented multipliers that read as measurements, so the
     /// hedge here is load-bearing and a test is cheaper than finding out it was edited out.

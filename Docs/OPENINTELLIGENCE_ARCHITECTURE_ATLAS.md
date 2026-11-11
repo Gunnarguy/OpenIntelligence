@@ -124,7 +124,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   looked up rather than measured, and Core ML rather than the app deciding whether the Neural Engine runs.
   `[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: Glossary.swift, GlossaryTests.swift]`
 - **Device facts come only from Apple or the hardware (5.8).** `AppleDeviceCatalog` holds model names from Xcode
-  27.0's `device_traits.db`, chips from Apple's Tech Specs, and Neural Engine TOPS only for the seven chips Apple
+  27.0's `device_traits.db`, chips from Apple's Tech Specs, and Neural Engine TOPS only for the ten chips Apple
   published a figure for (M1, M1 Ultra, M2, M2 Pro, M2 Max, M2 Ultra, M4); `DeviceCapabilityService.npuTops` is
   nil elsewhere and every screen omits the figure. The chip name on a device is the one Metal reports
   (`resolvedChipName`), on a Mac the brand string. `ActiveDeviceCard` shows model, chip, memory as reported, CPU

@@ -4,7 +4,7 @@
 //
 //  What Apple publishes about each device, and nothing else (5.8).
 //
-//  Until 5.8 the device screens showed a Neural Engine figure on every device, and Apple publishes one for seven chips:
+//  Until 5.8 the device screens showed a Neural Engine figure on every device, and Apple publishes one for ten chips (first counted as seven; three older A-series figures were found on 2026-11-10):
 //  the rest (35 for A17 Pro, 38 for A18 Pro, 45 for A19 Pro, 50 for A20 Pro, 18 for M3, 45 for M5, and a formula for
 //  chips not yet made) were typed in as estimates or "projections". The same tables named the iPhone 18 Pro Max and
 //  the iPhone Air's chips wrongly, called an iPad (A16) an M3 iPad Air, an iPad (10th generation) an M1 iPad Pro and
@@ -25,7 +25,7 @@ nonisolated enum AppleDeviceCatalog {
     /// The model for an identifier such as "iPhone17,2", or nil for one this build does not know.
     ///
     /// Names: Xcode 27.0's `iPhoneOS.platform/usr/standalone/device_traits.db`, column `ProductDescription`, read
-    /// 2026-11-10. Two identifiers carry no name there and come from AppleDB (the same source the X-Ray uses, 2026-11-10):
+    /// 2026-11-10. Three identifiers have no usable name there and come from AppleDB (the same source the X-Ray uses, 2026-11-10):
     /// iPhone19,4 is the iPhone Duo and iPad19,1 and 19,2 the iPad mini (A20 Pro).
     /// Chips: Apple's Tech Specs (support.apple.com/docs/iphone, /docs/ipad) and its newsroom announcements, read
     /// 2026-11-10; the iPhone 17e's from apple.com/iphone-17e/specs ("A19 chip").
@@ -81,24 +81,31 @@ nonisolated enum AppleDeviceCatalog {
         return table
     }()
 
-    /// Apple's own Neural Engine figure for a chip, in trillions of operations per second, or nil where Apple has
-    /// published none. Apple's pages state one for seven chips (read 2026-11-10): M1 "11 trillion operations per
-    /// second" (newsroom 2020/11), M1 Ultra "22 trillion" (2022/03), M2 "15.8 trillion" (2022/06), M2 Pro and M2 Max
-    /// "15.8 trillion" (2023/01), M2 Ultra "31.6 trillion" (2023/06), M4 "38 trillion" (2024/05). From M3 on Apple
-    /// states multipliers instead ("up to 60 percent faster than in the M1 family"), and no A-series page gives a
-    /// figure, so every other chip returns nil and the screens say Apple publishes none.
-    static func neuralEngineTOPS(forChip chip: String) -> Double? {
+    /// Apple's own Neural Engine figure for a chip, in trillions of operations per second, and the words Apple used,
+    /// or nil where Apple published none. Read on Apple's newsroom pages, 2026-11-10: A14 "up to 11 trillion operations
+    /// per second" (iPad Air, 2020/09), A15 "15.8 trillion" (iPhone 13 Pro, 2021/09), A16 "nearly 17 trillion" (iPhone
+    /// 14 Pro, 2022/09), M1 "11 trillion" (2020/11), M1 Ultra "22 trillion" (2022/03), M2 "15.8 trillion" (2022/06), M2
+    /// Pro and M2 Max "15.8 trillion" (2023/01), M2 Ultra "31.6 trillion" (2023/06), M4 "38 trillion" (2024/05). The A17
+    /// Pro, A18 and A18 Pro announcements give none (they say "up to 2x faster" and "faster"), nor does any A19, A20, M3
+    /// or M5 page, so those return nil and the screens say Apple publishes none. The Metal name drops "Bionic", so both
+    /// spellings are listed.
+    static func neuralEngineFigure(forChip chip: String) -> (value: Double, text: String)? {
         switch chip {
-        case "M1": return 11
-        case "M1 Ultra": return 22
-        case "M2", "M2 Pro", "M2 Max": return 15.8
-        case "M2 Ultra": return 31.6
-        case "M4": return 38
+        case "A14", "A14 Bionic": return (11, "11")
+        case "A15", "A15 Bionic": return (15.8, "15.8")
+        case "A16", "A16 Bionic": return (17, "nearly 17")
+        case "M1": return (11, "11")
+        case "M1 Ultra": return (22, "22")
+        case "M2", "M2 Pro", "M2 Max": return (15.8, "15.8")
+        case "M2 Ultra": return (31.6, "31.6")
+        case "M4": return (38, "38")
         default: return nil
         }
     }
 
-    /// "38" or "15.8": the figure as Apple wrote it.
+    static func neuralEngineTOPS(forChip chip: String) -> Double? { neuralEngineFigure(forChip: chip)?.value }
+
+    /// "38" or "15.8": the figure as a number.
     static func topsDescription(_ tops: Double) -> String {
         tops == tops.rounded() ? String(Int(tops)) : String(format: "%.1f", tops)
     }
@@ -115,7 +122,8 @@ nonisolated enum AppleDeviceCatalog {
         return chip
     }
 
-    /// Memory as the system reports it, never rounded to a whole size: Apple publishes no RAM for any iPhone, and
+    /// Memory as the system reports it, to a tenth of a gigabyte (a value within 0.05 of a whole number shows as whole):
+    /// Apple publishes no RAM for any iPhone, and
     /// `ProcessInfo.physicalMemory` reads about 7.5 GB on the owner's iPhone 16 Pro Max (2026-11-10), so a whole
     /// number would be a figure the device did not report. "18 GB" for 18.0, "7.5 GB" for 7.47.
     static func memoryDescription(gigabytes: Double) -> String {

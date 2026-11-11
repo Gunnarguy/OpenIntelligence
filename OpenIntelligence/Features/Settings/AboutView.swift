@@ -175,7 +175,7 @@ struct AboutView: View {
                             LabeledContent("Device Chip", value: deviceService.chipName)
                             LabeledContent("iOS Version", value: deviceCapabilities.iOSVersion)
                                 .monospacedDigit()
-                            // Apple's own figure where it published one (seven chips); the row is left out elsewhere
+                            // Apple's own figure where it published one (ten chips); the row is left out elsewhere
                             // rather than filled with an estimate (5.8). "AI Tier" was the app's internal ceiling class.
                             if let tops = deviceService.npuTopsDescription {
                                 LabeledContent("Neural Engine", value: tops)

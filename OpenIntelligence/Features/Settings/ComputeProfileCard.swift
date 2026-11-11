@@ -127,23 +127,33 @@ struct ComputeProfileCard: View {
         let cleanup = DeviceCapabilityService.cleansScannedPagesOnGPU(for: profile)
         let large = DeviceCapabilityService.searchesLargeLibrariesOnGPU(for: profile)
         let backgroundGPU = systemOffersBackgroundGPU && backgroundGPUProfiles.contains(profile)
+        // On a Mac a new library embeds with Core AI, which runs on the GPU whatever the profile (5.8 review; the
+        // profile's Core ML units apply to a library made with Core ML).
+        let coreAI = EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
+        let coreAINote =
+            " On this Mac a new library embeds with Core AI, which runs on the GPU in every profile; these Core ML units "
+            + "apply to a library made with Core ML."
         return [
             Workload(
-                id: "search", name: "Search by meaning", icon: "magnifyingglass", chips: Self.chips(searching),
-                engine: "Core ML, MLComputeUnits \(Self.unitsName(searching))",
+                id: "search", name: "Search by meaning", icon: "magnifyingglass",
+                chips: coreAI ? [.gpu] : Self.chips(searching),
+                engine: coreAI ? "Core AI on the GPU (new Mac libraries)" : "Core ML, MLComputeUnits \(Self.unitsName(searching))",
                 detail: "Each question is turned into a 384-number embedding by the app's embedding model. Core ML may "
                     + "place each of its layers on \(GPUExecutionProfile.chipNames(searching)), and picks the fastest."
+                    + (coreAI ? coreAINote : "")
                     + (deeper
                         ? " \(profile.displayName) also reranks up to \(depth.rerankCeiling) passages (250 in Balanced) and takes up to \(depth.keywordLimit) keyword results (60)"
                             + (profile == .maximum ? ", and loads its models for prediction speed." : ".")
                         : ""),
                 note: nil),
             Workload(
-                id: "import", name: "Import documents", icon: "square.and.arrow.down", chips: Self.chips(importing),
-                engine: "Core ML, MLComputeUnits \(Self.unitsName(importing))",
+                id: "import", name: "Import documents", icon: "square.and.arrow.down",
+                chips: coreAI ? [.gpu] : Self.chips(importing),
+                engine: coreAI ? "Core AI on the GPU (new Mac libraries)" : "Core ML, MLComputeUnits \(Self.unitsName(importing))",
                 detail: "Every passage of a new document is embedded, \(concurrency.embeddingParallel) at a time, on "
                     + "\(GPUExecutionProfile.chipNames(importing)). How many at a time is set by the \(chipName)"
-                    + (profile == .efficiency ? "; Efficiency takes half, so an import runs cooler and slower with the same result." : ".")
+                    + (profile == .efficiency ? "; Efficiency takes half, so an import runs cooler and slower, reading just as deeply." : ".")
+                    + (coreAI ? coreAINote : "")
                     + (depth == .performance
                         ? " \(profile.displayName) re-reads up to \(depth.rescueRegions) hard regions a page (12 in Balanced). It steps down while the device is hot, in Low Power Mode or in a background import without the GPU."
                         : "")

@@ -99,7 +99,7 @@ extension UnifiedMetricsBar {
                 )
             }
 
-            // Neural Engine: Apple's own figure, shown only for the seven chips Apple published one for (5.8).
+            // Neural Engine: Apple's own figure, shown only for the ten chips Apple published one for (5.8).
             if let tops = device.npuTops {
                 compactMetric(
                     icon: "brain.head.profile",

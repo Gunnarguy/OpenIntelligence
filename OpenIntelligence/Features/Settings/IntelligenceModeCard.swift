@@ -125,7 +125,7 @@ struct IntelligenceModeCard: View {
                     "After a strong search in Deep Think, or a good one in either mode, sessions on Apple's model each "
                     + "read \(chainPassages) passages and the findings so far. Deep Think stops at 8 sessions; after four "
                     + "it can stop once it is \(deepThinkTarget)% sure, has covered the question, and has stopped learning "
-                    + "or read most of the sources. Maximum's chain runs until it has read every distinct part, up to 50. "
+                    + "or read most of the sources. Maximum's chain can run up to 50 sessions and from the eighth stops when its findings settle. "
                     + "A weaker search gets one synthesis, or three drafts and then a broader or split search; a lookup "
                     + "goes straight to its passage."),
             Step(
@@ -134,9 +134,9 @@ struct IntelligenceModeCard: View {
                 engine: "Research rounds, AgenticOrchestrator+Research",
                 detail:
                     "After the strongest searches, when parts of the question are still uncovered or the answer reads "
-                    + "as a miss, up to 5 rounds of searching and answering again."),
+                    + "as a miss, up to 5 rounds of searching; after a good search, up to 3 rounds to check the answer."),
             Step(
-                id: "fifty", name: "Up to 50 sessions over every passage", icon: "infinity",
+                id: "fifty", name: "Up to 50 sessions over the passages found", icon: "infinity",
                 stage: .answer, modes: [.maximum],
                 engine: "Maximum's loop, AgenticOrchestrator+Maximum",
                 detail:
@@ -149,10 +149,10 @@ struct IntelligenceModeCard: View {
                 stage: .check, modes: [.standard],
                 engine: "Verification gates A to I, VerificationGateService",
                 detail:
-                    "In Standard a failed critical check (A retrieval confidence, C numbers, E meaning) can withhold the "
-                    + "answer. In Deep Think and Maximum the checks only label it, and they are skipped when the "
-                    + "source-only check has run. In every mode that check, on lookups, can withhold an answer the "
-                    + "passages do not support."
+                    "In Standard an answer that fails a check is withheld when its confidence is under the bar or the "
+                    + "library does not allow an unchecked answer. In Deep Think and Maximum the checks only label it, and "
+                    + "they are skipped when the source-only check has run. In every mode that check can withhold an "
+                    + "answer to a lookup the passages do not support."
             ),
         ]
     }
@@ -570,20 +570,20 @@ struct IntelligenceModeCard: View {
             readsCaption = "best sentences, each session"
             chat = "Not read"
         default:
-            reads = "up to 10,000 chars"
+            reads = "what fits"
             neighbours = "±2 to ±8"
             sessions = "1"
             stops = "one answer"
             stopsCaption = "after its checks"
-            readsCaption = "of passages, on this device"
+            readsCaption = "at most 10,000 chars on device"
             chat = "Read"
         }
         let deeper = mode.canonical != .standard
         return [
             Tile(name: "Window", value: windowDescription, icon: "ruler", up: false, caption: "Apple's model reports"),
             Tile(name: "Reads each pass", value: reads, icon: "doc.text", up: false, caption: readsCaption),
-            Tile(name: "Neighbours", value: neighbours, icon: "arrow.left.and.right", up: deeper, caption: "passages either side"),
-            Tile(name: "Sessions", value: sessions, icon: "link", up: deeper, caption: "on Apple's model"),
+            Tile(name: "Neighbours", value: neighbours, icon: "arrow.left.and.right", up: false, caption: "passages either side"),
+            Tile(name: "Sessions", value: sessions, icon: "link", up: deeper, caption: "reasoning windows"),
             Tile(name: "Stops when", value: stops, icon: "flag.checkered", up: false, caption: stopsCaption),
             Tile(name: "Chat history", value: chat, icon: "bubble.left.and.bubble.right", up: false, caption: "earlier turns"),
         ]
@@ -607,7 +607,7 @@ struct IntelligenceModeCard: View {
 
     private var sharedSteps: [(String, String)] {
         var rows: [(String, String)] = [
-            ("Search by meaning and by keyword", "Two searches merged by reciprocal rank fusion (k = 60)."),
+            ("Search by meaning and by keyword", "Two searches merged by reciprocal rank fusion (k = 60); a search inside one document weighs the two instead."),
             (
                 "Sorts the question into one of 8 kinds",
                 "Lookup, table lookup, procedure, compare, summarize, investigate, findings or compute; the kind steers the search."
@@ -627,11 +627,11 @@ struct IntelligenceModeCard: View {
             ("Document summaries for overview questions", "When query routing is on and the library has summaries."),
             (
                 "Nine checks on the answer",
-                "Gates A to I: confidence, coverage, numbers, contradiction, meaning, quotes, quality, completeness and mixed-domain isolation. In Standard completeness and isolation pass without a check, and the meaning check needs the passages' vectors."
+                "Gates A to I: confidence, coverage, numbers, contradiction, meaning, abbreviations, quality, completeness and mixed-domain isolation. The meaning check needs vectors for the passages and the answer."
             ),
             (
                 "A confidence score",
-                "Standard's from the top score, the margin and the number of passages; Deep Think's from relevance and citations; Maximum's loop from its sessions' progress blended with its self-check."
+                "Standard's from the top score, the number of passages and sources, and the question; Deep Think's from relevance and citations; Maximum's loop from its sessions' progress blended with its self-check."
             ),
         ]
         if privateCloudComputeCompiledIn {
