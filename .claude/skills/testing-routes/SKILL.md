@@ -34,24 +34,37 @@ the unit suite and every model-free check, which is most of the 1,706 tests.
 - Measured: runs 489 to 495 of `Tests (manual)` took 26 to 30 minutes of wall time for the iOS action (three
   simulators) [measured 2026-11-11 from `/v1/ciBuildRuns/{id}/actions` dates], so a full run is roughly 1.5 compute
   hours, about 60 full runs a month. A run that dies in the first minute (493, 494) costs almost nothing.
-- Workflow `Tests (manual)` (id in `BenchmarkRuns/2026-11-07-xcode-cloud/tests_workflow_id`, local): Test - iOS on
+- Workflow `Tests (manual)` (found by name; `scripts/xcloud.py` looks it up): Test - iOS on
   iPhone 15 Pro, iPhone 17 Pro Max and iPad mini (A17 Pro), iOS 27.0, scheme settings; manual or API start only, so
   release archives (`Default`) are untouched. Ask before changing it.
 
-Commands, all through `zsh -ic` because the App Store Connect key's variables come from `~/.zshrc` (never print
-them), run from `BenchmarkRuns/2026-11-07-xcode-cloud/` (gitignored, local):
+Commands: `scripts/xcloud.py`, from the repository root, always through `zsh -ic` because the App Store Connect
+key's variables come from `~/.zshrc` (it never prints them). Push first: a run builds what `origin/main` holds.
 
 ```bash
-zsh -ic 'python3 start.py'        # start a run on main; writes run_id
+zsh -ic 'python3 scripts/xcloud.py start'
 ```
 
 ```bash
-zsh -ic 'python3 watch.py'        # waits (polls every 3 min), then prints per-device pass/fail and failures
+zsh -ic 'python3 scripts/xcloud.py watch --against 496'
+```
+
+`watch` waits (it checks every 2 minutes, about 30 in all; run it in the background), then prints pass, fail and
+skip per device, each failure's message, and with `--against` which tests are newly failing, fixed or still
+failing. Lines a test printed are in the log bundle:
+
+```bash
+zsh -ic 'python3 scripts/xcloud.py logs 497 "SOURCE-MISS|ModelProbe" --after 8'
 ```
 
 ```bash
-zsh -ic 'python3 dl.py run_id "Test - iOS" /private/tmp/oi-xc/logs.zip'   # the log bundle, for printed lines
+zsh -ic 'python3 scripts/xcloud.py list'
 ```
+
+**To find out why a test fails in the cloud, make it print.** A test that prints what it saw (the passage, the
+stored text, the model's error) turns one cloud run into a diagnosis; the log bundle keeps every printed line.
+`SourceLookupImportTests` prints `SOURCE-MISS` and `SOURCE-STORED` blocks, and `ModelEnvironmentProbeTests` its
+`[ModelProbe]` line.
 
 Cloud traps:
 
@@ -64,12 +77,20 @@ Cloud traps:
   through `#filePath` (`AnswerQualityEvaluationTests`, the golden harnesses) cannot find them in the cloud; its
   fixtures have to be in the test bundle's resources first.
 - No physical devices: destinations are `SIMULATOR` and `MAC` only.
-- Failures in run 496 (ef305172), on all three devices unless noted: `SourceLookupTests.testATablePassageIsFoundByItsCells`,
-  `SourceLookupImportTests.testEveryKindOfFileFindsItsOwnPassages`, `StructuredKeywordOrderTests.testTheFirstTwentyCodesAreKeptInTheOrderTheyAppear`
-  (returns `[]`), `TourTipTests.testEveryTipHasTextAndASymbol` (an X-Ray tip is 286 characters, limit 220), and
-  `WatchedFolderPathTests.testAFileThatCannotImportIsReportedOnceAndNotRetried` on the iPad only. Not yet diagnosed;
-  a local "Simulator 240 run" covers only the classes it names, not these. Compare a new red run with 496 before
-  calling anything a regression.
+- Failures in run 496 (ef305172) and their causes, diagnosed 2026-11-11 from the code and runs 489 to 496:
+  - `TourTipTests.testEveryTipHasTextAndASymbol`: the X-Ray tip grew to 286 characters (9a1cd5ff); the limit is 220.
+  - `StructuredKeywordOrderTests`: where the word tagger reads "ABC-101" as a noun (these simulators, not this Mac),
+    its lowercase copy counts as a code and comes first, so the uppercase codes are deduplicated away (since f7c1b484).
+  - `SourceLookupTests.testATablePassageIsFoundByItsCells`: the no-HEADERS column-name pattern in
+    `PassageLocator.withoutImportLabels` (60c62e12) also eats a row's last cell and the next `ROW n:` label when rows
+    run together on one line.
+  - `WatchedFolderPathTests.testAFileThatCannotImportIsReportedOnceAndNotRetried`, flaky (3 of 3 in 495, 1 of 3 in
+    496): `WatchedFolderService.check` holds back the "couldn't be imported" note while anything at all is importing,
+    not just this folder's files; the shared test host always has something in flight.
+  - `SourceLookupImportTests.testEveryKindOfFileFindsItsOwnPassages` (csv, since f7c1b484): open; the test now prints
+    every passage it can't place.
+- A local "Simulator 240 run" covers only the classes it names. Compare a new red run with the last one
+  (`watch --against`) before calling anything a regression.
 - A run's `.xcresult` is about 60 MB; the log bundle (about 0.5 MB) holds every printed line, so download that one.
 
 ## His iPhone without tapping

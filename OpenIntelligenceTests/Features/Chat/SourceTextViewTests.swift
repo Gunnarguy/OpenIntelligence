@@ -9,17 +9,20 @@
 import AppIntents
 import XCTest
 
+@testable import OpenIntelligence
+
 #if canImport(UIKit)
     import UIKit
 #endif
 
-@testable import OpenIntelligence
-
 final class SourceLookupTests: XCTestCase {
-    private let text = "Introduction.\n\nThe tenant pays rent on the first of each month.\nA late fee of 40 dollars applies after the fifth day.\n\nSigned."
+    private let text =
+        "Introduction.\n\nThe tenant pays rent on the first of each month.\nA late fee of 40 dollars applies after the fifth day.\n\nSigned."
 
     func testAPassageWithItsWordsInOrderIsExact() throws {
-        let found = SourceLookup.find("The tenant pays rent on the first of each month. A late fee of 40 dollars applies after the fifth day.", inText: text)
+        let found = SourceLookup.find(
+            "The tenant pays rent on the first of each month. A late fee of 40 dollars applies after the fifth day.",
+            inText: text)
         XCTAssertEqual(found.match, .exact)
         let range = try XCTUnwrap(found.range)
         XCTAssertTrue((text as NSString).substring(with: range).hasPrefix("The tenant"))
@@ -32,13 +35,15 @@ final class SourceLookupTests: XCTestCase {
     /// A changed number is the failure this exists to catch, and it must never read as word for word.
     func testAChangedWordIsNotExact() {
         let found = SourceLookup.find(
-            "The tenant pays rent on the first of each month. A late fee of 90 dollars applies after the fifth day.", inText: text)
+            "The tenant pays rent on the first of each month. A late fee of 90 dollars applies after the fifth day.",
+            inText: text)
         XCTAssertNotEqual(found.match, .exact)
     }
 
     func testOneTrueSentenceAndOneInventedOneIsPartial() {
         let found = SourceLookup.find(
-            "The tenant pays rent on the first of each month. The landlord will repaint the kitchen every spring.", inText: text)
+            "The tenant pays rent on the first of each month. The landlord will repaint the kitchen every spring.",
+            inText: text)
         XCTAssertEqual(found.match, .partial)
         XCTAssertNotNil(found.range, "the true part can still be shown")
     }
@@ -66,7 +71,8 @@ final class SourceLookupTests: XCTestCase {
     /// The import writes a table's rows out with labels, and the file has only the cells.
     func testATablePassageIsFoundByItsCells() {
         let csv = "clause,notice,deposit\n1,31 days,100 dollars\n2,32 days,200 dollars\n3,33 days,300 dollars"
-        let passage = "[Part 1]\nHEADERS: clause | notice | deposit\nROW 1: 1 | 31 days | 100 dollars\nROW 2: 2 | 32 days | 200 dollars"
+        let passage =
+            "[Part 1]\nHEADERS: clause | notice | deposit\nROW 1: 1 | 31 days | 100 dollars\nROW 2: 2 | 32 days | 200 dollars"
         XCTAssertEqual(SourceLookup.find(passage, inText: csv).match, .exact)
         // A long table's parts are split again by words, which runs rows together on a line.
         let runTogether = "[Part 1]\n[Part 2]\nROW 2: 2 | 32 days | 200 dollars ROW 3: 3 | 33 days | 300 dollars"
@@ -75,9 +81,15 @@ final class SourceLookupTests: XCTestCase {
 
     /// A table is also indexed as `name: value` lines, which the file doesn't have, in the same order as its cells.
     func testATablesNamedValuesAreFoundByTheirCells() {
-        let table = "| clause | notice | deposit |\n| --- | --- | --- |\n| 7 | 37 days | 700 dollars |\n| 8 | 38 days | 800 dollars |"
-        XCTAssertEqual(SourceLookup.find("[Specifications]\nclause: 7\nnotice: 37 days\ndeposit: 700 dollars\nclause: 8", inText: table).match, .exact)
-        XCTAssertEqual(SourceLookup.find("clause: 7; notice: 37 days; deposit: 700 dollars; clause: 8.", inText: table).match, .exact)
+        let table =
+            "| clause | notice | deposit |\n| --- | --- | --- |\n| 7 | 37 days | 700 dollars |\n| 8 | 38 days | 800 dollars |"
+        XCTAssertEqual(
+            SourceLookup.find(
+                "[Specifications]\nclause: 7\nnotice: 37 days\ndeposit: 700 dollars\nclause: 8", inText: table
+            ).match, .exact)
+        XCTAssertEqual(
+            SourceLookup.find("clause: 7; notice: 37 days; deposit: 700 dollars; clause: 8.", inText: table).match,
+            .exact)
         XCTAssertNotEqual(SourceLookup.find("clause: 7\nnotice: 99 days", inText: table).match, .exact)
     }
 
@@ -109,7 +121,9 @@ final class SourceLookupTests: XCTestCase {
     }
 
     func testAnExcerptCutsAtWordsAndSaysThereIsMore() throws {
-        let long = String(repeating: "alpha beta gamma ", count: 2_000) + "the passage here " + String(repeating: "delta epsilon ", count: 2_000)
+        let long =
+            String(repeating: "alpha beta gamma ", count: 2_000) + "the passage here "
+            + String(repeating: "delta epsilon ", count: 2_000)
         let range = (long as NSString).range(of: "the passage here")
         let part = SourceExcerpt.around(range, in: long, radius: 100)
         XCTAssertEqual(part.passage, "the passage here")
@@ -133,12 +147,18 @@ final class SourceLookupTests: XCTestCase {
 @MainActor
 final class SourceLookupImportTests: XCTestCase {
     private func sampleFiles(in folder: URL) throws -> [String: URL] {
-        let prose = (1...12).map { "Clause \($0) says the tenant at unit \($0) must give \($0 + 30) days of written notice, and the deposit of \($0 * 100) dollars returns within \($0 + 14) days." }
+        let prose = (1...12).map {
+            "Clause \($0) says the tenant at unit \($0) must give \($0 + 30) days of written notice, and the deposit of \($0 * 100) dollars returns within \($0 + 14) days."
+        }
         var files: [String: Data] = [:]
         files["md"] = Data(("# Lease\n\n## Terms\n\n" + prose.joined(separator: "\n\n")).utf8)
-        files["csv"] = Data(("clause,notice,deposit\n" + (1...60).map { "\($0),\($0 + 30) days,\($0 * 100) dollars" }.joined(separator: "\n")).utf8)
-        files["html"] = Data(("<html><body><h1>Lease</h1>" + prose.map { "<p>\($0)</p>" }.joined() + "</body></html>").utf8)
-        files["swift"] = Data(prose.enumerated().map { "let clause\($0.offset) = \"\($0.element)\"" }.joined(separator: "\n").utf8)
+        files["csv"] = Data(
+            ("clause,notice,deposit\n"
+                + (1...60).map { "\($0),\($0 + 30) days,\($0 * 100) dollars" }.joined(separator: "\n")).utf8)
+        files["html"] = Data(
+            ("<html><body><h1>Lease</h1>" + prose.map { "<p>\($0)</p>" }.joined() + "</body></html>").utf8)
+        files["swift"] = Data(
+            prose.enumerated().map { "let clause\($0.offset) = \"\($0.element)\"" }.joined(separator: "\n").utf8)
         let attributed = NSAttributedString(string: prose.joined(separator: "\n\n"))
         files["rtf"] = try attributed.data(
             from: NSRange(location: 0, length: attributed.length),
@@ -214,13 +234,25 @@ final class SourceLookupImportTests: XCTestCase {
                 if found.match != .exact, found.match != .overview, sample.isEmpty {
                     sample = String(chunk.content.prefix(120))
                 }
+                // Every passage that isn't found word for word, whole, so a cloud run's log shows why (2026-11-11:
+                // 120 characters could not say why two csv passages were not found).
+                if found.match == .partial || found.match == .notFound {
+                    print("SOURCE-MISS \(kind) \(found.match)\n\(chunk.content.prefix(1_500))\nSOURCE-MISS-END")
+                }
+            }
+            if kind == "csv" {
+                let stored = SQLiteFullTextService.readContentDirectly(documentId: document.id) ?? ""
+                print("SOURCE-STORED csv \(stored.count) characters\n\(stored.prefix(600))\n...\n\(stored.suffix(400))\nSOURCE-STORED-END")
             }
             let exact = counts[.exact] ?? 0
             lines.append(
-                "\(kind): \(exact)/\(chunks.count) exact, overview \(counts[.overview] ?? 0), partial \(counts[.partial] ?? 0), notFound \(counts[.notFound] ?? 0), noText \(counts[.noText] ?? 0) \(sample)")
+                "\(kind): \(exact)/\(chunks.count) exact, overview \(counts[.overview] ?? 0), partial \(counts[.partial] ?? 0), notFound \(counts[.notFound] ?? 0), noText \(counts[.noText] ?? 0) \(sample)"
+            )
             XCTAssertEqual(counts[.noText] ?? 0, 0, "\(kind) has no stored text")
             // A table also gets one passage the import wrote about it, which is rightly not found in the file.
-            XCTAssertLessThanOrEqual(counts[.notFound] ?? 0, ["csv", "xlsx"].contains(kind) ? 1 : 0, "\(kind) has a passage that can't be placed: \(sample)")
+            XCTAssertLessThanOrEqual(
+                counts[.notFound] ?? 0, ["csv", "xlsx"].contains(kind) ? 1 : 0,
+                "\(kind) has a passage that can't be placed: \(sample)")
             try? await engine.removeDocument(document)
         }
         print("SOURCE-MATCH-RATE\n" + lines.joined(separator: "\n") + "\nSOURCE-MATCH-END")
