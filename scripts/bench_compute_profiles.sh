@@ -14,7 +14,16 @@ run() { # set dir list label profile
     -only-testing:OpenIntelligenceTests/ExtractionFidelityRecorder > $OUT/$label.log 2>&1
   echo "exit $? $(grep -E 'Executed [0-9]+ test' $OUT/$label.log | tail -1)"
 }
-for p in balanced performance maximum; do run /private/tmp/oi-fidelity/pdfs "" prof-$p $p; done
-for p in balanced performance maximum; do run /private/tmp/olmocr-bench "/private/tmp/olmocr-bench/run160.txt" prof160-$p $p; done
+# Pass 1 in ladder order, pass 2 reversed, so a time difference can be told apart from a warm first run.
+PASS=${1:-all}
+if [ "$PASS" = all ] || [ "$PASS" = fidelity ]; then
+  for p in balanced performance maximum; do run /private/tmp/oi-fidelity/pdfs "" prof-$p $p; done
+fi
+if [ "$PASS" = all ] || [ "$PASS" = olmocr ]; then
+  for p in balanced performance maximum; do run /private/tmp/olmocr-bench/pdfs "/private/tmp/olmocr-bench/run160.txt" prof160-$p $p; done
+fi
+if [ "$PASS" = all ] || [ "$PASS" = reverse ] || [ "$PASS" = olmocr ]; then
+  for p in maximum performance balanced; do run /private/tmp/oi-fidelity/pdfs "" prof-$p-r2 $p; done
+fi
 xcrun simctl shutdown $SIM
 echo done $(date +%H:%M)

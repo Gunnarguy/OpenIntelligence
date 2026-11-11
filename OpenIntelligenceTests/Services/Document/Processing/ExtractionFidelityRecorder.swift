@@ -33,6 +33,28 @@ final class ExtractionFidelityRecorder: XCTestCase {
         let output = folder.appendingPathComponent(label, isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
+        // What the import will run with (2026-11-11): a profile benchmark measured Balanced three times when Maximum's
+        // depth never engaged, and nothing in the output said so. Written before and after the imports.
+        func recordProfile(_ name: String) throws {
+            let device = DeviceCapabilityService.shared
+            let depth = device.activeDepth
+            let state: [String: String] = [
+                "env": environment["OI_COMPUTE_PROFILE"] ?? "",
+                "selected": DeviceCapabilityService.selectedProfile.rawValue,
+                "fullDetailPages": "\(depth.fullDetailPages)", "rescueRegions": "\(depth.rescueRegions)",
+                "rerankCeiling": "\(depth.rerankCeiling)", "maximumActive": "\(device.isMaximumFidelityActive)",
+                "backgroundCPUSafe": "\(device.isBackgroundCPUSafeIngestionActive)",
+                "thermal": "\(ProcessInfo.processInfo.thermalState.rawValue)",
+                "lowPower": "\(ProcessInfo.processInfo.isLowPowerModeEnabled)",
+                "renderSlots": "\(device.pdfRenderingConcurrency)",
+            ]
+            print("[FidelityProfile] \(name) \(state.sorted { $0.key < $1.key })")
+            try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys, .prettyPrinted])
+                .write(to: output.appendingPathComponent("profile-\(name).json"))
+        }
+        try recordProfile("start")
+        defer { try? recordProfile("end") }
+
         // `TEST_RUNNER_OI_FIDELITY_LIST`: a file of PDF paths relative to the folder, one per line (a public benchmark keeps
         // its PDFs in subfolders); otherwise every PDF directly in the folder.
         let listed: [URL]? = environment["OI_FIDELITY_LIST"].flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }

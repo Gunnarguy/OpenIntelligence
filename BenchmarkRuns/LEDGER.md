@@ -1259,3 +1259,10 @@ launched detached (`caffeinate -ims`, `nohup`, `disown`) so it survived independ
 session; a prior identically-scoped attempt (`greedy-50`, 2026-08-21) was started and abandoned with
 no `results.json` ever written and no note anywhere of why — not deleted, per this repo's own rule,
 but worth knowing a first attempt at this exact run died silently once already.
+
+### 2026-11-11 compute profiles, import depth (`2026-11-11-compute-profiles`)
+
+Extraction-fidelity set (8 PDFs) and olmOCR-Bench 160 pages, once each under Balanced, Performance and Maximum on one
+build (ee2ce21b). Stored text identical across the three on both sets (fidelity mean 0.944/0.966/0.966/0.975 each;
+olmOCR 465 of 755 checks each). A probe confirmed Maximum was active. One run per profile, ladder order: times are not
+comparable yet. Retrieval per profile not run.
