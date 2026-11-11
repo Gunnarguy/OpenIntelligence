@@ -87,11 +87,14 @@ Cloud traps:
   - `WatchedFolderPathTests.testAFileThatCannotImportIsReportedOnceAndNotRetried`, flaky (3 of 3 in 495, 1 of 3 in
     496): `WatchedFolderService.check` holds back the "couldn't be imported" note while anything at all is importing,
     not just this folder's files; the shared test host always has something in flight.
-  - `SourceLookupImportTests.testEveryKindOfFileFindsItsOwnPassages` (csv, since f7c1b484): open; the test now prints
-    every passage it can't place.
+  - `SourceLookupImportTests.testEveryKindOfFileFindsItsOwnPassages` (csv, since f7c1b484): the import now writes a
+    table's named values as `1 notice: 31 days` (row key, then name and value); `PassageLocator.cellValues` strips all
+    before the colon, so the row key is lost and the values no longer line up with the file (run 497's printout).
+  - Flaky, 1 of 3 in run 497, no message: `ShortcutsActionTests.testAskAboutADocumentRestsOnlyOnThatDocument`.
 - A local "Simulator 240 run" covers only the classes it names. Compare a new red run with the last one
   (`watch --against`) before calling anything a regression.
-- A run's `.xcresult` is about 60 MB; the log bundle (about 0.5 MB) holds every printed line, so download that one.
+- Printed lines come from the log bundle (about 0.5 MB). Some runs have none (497): `xcloud.py logs` then reads the
+  iPhone 15 Pro result bundle (about 60 MB, one device's output, through `xcresulttool get log --type action`).
 
 ## His iPhone without tapping
 

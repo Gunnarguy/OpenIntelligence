@@ -26,6 +26,7 @@ import collections
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
@@ -195,16 +196,8 @@ def command_logs(options: argparse.Namespace) -> None:
         sys.exit("The run has no test action.")
     folder = LOGS / str(run["attributes"]["number"])
     folder.mkdir(parents=True, exist_ok=True)
-    bundle = folder / "logs.zip"
-    if not bundle.exists():
-        for artifact in call("GET", f"/v1/ciBuildActions/{action['id']}/artifacts")["data"]:
-            if artifact["attributes"]["fileType"] == "LOG_BUNDLE":
-                urllib.request.urlretrieve(artifact["attributes"]["downloadUrl"], bundle)
-                break
-        else:
-            sys.exit("The run has no log bundle.")
-    with zipfile.ZipFile(bundle) as archive:
-        archive.extractall(folder / "logs")
+    if not (folder / "logs").exists():
+        fetch_logs(action, folder)
     pattern = re.compile(options.pattern) if options.pattern else None
     for path in sorted((folder / "logs").rglob("*")):
         if not path.is_file():
@@ -216,6 +209,45 @@ def command_logs(options: argparse.Namespace) -> None:
             for line in lines[n: n + 1 + options.after]:
                 print(re.sub(r"^\S+Z\t", "", line))
     print(f"(log bundle: {folder / 'logs'})", file=sys.stderr)
+
+
+def text_strings(node, out: list[str]) -> None:
+    if isinstance(node, dict):
+        for value in node.values():
+            text_strings(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            text_strings(value, out)
+    elif isinstance(node, str) and "\n" in node:
+        out.append(node)
+
+
+def fetch_logs(action: dict, folder: Path) -> None:
+    """The log bundle when the run has one (about 0.5 MB). Some runs (497) have none: then the iPhone 15 Pro result
+    bundle (about 60 MB), whose action log holds what the tests printed on that one device."""
+    artifacts = call("GET", f"/v1/ciBuildActions/{action['id']}/artifacts?limit=50")["data"]
+    logs = folder / "logs"
+    bundle = next((a for a in artifacts if a["attributes"]["fileType"] == "LOG_BUNDLE"), None)
+    if bundle:
+        urllib.request.urlretrieve(bundle["attributes"]["downloadUrl"], folder / "logs.zip")
+        with zipfile.ZipFile(folder / "logs.zip") as archive:
+            archive.extractall(logs)
+        return
+    result = next((a for a in artifacts if a["attributes"]["fileName"].endswith("test-without-building on iPhone 15 Pro (iOS 27.0).xcresult.zip")
+                   or ("test-without-building" in a["attributes"]["fileName"] and a["attributes"]["fileName"].endswith(".xcresult.zip"))), None)
+    if result is None:
+        sys.exit("The run has no log bundle and no result bundle.")
+    print(f"No log bundle; reading {result['attributes']['fileName']}", file=sys.stderr)
+    urllib.request.urlretrieve(result["attributes"]["downloadUrl"], folder / "result.zip")
+    with zipfile.ZipFile(folder / "result.zip") as archive:
+        archive.extractall(folder / "result")
+    xcresult = next((folder / "result").rglob("*.xcresult"))
+    raw = subprocess.run(["xcrun", "xcresulttool", "get", "log", "--path", str(xcresult), "--type", "action"],
+                         capture_output=True, text=True, check=True).stdout
+    strings: list[str] = []
+    text_strings(json.loads(raw), strings)
+    logs.mkdir(parents=True, exist_ok=True)
+    (logs / "action.txt").write_text("\n".join(strings))
 
 
 def command_list(_: argparse.Namespace) -> None:
