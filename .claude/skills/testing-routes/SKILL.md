@@ -77,7 +77,8 @@ Cloud traps:
   through `#filePath` (`AnswerQualityEvaluationTests`, the golden harnesses) cannot find them in the cloud; its
   fixtures have to be in the test bundle's resources first.
 - No physical devices: destinations are `SIMULATOR` and `MAC` only.
-- Failures in run 496 (ef305172) and their causes, diagnosed 2026-11-11 from the code and runs 489 to 496:
+- **Run 498 (7774d508) is the baseline: all green, 1,683 passed and 24 skipped on each device.** Compare new runs
+  with it (`watch --against 498`). The failures of runs 495 to 497 and their causes, fixed in 7774d508:
   - `TourTipTests.testEveryTipHasTextAndASymbol`: the X-Ray tip grew to 286 characters (9a1cd5ff); the limit is 220.
   - `StructuredKeywordOrderTests`: where the word tagger reads "ABC-101" as a noun (these simulators, not this Mac),
     its lowercase copy counts as a code and comes first, so the uppercase codes are deduplicated away (since f7c1b484).
@@ -90,7 +91,8 @@ Cloud traps:
   - `SourceLookupImportTests.testEveryKindOfFileFindsItsOwnPassages` (csv, since f7c1b484): the import now writes a
     table's named values as `1 notice: 31 days` (row key, then name and value); `PassageLocator.cellValues` strips all
     before the colon, so the row key is lost and the values no longer line up with the file (run 497's printout).
-  - Flaky, 1 of 3 in run 497, no message: `ShortcutsActionTests.testAskAboutADocumentRestsOnlyOnThatDocument`.
+  - Flaky, 1 of 3 in run 497, no message, passed in 498: `ShortcutsActionTests.testAskAboutADocumentRestsOnlyOnThatDocument`.
+    Watch for it again.
 - A local "Simulator 240 run" covers only the classes it names. Compare a new red run with the last one
   (`watch --against`) before calling anything a regression.
 - Printed lines come from the log bundle (about 0.5 MB). Some runs have none (497): `xcloud.py logs` then reads the

@@ -223,11 +223,13 @@ def text_strings(node, out: list[str]) -> None:
 
 
 def fetch_logs(action: dict, folder: Path) -> None:
-    """The log bundle when the run has one (about 0.5 MB). Some runs (497) have none: then the iPhone 15 Pro result
-    bundle (about 60 MB), whose action log holds what the tests printed on that one device."""
+    """A test step's log bundle when the run has one (about 0.5 MB). Some runs have none (497) or only the merge step's
+    (498): then a test result bundle (about 60 MB), whose action log holds what the tests printed on its device."""
     artifacts = call("GET", f"/v1/ciBuildActions/{action['id']}/artifacts?limit=50")["data"]
     logs = folder / "logs"
-    bundle = next((a for a in artifacts if a["attributes"]["fileType"] == "LOG_BUNDLE"), None)
+    # Only a test step's log bundle holds what the tests printed; some runs (498) carry only the merge step's.
+    bundle = next((a for a in artifacts if a["attributes"]["fileType"] == "LOG_BUNDLE"
+                   and "test-without-building" in a["attributes"]["fileName"]), None)
     if bundle:
         urllib.request.urlretrieve(bundle["attributes"]["downloadUrl"], folder / "logs.zip")
         with zipfile.ZipFile(folder / "logs.zip") as archive:
