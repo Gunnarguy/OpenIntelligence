@@ -32,8 +32,9 @@ in August, `BenchmarkRuns/LEDGER.md`). Record the run in `LEDGER.md`. Nothing ab
 graded before this run.
 
 **Not verified yet:** the patched copy and the new test settings have not been built (the owner was gaming;
-nothing heavy ran on his Mac). Cloud run 499 builds the test change unpatched; if `SUMMARY.md` says the build
-failed, `build.log` in the run folder names the line. The four switches `sim_model_copy.py` turns off are
+nothing heavy ran on his Mac). Cloud run 499 built the test change unpatched and ran the suite: 1,683 passed on two
+devices, one flaky watched-folder test failed on the third with no message (it passed in 496 to 498). The patched
+copy is still unbuilt; if `SUMMARY.md` says the build failed, `build.log` in the run folder names the line. The four switches `sim_model_copy.py` turns off are
 `#if targetEnvironment(simulator)` blocks whose other branch is the device code.
 
 ## Done today (2026-11-11)

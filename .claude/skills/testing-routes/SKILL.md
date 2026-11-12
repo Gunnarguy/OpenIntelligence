@@ -100,7 +100,8 @@ Cloud traps:
     table's named values as `1 notice: 31 days` (row key, then name and value); `PassageLocator.cellValues` strips all
     before the colon, so the row key is lost and the values no longer line up with the file (run 497's printout).
   - Flaky, 1 of 3 in run 497, no message, passed in 498: `ShortcutsActionTests.testAskAboutADocumentRestsOnlyOnThatDocument`.
-    Watch for it again.
+    Watch for it again. Also flaky: `WatchedFolderPathTests.testADocumentTwoFilesShareStaysWhenOneChanges`, 1 of 3 in
+    run 499 with no message, passed in 496 to 498 (it waits on imports in the shared test host; it reads no note).
 - A local "Simulator 240 run" covers only the classes it names. Compare a new red run with the last one
   (`watch --against`) before calling anything a regression.
 - Printed lines come from the log bundle (about 0.5 MB). Some runs have none (497): `xcloud.py logs` then reads the
