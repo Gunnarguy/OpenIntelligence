@@ -414,7 +414,10 @@ extension DocumentProcessor {
     /// Extract keywords from structured elements using NLTagger (domain-agnostic)
     /// Leverages Apple's NLP for nouns, technical terms, and alphanumeric patterns
     func extractKeywordsFromStructuredElement(_ text: String, type: String) -> [String] {
+        // The tagger's words and the patterns' codes and measurements are kept apart, so the order below does not
+        // depend on how the tagger reads a code (2026-11-11).
         var keywords: [String] = []
+        var codes: [String] = []
 
         // Use NLTagger to extract nouns and technical terms (domain-agnostic)
         let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType])
@@ -442,7 +445,7 @@ extension DocumentProcessor {
                     // "ROW 3" is the import's own row label, not the document's code (refuting review, 2026-11-08: a
                     // 20-row table kept "ROW 1" to "ROW 20" as its keywords once codes were ordered first).
                     if code.range(of: #"^ROW[-\s]?\d+$"#, options: .regularExpression) != nil { continue }
-                    keywords.append(code)
+                    codes.append(code)
                 }
             }
         }
@@ -453,7 +456,7 @@ extension DocumentProcessor {
             let matches = regex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    keywords.append(String(text[range]))
+                    codes.append(String(text[range]))
                 }
             }
         }
@@ -462,10 +465,11 @@ extension DocumentProcessor {
         // without regard to case; the first 20 kept (5.8). `Array(Set(...)).prefix(20)` kept a different 20 on every
         // import, because a Set's order is seeded per process. Where the word tagger reads "ABC-101" as a noun (it did
         // on Xcode Cloud's simulators, 2026-11-08), its lowercase copies filled all 20 places before any code was added.
-        let words = keywords.filter { $0 == $0.lowercased() && $0.rangeOfCharacter(from: .decimalDigits) == nil }
-        let identifiers = keywords.filter { !($0 == $0.lowercased() && $0.rangeOfCharacter(from: .decimalDigits) == nil) }
+        // Sorting the tagger's output by whether a word has digits did not fix it: "abc-101" has digits, so the
+        // lowercase copy still came before "ABC-101" and the code was dropped as its duplicate (runs 495 to 497).
+        // The patterns' matches now come first, as matched; then the tagger's words, codes among them included.
         var seen = Set<String>()
-        return Array((identifiers + words).filter { seen.insert($0.lowercased()).inserted }.prefix(20))
+        return Array((codes + keywords).filter { seen.insert($0.lowercased()).inserted }.prefix(20))
     }
 
     /// Extract text from PDF using PDFKit (native iOS framework) - Legacy method

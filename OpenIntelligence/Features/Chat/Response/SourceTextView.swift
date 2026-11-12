@@ -86,7 +86,9 @@ nonisolated struct SourceLookup: Equatable, Sendable {
             return SourceLookup(match: .exact, text: text, range: range)
         }
         if text.contains("| --- |") {
-            let values = PassageLocator.cellValues(of: unlabeled ?? passage) ?? unlabeled ?? passage
+            let values =
+                PassageLocator.cellValues(of: unlabeled ?? passage, columns: PassageLocator.columnNames(of: passage))
+                ?? unlabeled ?? passage
             if let range = PassageLocator.exactRange(of: values, in: text, separators: cellSeparators) {
                 return SourceLookup(match: .exact, text: text, range: range)
             }

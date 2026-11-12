@@ -159,13 +159,7 @@ nonisolated enum PassageLocator {
         let inline = [#"\[Part [0-9.]+\]\s*"#, #"\bROW \d+:\s*"#, #"\s\|\s"#]
         // A row names its later cells by column from 5.8 ("DHA | Daily Dose: 1-2 g"); the names are the passage's own
         // HEADERS line, which the file prints once, so they come out too.
-        let columnNames: [String] = passage.components(separatedBy: .newlines)
-            .first(where: { $0.hasPrefix("HEADERS:") })
-            .map { line in
-                line.dropFirst("HEADERS:".count).components(separatedBy: " | ")
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-            } ?? []
+        let names = Self.columnNames(of: passage)
         var changed = false
         var kept: [String] = []
         for line in passage.components(separatedBy: .newlines) {
@@ -175,12 +169,16 @@ nonisolated enum PassageLocator {
             }
             var cleaned = line
             if cleaned.range(of: #"\bROW \d+:"#, options: .regularExpression) != nil {
-                for name in columnNames {
+                // A row run onto the same line as the one before it starts a new cell list: without this, the
+                // unnamed-cell pattern below read "200 dollars ROW 3" as a column name and took a cell out with it
+                // (2026-11-11, `testATablePassageIsFoundByItsCells`, since 60c62e12).
+                cleaned = cleaned.replacingOccurrences(of: #"\s+ROW \d+:\s*"#, with: " | ", options: .regularExpression)
+                for name in names {
                     cleaned = cleaned.replacingOccurrences(of: " | \(name): ", with: " | ")
                 }
                 // A part split from a table before 5.8's labels were repeated has no HEADERS line: any short name
                 // before a cell's colon is the import's.
-                if columnNames.isEmpty {
+                if names.isEmpty {
                     cleaned = cleaned.replacingOccurrences(
                         of: #" \| [^|:\n]{1,40}: "#, with: " | ", options: .regularExpression)
                 }
@@ -198,20 +196,58 @@ nonisolated enum PassageLocator {
     /// A table's passage written as `name: value` lines, as just its values, or nil when none has a name. The import
     /// indexes a table that way too, and the file holds the names once, in its header. For a table only: in prose, the
     /// words before a colon are the document's own.
-    static func cellValues(of passage: String) -> String? {
+    ///
+    /// Since f7c1b484 the import also writes each value with its row's key, `1 notice: 31 days` and `1 deposit: 100
+    /// dollars`, which `columns` (the passage's HEADERS) tells apart from a name: the key is kept once, before its row's
+    /// values, as the file has it. The passage's first row is left without its key, since a part can start in the
+    /// middle of a row (`9 deposit: 900 dollars`). Until 2026-11-11 everything before the colon went, key too, so the
+    /// values no longer read in the file's order and a csv table's passage was "not found".
+    static func cellValues(of passage: String, columns: [String] = []) -> String? {
         var changed = false
         var values: [String] = []
+        var lastKey: String?
         for line in passage.components(separatedBy: .newlines) {
             for piece in line.components(separatedBy: ";") {
                 var value = piece.trimmingCharacters(in: .whitespaces)
-                let unnamed = value.replacingOccurrences(of: #"^[^:]{1,40}:\s+"#, with: "", options: .regularExpression)
-                if unnamed != value { changed = true }
-                value = unnamed
+                if let keyed = keyedValue(value, columns: columns) {
+                    changed = true
+                    if keyed.key != lastKey {
+                        if lastKey != nil { values.append(keyed.key) }
+                        lastKey = keyed.key
+                    }
+                    value = keyed.value
+                } else {
+                    let unnamed = value.replacingOccurrences(of: #"^[^:]{1,40}:\s+"#, with: "", options: .regularExpression)
+                    if unnamed != value { changed = true }
+                    value = unnamed
+                }
                 if value.hasSuffix(".") { value.removeLast() }
                 if !value.isEmpty { values.append(value) }
             }
         }
         return changed ? values.joined(separator: " ") : nil
+    }
+
+    /// `1 notice: 31 days` as key "1" and value "31 days", when "notice" is one of the table's columns.
+    static func keyedValue(_ piece: String, columns: [String]) -> (key: String, value: String)? {
+        for column in columns {
+            guard let range = piece.range(of: " \(column): ") else { continue }
+            let key = piece[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty, key.count <= 40, !key.contains(":") else { continue }
+            return (key, String(piece[range.upperBound...]).trimmingCharacters(in: .whitespaces))
+        }
+        return nil
+    }
+
+    /// The column names on a table passage's `HEADERS:` line, or none.
+    static func columnNames(of passage: String) -> [String] {
+        passage.components(separatedBy: .newlines)
+            .first(where: { $0.hasPrefix("HEADERS:") })
+            .map { line in
+                line.dropFirst("HEADERS:".count).components(separatedBy: " | ")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+            } ?? []
     }
 
     /// The pieces matched first: each sentence's first 12 words.

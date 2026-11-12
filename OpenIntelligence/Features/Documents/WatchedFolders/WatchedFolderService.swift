@@ -175,14 +175,17 @@ final class WatchedFolderService: ObservableObject {
             folder.files[outcome.file.relativePath] = seen
         }
 
-        // A file that ended with no document: nothing retries it until it changes, so it has to be said.
+        // A file that ended with no document: nothing retries it until it changes, so it has to be said. Said once
+        // this folder's own imports have ended; until 2026-11-11 the note waited for every import in the app to end,
+        // so a file importing into another library hid it (a flaky test on Xcode Cloud, runs 495 to 497).
         let waiting = active.union(itemIds)
+        let ownWaiting = folder.files.values.contains { $0.queueItemId.map(waiting.contains) ?? false }
         let failed = folder.files.values.filter { seen in
             seen.documentId == nil && !(seen.queueItemId.map(waiting.contains) ?? false)
         }.count
         folder.note = WatchedFolderChanges.note(
             overLimit: changes.overLimit, waitingForDownload: changes.waitingForDownload.count,
-            failed: waiting.isEmpty ? failed : 0, unreadable: changes.toRead.count - read.count)
+            failed: ownWaiting ? 0 : failed, unreadable: changes.toRead.count - read.count)
         if !staged.isEmpty {
             Log.info("[WatchedFolders] \(staged.count) file(s) from \(folder.name) queued", category: .ingestion)
         }

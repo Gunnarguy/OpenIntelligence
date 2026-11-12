@@ -80,6 +80,23 @@ final class SourceLookupTests: XCTestCase {
     }
 
     /// A table is also indexed as `name: value` lines, which the file doesn't have, in the same order as its cells.
+    /// Since f7c1b484 a table's named values carry their row's key ("4 notice: 34 days"), and a part can start in the
+    /// middle of a row. Until 2026-11-11 the key was dropped with the name and such a part was "not found" (run 497).
+    func testATablesKeyedValuesAreFoundByTheirCells() {
+        let table =
+            "| clause | notice | deposit |\n| --- | --- | --- |\n"
+            + (1...6).map { "| \($0) | \($0 + 30) days | \($0 * 100) dollars |" }.joined(separator: "\n")
+        let part =
+            "[Part 3.1]\nTABLE: Table\nHEADERS: clause | notice | deposit\n3 deposit: 300 dollars\n4 notice: 34 days\n"
+            + "4 deposit: 400 dollars\n5 notice: 35 days\n5 deposit: 500 dollars\nSOURCE: lease.csv, page 1"
+        XCTAssertEqual(SourceLookup.find(part, inText: table).match, .exact)
+        let whole = "HEADERS: clause | notice | deposit\n1 notice: 31 days\n1 deposit: 100 dollars\n2 notice: 32 days"
+        XCTAssertEqual(SourceLookup.find(whole, inText: table).match, .exact)
+        // A key that is not followed by its own row's values is not invented: values out of order stay "in part".
+        let shuffled = "HEADERS: clause | notice | deposit\n5 notice: 35 days\n2 deposit: 200 dollars\n6 notice: 36 days"
+        XCTAssertNotEqual(SourceLookup.find(shuffled, inText: table).match, .exact)
+    }
+
     func testATablesNamedValuesAreFoundByTheirCells() {
         let table =
             "| clause | notice | deposit |\n| --- | --- | --- |\n| 7 | 37 days | 700 dollars |\n| 8 | 38 days | 800 dollars |"

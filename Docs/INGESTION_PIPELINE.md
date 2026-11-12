@@ -1355,8 +1355,8 @@ a fixture's "3624" as "3024". Rotated, garbled and Vision-unreadable pages keep 
   (`digitRunPieces`: PDFKit's string printed a contents page's "11 13 13 14" as "11131314").
 - A passage the token limit splits (`splitOversizedChunkByTokens`) repeats its table's Section Path, TABLE and HEADERS
   lines in every part (`tableLabelLines`).
-- A table passage's 20 keywords put identifiers and measurements before nouns and verbs, deduplicated without regard to
-  case.
+- A table passage's 20 keywords put the codes and measurements the patterns match before the word tagger's nouns and
+  verbs, deduplicated without regard to case (corrected 2026-11-11).
 - Measuring it: `ExtractionFidelityRecorder` (run with `TEST_RUNNER_OI_FIDELITY_DIR`) writes the stored passages of every
   PDF in a folder, and `scripts/extraction_fidelity.py <folder> <label>` scores them against `pdftotext -layout`
   (number recall, word recall, the same for body text without lines printed on three or more pages, and invented
@@ -1501,7 +1501,11 @@ When Vision reads one cell over every column of a table's first row, that cell i
 5.7 it returned `Array(Set(keywords)).prefix(20)`, so each import kept a different 20 (a Set's order is seeded per
 process). It now keeps the first 20 in the order they appear, identifiers and measurements before nouns and verbs, deduplicated
 without regard to case (on Xcode Cloud's simulators the word tagger read "ABC-101" as a noun, and its lowercase copies
-took every place). Keyword search also breaks equal `bm25` scores by id
+took every place). *(2026-11-11: that ordering sorted the tagger's words by whether they had digits, and "abc-101" has
+digits, so its lowercase copy still came first and the code was dropped as its duplicate; `StructuredKeywordOrderTests`
+failed on Xcode Cloud in runs 495 to 497. The pattern matches, codes then measurements, now come first as matched, then
+the tagger's nouns and verbs. A table passage's keyword list can change order on re-import, so `ImportGoldenTests` and
+`StructuredParsingGoldenTests` recordings with such a table differ in `keywords` until re-recorded.)* Keyword search also breaks equal `bm25` scores by id
 (`document_id`, `chunk_id`, `page_id`) in the query files `SQLiteFullTextService+Search.swift`, `+Chunks.swift` and
 `+Documents.swift`; the schema is unchanged, so nothing is reindexed.
 `[evidence_level: test_verified (StructuredKeywordOrderTests), code_verified; confidence: high]`

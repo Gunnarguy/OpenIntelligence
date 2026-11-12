@@ -208,7 +208,11 @@ nonisolated enum PassageFinder {
         var list = [trimmed]
         let unlabeled = PassageLocator.withoutImportLabels(trimmed)
         if let unlabeled { list.append(unlabeled) }
-        if let values = PassageLocator.cellValues(of: unlabeled ?? trimmed) { list.append(values) }
+        if let values = PassageLocator.cellValues(
+            of: unlabeled ?? trimmed, columns: PassageLocator.columnNames(of: trimmed))
+        {
+            list.append(values)
+        }
         var seen = Set<String>()
         return list.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
