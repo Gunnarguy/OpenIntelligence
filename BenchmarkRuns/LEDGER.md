@@ -1289,9 +1289,15 @@ so the path difference the copy exists to remove did not move the score on this 
 **Maximum: a test defect, not a score.** It answered 3 and then refused 17 in 0 s with "Today's 3 free Maximum answers
 are used": the plan the action's gate reads (`ShortcutsPlanGate`, `EntitlementStore.currentEffectiveTier`, standard
 defaults) was Free again after `make` set Pro, most likely rewritten by the host app's own entitlement store. Fixed in
-the test on 2026-11-12 (Pro and a zero count before every Maximum question); Maximum is re-run alone below. Of the 3
+the test on 2026-11-12 (Pro and a zero count before every Maximum question), and re-run alone the same night. Of the 3
 it answered, one ran 347 s and came back "Needs Verification" (Gate E, semantic grounding, failed), and one planner
 call overflowed ("The session's transcript exceeded the model's context size").
 
 **Not settled.** Per-question agreement between modes (the test prints only the mean); variance (one run per mode);
 whether the Simulator's model window matches the iPhone's 4,096 tokens.
+
+**Maximum, re-run alone (`2026-11-12-0223-answer-modes`, 02044980):** 0.50, 20 answered, 0 refused, 31 minutes, a
+median of about 63 s a question (1 to 98 s). 8 of the 20 answers open with "Needs Verification" (the Maximum answer
+gates did not all pass). So on this set Maximum ties Standard with the test's own model (0.50), is one case above
+Standard on the app's path (0.45) and two above Deep Think (0.40), at about 3 times Standard's time. The first graded
+Maximum run there has been.

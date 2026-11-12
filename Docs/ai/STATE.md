@@ -1,91 +1,78 @@
 # Current State
 
-Updated: 2026-11-11 about 17:30 PT
+Updated: 2026-11-12 about 02:30 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 41b3b727
+Last verified commit: 02044980
 
 ## Objective
 
 **Ship 5.8** (owner, 2026-11-10: "I feel like I should ship 5.8"). The board is 5.8 and Future Backlog only. What
-remains: tonight's answer benchmark (the owner starts it), the owner's short device pass, then a Xcode Cloud build
-and the App Store Connect submission at his word. Every commit carries `[ci skip]` until he asks for a build.
+remains: the owner's short device pass, then a Xcode Cloud build and
+the App Store Connect submission at his word. Every commit carries `[ci skip]` until he asks for a build.
 
-## Tonight (2026-11-11): the answer benchmark, one command
+## Status
 
-The owner runs it when he stops gaming. It waits by itself while World of Warcraft or League of Legends is open.
+- **Answer benchmark, first run (2026-11-12 00:53, c1e4a160)**, `BenchmarkRuns/2026-11-12-0053-answer-modes/`,
+  recorded in `BenchmarkRuns/LEDGER.md`: Standard 0.45, Deep Think 0.40 (3.8 times the time), Standard with the test's
+  own model 0.50 (0.3 on 2026-10-21). 20 cases, one case is 0.05. Maximum was not measured: the free plan's 3-a-day
+  limit refused 17 of 20 because the plan the gate reads had gone back to Free; the test now sets Pro and a zero count
+  before every Maximum question (02044980).
+- **Maximum re-run alone** (02044980, `BenchmarkRuns/2026-11-12-0223-answer-modes/`): 0.50, 20 answered, 0 refused,
+  31 minutes; 8 answers open with "Needs Verification". Recorded in `LEDGER.md`.
+- **Development build of 02044980 on his iPhone 16 Pro Max**, installed 02:23 PT 2026-11-12, not launched.
 
-```bash
-bash scripts/bench_answer_modes.sh
-```
+## Completed (2026-11-12)
 
-It copies HEAD out of the repo, patches the copy with `scripts/sim_model_copy.py` (the app's own model service on
-in the Simulator, so the engine takes the phone's path), builds once at two jobs, makes a fresh simulator
-("OI answer eval", iPhone 17 Pro, iOS 27.0), and runs `AnswerQualityEvaluationTests` (20 cases, Apple's Evaluations
-model judge) in Standard, Deep Think and Maximum with the app's service, then Standard with the test's own model (the
-path of the 2026-10-21 runs, 0.3, for comparison). Output: `BenchmarkRuns/<date>-answer-modes/SUMMARY.md`, plus a
-`.txt` per mode with each question's seconds and answer. Expect hours: the first build is a full one, a Deep Think
-answer took 279 s on his phone (2026-08-18), Maximum runs up to 50 sessions.
-
-**Morning, the next session:** read `SUMMARY.md` and the `.txt` files. A refused or empty answer is a finding; a
-mode that scores below Standard is the headline (Deep Think was 2/8 and 3/8 against Standard's 4/7 and 5/8 on QASPER
-in August, `BenchmarkRuns/LEDGER.md`). Record the run in `LEDGER.md`. Nothing about Maximum's answers has ever been
-graded before this run.
-
-**Not verified yet:** the patched copy and the new test settings have not been built (the owner was gaming;
-nothing heavy ran on his Mac). Cloud run 499 built the test change unpatched and ran the suite: 1,683 passed on two
-devices, one flaky watched-folder test failed on the third with no message (it passed in 496 to 498). The patched
-copy is still unbuilt; if `SUMMARY.md` says the build failed, `build.log` in the run folder names the line. The four switches `sim_model_copy.py` turns off are
-`#if targetEnvironment(simulator)` blocks whose other branch is the device code.
-
-## Done today (2026-11-11)
-
-- **Where each test can run, settled.** Xcode Cloud simulators cannot generate (`ModelManagerError 1019`, run 496);
-  the Mac's iOS 27 Simulator can. `testing-routes` skill; `scripts/xcloud.py` (start, watch `--against`, logs, list).
-- **The full suite on Xcode Cloud is green for the first time**: run 498 at 7774d508, 1,683 passed on each of three
-  simulators. Five defects it found are fixed (csv table citations, rows on one line, table keywords' codes,
-  watched-folder note, X-Ray tip length). Baseline for later runs: 498.
-- **Development build of 41b3b727 on his iPhone 16 Pro Max**, installed about 17:00 (not launched).
-- **The answer test now measures the app's own path** (`OI_EVAL_MODEL=app`, `OI_EVAL_MODE`). Until today it gave
-  the engine the test's own model, and 17 places in the engine branch on `llmService is AppleFoundationLLMService`.
+- Read the phone's journal and trace from his three Standard questions (47.8, 24.5, 36.6 s): the first waited on the
+  reranker's 35.8 s load; evidence in `~/Library/Developer/OpenIntelligence-evidence/2026-11-12_005528/`.
+- Journal fixes, approved by the owner ("yep fix ALL of that"), 02044980: `model.usage` times (`firstTokenMs`,
+  `writingMs`, `outputPerSecond`, `totalMs`, `cachedInput`, `continued`); `embedding.load` timed; `reranker.load` and
+  `embedding.load` carry `newInstall` and `fastPrediction`; the stall watchdog counts only time in front (a 296,980 ms
+  "stall" was a suspension). A reviewer pass found 14 points; all addressed, and the launch-time embedder load I had
+  added was reverted because the Core ML embedder's on-first-use design is out of bounds without the owner's say.
 
 ## Active Constraints
 
 - `PROCEED: IMPLEMENT` before source edits; hard-boundary files only when he names them.
-- Accuracy first: anything that changes what is read or retrieved is measured on every benchmark set before it ships.
-- Never load his Mac while he games. Long jobs go to Xcode Cloud (`scripts/xcloud.py`) or wait for his word.
-- One `xcodebuild` at a time; device builds from `/private/tmp/oi-src` into `/private/tmp/oi-build`.
+- Accuracy first: anything that changes what is read, retrieved or answered is measured on every benchmark set first.
+- Never load his Mac while he games. One `xcodebuild` at a time; device builds from `/private/tmp/oi-src` into
+  `/private/tmp/oi-build`.
 
 ## Working Set
 
-- `scripts/bench_answer_modes.sh`, `scripts/sim_model_copy.py`: tonight's run.
-- `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`: the graded test and its settings.
-- `scripts/xcloud.py`, `.claude/skills/testing-routes/SKILL.md`: the cloud route and where every kind of run goes.
-- `Benchmarks/rag_eval_v1.jsonl` and `Benchmarks/ResearchFixtures/tiny_research_suite/`: the 20 cases.
+- `scripts/bench_answer_modes.sh`, `scripts/sim_model_copy.py`, `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`.
+- `OpenIntelligence/Services/Infrastructure/Configuration/VerificationJournal.swift` (watchdog, `firstLaunchOfThisInstall`).
+- `OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift` (`phaseFields`, `model.usage`).
+- `OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift` (`retryForMissingCitations`): the open citation finding.
 
 ## Verification
 
-- `zsh -ic 'python3 scripts/xcloud.py watch 498 --against 497'` -> run 498 SUCCEEDED, 1,683 passed per device, 6 fixed, 0 newly failing.
-- `xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549 ...` -> "App installed" (the UDID form failed with 0xE8000112 the same minute).
-- `python3 scripts/sim_model_copy.py /private/tmp/oi-eval-src` -> "patched 4"; on the repository path -> refused.
-- `bash -n scripts/bench_answer_modes.sh` -> no syntax errors. Not run end to end.
+- `bash scripts/bench_answer_modes.sh` (c1e4a160) -> the table above, `SUMMARY.md` in `BenchmarkRuns/2026-11-12-0053-answer-modes/`.
+- `xcodebuild build-for-testing` + `test-without-building -only-testing:OpenIntelligenceTests/VerificationJournalTests
+  -only-testing:OpenIntelligenceTests/ModelCallPhaseFieldsTests -only-testing:OpenIntelligenceTests/AnswerUsageTallyTests`
+  on a fresh iOS 27.0 simulator -> 21 tests, 0 failures (working tree = 02044980).
+- iPhone build `-configuration Debug -destination generic/platform=iOS` -> exit 0; `devicectl device info apps` -> 5.8 (150).
+- Not built for macOS: the watchdog's `#else _ = started` branch is compiled only there.
 
 ## Blockers / Unknowns
 
-- **Compute profiles' retrieval side is unmeasured**: QASPER 246 and tables 158 per profile, and the fusion fix with
-  and without `OI_RETRIEVAL_ABLATE=fusionScoreOrder`. The extraction side was measured 2026-11-11: identical text across
-  Balanced, Performance and Maximum (`LEDGER.md`).
-- **Retrieval findings from 2026-11-10, not fixed:** Standard rewrites queries although `RAGQualityMode.usesQueryRewriting`
-  is false for it (the `enableQueryRewriting` setting defaults to true and wins, `SettingsStore:561`,
-  `RAGService+QueryPreparation.swift:292`); HyDE, contextual compression, extractive summarization and the entity index
-  have no live call; `maxRetrievalIterations`, `iterativeRetrievalConfig`, `benefitsFromSummaries`,
-  `preferSummariesForOverview`, `specificationBoostWeight`, `maxChunksPerSearchYield` have no consumer.
-- `ShortcutsActionTests.testAskAboutADocumentRestsOnlyOnThatDocument` failed once (run 497, 1 of 3, no message): flaky.
-- Device checks not done: Device & Performance and Intelligence Mode on the phone, Deep Think leave-and-return, X-Ray
-  on the chip, setup card on a fresh install. The `device-pass` skill holds the short pass.
-- Notion: rows for Maximum, the hazard-ratio fix, the Deep Think cut-off and today's five fixes are not filed.
+- **Standard answers without inline citations:** 8 of 28 Standard answers on his iPhone since 2026-11-07 had no
+  `[n]` markers ("Missing citations; preserving streamed response"), 0 of the Deep Think answers. Every Standard
+  answer there skipped structured generation for its token budget (4,096 window). A fix changes answers, so it needs
+  measuring; not filed in Notion yet.
+- **Reranker load on the iPhone:** 20 to 130 s on most launches of 2026-11-10 and 11-11; three matched installs at
+  the same minute. The new `newInstall` field settles the rest: a slow `reranker.load` with `newInstall: false` is a
+  defect.
+- **Loading the Core ML embedder after launch** (so a first question does not load it) is the owner's call: it reverses
+  the deliberate on-first-use design in `CoreMLSentenceEmbeddingProvider` (43 MiB, August launch hangs).
+- Compute profiles' retrieval side is unmeasured (QASPER 246, tables 158 per profile, the fusion ablation).
+- Retrieval findings from 2026-11-10, not fixed: Standard rewrites queries though `usesQueryRewriting` is false for it;
+  HyDE, contextual compression, extractive summarization and the entity index have no live call.
+- Device checks not done (the `device-pass` skill). Notion rows not filed for Maximum, the hazard-ratio fix, the Deep
+  Think cut-off, the 2026-11-11 fixes, or the citation finding.
 
 ## Exact Next Action
 
-Read `BenchmarkRuns/<the newest date>-answer-modes/SUMMARY.md`. If it holds scores, record them in
-`BenchmarkRuns/LEDGER.md` with the commit and compare each mode with Standard; if the build failed, read the end of
-`build.log` in the same folder, fix the switch or test line it names, and tell the owner the run needs one more night.
+Show the owner the 2026-11-12 answer scores (Standard 0.45, Deep Think 0.40, Maximum 0.50, Standard with the test's
+model 0.50, `BenchmarkRuns/LEDGER.md` last entry) and ask whether 5.8 waits on the citation finding or ships with it in
+Future Backlog; then file the Notion rows listed under Blockers (`notion-roadmap` skill).
