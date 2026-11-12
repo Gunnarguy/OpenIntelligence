@@ -1,97 +1,90 @@
 # Current State
 
-Updated: 2026-11-11 about 03:00 PT
+Updated: 2026-11-11 about 17:30 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: b1b91cd7
+Last verified commit: 41b3b727
 
 ## Objective
 
 **Ship 5.8** (owner, 2026-11-10: "I feel like I should ship 5.8"). The board is 5.8 and Future Backlog only. What
-remains: benchmark day (2026-11-11), the owner's short device pass, then a Xcode Cloud build and the App Store Connect
-submission at his word. Every commit carries `[ci skip]` until he asks for a build.
+remains: tonight's answer benchmark (the owner starts it), the owner's short device pass, then a Xcode Cloud build
+and the App Store Connect submission at his word. Every commit carries `[ci skip]` until he asks for a build.
 
-## Overnight 2026-11-10/11 (read this first)
+## Tonight (2026-11-11): the answer benchmark, one command
 
-The owner asked that every line on Device & Performance, Intelligence Mode and the screens that share their figures be
-true to the code, nothing overstated. Done in these commits after b1b91cd7: Active Device from Apple's figures and the
-hardware (`AppleDeviceCatalog`, `ActiveDeviceCard`); the compute profile ramp (`DeviceCapabilityService.Depth`,
-`paced`); Intelligence Mode rebuilt in the Compute Profile card's style with the context window moved there
-(`IntelligenceModeCard`); one header and one tile everywhere (`SettingsCardParts`); Deep Think and Maximum fuse by
-score (`rankedForFusion`, `OI_RETRIEVAL_ABLATE=fusionScoreOrder` restores the old order). Three review rounds: a
-Claude refuting review (31 fixed), three Gemini 4 Carbon jobs (~150 findings, swarm outputs in the session scratchpad,
-not kept), then a Claude fact-check of the Gemini-sourced text (23 corrected). Gemini was wrong where checked twice
-(A13 has no Neural Engine figure; the older OCR path is live). Everything is Simulator-tested; nothing here is checked
-on his phone yet.
+The owner runs it when he stops gaming. It waits by itself while World of Warcraft or League of Legends is open.
 
-## Status
+```bash
+bash scripts/bench_answer_modes.sh
+```
 
-Everything asked on 2026-11-10 is built, on his iPhone 16 Pro Max (development build) and pushed, except the item
-under "Uncommitted". Simulator: 224 tests run, 0 failures, 1 skipped (silent-audio import; the test simulator is
-erased before each run and has no speech model). Nothing below is checked on a device unless it says so.
+It copies HEAD out of the repo, patches the copy with `scripts/sim_model_copy.py` (the app's own model service on
+in the Simulator, so the engine takes the phone's path), builds once at two jobs, makes a fresh simulator
+("OI answer eval", iPhone 17 Pro, iOS 27.0), and runs `AnswerQualityEvaluationTests` (20 cases, Apple's Evaluations
+model judge) in Standard, Deep Think and Maximum with the app's service, then Standard with the test's own model (the
+path of the 2026-10-21 runs, 0.3, for comparison). Output: `BenchmarkRuns/<date>-answer-modes/SUMMARY.md`, plus a
+`.txt` per mode with each question's seconds and answer. Expect hours: the first build is a full one, a Deep Think
+answer took 279 s on his phone (2026-08-18), Maximum runs up to 50 sessions.
 
-| Area | State |
-|---|---|
-| Morning list (table title row, Quotes only, Deep Think panel, background wait and resume, one vector store per library, OCR off the main thread) | Committed 45cb980f and after; refuting reviews fixed |
-| Cited passage marked in any document (`PassageFinder`) | Committed; 58.4% to 88.9% of 10,029 passages |
-| X-Ray | Every outline is the chip package, traced from its own edges, placed with each model's real screen inset (Apple Tech Specs + Xcode simulator profiles). 18 layouts high, 11 medium; only iPad Air 13-inch M3/M4 and iPhone Duo draw nothing. Evidence: `BenchmarkRuns/2026-11-10-xray-chip-positions/` (4 passes). Label names the busy part (Neural Engine/GPU/CPU); Labels switch in Settings |
-| Setup card ("Getting search ready") | HUD fades aside while it shows; a question asked meanwhile waits at the start and says so; Live Activity when the app is left |
-| Live Activities and widgets | Use the person's accent colour through the existing App Group |
-| Metrics panel | Fits its sections; drag clamped so the handle stays on screen; ring and "best match" are one number |
-| Deep Think cut off in the background | Local only now holds the synthesis; a cut-off synthesis (`LLMResponse.streamCutOff`) is written again, never saved |
-| Hazard-ratio miss (Standard) | Results tables with intervals take no contents-page penalty; statistical-value questions are value questions. **Unmeasured** |
-| Compute Profile card (was GPU Acceleration) | Chip, ladder, jobs grouped by when they run, fixed heights |
-| Maximum (compute profile) | Turns the work up on every device: 432 DPI on every page, full-size layout pass, 24 rescue regions, rerank up to 400, 120 keyword results, Core ML `fastPrediction`. `OI_MAXIMUM_FIDELITY=on\|off` overrides it. **Unmeasured; ships only if benchmarks hold** |
-| Defects fixed for every profile | `VisionOCRThrottle` limits read at each use; import embedding batch follows the chip |
-| Trace | Three new lines: which penalty moved the reranker's pick, why a lookup is a definition, why a call was not held in the background |
+**Morning, the next session:** read `SUMMARY.md` and the `.txt` files. A refused or empty answer is a finding; a
+mode that scores below Standard is the headline (Deep Think was 2/8 and 3/8 against Standard's 4/7 and 5/8 on QASPER
+in August, `BenchmarkRuns/LEDGER.md`). Record the run in `LEDGER.md`. Nothing about Maximum's answers has ever been
+graded before this run.
 
-## Just landed (02a728f1)
+**Not verified yet:** the patched copy and the new test settings have not been built (the owner was gaming;
+nothing heavy ran on his Mac). Cloud run 499 builds the test change unpatched; if `SUMMARY.md` says the build
+failed, `build.log` in the run folder names the line. The four switches `sim_model_copy.py` turns off are
+`#if targetEnvironment(simulator)` blocks whose other branch is the device code.
 
-Six "How hard" tiles on the Compute Profile card, everything under the card folded into a "More detail" row
-(`FoldedDetails`), Maximum holds at least 2 pages at once. Installed 16:12; the owner checks it fits one screen.
-A read-only audit of every per-device capability claim (background GPU, tier numbers, device mapping, unused
-headroom) was running in the background; its report is not in the repo yet.
+## Done today (2026-11-11)
+
+- **Where each test can run, settled.** Xcode Cloud simulators cannot generate (`ModelManagerError 1019`, run 496);
+  the Mac's iOS 27 Simulator can. `testing-routes` skill; `scripts/xcloud.py` (start, watch `--against`, logs, list).
+- **The full suite on Xcode Cloud is green for the first time**: run 498 at 7774d508, 1,683 passed on each of three
+  simulators. Five defects it found are fixed (csv table citations, rows on one line, table keywords' codes,
+  watched-folder note, X-Ray tip length). Baseline for later runs: 498.
+- **Development build of 41b3b727 on his iPhone 16 Pro Max**, installed about 17:00 (not launched).
+- **The answer test now measures the app's own path** (`OI_EVAL_MODEL=app`, `OI_EVAL_MODE`). Until today it gave
+  the engine the test's own model, and 17 places in the engine branch on `llmService is AppleFoundationLLMService`.
 
 ## Active Constraints
 
-- `PROCEED: IMPLEMENT` before source edits; hard-boundary files only when he names them (`BNNSVectorDatabase.swift` not named).
+- `PROCEED: IMPLEMENT` before source edits; hard-boundary files only when he names them.
 - Accuracy first: anything that changes what is read or retrieved is measured on every benchmark set before it ships.
-- No approximations on the X-Ray: an unmeasured device draws nothing.
-- One `xcodebuild` at a time; builds run from `/private/tmp/oi-src`. Two overlapping chains hung or mixed twice today.
-- Disk: 41 GiB free after cleanup; the test simulator is erased before each run (`scratchpad/build_test.sh`).
+- Never load his Mac while he games. Long jobs go to Xcode Cloud (`scripts/xcloud.py`) or wait for his word.
+- One `xcodebuild` at a time; device builds from `/private/tmp/oi-src` into `/private/tmp/oi-build`.
 
 ## Working Set
 
-- `OpenIntelligence/Features/Settings/ComputeProfileCard.swift`: the card; reads `DeviceCapabilityService` rules.
-- `OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift`: `MaximumFidelity`, `isMaximumFidelityActive`, per-profile rules.
-- `OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift`: X-Ray layouts, insets, legend window.
-- `OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift`: contents-page penalty, rerank ceiling, reranker load.
-- `OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift`: synthesis cut-off handling.
-- Build chain: `/private/tmp/claude-501/-Users-gunnarhostetler-Documents-GitHub-OpenIntelligence/a5622f44-45c7-4cc5-bbb8-ff09ee2a7ccb/scratchpad/chain2.sh` (tests, Mac build, phone build, install).
+- `scripts/bench_answer_modes.sh`, `scripts/sim_model_copy.py`: tonight's run.
+- `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`: the graded test and its settings.
+- `scripts/xcloud.py`, `.claude/skills/testing-routes/SKILL.md`: the cloud route and where every kind of run goes.
+- `Benchmarks/rag_eval_v1.jsonl` and `Benchmarks/ResearchFixtures/tiny_research_suite/`: the 20 cases.
 
 ## Verification
 
-- `chain2.sh` at 967c6e41 -> 224 tests, 0 failures, 1 skipped; Mac build and iPhone build succeeded; installed 16:03.
-- `python3 .claude/codemap/codemap.py check` -> 0 errors.
+- `zsh -ic 'python3 scripts/xcloud.py watch 498 --against 497'` -> run 498 SUCCEEDED, 1,683 passed per device, 6 fixed, 0 newly failing.
+- `xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549 ...` -> "App installed" (the UDID form failed with 0xE8000112 the same minute).
+- `python3 scripts/sim_model_copy.py /private/tmp/oi-eval-src` -> "patched 4"; on the repository path -> refused.
+- `bash -n scripts/bench_answer_modes.sh` -> no syntax errors. Not run end to end.
 
 ## Blockers / Unknowns
 
-- **Maximum, Performance's new depth and the retrieval fix are unmeasured.** Benchmark day: Balanced, Performance and Maximum (`OI_COMPUTE_PROFILE=balanced|performance|maximum`; Performance reranks 325, 90 keywords, 18 regions since 2026-11-10) on extraction fidelity, tables 158, QASPER 246; 5.7 vs 5.8; presets High Precision, Technical Manual, Exploratory; iOS 27 structured-generation failure rate; title-row fix on the 515 page checks; `fastPrediction` on and off (embedding and rerank ms).
-- **GPU vector search** (Performance, Maximum) measured slower than CPU on an M3 Pro (`BenchmarkRuns/2026-10-19-metal-vs-vdsp-search`); not measured on iPhone. Measure, then move large searches to the CPU if it holds.
-- **Settings values nothing reads**: done 2026-11-10 for `vectorBatchSize` (removed) and `embeddingBatchSize` (now the batch `EmbeddingService` uses). `maxChunksPerSearchYield` is defined in `DeviceCapabilityService` and read by nothing, shown nowhere; remove or wire it up.
-- White Chat cause unknown (recovery in place). Rest of the Mac save crash needs `BNNSVectorDatabase.swift` named. `renderPageForParsing` still on the main thread.
-- Device checks not done: Deep Think leave-and-return, hazard-ratio question again, X-Ray on the chip, setup card and its Live Activity on a fresh install, New Chat after relaunch, Spotlight tap (row `3ff49a74d54f81fea954d76ff336595e`), Instruments traces (Deep Think, 900-page import).
-- Notion: X-Ray row `41449a74d54f81e4abfec4bba6a66124` In Progress; rows for Maximum, the hazard-ratio fix and the Deep Think cut-off are not filed yet.
-
-- **Found 2026-11-10 by the Intelligence Mode trace, not fixed (retrieval behaviour, needs the benchmark):** (1) FIXED same day, unmeasured: multi-query fusion ranked each search in its lost-in-the-middle order; it now ranks by score (`rankedForFusion`); benchmark it with and without `OI_RETRIEVAL_ABLATE=fusionScoreOrder`; (2) Standard rewrites queries although `RAGQualityMode.usesQueryRewriting` is false for it, because the `enableQueryRewriting` setting defaults to true and wins (`SettingsStore:561`, `RAGService+QueryPreparation.swift:292`); (3) HyDE, contextual compression, extractive summarization and the entity index have code but no live call in any mode; (4) `maxRetrievalIterations`, `iterativeRetrievalConfig`, `benefitsFromSummaries`, `preferSummariesForOverview`, `specificationBoostWeight` have no consumer.
+- **Compute profiles' retrieval side is unmeasured**: QASPER 246 and tables 158 per profile, and the fusion fix with
+  and without `OI_RETRIEVAL_ABLATE=fusionScoreOrder`. The extraction side was measured 2026-11-11: identical text across
+  Balanced, Performance and Maximum (`LEDGER.md`).
+- **Retrieval findings from 2026-11-10, not fixed:** Standard rewrites queries although `RAGQualityMode.usesQueryRewriting`
+  is false for it (the `enableQueryRewriting` setting defaults to true and wins, `SettingsStore:561`,
+  `RAGService+QueryPreparation.swift:292`); HyDE, contextual compression, extractive summarization and the entity index
+  have no live call; `maxRetrievalIterations`, `iterativeRetrievalConfig`, `benefitsFromSummaries`,
+  `preferSummariesForOverview`, `specificationBoostWeight`, `maxChunksPerSearchYield` have no consumer.
+- `ShortcutsActionTests.testAskAboutADocumentRestsOnlyOnThatDocument` failed once (run 497, 1 of 3, no message): flaky.
+- Device checks not done: Device & Performance and Intelligence Mode on the phone, Deep Think leave-and-return, X-Ray
+  on the chip, setup card on a fresh install. The `device-pass` skill holds the short pass.
+- Notion: rows for Maximum, the hazard-ratio fix, the Deep Think cut-off and today's five fixes are not filed.
 
 ## Exact Next Action
 
-1. Read `/private/tmp/oi-bench-profiles/*.log` if the overnight profile benchmark ran (script
-   `scripts/bench_compute_profiles.sh`, run after a `build-for-testing` into `/private/tmp/oi-test-build`: the 8-PDF extraction set and the olmOCR-Bench 160 under
-   `OI_COMPUTE_PROFILE=balanced|performance|maximum`). Score with
-   `python3 scripts/extraction_fidelity.py /private/tmp/oi-fidelity/pdfs prof-performance --compare prof-balanced`
-   (and `prof-maximum`), and `python3 scripts/olmocr_bench_score.py /private/tmp/olmocr-bench prof160-maximum --list /private/tmp/olmocr-bench/run160.txt --compare prof160-balanced`.
-   Record in `BenchmarkRuns/` and `LEDGER.md`. A profile keeps its depth only if it reads at least as well as Balanced.
-2. Then the retrieval side: QASPER 246 and tables 158 per profile, and the fusion fix with and without
-   `OI_RETRIEVAL_ABLATE=fusionScoreOrder`.
-3. The owner looks at Device & Performance and Intelligence Mode on his phone.
+Read `BenchmarkRuns/<the newest date>-answer-modes/SUMMARY.md`. If it holds scores, record them in
+`BenchmarkRuns/LEDGER.md` with the commit and compare each mode with Standard; if the build failed, read the end of
+`build.log` in the same folder, fix the switch or test line it names, and tell the owner the run needs one more night.

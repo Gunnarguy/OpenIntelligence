@@ -15,6 +15,15 @@
 //  this Mac generates with Apple's model (measured 2026-10-01); the app keeps its own model off in the
 //  Simulator, which is why the test hands the engine a model of its own.
 //
+//  Since 2026-11-11, three more settings (each also with the `TEST_RUNNER_` prefix):
+//  - `OI_EVAL_MODE` standard, deepThink or maximum: the mode each question is asked in (Standard when unset).
+//  - `OI_EVAL_MODEL=app`: the engine runs the app's own `AppleFoundationLLMService`, as on a phone, instead of the
+//    test's `OnDeviceModel`. The engine branches in 17 places on that type (context budget, compact context, the
+//    planner's escalation, the agentic path), so only this measures the app's own path. It needs a copy patched by
+//    `scripts/sim_model_copy.py`, where the service is switched on in the Simulator; elsewhere the test fails at once
+//    and says so. `scripts/bench_answer_modes.sh` builds that copy and runs all three modes.
+//  - `OI_EVAL_TOPK`, as before.
+//
 
 import Evaluations
 import Foundation
@@ -43,6 +52,12 @@ private final class OnDeviceModel: LLMService {
             text: text, tokensGenerated: text.split(separator: " ").count, timeToFirstToken: seconds,
             totalTime: seconds, modelName: modelName, toolCallsMade: 0)
     }
+}
+
+/// Why a run could not start, said in the test's failure.
+private struct EvaluationSetupError: Error, CustomStringConvertible {
+    let description: String
+    init(_ description: String) { self.description = description }
 }
 
 /// One case of `rag_eval_v1.jsonl`, as the file writes it.
@@ -81,6 +96,22 @@ private enum AnswerQualityData {
             .compactMap { $0 as? URL } ?? []
         return all.filter { wanted.contains($0.lastPathComponent) }
     }
+
+    /// The mode every question is asked in: `OI_EVAL_MODE` standard (the default), deepThink or maximum.
+    @MainActor static var mode: OIAnswerMode { OIAnswerMode(rawValue: modeName) ?? .standard }
+
+    /// The mode's name as set, for the log: "standard" when unset or unknown.
+    nonisolated static var modeName: String {
+        let name = ProcessInfo.processInfo.environment["OI_EVAL_MODE"] ?? ""
+        return ["standard", "deepThink", "maximum"].contains(name) ? name : "standard"
+    }
+
+    /// `OI_EVAL_MODEL=app`: the app's own model service instead of the test's.
+    nonisolated static var usesAppModel: Bool { ProcessInfo.processInfo.environment["OI_EVAL_MODEL"] == "app" }
+
+    /// The run's time limit. Standard's 20 questions took minutes; a Deep Think answer took 279 s on the owner's
+    /// phone (2026-08-18) and Maximum runs up to 50 sessions, so those get four hours.
+    nonisolated static var minutes: Int { modeName == "standard" ? 30 : 240 }
 
     /// What the judge compares an answer with. An abstention case has no answer to state.
     static func reference(for evalCase: EvalCase) -> String {
@@ -130,8 +161,18 @@ private actor EvaluationLibrary {
         guard let made else { return }
         self.made = nil
         await Self.delete(made.library, importer: made.importer)
-        await MainActor.run { AskActionRunner.makeEngine = { RAGService() } }
+        await MainActor.run {
+            AskActionRunner.makeEngine = { RAGService() }
+            if let saved = Self.savedTierForRun {
+                if let saved { UserDefaults.standard.set(saved, forKey: "entitlement.activeTier") }
+                else { UserDefaults.standard.removeObject(forKey: "entitlement.activeTier") }
+                Self.savedTierForRun = nil
+            }
+        }
     }
+
+    /// The saved plan a Maximum run replaced with Pro: nil when nothing was replaced, `.some(nil)` when there was none.
+    @MainActor static var savedTierForRun: String??
 
     /// Per document, then the library: `deleteContainer` alone leaves the documents in the document list, where
     /// they still count against the plan (`ImportTargetLibraryTests` does the same).
@@ -150,11 +191,30 @@ private actor EvaluationLibrary {
             try await Task.sleep(for: .seconds(5))
         }
         print("[AnswerQualityEvaluation] model availability: \(SystemLanguageModel.default.availability)")
+        let model: LLMService
+        if AnswerQualityData.usesAppModel {
+            let service = AppleFoundationLLMService()
+            guard service.isAvailable else {
+                throw EvaluationSetupError(
+                    "OI_EVAL_MODEL=app, and the app's own model service is off here: run a copy patched by scripts/sim_model_copy.py")
+            }
+            model = service
+        } else {
+            model = OnDeviceModel()
+        }
+        print(
+            "[AnswerQualityEvaluation] mode=\(AnswerQualityData.modeName) model=\(model.modelName) passages=\(AnswerQualityEvaluation.passages)")
+        // Maximum is counted against the free plan's daily allowance where the app's saved plan is Free, as it is on
+        // the test simulator; the run holds Pro there and `remove` puts back what was there.
+        if AnswerQualityData.mode == .maximum {
+            savedTierForRun = .some(UserDefaults.standard.string(forKey: "entitlement.activeTier"))
+            UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: "entitlement.activeTier")
+        }
         let plan = UserDefaults(suiteName: "AnswerQualityEvaluation.plan") ?? .standard
         plan.set(WorkspaceTier.pro.rawValue, forKey: "entitlement.activeTier")
         let store = EntitlementStore(billingService: StoreKitBillingService(), defaults: plan)
         let libraries = IntentSupport.libraries()
-        let importer = RAGService(llmService: OnDeviceModel(), containerService: libraries, entitlementStore: store)
+        let importer = RAGService(llmService: model, containerService: libraries, entitlementStore: store)
         for _ in 0..<100 where !importer.hasLoadedDocumentsFromDisk {
             try await Task.sleep(for: .milliseconds(100))
         }
@@ -212,11 +272,17 @@ private struct AnswerQualityEvaluation: Evaluation {
         let library = try await EvaluationLibrary.shared.id()
         let engine = try await EvaluationLibrary.shared.engine()
         AskActionRunner.makeEngine = { engine }
+        let started = Date()
+        let question = sample.promptDescription
         do {
             let outcome = try await AskActionRunner.ask(
-                sample.promptDescription, mode: .standard, topK: Self.passages, libraryId: library)
+                question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library)
+            print(
+                "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(outcome.answer.text.prefix(300).replacingOccurrences(of: "\n", with: " "))")
             return ModelSubject(value: outcome.answer.text)
         } catch {
+            print(
+                "[AnswerQualityEvaluation] refused mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) error=\(error)")
             // A refused question is an answer too: an abstention case may end here.
             return ModelSubject(value: "\(error)")
         }
@@ -241,11 +307,12 @@ private struct AnswerQualityEvaluation: Evaluation {
     .enabled(if: ProcessInfo.processInfo.environment["OI_MODEL_EVALS"] == "1"))
 struct AnswerQualityEvaluationTests {
     @available(iOS 27.0, macOS 27.0, *)
-    @Test(.evaluates(AnswerQualityEvaluation()), .timeLimit(.minutes(30)))
+    @Test(.evaluates(AnswerQualityEvaluation()), .timeLimit(.minutes(AnswerQualityData.minutes)))
     func answersAgreeWithTheReferenceAnswers() async throws {
         let result = EvaluationContext.current.result
         let correct = result.aggregateValue(.mean(of: AnswerQualityEvaluation.correct))
-        print("[AnswerQualityEvaluation] correct: \(correct) over \(AnswerQualityData.cases.count) cases")
+        print(
+            "[AnswerQualityEvaluation] correct: \(correct) over \(AnswerQualityData.cases.count) cases, mode=\(AnswerQualityData.modeName) appModel=\(AnswerQualityData.usesAppModel)")
         print("[AnswerQualityEvaluation] \(result.groupedSummary)")
         await EvaluationLibrary.shared.remove()
         #expect(AnswerQualityData.cases.count == 20, "the dataset has \(AnswerQualityData.cases.count) cases")

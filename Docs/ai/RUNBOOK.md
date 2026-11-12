@@ -279,6 +279,18 @@ document lookup instead (`definitions.entities["OIDocumentEntity"].entities(matc
 `Documents/pipeline_trace.log` in its simulator data folder
 (`xcrun simctl get_app_container <UDID> Gunndamental.OpenIntelligence data`), not in the xcodebuild log.
 
+## Answer quality by mode, overnight (added 2026-11-11)
+
+```bash
+bash scripts/bench_answer_modes.sh            # Standard, Deep Think, Maximum, then Standard with the test's model
+```
+
+Grades 20 answers per mode with Apple's Evaluations model judge (`AnswerQualityEvaluationTests`) in the iOS 27
+Simulator, through the app's own model service on a patched scratch copy (`scripts/sim_model_copy.py`). It waits
+while a game runs, keeps the Mac awake, builds at two jobs into `/private/tmp/oi-eval-dd` (incremental after the
+first night), and writes `BenchmarkRuns/<date>-answer-modes/SUMMARY.md`. Where each kind of run can go and why: the
+`testing-routes` skill. `[evidence_level: code_verified, confidence: medium, not yet run end to end]`
+
 ## Retrieval benchmark
 
 The 20-case quality matrix runs the **macOS** app headlessly, once per case, against fixtures in

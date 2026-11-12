@@ -21,8 +21,16 @@ macOS or iOS changes, and re-date it.
 | His iPhone, TestFlight build | Yes, and PCC; Apple's named route for testing PCC | The phone, while it runs | Release candidates |
 
 **Recommended route for the answer benchmark** (Standard, Deep Think, Maximum): the iOS 27 Simulator on his Mac,
-started only when he says he is not gaming (overnight is best). Xcode Cloud cannot generate (run 496), so it carries
-the unit suite and every model-free check, which is most of the 1,706 tests.
+overnight, with one command he starts (it waits while a game is open):
+
+```bash
+bash scripts/bench_answer_modes.sh
+```
+
+It runs `AnswerQualityEvaluationTests` per mode on a patched copy (`scripts/sim_model_copy.py`), so the engine runs
+the app's own `AppleFoundationLLMService` as on a phone (`OI_EVAL_MODEL=app`); a test-supplied model takes other
+paths, since 17 places branch on that type. Results: `BenchmarkRuns/<date>-answer-modes/SUMMARY.md`. Xcode Cloud
+cannot generate (run 496), so it carries the unit suite and every model-free check.
 
 ## Xcode Cloud: what the hours buy
 
