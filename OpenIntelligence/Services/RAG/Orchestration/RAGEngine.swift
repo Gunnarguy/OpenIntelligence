@@ -135,7 +135,9 @@ actor RAGEngine {
                 // The first load after an install compiles for the Neural Engine; this is what the phone check reads.
                 VerificationJournal.record(
                     "reranker.load", loaded.count == 2 ? .ok : .failed, durationMs: loadSeconds * 1000,
-                    ["functions": loaded.map { "len\($0.length)" }.joined(separator: ",")])
+                    ["functions": loaded.map { "len\($0.length)" }.joined(separator: ","),
+                        "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
+                        "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)"])
             } else {
                 Log.warning(
                     "[RAGEngine] ReRankerModel not found (looked for .mlmodelc and .mlpackage)", category: .retrieval)

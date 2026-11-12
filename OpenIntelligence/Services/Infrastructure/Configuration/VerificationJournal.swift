@@ -101,6 +101,25 @@ nonisolated enum VerificationJournal {
     /// so "was this answer written before this launch" is `timestamp < launchedAt`.
     static let launchedAt = Date()
 
+    /// Whether this is the first launch of this installed copy of the app (2026-11-12): the bundle's path and its
+    /// executable's date differ from the last launch's. Core ML prepares a model for the Neural Engine again after an
+    /// install, so `reranker.load` and `embedding.load` carry it as `newInstall`: on his iPhone the reranker loaded in
+    /// 20 to 130 s on most launches of 2026-11-10 and 11-11, days with many development installs, and 0.5 to 1.5 s on
+    /// a few, and nothing recorded which launches followed an install. Read once, at the launch's first model load; the
+    /// first read stores the stamp, so it means "the first launch since the install that loaded a model". A unit-test
+    /// run on a simulator shares the installed app's defaults and can store the stamp first.
+    static let firstLaunchOfThisInstall: Bool = {
+        let executable = Bundle.main.executableURL
+        let date = executable.flatMap {
+            try? FileManager.default.attributesOfItem(atPath: $0.path)[.modificationDate] as? Date
+        }
+        let stamp = "\(Bundle.main.bundleURL.path)|\(date.map { "\($0.timeIntervalSince1970)" } ?? "none")"
+        let key = "verificationJournal.installStamp"
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set(stamp, forKey: key)
+        return previous != stamp
+    }()
+
     /// How many times this process went to the background (`ContentView` counts it on the main thread), so work that
     /// runs across a trip out of the app can say it did (`atlas.analyze`'s `leftFront`).
     @MainActor static var backgroundEntries = 0
@@ -277,6 +296,13 @@ nonisolated enum VerificationJournal {
 /// a background queue sends the ping and measures how late it runs; 250 ms is Apple's hang threshold. Readers that need a yes or no (`launch.chatUsable`'s `stallFree`, an import's `responsive`) ask
 /// `longestStall(since:)` for the window they care about.
 ///
+/// Only time in front counts (2026-11-12). iOS suspends a background app's threads, this queue's too, so a ping sent
+/// before a suspension came back as late as the suspension was long: on his iPhone at 06:52 on 2026-11-12 a 296,980 ms
+/// "stall" was the app sitting suspended after a background answer, with no frame drawn late. On iOS and iPadOS the
+/// watchdog follows the app's own background and foreground notifications (the whole app, not one window's scene, so an
+/// iPad with one window in the background still counts the other): no ping is sent while the app is in the background,
+/// and a ping whose trip crossed a change is dropped, not counted. A Mac app is not suspended, so nothing changes there.
+///
 /// Started once from `AppServices.init`. In a Release build `start()` does nothing.
 nonisolated final class MainThreadWatchdog: @unchecked Sendable {
     static let shared = MainThreadWatchdog()
@@ -290,6 +316,10 @@ nonisolated final class MainThreadWatchdog: @unchecked Sendable {
     private var pingInFlight = false
     private var stalls: [(endedAt: Date, ms: Double)] = []
     private var currentPhase = "launch"
+    private var inBackground = false
+    private var observers: [NSObjectProtocol] = []
+    /// Counts the app's background and foreground changes, so a ping can tell that its trip crossed one.
+    private var phaseChanges = 0
 
     var isRunning: Bool { lock.withLock { timer != nil } }
 
@@ -302,22 +332,68 @@ nonisolated final class MainThreadWatchdog: @unchecked Sendable {
 
     func start(interval: DispatchTimeInterval = .milliseconds(100)) {
         guard VerificationJournal.isEnabled else { return }
-        lock.withLock {
-            guard timer == nil else { return }
+        let started = lock.withLock { () -> Bool in
+            guard timer == nil else { return false }
             let source = DispatchSource.makeTimerSource(queue: queue)
             source.schedule(deadline: .now() + interval, repeating: interval)
             source.setEventHandler { [weak self] in self?.tick() }
             timer = source
             source.resume()
+            return true
+        }
+        #if canImport(UIKit) && !os(watchOS)
+            guard started else { return }
+            let center = NotificationCenter.default
+            let added = [
+                center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) {
+                    [weak self] _ in self?.appPhaseChanged(inBackground: true)
+                },
+                center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) {
+                    [weak self] _ in self?.appPhaseChanged(inBackground: false)
+                },
+                // A scene-based app can read as in the background at launch until its first scene comes forward,
+                // with no `willEnterForeground` after: becoming active clears it, so a launch is never left unmeasured.
+                center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) {
+                    [weak self] _ in self?.appBecameActive()
+                },
+            ]
+            lock.withLock { observers = added }
+            // A launch into the background (a background task, an action) starts there and posts no notification.
+            Task { @MainActor [weak self] in
+                if UIApplication.shared.applicationState == .background { self?.appPhaseChanged(inBackground: true) }
+            }
+        #else
+            _ = started
+        #endif
+    }
+
+    /// Called when the whole app enters or leaves the background (the observers `start()` adds on iOS).
+    func appPhaseChanged(inBackground: Bool) {
+        lock.withLock {
+            self.inBackground = inBackground
+            phaseChanges += 1
+        }
+    }
+
+    /// Becoming active is in front; only a change from the background counts as one.
+    private func appBecameActive() {
+        lock.withLock {
+            guard inBackground else { return }
+            inBackground = false
+            phaseChanges += 1
         }
     }
 
     func stop() {
-        lock.withLock {
+        let removed = lock.withLock { () -> [NSObjectProtocol] in
             timer?.cancel()
             timer = nil
             pingInFlight = false
+            inBackground = false
+            defer { observers = [] }
+            return observers
         }
+        removed.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     /// The longest stall that ended at or after `date`, in ms; 0 when there was none.
@@ -332,22 +408,23 @@ nonisolated final class MainThreadWatchdog: @unchecked Sendable {
 
     private func tick() {
         let sent = Date()
-        let send = lock.withLock { () -> Bool in
-            guard timer != nil, !pingInFlight else { return false }
+        let changesAtSend = lock.withLock { () -> Int? in
+            guard timer != nil, !pingInFlight, !inBackground else { return nil }
             pingInFlight = true
-            return true
+            return phaseChanges
         }
-        guard send else { return }
+        guard let changesAtSend else { return }
         DispatchQueue.main.async { [weak self] in
             let now = Date()
-            self?.answered(lateMs: now.timeIntervalSince(sent) * 1000, at: now)
+            self?.answered(lateMs: now.timeIntervalSince(sent) * 1000, at: now, changesAtSend: changesAtSend)
         }
     }
 
-    private func answered(lateMs: Double, at now: Date) {
+    private func answered(lateMs: Double, at now: Date, changesAtSend: Int) {
         let phase = lock.withLock { () -> String? in
             pingInFlight = false
-            guard timer != nil, lateMs >= Self.stallThresholdMs else { return nil }
+            // A trip that crossed a background or foreground change may hold a suspension; it measures nothing.
+            guard timer != nil, lateMs >= Self.stallThresholdMs, phaseChanges == changesAtSend else { return nil }
             stalls.append((now, lateMs))
             if stalls.count > 500 { stalls.removeFirst(stalls.count - 500) }
             return currentPhase

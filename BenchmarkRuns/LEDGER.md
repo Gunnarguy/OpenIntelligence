@@ -1266,3 +1266,32 @@ Extraction-fidelity set (8 PDFs) and olmOCR-Bench 160 pages, once each under Bal
 build (ee2ce21b). Stored text identical across the three on both sets (fidelity mean 0.944/0.966/0.966/0.975 each;
 olmOCR 465 of 755 checks each). A probe confirmed Maximum was active. One run per profile, ladder order: times are not
 comparable yet. Retrieval per profile not run.
+
+### 2026-11-12 answer quality by mode, the app's own model path (`2026-11-12-0053-answer-modes`)
+
+`scripts/bench_answer_modes.sh` at c1e4a160 (5.8), its first run: a copy patched by `scripts/sim_model_copy.py` so the
+app's `AppleFoundationLLMService` answers in the iOS 27.0 Simulator (iPhone 17 Pro, read as an A18 Pro), 20 cases of
+`Benchmarks/rag_eval_v1.jsonl` over the tiny research suite, graded pass/fail by Apple's Evaluations model judge
+(`AnswerQualityEvaluationTests`). One case is 0.05.
+
+| Mode | Model path | Correct | Answered | Refused | Minutes |
+|---|---|---|---|---|---|
+| Standard | app | 0.45 | 20 | 0 | 10 |
+| Deep Think | app | 0.40 | 20 | 0 | 38 |
+| Maximum | app | not measured (see below) | 3 | 17 | 19 |
+| Standard | test's own model (the 2026-10-21 path, 0.3 then) | 0.50 | 20 | 0 | 7 |
+
+**What it settled.** Deep Think does not beat Standard here: one case lower, at 3.8 times the time, as on QASPER in
+August (2/8 and 3/8 against 4/7 and 5/8). The app's path and the test's own model are one case apart (0.45 and 0.50),
+so the path difference the copy exists to remove did not move the score on this set. Standard at 0.50 against 0.3 on
+2026-10-21 is two months of changes on the same 20 cases, one run each.
+
+**Maximum: a test defect, not a score.** It answered 3 and then refused 17 in 0 s with "Today's 3 free Maximum answers
+are used": the plan the action's gate reads (`ShortcutsPlanGate`, `EntitlementStore.currentEffectiveTier`, standard
+defaults) was Free again after `make` set Pro, most likely rewritten by the host app's own entitlement store. Fixed in
+the test on 2026-11-12 (Pro and a zero count before every Maximum question); Maximum is re-run alone below. Of the 3
+it answered, one ran 347 s and came back "Needs Verification" (Gate E, semantic grounding, failed), and one planner
+call overflowed ("The session's transcript exceeded the model's context size").
+
+**Not settled.** Per-question agreement between modes (the test prints only the mean); variance (one run per mode);
+whether the Simulator's model window matches the iPhone's 4,096 tokens.

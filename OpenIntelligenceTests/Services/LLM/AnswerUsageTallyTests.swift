@@ -62,3 +62,22 @@ final class AnswerUsageTallyTests: XCTestCase {
         XCTAssertEqual(ChatResponseDetailsView.appleUsageText(second), "1,100 in (0 cached), 80 out, 40 reasoning")
     }
 }
+
+#if canImport(FoundationModels)
+    /// A streamed model call's two phases in the journal (2026-11-12): time to the first text, the writing after it, and
+    /// output tokens per second of writing.
+    final class ModelCallPhaseFieldsTests: XCTestCase {
+        func testAStreamedCallSplitsIntoFirstTokenAndWriting() {
+            let fields = AppleFoundationLLMService.phaseFields(firstToken: 3.41, total: 9.41, outputTokens: 120)
+            XCTAssertEqual(fields["firstTokenMs"], "3410")
+            XCTAssertEqual(fields["writingMs"], "6000")
+            XCTAssertEqual(fields["totalMs"], "9410")
+            XCTAssertEqual(fields["outputPerSecond"], "20.0")
+        }
+
+        func testAStreamWithNoTextHasOnlyItsTotal() {
+            XCTAssertEqual(
+                AppleFoundationLLMService.phaseFields(firstToken: nil, total: 2.5, outputTokens: 0), ["totalMs": "2500"])
+        }
+    }
+#endif

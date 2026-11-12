@@ -177,4 +177,39 @@ final class VerificationJournalTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         XCTAssertEqual(stalls(), count, "a stopped watchdog records nothing")
     }
+
+    /// Time in the background is not a stall (2026-11-12): no ping goes out while the app is in the background, and a
+    /// ping whose trip crosses a change is dropped. On his iPhone a suspension after a background answer was recorded as
+    /// a 296,980 ms stall.
+    func testTimeInTheBackgroundIsNotAStall() {
+        let watchdog = MainThreadWatchdog()
+        watchdog.start(interval: .milliseconds(20))
+        defer { watchdog.stop() }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        // In the background: the main thread held past the threshold is not measured.
+        watchdog.appPhaseChanged(inBackground: true)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let inBackground = Date()
+        Thread.sleep(forTimeInterval: 0.45)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertTrue(watchdog.stallFree(since: inBackground), "nothing is measured in the background")
+
+        // Back in front, a ping sent before a change and answered after it is dropped.
+        watchdog.appPhaseChanged(inBackground: false)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let crossing = Date()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { watchdog.appPhaseChanged(inBackground: true) }
+        Thread.sleep(forTimeInterval: 0.6)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertTrue(watchdog.stallFree(since: crossing), "a trip across a change measures nothing")
+
+        // In front again with no change, the same hold is a stall.
+        watchdog.appPhaseChanged(inBackground: false)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let inFront = Date()
+        Thread.sleep(forTimeInterval: 0.45)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertFalse(watchdog.stallFree(since: inFront), "a hold in front is still a stall")
+    }
 }

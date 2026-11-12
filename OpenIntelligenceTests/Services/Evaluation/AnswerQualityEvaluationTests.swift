@@ -274,6 +274,15 @@ private struct AnswerQualityEvaluation: Evaluation {
         AskActionRunner.makeEngine = { engine }
         let started = Date()
         let question = sample.promptDescription
+        if AnswerQualityData.mode == .maximum {
+            // Before every Maximum question (2026-11-12): setting Pro once in `make` was not enough. The first night's
+            // run answered 3 Maximum questions and refused 17 with "Today's 3 free Maximum answers are used", so the
+            // plan the gate reads (`EntitlementStore.currentEffectiveTier`, standard defaults) was Free again by then,
+            // most likely rewritten by the host app's own entitlement store. The day's count is cleared too; this runs
+            // only on the benchmark's own simulator, and `remove` puts the saved plan back.
+            UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: "entitlement.activeTier")
+            UserDefaults.standard.set(0, forKey: "entitlement.maximumMode.usedCount")
+        }
         do {
             let outcome = try await AskActionRunner.ask(
                 question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library)

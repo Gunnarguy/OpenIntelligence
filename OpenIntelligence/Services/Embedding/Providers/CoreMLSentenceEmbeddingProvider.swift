@@ -241,11 +241,23 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 if DeviceCapabilityService.maximumProfileSelected {
                     config.optimizationHints.specializationStrategy = .fastPrediction
                 }
+                let started = Date()
                 let loaded = try MLModel(contentsOf: url, configuration: config)
-                Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc on first use - compute: \(computeDesc)", category: .embedding)
+                let seconds = Date().timeIntervalSince(started)
+                Log.info(
+                    "[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc in \(String(format: "%.2f", seconds)) s"
+                        + " - compute: \(computeDesc)", category: .embedding)
+                // Timed since 2026-11-12 (the owner approved the trace fixes that morning; only logging changes here):
+                // the trace said only that it loaded, and on his iPhone the load sat inside a 47.8 s first question,
+                // its length readable only from the gap between two lines.
+                VerificationJournal.record(
+                    "embedding.load", .ok, durationMs: seconds * 1000,
+                    ["compute": computeDesc, "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
+                        "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)"])
                 return loaded
             } catch {
                 Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel: \(error)", category: .embedding)
+                VerificationJournal.record("embedding.load", .failed, ["error": String(describing: type(of: error))])
             }
         } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
             // Fallback: Check for uncompiled package (rare, but good for safety)
@@ -256,14 +268,22 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 if DeviceCapabilityService.maximumProfileSelected {
                     config.optimizationHints.specializationStrategy = .fastPrediction
                 }
+                let started = Date()
                 let loaded = try MLModel(contentsOf: sourceURL, configuration: config)
                 Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlpackage (fallback)", category: .embedding)
+                VerificationJournal.record(
+                    "embedding.load", .ok, durationMs: Date().timeIntervalSince(started) * 1000,
+                    ["compute": computeDesc, "package": "mlpackage",
+                        "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)"])
                 return loaded
             } catch {
                 Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel from source: \(error)", category: .embedding)
+                VerificationJournal.record(
+                    "embedding.load", .failed, ["error": String(describing: type(of: error)), "package": "mlpackage"])
             }
         } else {
             Log.error("[CoreMLSentenceEmbeddingProvider] ❌ Model not found. Looked for '\(modelName).mlmodelc' and '.mlpackage'", category: .embedding)
+            VerificationJournal.record("embedding.load", .failed, ["error": "notFound"])
         }
         return nil
     }

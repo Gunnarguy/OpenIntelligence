@@ -35,7 +35,10 @@ foreground. The full budget, its sources and the research behind this skill are 
 
 1. **The iPhone, after he has used the build:** `python3 scripts/phone_evidence.py --since <install time>`
    pulls the journal (`verification_events.jsonl`) and `pipeline_trace.log`. Stage lines in the trace
-   carry millisecond timestamps; diff consecutive lines. The trace holds his questions and file names:
+   carry millisecond timestamps; diff consecutive lines. Since 2026-11-12 the journal carries the numbers too: `model.usage`
+   (`firstTokenMs`, `writingMs`, `outputPerSecond`, `totalMs`, `cachedInput`), `embedding.load` and `reranker.load`
+   (`ms`, `newInstall`: a slow load with `newInstall: false` is the finding), and `mainThread.stall` counts only time
+   in front. The trace holds his questions and file names:
    grep for what you need, never print it whole, never commit it.
 2. **Model calls on the device:** the Instruments "Foundation Models" template (Xcode 27 ships it;
    `xcrun xctrace list templates`). It splits each call into prefill, decode and token counts, which
