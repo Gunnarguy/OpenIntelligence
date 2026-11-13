@@ -25,8 +25,6 @@ nonisolated enum TextLayerTableDetector {
         let header: [String]?
         /// Body rows, each with one entry per column ("" for an empty cell).
         let rows: [[String]]
-        /// Whether only its caption made it a table: under a quarter of its body cells hold numbers (5.8).
-        var acceptedByCaption = false
     }
 
     private struct Segment {
@@ -95,17 +93,9 @@ nonisolated enum TextLayerTableDetector {
         return lines(of: inside).reduce(0) { $0 + $1.cellCount }
     }
 
-    /// A line that opens with a table caption: "Table 1.", "TABLE 2:", "Table S3", "Table IV".
-    private static func isCaption(_ line: Line) -> Bool {
-        guard let first = line.segments.first?.text else { return false }
-        return first.range(of: #"^(Table|TABLE)\s+[A-Z]?[0-9IVX]+[.:]?(\s|$)"#, options: .regularExpression) != nil
-    }
-
     /// Tables on a page from its text-layer words, largest first. A table needs at least 4 body rows of 3 or more cells
     /// and numbers in at least a quarter of its body cells, so running text, reference lists and two-column prose are
-    /// not tables, unless a caption ("Table 1.") opens it or sits just above it: a table of words then needs only its
-    /// rows (5.8, 2026-11-12: Cochrane review CD004426's Tables 1 and 2, clinical syndromes and their features, were
-    /// read as loose lines).
+    /// not tables.
     static func tables(in words: [TextLayerWord]) -> [Table] {
         let pageLines = lines(of: words)
         guard pageLines.count >= 4 else { return [] }
@@ -158,14 +148,7 @@ nonisolated enum TextLayerTableDetector {
         }
         close()
 
-        // A region is captioned when a caption line is among its first lines or within 4 line heights above its top.
-        let found = regions.compactMap { region -> Table? in
-            let top = region.map(\.box.maxY).max() ?? 0
-            let captioned =
-                region.prefix(3).contains(where: isCaption)
-                || pageLines.contains { isCaption($0) && $0.box.minY >= top - height && $0.box.minY - top <= height * 4 }
-            return table(from: region, height: height, captioned: captioned)
-        }
+        let found = regions.compactMap { table(from: $0, height: height) }
         // The region is found by the heuristic above; its cells are read with the heuristic's grid unless pdfplumber's
         // text strategy is selected (`gridMethod`).
         let gridded: [Table]
@@ -203,7 +186,7 @@ nonisolated enum TextLayerTableDetector {
         } ?? 0
     }
 
-    private static func table(from lines: [Line], height: CGFloat, captioned: Bool = false) -> Table? {
+    private static func table(from lines: [Line], height: CGFloat) -> Table? {
         // Columns: the union of the x-extents of the segments on lines with nearly the most segments; a gap in that
         // union is a column boundary.
         let most = lines.map(\.cellCount).max() ?? 0
@@ -311,25 +294,12 @@ nonisolated enum TextLayerTableDetector {
         guard !rows.isEmpty else { return nil }
 
         // Header: the rows before the first row with numbers in at least half of its non-label cells, joined per column.
-        func firstNumericRow() -> Int? {
+        let firstBody =
             rows.firstIndex { row in
                 let values = row.dropFirst().filter { !$0.isEmpty }
                 return !values.isEmpty && Double(values.filter(isNumeric).count) >= Double(values.count) * 0.5
                     && values.count >= 2
-            }
-        }
-        var numericBody = firstNumericRow()
-        // A captioned table of words has no such row: its caption row is its title, not a row, and the row after it is
-        // its header ("Clinical syndrome | Primary features | Additional features").
-        if numericBody == nil, captioned, let first = rows.first?.first(where: { !$0.isEmpty }),
-            first.range(of: #"^(Table|TABLE)\s+[A-Z]?[0-9IVX]+[.:]?(\s|$)"#, options: .regularExpression) != nil
-        {
-            rows.removeFirst()
-            rowBoxes.removeFirst()
-            guard !rows.isEmpty else { return nil }
-            numericBody = firstNumericRow()
-        }
-        let firstBody = numericBody ?? (captioned && rows.count > 1 ? 1 : 0)
+            } ?? 0
         let headerRows = rows[..<firstBody]
         let body = Array(rows[firstBody...])
         let header: [String]? =
@@ -342,14 +312,11 @@ nonisolated enum TextLayerTableDetector {
         let wideRows = body.filter { $0.filter { !$0.isEmpty }.count >= 3 }
         guard wideRows.count >= 4 else { return nil }
         let bodyCells = body.flatMap { $0 }.filter { !$0.isEmpty }
-        guard !bodyCells.isEmpty,
-            captioned || Double(bodyCells.filter(isNumeric).count) >= Double(bodyCells.count) * 0.25
-        else {
+        guard !bodyCells.isEmpty, Double(bodyCells.filter(isNumeric).count) >= Double(bodyCells.count) * 0.25 else {
             return nil
         }
         let box = rowBoxes.dropFirst().reduce(rowBoxes[0]) { $0.union($1) }
-        let numericShare = Double(bodyCells.filter(isNumeric).count) / Double(bodyCells.count)
-        return Table(box: box, header: header, rows: body, acceptedByCaption: numericShare < 0.25)
+        return Table(box: box, header: header, rows: body)
     }
 
     // MARK: - pdfplumber's "text" strategy, ported

@@ -155,24 +155,6 @@ final class PageTextRepairTests: XCTestCase {
         XCTAssertTrue(table.rows.contains { $0.first == "Hispanic" && $0.contains("7650") })
     }
 
-    func testACaptionedTableOfWordsIsATable() {
-        let rows: [(y: CGFloat, cells: [(x: CGFloat, text: String)])] = [
-            (0.92, [(0.08, "Table 1."), (0.16, "Clinical syndromes and their features")]),
-            (0.90, [(0.10, "Clinical syndrome"), (0.35, "Primary features"), (0.65, "Additional features")]),
-            (0.88, [(0.10, "Kearns-Sayre syndrome"), (0.35, "Onset before age 20"), (0.65, "Bilateral deafness")]),
-            (0.86, [(0.10, "Leigh syndrome"), (0.35, "Relapsing encephalopathy"), (0.65, "Basal ganglia lucencies")]),
-            (0.84, [(0.10, "MERRF"), (0.35, "Myoclonus"), (0.65, "Optic atrophy")]),
-            (0.82, [(0.10, "MELAS"), (0.35, "Stroke-like episodes"), (0.65, "Pigmentary retinopathy")]),
-        ]
-        let tables = TextLayerTableDetector.tables(in: layout(rows))
-        XCTAssertEqual(tables.count, 1)
-        guard let table = tables.first else { return }
-        XCTAssertEqual(table.header, ["Clinical syndrome", "Primary features", "Additional features"])
-        XCTAssertTrue(table.rows.contains { $0 == ["Leigh syndrome", "Relapsing encephalopathy", "Basal ganglia lucencies"] })
-        // The same rows without a caption are not a table: no numbers, and nothing says they are one.
-        XCTAssertEqual(TextLayerTableDetector.tables(in: layout(Array(rows.dropFirst()))), [])
-    }
-
     func testTwoColumnsOfProseAreNotATable() {
         var lines: [(y: CGFloat, cells: [(x: CGFloat, text: String)])] = []
         for index in 0..<12 {

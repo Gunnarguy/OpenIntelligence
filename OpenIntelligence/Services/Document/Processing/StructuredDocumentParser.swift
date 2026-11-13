@@ -908,13 +908,6 @@ actor StructuredDocumentParser {
                 !keptBoxes.contains { $0.contains(CGPoint(x: word.box.midX, y: word.box.midY)) }
             }
             layerTables = TextLayerTableDetector.tables(in: free)
-            // A captioned table of words that Vision read as paragraphs is hidden by the prose rule above (its cells
-            // are short lines of words): Cochrane review CD004426's Tables 1 and 2 (2026-11-12). Such a table is looked
-            // for among all the words, and kept where it overlaps no table already found.
-            let foundBoxes = layerTables.map(\.box) + document.tables.map { $0.boundingRegion.normalizedPath.boundingBox }
-            layerTables += TextLayerTableDetector.tables(in: words).filter { table in
-                table.acceptedByCaption && !foundBoxes.contains { $0.intersects(table.box) }
-            }
             for weak in weakTables where layerTables.contains(where: { $0.box.intersects(weak.box) }) {
                 replacedVisionTables.insert(weak.index)
             }
