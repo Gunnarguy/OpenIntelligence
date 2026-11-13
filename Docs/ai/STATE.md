@@ -76,6 +76,7 @@ answers"); the 2026-11-10 rule audit found none that hurt. Then the Xcode Cloud 
 
 ## Blockers / Unknowns
 
+- `test_repoos_router.py` fails `test_every_task_loads_only_the_small_universal_set` (every-task read set 45,296 bytes against a 40,000 cap; `Docs/ai/ARCHITECTURE.md` is 34,971 of it). It already failed at 1e86b30c (43,515 bytes); trim `ARCHITECTURE.md` or move detail out of it.
 - Found in passing, not fixed: `ingestDocuments`' success count leaves out PDFs over 10 MB that are still importing.
   Checked 2026-11-12 [code_verified; the benchmark's 5 of 7 is the reproduction]: the streamed PDF and text imports
   remove their queue item 2 s after Complete, so a large file that finished before the rest of its batch drops out of
