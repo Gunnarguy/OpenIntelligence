@@ -274,6 +274,8 @@ confidence: high]`
 
 **Updated 2026-11-13.** `highPrecisionLookupOverride` declines a value made only of numbers the question itself gives (`RAGService.valueRestatesQuestion`): asked about a row "under ADHD (n = 3026)", it had locked onto "3026" on a misread figure caption and returned that line as Deep Think's whole answer. `[evidence_level: code_verified, confidence: high]`
 
+**Also 2026-11-13.** Two switches in `RetrievalAblation` for paired runs: `answerFirst` (Deep Think's and Maximum's final step open with a one-sentence answer and never call a given value missing) and `maximumSourcePassages` (Maximum's final step reads the top retrieved passages beside its claim bank). `EvidenceReachBenchmarkTests` asks Maximum answers on path `m`. `[evidence_level: code_verified, confidence: high]`
+
 ## MMR and the passages' vectors (corrected 2026-10-14, for 5.7)
 
 The vector store hands passages back without their vectors (`BNNSVectorDatabase` keeps the vectors in

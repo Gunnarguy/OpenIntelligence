@@ -1418,6 +1418,20 @@ extension AgenticOrchestrator {
             "[Synthesis] Single-pass synthesis with Fact Bank (\(factBank.summary)), \(allInsights.count) insights",
             category: .llm)
 
+        // The documents' own words beside the claim bank (5.8, `RetrievalAblation.maximumSourcePassages`). The claim bank
+        // is the sessions' notes, and every value reached the answer only as a note had restated it: on 2026-11-13
+        // Maximum answered "$1.2 billion" where the document says "$1,577 million". The top retrieved passages are put
+        // first, labelled by their place in `sourceChunks`, the list the answer's citations open, so a label the answer
+        // gives names the passage it came from (the claim bank's own markers are each session's local numbering).
+        if !RetrievalAblation.isOff(.maximumSourcePassages),
+            let sourcePrompt = await maximumSourcePassagesPrompt(
+                query: query, factContext: factContext, sourceChunks: sourceChunks)
+        {
+            return try await finishFinalUnlimitedAnswer(
+                synthesisPrompt: sourcePrompt, currentAnswer: currentAnswer, sourceChunks: sourceChunks,
+                ragService: ragService)
+        }
+
         // ── PASS 1: Comprehensive answer from ALL evidence ──
         let synthesisPrompt = """
             Q: \(query)
@@ -1533,6 +1547,95 @@ extension AgenticOrchestrator {
         Log.info(
             "[Synthesis] Final answer: \(finalAnswer.count) chars from \(allInsights.count) insights", category: .llm)
 
+        return finalAnswer
+    }
+
+    /// Maximum's final prompt with the top retrieved passages in the documents' own words (5.8,
+    /// `RetrievalAblation.maximumSourcePassages`), fitted to the on-device window, or nil when none fits. The passages
+    /// are labelled by their place in `sourceChunks`, the list the answer's citations open.
+    private func maximumSourcePassagesPrompt(query: String, factContext: String, sourceChunks: [RetrievedChunk]) async
+        -> String?
+    {
+        guard !sourceChunks.isEmpty else { return nil }
+        let window = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let candidates = Array(sourceChunks.prefix(ChainSynthesisEvidence.maxCandidates).enumerated())
+        let blocks = candidates.map { SessionEvidencePlan.block(for: $0.element, label: $0.offset + 1) }
+        guard let counts = await SessionEvidenceTokenCounter.counts(for: blocks + [factContext, query]) else {
+            return nil
+        }
+        let factTokens = counts[counts.count - 2]
+        let queryTokens = counts[counts.count - 1]
+        // The window less the answer, the fixed wording (about 450 tokens), the claim bank, the question twice and the
+        // safety margin; never more than a session reads (`SessionEvidencePlan.readingCeilingTokens`).
+        let free =
+            window - Self.synthesisOutputTokenReserve - ChainSynthesisEvidence.promptReserveTokens - factTokens
+            - 2 * queryTokens - SessionEvidencePlan.safetyReserveTokens
+        let budget = max(0, min(SessionEvidencePlan.readingCeilingTokens, free))
+        let chosen = ChainSynthesisEvidence.choose(
+            ranked: Array(candidates.indices), counts: Array(counts.prefix(blocks.count)), budget: budget)
+        guard !chosen.isEmpty else {
+            Log.info("[Synthesis] Maximum: no source passage fits beside the claim bank; claim bank alone", category: .llm)
+            await MainActor.run {
+                VerificationJournal.record("maximum.synthesisEvidence", .failed, ["reason": "noPassageFits"])
+            }
+            return nil
+        }
+        let passages = chosen.map { blocks[$0] }.joined()
+        await MainActor.run {
+            VerificationJournal.record(
+                "maximum.synthesisEvidence", .ok,
+                ["passages": "\(chosen.count)", "budget": "\(budget)", "factTokens": "\(factTokens)", "window": "\(window)"])
+        }
+        Log.info("[Synthesis] Maximum: \(chosen.count) source passages beside the claim bank", category: .llm)
+        return """
+            Q: \(query)
+
+            SOURCE PASSAGES (the documents' own words):
+            \(passages)
+            CLAIM BANK (notes from the reading sessions; they can be wrong):
+            \(factContext)
+
+            \(RetrievalAblation.isOff(.answerFirst) ? "" : Self.answerFirstInstruction)Write a thorough answer to: "\(query)"
+            - Take every number, name, date and value from the SOURCE PASSAGES, written exactly as it appears there. When a note and a passage differ, the passage is right.
+            - Use the claim bank to see what the sessions found and where to look.
+            - If the passages do not answer part of the question, say so for that part instead of guessing.\(RetrievalAblation.isOff(.answerFirst) ? "" : " " + Self.noFalseAbsenceInstruction)
+            - Cite each fact with the [S#] label of the SOURCE PASSAGE it came from, written exactly as labelled above. Never cite the claim bank's markers and never invent a label.
+            - Organize by topic with clear headings. Use **bold** sparingly for key terms only. Never repeat the same information twice.
+            """
+    }
+
+    /// The final call for the source-passage prompt: one pass, then the same clean-up and de-duplication as the claim
+    /// bank's path. Its refinement pass is not run: it removes "claims not supported by the FACT BANK", and the
+    /// passages' values are not in the claim bank.
+    private func finishFinalUnlimitedAnswer(
+        synthesisPrompt: String, currentAnswer: String, sourceChunks: [RetrievedChunk], ragService: RAGService
+    ) async throws -> String {
+        let coreResponse: LLMResponse
+        do {
+            coreResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                try await ragService.generateWithProperConsent(
+                    prompt: synthesisPrompt,
+                    context: "",
+                    systemPrompt:
+                        "Document analyst. Answer from the source passages, taking every value from them exactly as written. Never fabricate facts or statistics. Use **bold** sparingly. Never repeat content. Reply in plain prose only, never JSON, key-value pairs or field names.",
+                    maxTokens: Self.synthesisOutputTokenReserve,
+                    disableTools: true,
+                    sourceChunks: sourceChunks
+                )
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            let fallback = cleanupFinalAnswer(currentAnswer).trimmingCharacters(in: .whitespacesAndNewlines)
+            Log.warning(
+                "[Unlimited] Final synthesis from source passages threw (\(type(of: error))); "
+                    + "returning the accumulated running answer (\(fallback.count) chars)",
+                category: .llm)
+            if !fallback.isEmpty { return fallback }
+            throw error
+        }
+        let finalAnswer = deduplicateSynthesizedAnswer(cleanupFinalAnswer(coreResponse.text))
+        Log.info("[Synthesis] Final answer from source passages: \(finalAnswer.count) chars", category: .llm)
         return finalAnswer
     }
 

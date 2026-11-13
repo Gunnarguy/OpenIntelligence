@@ -283,9 +283,23 @@ private struct AnswerQualityEvaluation: Evaluation {
             UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: "entitlement.activeTier")
             UserDefaults.standard.set(0, forKey: "entitlement.maximumMode.usedCount")
         }
+        // The three lost-in-the-middle cases ask the same question of three documents, one each, so in one library at
+        // most one could be answered (2026-11-13: every mode on 5.7 and 5.8 answered all three with one token). Each
+        // is asked of its own document, as "Ask About a Document" asks one (`RAGQueryScope`), which keeps what the case
+        // tests: finding the answer at its place in a long document.
+        let evalCase = AnswerQualityData.cases.first {
+            $0.query == question && AnswerQualityData.reference(for: $0) == sample.expected
+        }
+        var scope: Set<UUID>?
+        if let evalCase, evalCase.id.hasPrefix("lost_in_middle") {
+            let names = Set(evalCase.fixtureNames)
+            scope = Set(engine.documents.filter { $0.containerId == library && names.contains($0.filename) }.map(\.id))
+        }
         do {
-            let outcome = try await AskActionRunner.ask(
-                question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library)
+            let outcome = try await RAGQueryScope.$documentIds.withValue(scope) {
+                try await AskActionRunner.ask(
+                    question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library)
+            }
             print(
                 "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(outcome.answer.text.prefix(300).replacingOccurrences(of: "\n", with: " "))")
             return ModelSubject(value: outcome.answer.text)

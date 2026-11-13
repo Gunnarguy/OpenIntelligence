@@ -260,6 +260,7 @@ def answers(out, paths):
         run = json.loads(Path(p).read_text())
         rows = {r["qid"]: r for r in run["results"] if r["qid"] in gold and ("deepAnswer" in r or "deepAnswerError" in r)}
         runs.append((Path(p).stem, rows))
+    runs = [(name, rows) for name, rows in runs if rows]
     common = sorted(set.intersection(*(set(rows) for _, rows in runs))) if runs else []
     cells = {}
     for l in (out / "queries.jsonl").read_text().splitlines():
@@ -272,8 +273,9 @@ def answers(out, paths):
     def holds_q(text, q):
         return gold[q] in fold(text) if strict else holds(cells[q], text)
     right = lambda r, q: "deepAnswer" in r and holds_q(r["deepAnswer"], q)
-    base_name, base = runs[0]
-    print(f"{len(common)} table questions answered in every run")
+    base_name, base = runs[0] if runs else ("", {})
+    if runs:
+        print(f"{len(common)} table questions answered in every run")
     for name, rows in runs:
         n_right = sum(right(rows[q], q) for q in common)
         errors = sum("deepAnswerError" in rows[q] for q in common)
@@ -305,6 +307,26 @@ def answers(out, paths):
                 lost = sum(1 for q in shared if holds_q(b_rows[q]["answer"], q) and not holds_q(rows[q]["answer"], q))
                 same = sum(1 for q in shared if cite.sub("", rows[q]["answer"]).split() == cite.sub("", b_rows[q]["answer"]).split())
                 line += f"  right +{won}/-{lost} p={sign_p(won, lost):.2f}  same words {same}/{len(shared)}"
+            print(line)
+    # Maximum answers (path "m" with the real model, 2026-11-13), scored the same way.
+    mx = [(name, rows) for name, rows in
+          ((Path(p).stem, {r["qid"]: r for r in json.loads(Path(p).read_text())["results"]
+                           if r["qid"] in gold and ("maxAnswer" in r or "maxAnswerError" in r)}) for p in paths) if rows]
+    if mx:
+        shared = sorted(set.intersection(*(set(rows) for _, rows in mx)))
+        print(f"{len(shared)} Maximum answers in every run")
+        m_name, m_rows = mx[0]
+        m_right = lambda r, q: "maxAnswer" in r and holds_q(r["maxAnswer"], q)
+        for name, rows in mx:
+            n_right = sum(m_right(rows[q], q) for q in shared)
+            errors = sum("maxAnswerError" in rows[q] for q in shared)
+            secs = sorted(rows[q].get("maxAnswerSeconds", 0) for q in shared)
+            line = (f"{name:28s} Maximum right {n_right}/{len(shared)}  errors {errors}"
+                    f"  median {secs[len(secs) // 2] if secs else 0} s")
+            if name != m_name:
+                won = sum(1 for q in shared if m_right(rows[q], q) and not m_right(m_rows[q], q))
+                lost = sum(1 for q in shared if m_right(m_rows[q], q) and not m_right(rows[q], q))
+                line += f"  right +{won}/-{lost} p={sign_p(won, lost):.2f}"
             print(line)
 
 

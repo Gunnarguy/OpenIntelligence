@@ -182,7 +182,8 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
 
         // `TEST_RUNNER_OI_EVIDENCE_CONFIGS`: configurations measured in this one process, each "name:paths:rules" with
         // paths "s" (Standard), "d" (Deep Think's retrieval), "a" (a Deep Think answer, whole: the chain, its synthesis,
-        // research and self-check; with the real model only, 2026-11-12) or any mix, and rules a "+"-joined list of `RetrievalAblation` names
+        // research and self-check; with the real model only, 2026-11-12), "m" (a Maximum answer, whole, stored as
+        // `maxAnswer`; real model only, 2026-11-13) or any mix, and rules a "+"-joined list of `RetrievalAblation` names
         // ("baseline:sd:" is everything on). One import serves them all; each question is asked in every configuration
         // before the next. `TEST_RUNNER_OI_EVIDENCE_SLICE=i/n` takes every n-th question from the i-th, so n simulators
         // can share a run. Without the variable, one configuration: the process's own switches, both paths.
@@ -191,6 +192,7 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             let standard: Bool
             let deep: Bool
             let deepAnswer: Bool
+            var maxAnswer = false
             let off: Set<RetrievalAblation.Rule>
         }
         let configs: [Config] = (environment["OI_EVIDENCE_CONFIGS"] ?? "").split(separator: ",").compactMap { item in
@@ -198,7 +200,7 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             guard parts.count == 3 else { return nil }
             return Config(
                 name: parts[0], standard: parts[1].contains("s"), deep: parts[1].contains("d"),
-                deepAnswer: realModel && parts[1].contains("a"),
+                deepAnswer: realModel && parts[1].contains("a"), maxAnswer: realModel && parts[1].contains("m"),
                 off: RetrievalAblation.parse(parts[2].replacingOccurrences(of: "+", with: ",")))
         }
         let runs = configs.isEmpty ? [Config(name: label, standard: true, deep: true, deepAnswer: false, off: RetrievalAblation.off)] : configs
@@ -256,6 +258,24 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
                     }
                     entry["deepAnswerSeconds"] = Int(Date().timeIntervalSince(asked))
                 }
+                if config.maxAnswer {
+                    engine.clearChatHistory(for: library.id)
+                    ConversationMemoryService.shared.clearMemory(for: library.id)
+                    _ = await SQLiteFullTextService.shared.deleteAllCachedQueries()
+                    forcePro()
+                    UserDefaults.standard.set(0, forKey: "entitlement.maximumMode.usedCount")
+                    let asked = Date()
+                    do {
+                        let (response, _) = try await engine.queryWithAudit(
+                            question.query, containerId: library.id, qualityModeOverride: .maximum,
+                            externalEvidence: nil, trace: nil)
+                        entry["maxAnswer"] = response.generatedResponse
+                        entry["maxAnswerSources"] = response.retrievedChunks.map(\.chunk.content)
+                    } catch {
+                        entry["maxAnswerError"] = String(describing: error)
+                    }
+                    entry["maxAnswerSeconds"] = Int(Date().timeIntervalSince(asked))
+                }
                 if config.deep {
                     let deep = try await engine.executeFullRetrievalPipeline(
                         query: question.query, topK: 15, minSimilarity: 0.05, qualityMode: .deepThink)
@@ -276,7 +296,7 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             try GoldenRecording.write(
                 [
                     "label": config.name, "passages": stored, "seconds": Date().timeIntervalSince(started),
-                    "slice": "\(sliceIndex)/\(sliceCount)", "paths": (config.standard ? "s" : "") + (config.deep ? "d" : "") + (config.deepAnswer ? "a" : ""),
+                    "slice": "\(sliceIndex)/\(sliceCount)", "paths": (config.standard ? "s" : "") + (config.deep ? "d" : "") + (config.deepAnswer ? "a" : "") + (config.maxAnswer ? "m" : ""),
                     "rerankCacheHits": RerankScoreCache.shared.hits, "rerankCacheMisses": RerankScoreCache.shared.misses,
                     "ablated": config.off.map(\.rawValue).sorted(), "results": results[config.name] ?? [],
                 ],

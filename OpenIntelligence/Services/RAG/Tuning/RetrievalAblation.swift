@@ -58,6 +58,11 @@ nonisolated enum RetrievalAblation {
         /// alone, the path before it. On 53 table questions its answers ran a median 2,231 characters and 19 said a
         /// value was absent or not stated, some of them while giving it.
         case answerFirst
+        /// Maximum's final step reads the top retrieved passages in the documents' own words, labelled as the answer's
+        /// source list labels them, beside its claim bank (5.8, 2026-11-13); off, the claim bank alone, the path before
+        /// it. On 2026-11-13 Maximum gave "$1.2 billion" for a document's "$1,577 million" and the battery limit "45 C"
+        /// for a payload: every value went through the sessions' notes first.
+        case maximumSourcePassages
     }
 
     /// The rules switched off for this process, read once.
