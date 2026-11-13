@@ -453,7 +453,7 @@ How it runs (`RAGEngine.setupReRanker`, `rerankWithCrossEncoder`):
   ran it faster than the GPU on an M3 Pro: 10.4 against 20.8 ms a pair at 256 tokens, 31.6 against 38.8 at 512.
   TinyBERT took 0.8 ms. The first load after an install compiles the model for the Neural Engine (about 50 s on the M3
   Pro, 45.5 s on an iPhone 16 Pro Max by the journal's `reranker.load`, 2026-11-09; 0.2 to 1.5 s from Core ML's cache
-  afterwards; `RerankerSetupCard` shows "Setting up search" on every tab meanwhile). `RerankerWarmup` starts the load four seconds after a launch into the
+  afterwards; `RerankerSetupCard` shows "Setting up search" on every tab meanwhile). Core ML finds that compiled form by the model's location, so since 2026-11-12 the model loads from a copy at one path in Application Support (`RerankerModelLocation`, `Models/ReRankerModel-<fingerprint>.mlmodelc`, excluded from backup): before it, the phone compiled again on most launches (about 30 loads of 20 to 130 s from 2026-11-09 to 12, most with no install between) and kept 202 compiled copies, 1.47 GB. A copy loads with identical scores (20 of 20 outputs equal, M3 Pro); the journal's `reranker.load` says `fixedPath`. `RerankerWarmup` starts the load four seconds after a launch into the
   foreground (until 5.8 `RAGEngine.shared`, whose initializer starts it, was first created by the first search, so the
   first question would have paid the compile); a load past one second shows "Preparing search" on the model pill and,
   for a question that waits on it, as a step (`RerankerSetupStatus`).

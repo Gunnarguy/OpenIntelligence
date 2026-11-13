@@ -262,6 +262,10 @@
       "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SummaryContextTests.swift",
       "role": "test",
       "blob": "323864304343bef15f7d730db1bbda0192836c35"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RerankerModelLocation.swift",
+      "role": "primary"
     }
   ],
   "nodes": [
@@ -730,6 +734,15 @@
       "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift",
       "line": 1048,
       "match": "nonisolated enum CitationAttribution {",
+      "status": "VERIFIED",
+      "by": "test"
+    },
+    {
+      "id": "RerankerModelLocation",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RerankerModelLocation.swift",
+      "line": 22,
+      "match": "nonisolated enum RerankerModelLocation {",
       "status": "VERIFIED",
       "by": "test"
     }
@@ -1482,7 +1495,8 @@
   "traps": [
     "RAGService.swift and RAGService+Streaming.swift are Tier 2 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: the streaming ingestion contract (page batches, incremental FTS5 appends) is what keeps large imports from running out of memory.",
     "RAGService.swift is about 20,000 lines: find the symbol with grep -n and read that range, never the whole file.",
-    "retryForMissingCitations keeps a streamed answer with no [S#] and CitationAttribution labels its sentences from the generation context (5.8); it never changes a word. The model sometimes cites as (S1) or [2], which neither path reads."
+    "retryForMissingCitations keeps a streamed answer with no [S#] and CitationAttribution labels its sentences from the generation context (5.8); it never changes a word. The model sometimes cites as (S1) or [2], which neither path reads.",
+    "The reranker loads from a fixed copy in Application Support (RerankerModelLocation, 5.8): Core ML finds its compiled Neural Engine form by the model's location, and the phone recompiled on most launches from the bundle."
   ],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",

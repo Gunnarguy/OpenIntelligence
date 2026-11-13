@@ -106,9 +106,13 @@ actor RAGEngine {
                 announce.cancel()
                 Task { @MainActor in RerankerSetupStatus.shared.setPreparing(false) }
             }
-            if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc")
+            if let bundledURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc")
                 ?? OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage")
             {
+                // Loaded from one fixed path, so Core ML finds the form it compiled for the Neural Engine on the
+                // next launch (`RerankerModelLocation`, 5.8).
+                let location = RerankerModelLocation.loadURL(for: bundledURL)
+                let url = location.url
                 var loaded: [(length: Int, model: MLModel)] = []
                 for length in [256, 512] {
                     do {
@@ -129,7 +133,7 @@ actor RAGEngine {
                 self.rerankerModels = loaded
                 let loadSeconds = Date().timeIntervalSince(loadStart)
                 Log.info(
-                    "[RAGEngine] Loaded \(url.lastPathComponent), functions "
+                    "[RAGEngine] Loaded \(url.lastPathComponent) (\(location.fixedPath ? "fixed path" : "bundle")), functions "
                         + loaded.map { "len\($0.length)" }.joined(separator: ", ")
                         + " in \(String(format: "%.2f", loadSeconds)) s", category: .retrieval)
                 // The first load after an install compiles for the Neural Engine; this is what the phone check reads.
@@ -137,7 +141,8 @@ actor RAGEngine {
                     "reranker.load", loaded.count == 2 ? .ok : .failed, durationMs: loadSeconds * 1000,
                     ["functions": loaded.map { "len\($0.length)" }.joined(separator: ","),
                         "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
-                        "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)"])
+                        "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)",
+                        "fixedPath": "\(location.fixedPath)"])
             } else {
                 Log.warning(
                     "[RAGEngine] ReRankerModel not found (looked for .mlmodelc and .mlpackage)", category: .retrieval)
