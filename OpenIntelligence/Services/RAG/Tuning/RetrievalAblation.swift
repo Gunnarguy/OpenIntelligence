@@ -63,6 +63,10 @@ nonisolated enum RetrievalAblation {
         /// it. On 2026-11-13 Maximum gave "$1.2 billion" for a document's "$1,577 million" and the battery limit "45 C"
         /// for a payload: every value went through the sessions' notes first.
         case maximumSourcePassages
+        /// The source-only check flags an answer Needs Verification on its drafting model's "abstain" only when one of
+        /// the answer's claims failed its check (5.8, 2026-11-13); off, the drafter's "abstain" alone flags it, the path
+        /// before it.
+        case draftAbstainNeedsFailedClaim
     }
 
     /// The rules switched off for this process, read once.

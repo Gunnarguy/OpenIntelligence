@@ -398,7 +398,17 @@ final class SourceOnlyAnswerService {
         let fidelityThreshold: Float = riskProfile == .high ? 0.88 : 0.78
         let criticalFailure = unsupportedClaims.contains { $0.isCritical }
         let belowThresholdCritical = listedClaims.contains { $0.isCritical && $0.fidelity < fidelityThreshold }
-        let shouldAbstain = draft.shouldAbstain
+        // The drafting model's own "abstain" stands only when a claim failed its check (5.8, 2026-11-13,
+        // `RetrievalAblation.draftAbstainNeedsFailedClaim`). On the 20-case answer test, Deep Think's answers to "Who owns
+        // Project M1 and what is its reporting deadline?" and three like it gave the right owner and deadline, every
+        // listed claim was supported, and the drafter still flagged them ("lacks explicit confirmation of the owner in
+        // the compliance context"), so each was shown under Needs Verification. With no supported claim, a failed critical
+        // claim or a critical claim under the fidelity floor, the answer is still flagged, as before.
+        let drafterAbstains =
+            RetrievalAblation.isOff(.draftAbstainNeedsFailedClaim)
+            ? draft.shouldAbstain
+            : draft.shouldAbstain && !unsupportedClaims.isEmpty
+        let shouldAbstain = drafterAbstains
             || supportedClaims.isEmpty
             || criticalFailure
             || belowThresholdCritical
