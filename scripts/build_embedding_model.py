@@ -134,6 +134,9 @@ def main():
     ap.add_argument("--out-tokenizer", default=str(
         ROOT / "OpenIntelligence/swift-transformers/Sources/TokenizersWrapper/Resources/embedding_tokenizer.bundle"))
     ap.add_argument("--bits", type=int, default=8, choices=[4, 6, 8, 16])
+    # k-means palettization at 8 bits gave each function its own weight table (96 MB, measured 2026-11-12); linear
+    # int8 quantization is deterministic, so both functions keep one shared copy. 4-bit k-means fell to cosine 0.983.
+    ap.add_argument("--method", default="linear", choices=["linear", "kmeans"])
     ap.add_argument("--min-cosine", type=float, default=0.995)
     a = ap.parse_args()
 
@@ -167,10 +170,14 @@ def main():
             compute_precision=ct.precision.FLOAT16,
             minimum_deployment_target=ct.target.iOS18,
         )
-        if a.bits < 16:
+        if a.bits < 16 and a.method == "kmeans":
             cfg = cto.OptimizationConfig(global_config=cto.OpPalettizerConfig(
                 mode="kmeans", nbits=a.bits, granularity="per_grouped_channel", group_size=16))
             mlm = cto.palettize_weights(mlm, config=cfg)
+        elif a.bits == 8:
+            cfg = cto.OptimizationConfig(global_config=cto.OpLinearQuantizerConfig(
+                mode="linear_symmetric", dtype="int8", granularity="per_channel"))
+            mlm = cto.linear_quantize_weights(mlm, config=cfg)
         parts[L] = work / f"len{L}.mlpackage"
         mlm.save(str(parts[L]))
 
@@ -192,7 +199,7 @@ def main():
                 worst = min(worst, c)
             print(f"len{L}: lowest cosine against Hugging Face so far {worst:.5f}")
     files = [f for f in staged.rglob("*") if f.is_file()]
-    print(f"{a.bits}-bit package {sum(f.stat().st_size for f in files) / 1e6:.1f} MB, "
+    print(f"{a.bits}-bit {a.method} package {sum(f.stat().st_size for f in files) / 1e6:.1f} MB, "
           f"largest file {max(f.stat().st_size for f in files) / 1e6:.1f} MB, lowest cosine {worst:.5f}")
     if max(f.stat().st_size for f in files) >= 100 * 1024 * 1024:
         sys.exit("a file in the package is over GitHub's 100 MiB limit; not writing anything")
@@ -212,9 +219,7 @@ def main():
     tj["truncation"] = None
     tj["padding"] = None
     (out_tok / "tokenizer.json").write_text(json.dumps(tj, ensure_ascii=False))
-    for extra in ("tokenizer_config.json", "special_tokens_map.json"):
-        if (src / extra).exists():
-            shutil.copy(src / extra, out_tok / extra)
+    # tokenizer.json alone, as the reranker's bundle: swift-transformers reads it and the app adds nothing else.
     print(f"wrote {out_tok / 'tokenizer.json'}")
 
     for t in TEXTS[:4]:

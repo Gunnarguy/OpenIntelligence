@@ -369,7 +369,7 @@ extension ContainerSettingsSheet {
             // (`EmbeddingProviderDefaults.preferredSentenceProviderId`), and the button never touched the Search
             // settings, which have a style of the same name. A changed model makes Save ask to rebuild (`handleSave`).
             Text(
-                "Sets the Neural Engine (MiniLM) embedding model (all-MiniLM-L6-v2, 384 dimensions), vectors stored on disk and memory mapped for search, and a splitting style picked for each new file. It doesn't change the Search settings."
+                "Sets the Neural Engine (Granite) embedding model (granite-embedding-small-english-r2, 384 dimensions), vectors stored on disk and memory mapped for search, and a splitting style picked for each new file. It doesn't change the Search settings."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -433,7 +433,7 @@ extension ContainerSettingsSheet {
         // (`supportedDimensions: [384]`), from the app bundle, so nothing here uses the network.
         Section(header: Text("Embedding model")) {
             Text(
-                "The model that turns each passage and each question into numbers, so search can match meaning. Both options are the same all-MiniLM-L6-v2 model, 384 numbers a passage, and run on this device."
+                "The model that turns each passage and each question into numbers, so search can match meaning. The bundled model is IBM's granite-embedding-small-english-r2, 384 numbers a passage, run on this device; the Core AI option is retired."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -464,7 +464,7 @@ extension ContainerSettingsSheet {
             // re-exported with mean pooling ("MiniLM-L6-v2/coreai-mlirb-meanpool"), and LEDGER.md still lists "Corrected
             // Core AI export" under "Open, not yet run". [evidence_level: code_verified, confidence: medium]
             Text(
-                "The latest search benchmarks used Neural Engine (MiniLM). Core AI Sentence runs the same weights, and its search accuracy hasn't been benchmarked in its current form."
+                "Granite replaced MiniLM in 5.8: on 246 research-paper questions on a Mac it put the answer's passage in the top 5 for 39.0% against 37.0%. Core AI Sentence is retired."
             )
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -503,7 +503,7 @@ extension ContainerSettingsSheet {
             libraryProviderId, EmbeddingProviderDefaults.coreML)
         let startsOn =
             EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI
-            ? "Core AI Sentence" : "Neural Engine (MiniLM)"
+            ? "Core AI Sentence" : "Neural Engine (Granite)"
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "arrow.triangle.branch")
@@ -515,7 +515,7 @@ extension ContainerSettingsSheet {
             }
 
             Text(
-                "This library uses \(libraryModelName(libraryProviderId))\(isMiniLM ? ", all-MiniLM-L6-v2," : "") with \(dimension) numbers a passage. A new library on this device starts on \(startsOn). The library analysis never changes the model. It changes only when you pick another below, when you apply Balanced Defaults, or when the one chosen can't run on this device, and a new model means rebuilding the library's vectors."
+                "This library uses \(libraryModelName(libraryProviderId))\(isMiniLM ? ", granite-embedding-small-english-r2," : "") with \(dimension) numbers a passage. A new library on this device starts on \(startsOn). The library analysis never changes the model. It changes only when you pick another below, when you apply Balanced Defaults, or when the one chosen can't run on this device, and a new model means rebuilding the library's vectors."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -556,7 +556,7 @@ extension ContainerSettingsSheet {
     /// The option names the cards below use, so the card and the list say the same thing.
     private func libraryModelName(_ id: String) -> String {
         switch id {
-        case EmbeddingProviderDefaults.coreML: return "Neural Engine (MiniLM)"
+        case EmbeddingProviderDefaults.coreML: return "Neural Engine (Granite)"
         case EmbeddingProviderDefaults.coreAI: return "Core AI Sentence"
         case "nl_contextual_embedding": return "Contextual Embeddings"
         case "apple_fm_embed": return "Apple Foundation Model"
@@ -574,7 +574,7 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     private var embeddingResolutionContent: some View {
         Text(
-            "Dimension is fixed by the embedding model (384D for MiniLM-L6-v2). Higher dims = richer semantics, more storage (4 bytes × dim per chunk)."
+            "Dimension is fixed by the embedding model (384D for Granite small english r2). Higher dims = richer semantics, more storage (4 bytes × dim per chunk)."
         )
         .font(.caption)
         .foregroundStyle(.secondary)

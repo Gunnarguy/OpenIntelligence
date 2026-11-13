@@ -230,7 +230,7 @@ extension GlossaryTermID {
                 // providers by `settings.defaultEmbeddingProvider` — 384D (MiniLM-L6-v2, the
                 // default), 512D (NLContextual or NLEmbedding), or 1024D (Apple FM) — so a fixed
                 // number here was accurate for one configuration and wrong for the other three.
-                technical: "384 dimensions per passage by default, from MiniLM-L6-v2 through Core ML or Core AI. The app also supports three other embedding providers at 512 or 1024 dimensions, Settings → About shows the default for a new library, and each library's Library Settings shows its own. Retrieval compares your question's vector against stored passage vectors by cosine similarity, which is the semantic half of the search regardless of which provider produced them.",
+                technical: "384 dimensions per passage by default, from IBM's Granite small english r2 through Core ML (MiniLM-L6-v2 through 5.7). The app also supports three other embedding providers at 512 or 1024 dimensions, Settings → About shows the default for a new library, and each library's Library Settings shows its own. Retrieval compares your question's vector against stored passage vectors by cosine similarity, which is the semantic half of the search regardless of which provider produced them.",
                 seeAlso: [.chunk, .hybridSearch, .neuralEngine],
                 synonyms: ["embedding", "embeddings", "vectors", "semantic", "dimension"]
             )

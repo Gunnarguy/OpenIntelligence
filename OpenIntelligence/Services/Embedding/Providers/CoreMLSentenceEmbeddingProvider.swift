@@ -10,59 +10,12 @@ import CoreML
 import Accelerate
 import Tokenizers
 
-/// Pre-allocated MLMultiArray triple for embedding inference.
-/// Eliminates ~3,072 heap allocations per embed() call by reusing buffers.
-private struct MLArrayBufferSet: @unchecked Sendable {
-    let inputIds: MLMultiArray
-    let attentionMask: MLMultiArray
-    let tokenTypeIds: MLMultiArray
-}
-
-/// Actor-isolated pool of pre-allocated MLMultiArray buffers.
-/// Amortizes allocation cost across thousands of embed() calls during ingestion.
-private actor MLArrayBufferPool {
-    private var available: [MLArrayBufferSet] = []
-    private let seqLen: Int
-
-    init(capacity: Int, sequenceLength: Int) {
-        self.seqLen = sequenceLength
-        // Pre-allocate buffers up front
-        for _ in 0..<capacity {
-            if let set = Self.makeBufferSet(sequenceLength: sequenceLength) {
-                available.append(set)
-            }
-        }
-    }
-
-    func acquire() -> MLArrayBufferSet? {
-        guard !available.isEmpty else {
-            // Pool exhausted — create on-demand (rare, only under extreme concurrency)
-            return Self.makeBufferSet(sequenceLength: seqLen)
-        }
-        return available.removeLast()
-    }
-
-    func release(_ set: MLArrayBufferSet) {
-        available.append(set)
-    }
-
-    private static func makeBufferSet(sequenceLength: Int) -> MLArrayBufferSet? {
-        do {
-            let ids = try MLMultiArray(shape: [1, NSNumber(value: sequenceLength)], dataType: .int32)
-            let mask = try MLMultiArray(shape: [1, NSNumber(value: sequenceLength)], dataType: .int32)
-            let types = try MLMultiArray(shape: [1, NSNumber(value: sequenceLength)], dataType: .int32)
-            return MLArrayBufferSet(inputIds: ids, attentionMask: mask, tokenTypeIds: types)
-        } catch {
-            return nil
-        }
-    }
-}
 
 nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unchecked Sendable {
     // MARK: - Properties
 
-    /// Native output dimension of the bundled MiniLM-L6-v2 model.
-    /// This is FIXED - the model always outputs 384 dimensions regardless of configuration.
+    /// Output dimension of the bundled model, IBM's granite-embedding-small-english-r2 (5.8; MiniLM-L6-v2 before, also
+    /// 384). Fixed by the model.
     let dimension: Int = 384
 
     /// Pooling this provider actually performs. Part of `EmbeddingFingerprint`.
@@ -70,8 +23,12 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
     /// Core ML mean-pools over the attention mask in Swift; Core AI reads `last_hidden_state[:, 0, :]`,
     /// the CLS position. Same weights, different vectors — the difference measured at
     /// `vector r@1` 0.000 to 0.571. Change this string whenever that changes.
-    var poolingRecipe: String { "mean-attention-masked/l2" }
-    var modelRevision: String { "MiniLM-L6-v2/coreml-mlpackage" }
+    ///
+    /// Since 5.8 the model is Granite small english r2, whose own pooling is its CLS vector; the graph takes it and
+    /// L2-normalises it (`scripts/build_embedding_model.py`), so Swift does no pooling. MiniLM-L6-v2, through 5.7, was
+    /// trained on MS MARCO, whose terms allow non-commercial research only (the owner's rule 1, 2026-11-12).
+    var poolingRecipe: String { "cls-in-graph/l2" }
+    var modelRevision: String { "granite-embedding-small-english-r2@2ab6fa8e/coreml-len256-len512" }
     private let maxSequenceLength: Int
 
     #if canImport(CoreML)
@@ -85,7 +42,7 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         ///
         /// Deferring it removes the work rather than moving it: a session that never ingests and
         /// never queries never loads the model.
-        private var model: MLModel?
+        private var models: [(length: Int, model: MLModel)] = []
 
         /// Guards `model` against N concurrent first-callers each loading their own 43 MiB copy.
         ///
@@ -99,9 +56,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         /// is not re-read from disk on every embed call.
         private var modelLoadAttempted = false
 
-        /// The compute units `model` was loaded with, and the ones the next `loadedModel()` should switch it to.
+        /// The compute units `model` was loaded with, and the ones the next `loadedModels()` should switch it to.
         ///
-        /// An ingestion-mode switch only records what it wants (5.7); the reload happens in `loadedModel()`, on the
+        /// An ingestion-mode switch only records what it wants (5.7); the reload happens in `loadedModels()`, on the
         /// next embed, which runs off the main thread. The switch is called from `RAGService.addDocument` on the main
         /// actor, and reloading this 43 MiB model there held the main thread for 2.36 s at the start of an import on
         /// the owner's iPhone (Instruments, 2026-10-21).
@@ -125,21 +82,15 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
     private let sepId: Int
     private let padId: Int
 
-    /// Pool of pre-allocated MLMultiArray buffers to avoid per-call allocation
-    private let bufferPool: MLArrayBufferPool
-
     // MARK: - Init
 
     init(maxSequenceLength: Int = 512) {
-        // dimension is fixed at 384 (MiniLM-L6-v2 output)
         self.maxSequenceLength = maxSequenceLength
-        clsId = 101
-        sepId = 102
-        padId = 0
-        // Pre-allocate buffer pool sized to max embedding concurrency
-        // Avoids ~3,072 MLMultiArray heap allocations per embed() call
-        let poolSize = DeviceCapabilityService.shared.embeddingConcurrency + 2  // +2 headroom
-        bufferPool = MLArrayBufferPool(capacity: poolSize, sequenceLength: maxSequenceLength)
+        // Granite's tokenizer: [CLS] 50281, [SEP] 50282, [PAD] 50283 (its tokenizer.json). The padding never reaches
+        // the vector: the attention mask hides it in every layer.
+        clsId = 50281
+        sepId = 50282
+        padId = 50283
         setup()
     }
 
@@ -177,30 +128,31 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             // Only restore a model that was actually loaded. If nothing has embedded yet there is
             // nothing to restore, and loading 43 MiB here would reintroduce the cost this change
             // exists to remove, on a path the user cannot see.
-            guard model != nil || wantedComputeUnits != nil else { return }
+            guard !models.isEmpty || wantedComputeUnits != nil else { return }
             wantedComputeUnits = DeviceCapabilityService.shared.preferredComputeUnits
             Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF (default compute units on the next embed)", category: .embedding)
         #endif
     }
 
     private func setup() {
-        // The model is NOT loaded here; see `model` and `loadedModel()`. Only the tokenizer is,
+        // The model is NOT loaded here; see `models` and `loadedModels()`. Only the tokenizer is,
         // because it is small, it is needed to answer `countTokens` without embedding anything,
         // and it already loads asynchronously.
         loadTokenizer()
     }
 
-    /// Load the model on first use. Returns nil if it cannot be loaded.
+    /// Load the model's two functions on first use, shortest first. Empty if they cannot be loaded.
     #if canImport(CoreML)
-    private func loadedModel() -> MLModel? {
+    private func loadedModels() -> [(length: Int, model: MLModel)] {
         modelLock.lock()
         defer { modelLock.unlock() }
 
         if let wanted = wantedComputeUnits {
             wantedComputeUnits = nil
-            if model == nil || loadedComputeUnits != wanted {
-                if let reloaded = Self.makeModel(computeUnits: wanted) {
-                    model = reloaded
+            if models.isEmpty || loadedComputeUnits != wanted {
+                let reloaded = Self.makeModels(computeUnits: wanted)
+                if !reloaded.isEmpty {
+                    models = reloaded
                     loadedComputeUnits = wanted
                     modelLoadAttempted = true
                     Log.info("[CoreMLSentenceEmbeddingProvider] Model loaded for compute units \(wanted.rawValue)", category: .embedding)
@@ -209,21 +161,22 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 }
             }
         }
-        if let model { return model }
-        if modelLoadAttempted { return nil }
+        if !models.isEmpty { return models }
+        if modelLoadAttempted { return [] }
         modelLoadAttempted = true
 
         let units = DeviceCapabilityService.shared.preferredComputeUnits
-        model = Self.makeModel(computeUnits: units)
-        if model != nil { loadedComputeUnits = units }
-        return model
+        models = Self.makeModels(computeUnits: units)
+        if !models.isEmpty { loadedComputeUnits = units }
+        return models
     }
 
-    /// Build an `MLModel` at the given compute units, or nil.
+    /// The model's functions, `len256` and `len512`, at the given compute units, or empty.
     ///
-    /// Shared by the lazy first load and by both ingestion-mode switches, which previously carried
-    /// their own copies of this lookup-and-load with slightly different logging and error handling.
-    private static func makeModel(computeUnits: MLComputeUnits) -> MLModel? {
+    /// Loaded from one fixed copy (`RerankerModelLocation`, 5.8): Core ML finds the form it compiled for the Neural
+    /// Engine by the model's location, and loading from the app bundle compiled again on most launches on the owner's
+    /// iPhone (measured for the reranker, 2026-11-12).
+    private static func makeModels(computeUnits: MLComputeUnits) -> [(length: Int, model: MLModel)] {
         let modelName = "EmbeddingModel"
         let computeDesc: String
         switch computeUnits {
@@ -232,61 +185,49 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         case .all: computeDesc = "All (system choice)"
         default: computeDesc = "default"
         }
-
-        if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
-            do {
-                let config = MLModelConfiguration()
-                config.computeUnits = computeUnits
-                // Maximum favours prediction speed over load time, memory and disk (5.8).
-                if DeviceCapabilityService.maximumProfileSelected {
-                    config.optimizationHints.specializationStrategy = .fastPrediction
-                }
-                let started = Date()
-                let loaded = try MLModel(contentsOf: url, configuration: config)
-                let seconds = Date().timeIntervalSince(started)
-                Log.info(
-                    "[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc in \(String(format: "%.2f", seconds)) s"
-                        + " - compute: \(computeDesc)", category: .embedding)
-                // Timed since 2026-11-12 (the owner approved the trace fixes that morning; only logging changes here):
-                // the trace said only that it loaded, and on his iPhone the load sat inside a 47.8 s first question,
-                // its length readable only from the gap between two lines.
-                VerificationJournal.record(
-                    "embedding.load", .ok, durationMs: seconds * 1000,
-                    ["compute": computeDesc, "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
-                        "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)"])
-                return loaded
-            } catch {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel: \(error)", category: .embedding)
-                VerificationJournal.record("embedding.load", .failed, ["error": String(describing: type(of: error))])
-            }
-        } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
-            // Fallback: Check for uncompiled package (rare, but good for safety)
-            do {
-                let config = MLModelConfiguration()
-                config.computeUnits = computeUnits
-                // Maximum favours prediction speed over load time, memory and disk (5.8).
-                if DeviceCapabilityService.maximumProfileSelected {
-                    config.optimizationHints.specializationStrategy = .fastPrediction
-                }
-                let started = Date()
-                let loaded = try MLModel(contentsOf: sourceURL, configuration: config)
-                Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlpackage (fallback)", category: .embedding)
-                VerificationJournal.record(
-                    "embedding.load", .ok, durationMs: Date().timeIntervalSince(started) * 1000,
-                    ["compute": computeDesc, "package": "mlpackage",
-                        "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)"])
-                return loaded
-            } catch {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel from source: \(error)", category: .embedding)
-                VerificationJournal.record(
-                    "embedding.load", .failed, ["error": String(describing: type(of: error)), "package": "mlpackage"])
-            }
-        } else {
+        guard let bundled = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc")
+            ?? OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage")
+        else {
             Log.error("[CoreMLSentenceEmbeddingProvider] ❌ Model not found. Looked for '\(modelName).mlmodelc' and '.mlpackage'", category: .embedding)
             VerificationJournal.record("embedding.load", .failed, ["error": "notFound"])
+            return []
         }
-        return nil
+        let location = RerankerModelLocation.loadURL(for: bundled)
+        let started = Date()
+        var loaded: [(length: Int, model: MLModel)] = []
+        for length in Self.functionLengths {
+            do {
+                let config = MLModelConfiguration()
+                config.computeUnits = computeUnits
+                config.functionName = "len\(length)"
+                // Maximum favours prediction speed over load time, memory and disk (5.8).
+                if DeviceCapabilityService.maximumProfileSelected {
+                    config.optimizationHints.specializationStrategy = .fastPrediction
+                }
+                loaded.append((length, try MLModel(contentsOf: location.url, configuration: config)))
+            } catch {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load function len\(length): \(error)", category: .embedding)
+            }
+        }
+        let seconds = Date().timeIntervalSince(started)
+        guard loaded.count == Self.functionLengths.count else {
+            VerificationJournal.record("embedding.load", .failed, ["error": "function", "loaded": "\(loaded.count)"])
+            return []
+        }
+        Log.info(
+            "[CoreMLSentenceEmbeddingProvider] Loaded \(location.url.lastPathComponent) (\(location.fixedPath ? "fixed path" : "bundle")) in \(String(format: "%.2f", seconds)) s"
+                + " - compute: \(computeDesc)", category: .embedding)
+        VerificationJournal.record(
+            "embedding.load", .ok, durationMs: seconds * 1000,
+            ["compute": computeDesc, "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
+                "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)",
+                "fixedPath": "\(location.fixedPath)"])
+        return loaded
     }
+
+    /// The model's fixed input lengths: a fixed shape is what the Neural Engine runs, and most passages fit 256
+    /// (median 210 tokens with their prefix, 90th percentile 390; 2026-11-08), which runs faster than 512.
+    static let functionLengths = [256, 512]
     #endif
 
     private func loadTokenizer() {
@@ -366,130 +307,49 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 count += 1
             }
 
-            guard let model = loadedModel(), let tokenizer = tokenizer else {
+            let models = loadedModels()
+            guard !models.isEmpty, let tokenizer = tokenizer else {
                 throw EmbeddingError.modelUnavailable
             }
 
-            let (inputIds, attentionMask, tokenTypeIds) = prepareInputs(text: text, tokenizer: tokenizer)
-
-            // OPTIMIZED: Acquire pre-allocated buffers from pool instead of creating 3 new MLMultiArrays
-            // Eliminates ~3,072 heap allocations per embed() call (was: 3 × MLMultiArray init + 6 × 512 NSNumber)
-            let buffers = await bufferPool.acquire()
-            guard let buffers = buffers else {
-                throw EmbeddingError.modelUnavailable
+            let ids = tokenIds(text: text, tokenizer: tokenizer)
+            // The shortest function that holds the passage; a longer one would only add padding to compute.
+            let (length, model) = models.first(where: { $0.length >= ids.count }) ?? models[models.count - 1]
+            let inputIds = try MLMultiArray(shape: [1, NSNumber(value: length)], dataType: .int32)
+            let mask = try MLMultiArray(shape: [1, NSNumber(value: length)], dataType: .int32)
+            let used = min(ids.count, length)
+            inputIds.withUnsafeMutableBufferPointer(ofType: Int32.self) { ptr, _ in
+                for i in 0..<length { ptr[i] = Int32(i < used ? ids[i] : padId) }
             }
-            // Ensure buffers are returned to pool even on error
-            defer { Task { await self.bufferPool.release(buffers) } }
-
-            let inputIdsArray = buffers.inputIds
-            let maskArray = buffers.attentionMask
-            let tokenTypeArray = buffers.tokenTypeIds
-
-            // OPTIMIZED: Direct pointer writes instead of NSNumber subscripts
-            // Eliminates ~3,072 NSNumber heap allocations per embed() call (6 per iteration × 512 iterations)
-            inputIdsArray.withUnsafeMutableBufferPointer(ofType: Int32.self) { ptr, _ in
-                for i in 0..<maxSequenceLength { ptr[i] = Int32(inputIds[i]) }
-            }
-            maskArray.withUnsafeMutableBufferPointer(ofType: Int32.self) { ptr, _ in
-                for i in 0..<maxSequenceLength { ptr[i] = Int32(attentionMask[i]) }
-            }
-            tokenTypeArray.withUnsafeMutableBufferPointer(ofType: Int32.self) { ptr, _ in
-                for i in 0..<maxSequenceLength { ptr[i] = Int32(tokenTypeIds[i]) }
+            mask.withUnsafeMutableBufferPointer(ofType: Int32.self) { ptr, _ in
+                for i in 0..<length { ptr[i] = i < used ? 1 : 0 }
             }
 
             let inputs = try MLDictionaryFeatureProvider(dictionary: [
-                "input_ids": MLFeatureValue(multiArray: inputIdsArray),
-                "attention_mask": MLFeatureValue(multiArray: maskArray),
-                "token_type_ids": MLFeatureValue(multiArray: tokenTypeArray),
+                "input_ids": MLFeatureValue(multiArray: inputIds),
+                "attention_mask": MLFeatureValue(multiArray: mask),
             ])
-
             let output = try await model.prediction(from: inputs)
-            guard let hiddenState = output.featureValue(for: "last_hidden_state")?.multiArrayValue else {
+            guard let vector = output.featureValue(for: "embedding")?.multiArrayValue, vector.count == dimension else {
                 throw EmbeddingError.outputParsingFailed
             }
 
-            let embedDim = hiddenState.shape[2].intValue
-            let seqLen = hiddenState.shape[1].intValue
-
-            // OPTIMIZED: Direct pointer + vDSP vectorized mean pooling
-            // Eliminates ~196,608 NSNumber allocations per embed() call (seqLen × embedDim × 3 NSNumbers)
-            // Uses Accelerate vDSP_vadd for SIMD-vectorized row accumulation
-            var summed = [Float](repeating: 0, count: embedDim)
-            var tokenCount: Int = 0
-
-            // hiddenState shape: [1, seqLen, embedDim] — batch dim 0, contiguous rows
-            // GPU+CPU mode outputs Float16; ANE/CPU-only may output Float32 — handle both
-            if hiddenState.dataType == .float32 {
-                hiddenState.withUnsafeBufferPointer(ofType: Float.self) { ptr in
-                    for i in 0..<seqLen where attentionMask[i] == 1 {
-                        tokenCount += 1
-                        let rowOffset = i * embedDim
-                        let rowPtr = ptr.baseAddress! + rowOffset
-                        vDSP_vadd(summed, 1, rowPtr, 1, &summed, 1, vDSP_Length(embedDim))
-                    }
+            // The graph returns the CLS vector already L2-normalised; normalise again in Float32 so float16
+            // rounding never leaves it off unit length.
+            var values = [Float](repeating: 0, count: dimension)
+            if vector.dataType == .float32 {
+                vector.withUnsafeBufferPointer(ofType: Float.self) { ptr in
+                    for i in 0..<dimension { values[i] = ptr[i] }
                 }
-            } else if hiddenState.dataType == .float16 {
-                // OPTIMIZED Float16 path: typed pointer + vDSP conversion
-                // Model on A18 Pro GPU always outputs Float16
-                #if arch(arm64)
-                hiddenState.withUnsafeBufferPointer(ofType: Float16.self) { ptr in
-                    var rowFloat32 = [Float](repeating: 0, count: embedDim)
-                    for i in 0..<seqLen where attentionMask[i] == 1 {
-                        tokenCount += 1
-                        let rowOffset = i * embedDim
-                        // Vectorized Float16→Float32 conversion for whole row
-                        for j in 0..<embedDim {
-                            rowFloat32[j] = Float(ptr[rowOffset + j])
-                        }
-                        vDSP_vadd(summed, 1, &rowFloat32, 1, &summed, 1, vDSP_Length(embedDim))
-                    }
-                }
-                #else
-                // Fallback to NSNumber subscript path for x86_64 compatibility
-                for i in 0..<seqLen where attentionMask[i] == 1 {
-                    tokenCount += 1
-                    var rowFloat32 = [Float](repeating: 0, count: embedDim)
-                    for j in 0..<embedDim {
-                        rowFloat32[j] = hiddenState[[0, NSNumber(value: i), NSNumber(value: j)]].floatValue
-                    }
-                    vDSP_vadd(summed, 1, &rowFloat32, 1, &summed, 1, vDSP_Length(embedDim))
-                }
-                #endif
             } else {
-                // Unknown type — safe NSNumber subscript fallback
-                for i in 0..<seqLen where attentionMask[i] == 1 {
-                    tokenCount += 1
-                    var rowFloat32 = [Float](repeating: 0, count: embedDim)
-                    for j in 0..<embedDim {
-                        rowFloat32[j] = hiddenState[[0, NSNumber(value: i), NSNumber(value: j)]].floatValue
-                    }
-                    vDSP_vadd(summed, 1, &rowFloat32, 1, &summed, 1, vDSP_Length(embedDim))
-                }
+                for i in 0..<dimension { values[i] = vector[i].floatValue }
             }
-
-            var averaged = [Float](repeating: 0, count: embedDim)
-            var divisor = Float(max(tokenCount, 1))
-            vDSP_vsdiv(summed, 1, &divisor, &averaged, 1, vDSP_Length(embedDim))
-
             var sqSum: Float = 0
-            vDSP_svesq(averaged, 1, &sqSum, vDSP_Length(embedDim))
-            let norm = max(sqrt(sqSum), 1e-9)
-            var normalized = [Float](repeating: 0, count: embedDim)
-            var normDiv = norm
-            vDSP_vsdiv(averaged, 1, &normDiv, &normalized, 1, vDSP_Length(embedDim))
-
-            // If the model dimension differs from the requested dimension, truncate or pad.
-            if embedDim == dimension {
-                return normalized
-            }
-
-            if embedDim > dimension {
-                return Array(normalized.prefix(dimension))
-            }
-
-            var padded = normalized
-            padded.append(contentsOf: repeatElement(0, count: dimension - embedDim))
-            return padded
+            vDSP_svesq(values, 1, &sqSum, vDSP_Length(dimension))
+            var norm = max(sqrt(sqSum), 1e-9)
+            var normalized = [Float](repeating: 0, count: dimension)
+            vDSP_vsdiv(values, 1, &norm, &normalized, 1, vDSP_Length(dimension))
+            return normalized
         #else
             throw EmbeddingError.modelUnavailable
         #endif
@@ -515,10 +375,10 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         let maxConcurrency = DeviceCapabilityService.shared.embeddingConcurrency
 
         #if canImport(CoreML)
-            // Load (or switch compute units) once, before fanning out. `loadedModel()` holds `modelLock` across a
+            // Load (or switch compute units) once, before fanning out. `loadedModels()` holds `modelLock` across a
             // synchronous load of up to about 2.4 s; if every task of the group reached it first, up to
             // `maxConcurrency` threads of the shared concurrency pool would sit blocked on the lock for that time.
-            guard loadedModel() != nil else { throw EmbeddingError.modelUnavailable }
+            guard !loadedModels().isEmpty else { throw EmbeddingError.modelUnavailable }
         #endif
 
         return try await withThrowingTaskGroup(of: (Int, [Float]).self) { group in
@@ -560,20 +420,16 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
 
     // MARK: - Helpers
 
-    private func prepareInputs(text: String, tokenizer: Tokenizer) -> ([Int], [Int], [Int]) {
-        var inputIds: [Int]
-        do {
-            inputIds = try tokenizer.encode(text: text, addSpecialTokens: true)
-        } catch {
-            inputIds = []
-        }
-
+    /// The passage's token ids, special tokens included, at most `maxSequenceLength` (the last kept token is then the
+    /// closing [SEP], as the model was trained on).
+    private func tokenIds(text: String, tokenizer: Tokenizer) -> [Int] {
+        var ids = (try? tokenizer.encode(text: text, addSpecialTokens: true)) ?? [clsId, sepId]
         // CRITICAL: Truncation should NEVER happen with proper chunking
-        if inputIds.count > maxSequenceLength {
-            let originalCount = inputIds.count
+        if ids.count > maxSequenceLength {
+            let originalCount = ids.count
             let lostTokens = originalCount - maxSequenceLength
             let lossPercent = Int(Double(lostTokens) / Double(originalCount) * 100)
-            inputIds = Array(inputIds.prefix(maxSequenceLength))
+            ids = Array(ids.prefix(maxSequenceLength - 1)) + [sepId]
 
             // Log as ERROR because this indicates a bug in the chunking pipeline
             // Every word should be accounted for - truncation = data loss
@@ -584,15 +440,6 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 category: .embedding
             )
         }
-
-        var attentionMask = Array(repeating: 1, count: inputIds.count)
-        let padLength = maxSequenceLength - inputIds.count
-        if padLength > 0 {
-            inputIds.append(contentsOf: repeatElement(padId, count: padLength))
-            attentionMask.append(contentsOf: repeatElement(0, count: padLength))
-        }
-
-        let tokenTypeIds = Array(repeating: 0, count: maxSequenceLength)
-        return (inputIds, attentionMask, tokenTypeIds)
+        return ids
     }
 }

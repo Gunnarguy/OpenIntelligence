@@ -551,7 +551,7 @@ extension ContainerSettingsSheet {
                     Label("Active Model", systemImage: "cube.transparent")
                         .font(.caption)
                     Spacer()
-                    Text("MiniLM-L6-v2 (384D)")
+                    Text("Granite small english r2 (384D)")
                         .font(.caption.weight(.medium))
                 }
                 
@@ -618,7 +618,7 @@ extension ContainerSettingsSheet {
                     Label("Vocabulary", systemImage: "book.closed.fill")
                         .font(.caption)
                     Spacer()
-                    Text("30,522 (BERT WordPiece)")
+                    Text("50,368 (byte-level BPE)")
                         .font(.caption.weight(.medium))
                 }
                 

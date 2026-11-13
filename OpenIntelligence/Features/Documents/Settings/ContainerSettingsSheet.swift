@@ -438,8 +438,8 @@ struct ContainerSettingsSheet: View {
             EmbeddingProviderOption(
                 id: "coreml_sentence_embedding",
                 icon: "cpu.fill",
-                title: "Neural Engine (MiniLM)",
-                tagline: "all-MiniLM-L6-v2 • 384-dim",
+                title: "Neural Engine (Granite)",
+                tagline: "granite-embedding-small-english-r2 • 384-dim",
                 detail:
                     "Sentence-transformer model fine-tuned for semantic similarity. Produces 384-dimensional vectors via mean-pooling, accelerated on Neural Engine.",
                 isSelectable: true,
@@ -459,7 +459,7 @@ struct ContainerSettingsSheet: View {
                     // the gold document first in 8% of cases against BM25's 60%. Replaced
                     // with the verifiable property rather than deleted outright, since the
                     // figure is corpus-dependent and QASPER favours lexical matching.
-                    OptionMetric(icon: "target", text: "384-dim mean-pooled"),
+                    OptionMetric(icon: "target", text: "384-dim"),
                     OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
                 alert: nil
@@ -487,7 +487,7 @@ struct ContainerSettingsSheet: View {
         // re-export. "A library keeps the option it was built with" stays: nothing switches between the two copies
         // (`EmbeddingProviderDefaults.areCopiesOfOneModel` in `evaluateEmbeddingShift`).
         let coreAIDetail =
-            "The same all-MiniLM-L6-v2 weights as the Neural Engine option, rebuilt for Apple's Core AI runtime, which runs it on the GPU, not the Neural Engine. Its search accuracy hasn't been benchmarked in this form. A library keeps the option it was built with."
+            "Retired in 5.8. It ran a Core AI copy of all-MiniLM-L6-v2, whose training data allows non-commercial use only, and there is no Core AI copy of the Granite model. A library built with it is rebuilt with Neural Engine (Granite)."
         var coreAIAlertMessage: ProviderAvailabilityAlert? = nil
 
         #if canImport(CoreAI)
@@ -524,7 +524,7 @@ struct ContainerSettingsSheet: View {
                 id: "coreai_sentence_embedding",
                 icon: "sparkles",
                 title: "Core AI Sentence",
-                tagline: "Experimental • all-MiniLM-L6-v2 • 384-dim",
+                tagline: "Retired in 5.8 • 384-dim",
                 detail: coreAIDetail,
                 isSelectable: coreAISelectable,
                 badgeText: coreAIBadge,
@@ -539,7 +539,7 @@ struct ContainerSettingsSheet: View {
                     // `NDArray.init(scalars:shape:)`, which Apple documents as making a copy. Mean pooling is what
                     // the provider can be shown to do: `modelRevision` "MiniLM-L6-v2/coreai-mlirb-meanpool", and the
                     // attention mask it passes so the graph averages the real tokens.
-                    OptionMetric(icon: "target", text: "384-dim mean-pooled"),
+                    OptionMetric(icon: "target", text: "384-dim"),
                     // Was "40%+ faster". That figure is a goal from
                     // AppleIntelligenceTransitionPlan.md:16, never measured here.
                     // "Lower latency" followed it out on 2026-10-12: on the same iPhone the Core ML copy
@@ -562,10 +562,10 @@ struct ContainerSettingsSheet: View {
             DimensionOption(
                 value: 384,
                 icon: "cpu.fill",
-                title: "384D • MiniLM-L6-v2",
-                caption: "Bundled MiniLM model",
+                title: "384D • Granite small r2",
+                caption: "Bundled Granite model",
                 detail:
-                    "Native output of the bundled all-MiniLM-L6-v2 sentence-transformer. Mean-pooled token embeddings produce dense 384-dim vectors optimized for cosine similarity.",
+                    "Native output of the bundled granite-embedding-small-english-r2: its CLS vector, normalised, 384 numbers compared by cosine similarity.",
                 metrics: [
                     // The 384D option serves the Core ML and the Core AI copy. Core ML plans the model onto the Neural
                     // Engine and Core AI runs it on the GPU (BenchmarkRuns/2026-10-18-compute-plan; 5.7).
@@ -1369,7 +1369,7 @@ struct AutoIntelligencePanel: View {
         switch providerId {
         case "coreml_sentence_embedding":
             // The option's own title in Embedding Model (was "Core ML Sentence").
-            return "Neural Engine (MiniLM)"
+            return "Neural Engine (Granite)"
         // A Core AI library fell to the default and read "Apple Natural Language" on every Mac with macOS 27,
         // where Core AI is the default for a new library (5.7).
         case "coreai_sentence_embedding":

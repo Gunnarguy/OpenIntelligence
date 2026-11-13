@@ -59,6 +59,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 
 ### Libraries
 
+- **A new search model, and a one-time rebuild.** Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. It also put the right passage in the top five more often in testing. Each library rebuilds its search index once, by itself, the first time it's used after the update; a large library can take a while. On a Mac the rebuild keeps the Mac awake, so it's the best place to let it run; on iPhone and iPad it carries on in the background. If you share libraries over iCloud, update every device.
 - **Table column names stay with their values.** A table whose title runs across its top row had the title taken for its column names, so its values lost the names of their columns. The title now joins the table's caption and the real column names stay. Import a file again to fix a table already in a library.
 - **Reading page images no longer holds up the app.** That wait could make iOS close the app during a long import in the background.
 - **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.

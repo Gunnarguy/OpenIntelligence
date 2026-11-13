@@ -39,6 +39,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 
 ### Libraries
 
+- **A new search model, and a one-time rebuild.** Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. It also put the right passage in the top five more often in testing. Each library rebuilds its search index once, by itself, the first time it's used after the update; a large library can take a while. On a Mac the rebuild keeps the Mac awake, so it's the best place to let it run; on iPhone and iPad it carries on in the background. If you share libraries over iCloud, update every device.
 - **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
 - **Importing several files at once is faster.** Each file used to wait for its overview and suggested questions before the next one started. Now the files go in first and those come right after, the same as before.
 - **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.

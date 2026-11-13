@@ -399,6 +399,14 @@ extension RAGService {
         onlyDocumentIds: Set<UUID>? = nil,
         progressHandler: (@MainActor (ReembedProgress) -> Void)? = nil
     ) async throws {
+        #if os(macOS)
+            // Keep the Mac from idle-sleeping or App Nap slowing a rebuild (5.8). iPhone and iPad keep a rebuild going
+            // with a continued-processing task; the Mac had nothing, and 5.8's new embedding model rebuilds every
+            // library once, which the owner recommends running on the Mac.
+            let keepAwake = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .idleSystemSleepDisabled], reason: "Rebuilding a library's search index")
+            defer { ProcessInfo.processInfo.endActivity(keepAwake) }
+        #endif
         let targetContainerId: UUID
         if let containerId {
             targetContainerId = containerId

@@ -48,9 +48,9 @@ struct DocumentDetailsView: View {
         case "nl_embedding", nil:
             return "Word2Vec word-level averaging, 512-dim"
         case "coreml_sentence_embedding":
-            return "all-MiniLM-L6-v2, 384-dim sentence vectors"
+            return "granite-embedding-small-english-r2, 384-dim sentence vectors"
         case "coreai_sentence_embedding":
-            return "Silicon-native MiniLM-L6-v2, 384-dim sentence vectors"
+            return "Core AI MiniLM-L6-v2 (retired), 384-dim sentence vectors"
         case "apple_fm_embed":
             return "Foundation Model embeddings (1024-dim)"
         default:

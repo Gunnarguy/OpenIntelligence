@@ -2213,3 +2213,30 @@ choices, are shown under "What the app sets", apart from what the hardware repor
 **Consequences.** Most devices show no TOPS figure. A new Apple chip needs no code to be named, but its TOPS stays
 hidden until Apple publishes one and `AppleDeviceCatalog.neuralEngineTOPS` lists it. `AppleDeviceCatalogTests`
 fails if a figure Apple did not publish is added.
+
+## 2026-11-12 - The embedder is IBM's Granite small english r2, and libraries are cleared and rebuilt, not migrated side by side
+
+**Context.** The owner's rule 1 (commercial use only, training data included). `all-MiniLM-L6-v2`, the embedder through
+5.7, lists 9,144,553 MS MARCO triplets on its card; MS MARCO's terms allow non-commercial research only. The owner said
+on 2026-11-12 to swap it in 5.8 and named the two provider files. Granite small english r2 (Apache 2.0, card: MS MARCO
+left out for its licence) measured better on the Mac on 2026-11-09: top 5 39.0% against 37.0% on 246 QASPER questions,
+MRR@10 +0.039 (p=0.006).
+
+**Decision.** Ship Granite on Core ML on every platform; retire the Core AI copy (there is no Core AI build of Granite).
+A library whose vectors came from another model is cleared and rebuilt automatically.
+
+**Alternatives.** Additive then swap (the rule in `.claude/rules/ingestion-and-indexing.md`): keep MiniLM vectors
+searchable until Granite's are complete. It needs MiniLM in the app to embed queries for the old vectors, which is the
+thing rule 1 removes, and rule 1 wins over the migration rule. Flagging and waiting for the user (the stale-pipeline
+path): a Granite query against MiniLM vectors scores noise, so the library would answer from the wrong passages until
+the user tapped Rebuild, and the flag did not survive a relaunch.
+
+**Rationale.** The cost of clearing is a library without vector search until each document is re-embedded; keyword
+search and the reranker still run. The cost of not clearing is wrong answers with no sign of it.
+
+**Consequences.** Every library on every device rebuilds once after the update (about 3 minutes for 8,400 passages at
+47 passages a second on an iPhone 16 Pro Max; longer with Granite's larger model, not yet measured on the phone). Vector
+stores sync over iCloud, so a device still on 5.7 reads Granite vectors with MiniLM queries until it updates; What's New
+tells users to update every device. The app is 3 MB larger in its embedder (48.7 MB against 43 MB) and 86 MB smaller
+without the Core AI copy.
+

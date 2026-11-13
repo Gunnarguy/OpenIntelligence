@@ -659,7 +659,7 @@ struct IntelligenceModeCard: View {
         [
             (
                 "The embedding model",
-                "The bundled all-MiniLM-L6-v2 by default, on the device (a library can use Apple's word vectors instead); each passage is embedded with its file name and, where it has one, its section in front."
+                "IBM's Granite small english r2, bundled, by default, on the device (a library can use Apple's word vectors instead); each passage is embedded with its file name and, where it has one, its section in front."
             ),
             ("Tables", "In PDFs and scans, read with Vision's document recognition, with captions where Vision finds them; spreadsheets, CSV and other formats are read from their own structure."),
             ("Spotlight", "Your documents are indexed for system search, when that setting is on."),

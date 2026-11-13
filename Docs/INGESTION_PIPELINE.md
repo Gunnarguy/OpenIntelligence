@@ -740,6 +740,8 @@ natural next pass.
 
 ## 4. Dual Index Storage
 
+> **5.8 (2026-11-12):** the bundled embedder is IBM's `granite-embedding-small-english-r2` on Core ML (384 dimensions, CLS vector, two fixed-shape functions `len256` and `len512`), replacing MiniLM-L6-v2, which was trained on MS MARCO (non-commercial terms). The Core AI copy is retired and every platform embeds with Core ML. A library whose vectors came from another model is cleared and rebuilt once (`EmbeddingModelRecord`). Statements below that name MiniLM describe the pipeline through 5.7. `[evidence_level: code_verified, confidence: high]`
+
 Once chunks are generated and validated, they are written to two separate storage engines:
 1. **Lexical Index:** Stored in SQLite FTS5 via [SQLiteFullTextService.swift](../OpenIntelligence/Services/Storage/SQLiteFullTextService.swift). BM25 column weights prioritize section titles and entity tags.
 2. **Vector Index:** Dense query vectors (384-dimensions) are generated on the device by the bundled MiniLM model, through its Core ML copy (`EmbeddingModel.mlpackage`) or its Core AI copy (from 5.7 a new library uses Core ML on iPhone and iPad and Core AI on macOS 27), and stored in [BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) using Cosine Similarity.

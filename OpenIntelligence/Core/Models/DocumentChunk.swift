@@ -729,9 +729,9 @@ struct ProcessingSummary: Identifiable {
         case "nl_embedding", nil:
             return "NLEmbedding"
         case "coreml_sentence_embedding":
-            return "MiniLM (Core ML)"
+            return "Granite (Core ML)"
         case "coreai_sentence_embedding":
-            return "MiniLM (Core AI)"
+            return "MiniLM (Core AI, retired)"
         case "apple_fm_embed":
             return "Apple FM"
         default:

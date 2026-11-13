@@ -99,11 +99,11 @@ class EmbeddingService {
     ) -> EmbeddingService {
         // Map provider IDs to their native (supported) dimensions
         // This prevents mismatched dimension configurations
-        // NOTE: CoreML model (MiniLM-L6-v2) ONLY outputs 384D - this is fixed by the model architecture
+        // NOTE: the Core ML model (Granite small english r2 since 5.8, MiniLM-L6-v2 before) outputs 384D, fixed by the model
         let nativeDimensions: [String: [Int]] = [
             "nl_embedding": [512],
             "nl_contextual_embedding": [512],
-            "coreml_sentence_embedding": [384],  // MiniLM-L6-v2 is fixed at 384D
+            "coreml_sentence_embedding": [384],  // Granite small english r2 (5.8), fixed at 384D
             "coreai_sentence_embedding": [384],
             "apple_fm_embed": [1024],
         ]
@@ -148,29 +148,15 @@ class EmbeddingService {
         let resolved: EmbeddingService
         switch id {
         case "coreai_sentence_embedding":
-            #if canImport(CoreAI)
-            if #available(iOS 27.0, macOS 27.0, *) {
-                resolved = EmbeddingService(
-                    provider: CoreAISentenceEmbeddingProvider.shared,
-                    providerId: "coreai_sentence_embedding",
-                    targetDimension: validatedDimension(for: "coreai_sentence_embedding", requested: targetDimension)
-                )
-            } else {
-                Log.warning("CoreAI requested but not supported on this OS version, falling back to CoreML", category: .embedding)
-                resolved = EmbeddingService(
-                    provider: sharedCoreMLProvider,
-                    providerId: "coreml_sentence_embedding",
-                    targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
-                )
-            }
-            #else
-            Log.warning("CoreAI requested but CoreAI framework is not available at compile time, falling back to CoreML", category: .embedding)
+            // Retired in 5.8. Core AI ran a copy of MiniLM-L6-v2, trained on MS MARCO (non-commercial terms), and no
+            // Core AI copy of the Granite model exists, so a library built with it resolves to Core ML. Its provider
+            // then differs from the library's, which `resolveEmbeddingContext` answers by clearing the old vectors
+            // and rebuilding them with Granite.
             resolved = EmbeddingService(
                 provider: sharedCoreMLProvider,
                 providerId: "coreml_sentence_embedding",
                 targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
             )
-            #endif
         case "coreml_sentence_embedding":
             resolved = EmbeddingService(
                 provider: sharedCoreMLProvider,
@@ -326,7 +312,7 @@ class EmbeddingService {
 
                 // A batch embedded before an interruption is read back from the import's checkpoint folder (5.7):
                 // on the owner's iPhone an app update during the embedding of 5,164 passages started all of them again.
-                let cacheURL = cacheDirectory.map { $0.appendingPathComponent(Self.embeddingCacheName(for: batch, provider: providerIdentifier, dimension: targetDimension)) }
+                let cacheURL = cacheDirectory.map { $0.appendingPathComponent(Self.embeddingCacheName(for: batch, provider: providerIdentifier, dimension: targetDimension, modelRevision: modelRevision)) }
                 if let cacheURL, let cached = Self.readCachedEmbeddings(at: cacheURL, count: batch.count, dimension: targetDimension) {
                     allEmbeddings.append(contentsOf: cached)
                     progressHandler(batchEnd, texts.count)
@@ -356,10 +342,14 @@ class EmbeddingService {
         }
     }
 
-    /// The file a batch's vectors are kept in: the provider, the dimension and every text of the batch, hashed.
-    nonisolated static func embeddingCacheName(for texts: [String], provider: String, dimension: Int) -> String {
+    /// The file a batch's vectors are kept in: the provider, the model, the dimension and every text of the batch,
+    /// hashed. The model is in the name since 5.8, so an import cut short under MiniLM-L6-v2 cannot resume with its
+    /// vectors under Granite.
+    nonisolated static func embeddingCacheName(
+        for texts: [String], provider: String, dimension: Int, modelRevision: String = ""
+    ) -> String {
         var hasher = SHA256()
-        hasher.update(data: Data("\(provider)|\(dimension)|\(texts.count)".utf8))
+        hasher.update(data: Data("\(provider)|\(modelRevision)|\(dimension)|\(texts.count)".utf8))
         for text in texts {
             hasher.update(data: Data(text.utf8))
             hasher.update(data: Data([0x1F]))
@@ -620,12 +610,9 @@ nonisolated enum EmbeddingProviderDefaults {
     static let coreML = "coreml_sentence_embedding"
     static let coreAI = "coreai_sentence_embedding"
 
-    static var preferredSentenceProviderId: String {
-        #if os(macOS) && canImport(CoreAI)
-            if #available(macOS 27.0, *) { return coreAI }
-        #endif
-        return coreML
-    }
+    /// Core ML on every platform since 5.8: the Core AI copy was of MiniLM-L6-v2, retired for its training data's
+    /// terms, and there is no Core AI copy of the Granite model.
+    static var preferredSentenceProviderId: String { coreML }
 
     /// True when both names are one of the two copies of the bundled sentence model.
     static func areCopiesOfOneModel(_ first: String, _ second: String) -> Bool {

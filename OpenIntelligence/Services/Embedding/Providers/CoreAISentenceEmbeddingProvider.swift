@@ -124,13 +124,10 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
 
     // MARK: - EmbeddingProvider Protocol
 
-    var isAvailable: Bool {
-        #if canImport(CoreAI)
-        return !isModelLoadingFailed
-        #else
-        return false
-        #endif
-    }
+    /// False since 5.8: this provider ran a Core AI copy of MiniLM-L6-v2, trained on MS MARCO, whose terms allow
+    /// non-commercial research only (the owner's rule 1). The copy is no longer bundled, and `EmbeddingService`
+    /// resolves this provider's libraries to Core ML's Granite model, rebuilding their vectors.
+    var isAvailable: Bool { false }
 
     func awaitReady() async {
         #if canImport(CoreAI)

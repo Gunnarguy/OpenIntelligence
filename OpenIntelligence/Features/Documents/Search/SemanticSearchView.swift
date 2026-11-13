@@ -120,7 +120,7 @@ struct SemanticSearchView: View {
                 HStack(spacing: DSSpacing.sm) {
                     Image(systemName: isMiniLM ? "cpu.fill" : (isContextual ? "sparkles" : "brain.head.profile"))
                         .foregroundStyle(Color.accentColor)
-                    Text(isMiniLM ? "MiniLM-L6-v2 (384D)" : (isContextual ? "Contextual (512D)" : "NLEmbedding (512D)"))
+                    Text(isMiniLM ? "Granite small r2 (384D)" : (isContextual ? "Contextual (512D)" : "NLEmbedding (512D)"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()

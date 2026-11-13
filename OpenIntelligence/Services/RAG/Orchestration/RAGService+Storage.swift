@@ -1330,6 +1330,34 @@ extension RAGService {
                         current.embeddingFingerprint = liveFingerprint
                         self.containerService.updateContainer(current)
                     }
+                } else if stored != liveFingerprint,
+                    EmbeddingModelRecord.modelChanged(for: container.id, live: service.modelRevision)
+                {
+                    // A different model wrote these vectors (5.8: MiniLM-L6-v2 to Granite small english r2, for the
+                    // owner's rule 1). Unlike a pipeline tweak, its vectors are in another space: a query embedded by
+                    // the new model scores them as noise, so they cannot stay searchable while the user decides.
+                    // Clear them and rebuild now, as a provider change does below; keyword search and the reranker
+                    // keep answering meanwhile, and each document is searchable again as it is re-embedded.
+                    Log.warning(
+                        "[RAGService] Embedding model changed for container \(container.id) "
+                            + "(\(EmbeddingModelRecord.recorded(for: container.id) ?? "a model before 5.8") → \(service.modelRevision)); "
+                            + "clearing its vectors and rebuilding them.",
+                        category: .embedding
+                    )
+                    await MainActor.run {
+                        var updated = container
+                        updated.embeddingFingerprint = liveFingerprint
+                        self.containerService.updateContainer(updated)
+                        EmbeddingModelRecord.record(service.modelRevision, for: container.id)
+                        self.invalidateVectorStore(for: container.id, clearStorage: true)
+                        let hasDocs = !self.documentsForContainer(container.id).isEmpty
+                        VerificationJournal.record(
+                            "index.rebuildRequested",
+                            ["library": VerificationJournal.anon(container.id), "reason": "modelChanged",
+                                "documents": "\(self.documentsForContainer(container.id).count)"])
+                        guard hasDocs else { return }
+                        self.enqueuePendingReembed(containerId: container.id)
+                    }
                 } else if stored != liveFingerprint {
                     Log.warning(
                         "[RAGService] Embedding pipeline changed for container \(container.id): fingerprint \(stored) → \(liveFingerprint). "
@@ -1385,7 +1413,6 @@ extension RAGService {
                                 + "than adopting \(liveFingerprint) over vectors that may be stale.",
                             category: .embedding
                         )
-                        self.librariesNeedingIndexRebuild.insert(container.id)
                         VerificationJournal.record(
                             "index.rebuildRequested",
                             ["library": VerificationJournal.anon(container.id), "reason": "noFingerprint"])
@@ -1393,8 +1420,23 @@ extension RAGService {
                     var updated = container
                     updated.embeddingFingerprint = liveFingerprint
                     self.containerService.updateContainer(updated)
+                    // Since 5.8 a library with no fingerprint was embedded by an older model (MiniLM-L6-v2 at best),
+                    // whose vectors the new model's queries cannot search: clear and rebuild, as a model change does.
+                    if hasDocs, EmbeddingModelRecord.modelChanged(for: container.id, live: service.modelRevision) {
+                        EmbeddingModelRecord.record(service.modelRevision, for: container.id)
+                        self.invalidateVectorStore(for: container.id, clearStorage: true)
+                        self.enqueuePendingReembed(containerId: container.id)
+                    } else if hasDocs {
+                        self.librariesNeedingIndexRebuild.insert(container.id)
+                    }
                 }
             }
+        }
+
+        if container.embeddingProviderId == actualProviderId, container.embeddingDim == actualDimension,
+            container.embeddingFingerprint == liveFingerprint
+        {
+            EmbeddingModelRecord.recordIfAbsent(service.modelRevision, for: container.id)
         }
 
         if container.embeddingProviderId != actualProviderId || container.embeddingDim != actualDimension {
@@ -1411,6 +1453,7 @@ extension RAGService {
                 updated.embeddingDim = actualDimension
                 updated.embeddingFingerprint = liveFingerprint
                 self.containerService.updateContainer(updated)
+                EmbeddingModelRecord.record(service.modelRevision, for: container.id)
 
                 // Clear any persisted vectors created under a different dimension.
                 self.invalidateVectorStore(for: container.id, clearStorage: true)

@@ -253,7 +253,7 @@ Each format has its own reader. Scanned pages go through Vision's document recog
 Text is split into passages along headings and natural boundaries, and every passage remembers the document, page and byte range it came from so a citation can be exact.
 
 ### 3. Embed
-Each passage becomes a semantic vector using the all-MiniLM-L6-v2 sentence model. A new library on iPhone and iPad runs it through Core ML, which schedules it on the Neural Engine where the device has one. A new library on a Mac with macOS 27 runs it through Apple's Core AI framework, on the GPU. Query embeddings use the same model.
+Each passage becomes a semantic vector using IBM's granite-embedding-small-english-r2 sentence model (all-MiniLM-L6-v2 through 5.7). It runs through Core ML on iPhone, iPad and Mac, which schedules it on the Neural Engine where the device has one. Query embeddings use the same model.
 
 ### 4. Store
 Vectors live in a memory-mapped file. Similarity search runs through Accelerate's vDSP routines on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched with a Metal compute shader on the GPU instead. The keyword index is SQLite FTS5.

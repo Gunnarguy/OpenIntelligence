@@ -114,6 +114,12 @@ final class WhatsNewStore: ObservableObject {
                 "This one's about making the app easier to start with and easier to trust. Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.",
             items: [
                 .init(
+                    symbol: "magnifyingglass",
+                    title: "A new search model, and a one-time rebuild",
+                    detail:
+                        "Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. It also put the right passage in the top five more often in testing. Each library rebuilds its search index once, by itself, the first time it's used after the update; a large library can take a while. On a Mac the rebuild keeps the Mac awake, so it's the best place to let it run; on iPhone and iPad it carries on in the background. If you share libraries over iCloud, update every device."
+                ),
+                .init(
                     symbol: "hand.point.up.left",
                     title: "Every screen shows you around",
                     detail:
