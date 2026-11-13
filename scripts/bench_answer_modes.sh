@@ -18,16 +18,27 @@
 #      each question's mode, seconds and answer, then the score) and SUMMARY.md. Shuts the simulator down.
 # Nothing touches the owner's libraries: the test makes and removes a library of its own on that simulator.
 # Keeps the Mac awake while it runs (caffeinate). Stop it with Ctrl-C; the simulator is shut down either way.
+#
+# Another build than HEAD (added 2026-11-12, for 5.7 against 5.8): OI_BENCH_PRESTAGED=<dir> uses a copy already
+# extracted and patched there instead of HEAD; OI_BENCH_NAME names it in the folder and the summary (for example
+# "v5.7.0"); OI_BENCH_SRC, OI_BENCH_DD and OI_BENCH_SIM give it its own source copy, build folder and simulator, so the
+# HEAD build stays incremental and the "OI answer eval" simulator other runs use is left alone.
+# OI_BENCH_ALLOW_PARALLEL=1 runs beside another xcodebuild (a test run on another simulator), for an overnight queue that
+# builds everything first; its minutes are then not comparable with a run on an idle Mac.
 
 set -uo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-SRC=/private/tmp/oi-eval-src
-DD=/private/tmp/oi-eval-dd
-SIM_NAME="OI answer eval"
+SRC="${OI_BENCH_SRC:-/private/tmp/oi-eval-src}"
+DD="${OI_BENCH_DD:-/private/tmp/oi-eval-dd}"
+SIM_NAME="${OI_BENCH_SIM:-OI answer eval}"
 STAMP="$(date +%Y-%m-%d-%H%M)"
-OUT="$REPO/BenchmarkRuns/$STAMP-answer-modes"
+NAME="${OI_BENCH_NAME:-}"
+OUT="$REPO/BenchmarkRuns/$STAMP-answer-modes${NAME:+-$NAME}"
 if [ $# -gt 0 ]; then MODES=("$@"); else MODES=(standard deepThink maximum standard:test); fi
-VERSION="$(grep -m1 -oE '^## [0-9]+\.[0-9]+(\.[0-9]+)?' "$REPO/CHANGELOG.md" | cut -c4-)"
+CHANGELOG_FILE="$REPO/CHANGELOG.md"
+[ -n "${OI_BENCH_PRESTAGED:-}" ] && CHANGELOG_FILE="$OI_BENCH_PRESTAGED/CHANGELOG.md"
+VERSION="$(grep -m1 -oE '^## [0-9]+\.[0-9]+(\.[0-9]+)?' "$CHANGELOG_FILE" | cut -c4-)"
+COMMIT_TEXT="${NAME:-$(git -C "$REPO" rev-parse --short HEAD)}"
 
 mkdir -p "$OUT"
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$OUT/SUMMARY.md.progress"; }
@@ -37,7 +48,7 @@ while game_running && [ "${OI_BENCH_IGNORE_GAMES:-0}" != 1 ]; do
   log "A game is running; waiting for it to close (checking every 5 minutes)."
   sleep 300
 done
-if pgrep -x xcodebuild > /dev/null; then
+if pgrep -x xcodebuild > /dev/null && [ "${OI_BENCH_ALLOW_PARALLEL:-0}" != 1 ]; then
   log "Another xcodebuild is running; one at a time on this Mac. Stopping."
   exit 1
 fi
@@ -56,12 +67,19 @@ trap cleanup EXIT
 caffeinate -dimsu -w $$ &
 CAFFEINATE_PID=$!
 
-log "Copying HEAD $(git -C "$REPO" rev-parse --short HEAD) out of the repository and patching it."
-STAGE=/private/tmp/oi-eval-stage
-rm -rf "$STAGE" && mkdir -p "$STAGE" "$SRC"
-git -C "$REPO" archive HEAD | tar -x -C "$STAGE" || { log "git archive failed"; exit 1; }
-python3 "$REPO/scripts/sim_model_copy.py" "$STAGE" | tee -a "$OUT/build.log"
-[ "${PIPESTATUS[0]}" -eq 0 ] || { log "Patching failed; the line above names the switch that moved."; exit 1; }
+if [ -n "${OI_BENCH_PRESTAGED:-}" ]; then
+  STAGE="$OI_BENCH_PRESTAGED"
+  [ -f "$STAGE/SIM_MODEL_COPY" ] || { log "$STAGE is not a patched copy (no SIM_MODEL_COPY)."; exit 1; }
+  mkdir -p "$SRC"
+  log "Using the prestaged copy $STAGE ($COMMIT_TEXT)."
+else
+  log "Copying HEAD $(git -C "$REPO" rev-parse --short HEAD) out of the repository and patching it."
+  STAGE=/private/tmp/oi-eval-stage
+  rm -rf "$STAGE" && mkdir -p "$STAGE" "$SRC"
+  git -C "$REPO" archive HEAD | tar -x -C "$STAGE" || { log "git archive failed"; exit 1; }
+  python3 "$REPO/scripts/sim_model_copy.py" "$STAGE" | tee -a "$OUT/build.log"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || { log "Patching failed; the line above names the switch that moved."; exit 1; }
+fi
 # By content, so files that did not change keep their dates and the next run's build is incremental.
 rsync -a --checksum --delete "$STAGE/" "$SRC/"
 
@@ -90,7 +108,7 @@ xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1
 {
   echo "# Answer quality by mode, $STAMP"
   echo
-  echo "Commit $(git -C "$REPO" rev-parse --short HEAD), version $VERSION, iOS 27.0 Simulator (iPhone 17 Pro, read as an A18 Pro),"
+  echo "Commit $COMMIT_TEXT, version $VERSION, iOS 27.0 Simulator (iPhone 17 Pro, read as an A18 Pro),"
   echo "patched copy (scripts/sim_model_copy.py), 20 cases of Benchmarks/rag_eval_v1.jsonl, graded by Apple's Evaluations model judge."
   echo "\"app\" is the app's own model service, the phone's path; \"test\" is the test's own model, the path of the 2026-10-21 runs (0.3)."
   echo
