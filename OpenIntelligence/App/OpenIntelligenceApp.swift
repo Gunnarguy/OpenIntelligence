@@ -25,6 +25,9 @@ struct OpenIntelligenceApp: App {
     #endif
 
     init() {
+        // Before anything can load a model: Core ML's old compiled copies go once per app version (5.8).
+        ModelCompileCache.clearOncePerVersion()
+
         #if DEBUG
         DebugRAGValidationHarness.runHeadlessIfNeeded()
         DebugEmbeddingBench.runIfRequested()
