@@ -5,9 +5,10 @@
 Public release highlights for OpenIntelligence.
 
 ## 5.8
-This one's about making the app easier to start with and easier to trust. Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
+5.8 is about answers you can trust and an app that gets out of your way. A new search model and a new reranker find the right passage more often, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
 ### Getting Started
+
 - **Every screen shows you around.** The first time you open a screen, an arrow points at what's there, one at a time, and says what it is, what it does and why you'd use it. Each goes away once you've used it. Settings › How This Works › Show Me Around brings them back.
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
 
@@ -31,6 +32,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **Quotes only really quotes.** Pick Quotes only and the answer is the sentences from your documents, word for word, each with where it came from. No model writes anything, and nothing leaves your device. Through 5.7 Apple's model wrote those answers. Deep Think and Maximum need a model, so Quotes only answers in Standard.
 - **A Deep Think answer you leave is asked again.** If iOS closes the app while a Deep Think answer waits for you, the next time you open the app the question is asked again on its own. An answer kept on your device also waits for you instead of calling the model in the background, where iOS slows it down.
 - **Deep Think's panel shows what ran.** It counts this answer's model calls, not the last one's, marks a skipped step instead of ticking it, and leaves out timings that were never measured.
+
 - **The model is rebuilt only when a setting it uses changes.** Saving a setting again with the value it already had no longer starts the model over.
 - **One cleaner card while an answer runs.** An answer kept on your device shows a single card on the Lock Screen and in the Dynamic Island, with its step, its progress and a small Stop. It says Paused when it is waiting for you.
 - **No more crash on coming back to the app.** Picking the suggested questions for a large library could freeze the app long enough for iOS to close it. That work now runs in the background.
@@ -49,10 +51,13 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **Tables reach the answer whole.** A question about a table could be answered from a short summary that showed only its first two rows, so it could give the wrong row's value. Now the whole table goes to the model, in every mode and in libraries you already have. Files you import from now on also stop taking a journal's page header as a table's title.
 - **A PDF is stored as it reads.** Where a PDF carries its own text, the app read many pages by recognizing the page image instead, so a misread like "1-28" for "1-2 g" or "TU" for "IU" became what search and answers saw. Now the text the PDF itself holds is used wherever it matches what was recognized, in tables and in the rest of the page, and running headers, page numbers and journal lines stay out of your passages. Word, PowerPoint and Excel files also keep hyphens, symbols, superscripts and table cells they used to drop or shift. Measured on eight research papers, the numbers kept went from 90% to 94%, and misread numbers fell by half. Files you imported before keep their old text until you import them again.
 - **Library Settings describes what it does.** It said documents were split by comparing sentence meanings and that the library would re-chunk itself; neither happens. It now says files are split at headings, tables and sentence ends, and that rebuilding is always your choice.
-- **Chat comes back if it goes blank.** Chat could show a back arrow where the new-chat button belongs, and tapping it left a white screen. If Chat disappears while you're still on its tab, it now builds itself again within a second.
+- **Chat no longer turns white.** Chat could show a back arrow where the new-chat button belongs, and tapping the Chat tab while you were already in Chat could leave a white screen.  The cause was the tips: each one attached to a button in Chat's top bar left an invisible screen of Apple's on top of the chat.  Tips now attach only while they're showing, and if Chat ever disappears while you're on its tab, it builds itself again within a second.
 
 ### Libraries
+
+- **A new search model, and a one-time rebuild.** Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. It also put the right passage in the top five more often in testing. Each library rebuilds its search index once, by itself, the first time it's used after the update; a large library can take a while. On a Mac the rebuild keeps the Mac awake, so it's the best place to let it run; on iPhone and iPad it carries on in the background. If you share libraries over iCloud, update every device.
 - **Table column names stay with their values.** A table whose title runs across its top row had the title taken for its column names, so its values lost the names of their columns. The title now joins the table's caption and the real column names stay. Import a file again to fix a table already in a library.
+- **Tables stay in one piece, and no words are left behind.** A table whose value wrapped onto a second line, followed by a label line, could be split in two, and words a page scan didn't recognise were dropped even when the PDF carried them as text, which lost whole rows of numbers in one paper and dozens on its reference pages.  On the eight research papers I test import with, the app now passes 439 of 515 checks, up from 344 when this work began.
 - **Reading page images no longer holds up the app.** That wait could make iOS close the app during a long import in the background.
 - **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
 - **Importing several files at once is faster.** Each file used to wait for its overview and suggested questions before the next one started. Now the files go in first and those come right after, the same as before.
@@ -61,6 +66,8 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **Two windows share one engine.** On a Mac or an iPad, each window ran its own copy of the app's engine and iCloud sync, so two windows could rebuild or sync the same library at the same moment. They now share one, so switching libraries in one window switches it in the other.
 - **The Atlas shows each thing once, and only what's real.** Its topics were listed four times over, some counts were of the 6,000 passages it samples rather than your library, and its similarity heatmap was drawn from random colors, so it said nothing about your documents. The heatmap and a "coming soon" placeholder are gone, the topics are one list with how much of the library each holds, the counts are the library's own, and a topic named after a long title no longer ends mid-phrase.
 - **The app no longer stops responding at launch while iCloud catches up.** With libraries synced through iCloud, the window could freeze for a few seconds at launch while iCloud finished with one of the sync files. The app now waits for iCloud in the background.
+- **No freeze at launch from a watched folder.** With a watched folder, the app could freeze for up to eight seconds at launch while it looked the folder up.  That now happens in the background.
+- **Finished imports no longer stop a library from syncing.** Imports that had finished, or whose files were gone, could stay in the shared import list, and while they did, iCloud left that library's search index out of every sync.  They're cleared at launch now.
 - **Rebuilding a library leaves your other devices alone.** A rebuild used to take each document out and put it back as a new copy, so another device signed in to iCloud took the old one as deleted, cleared that library and rebuilt it too, back and forth, and a document's file could be lost along the way. A rebuild now keeps every document as it is, and the library shows how far it has got, or that it's waiting for another library to finish first. Like an import, it shows on the Lock Screen and asks to keep going when you leave the app, and if the app is closed it starts again next time.
 - **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
 - **Every file you import gets its suggested questions.** If you switched libraries or tabs, or left the app, while the questions were being written, the run stopped and was saved as "no questions", so Chat said none were ready and a file could go without any for good. A stopped run now saves nothing, and Chat writes questions for any file that has none.
@@ -68,10 +75,12 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **The import log is in color.** Each step of an import has its own color in the processing log (reading, splitting, embedding, indexing, saving, analyzing), so you can tell them apart at a glance.
 
 ### Plans
+
 - **The plans screen shows the plan you have.** If your Lifetime came from a purchase before 5.5, the plans screen said Free and offered you plans you already had, while Plan & Usage said Lifetime. It says Lifetime now.
 - **The plans screen says what each plan adds.** "Why upgrade now?" is "What you get" now, with what paying actually changes.
 
 ### Ratings
+
 - **Rating the app is one sheet, Apple's own.** The "Enjoying OpenIntelligence?" alert after a thumbs-up is gone. After a good answer, or your third answer, the app asks with Apple's rating sheet: tap the stars, add a review if you want, and submit without leaving the app. It asks once per update at most, and Apple limits it to three times a year. Write a Review in Settings is still there.
 
 ## 5.7

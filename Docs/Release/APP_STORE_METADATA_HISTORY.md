@@ -193,107 +193,120 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created 2026-11-02, release AFTER_APPROVAL), build 488 (`fb225053`) VALID on both and attached to neither
 - **Final release notes commit:** the 2026-11-03 `[ci skip]` commit that adds this entry
 - **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,535 characters for the Mac and 2,616 for iPhone and iPad, after the launch-freeze, rebuild, Atlas and two-window lines were added the same day; promotional text 159. Not pushed to App Store Connect.
+- **Rewritten 2026-11-13:** the 11-03 copy (55366647) left out everything since: the new search model and its one-time rebuild, the Granite reranker, table and number fidelity, citations on their exact words, Deep Think's changes, Quotes only, no blank answers, and the launch, Chat and sync fixes. The notes, promotional text and What's New below were written again from `Docs/USER_CHANGELOG.md` and `CHANGELOG.md`, every figure from a run record (the reranker's 49% against 42% on 246 questions, `BenchmarkRuns/2026-11-09-reranker-swap`; import checks 439 against 344 of 515, `BenchmarkRuns/2026-11-12-tables/tab-fin` and `2026-11-08-extraction-fidelity/before`). Checked with `gunnar-voice/lint.py --register notes`: no errors or warnings. Not pushed to App Store Connect.
 
 **Release notes (`fastlane/metadata/`, the macOS copy):**
 
 ```text
-This one's about making the app easier to start with and easier to trust.  Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
+5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
 
-GETTING STARTED
+A ONE-TIME REBUILD
 
-• The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it.  Settings › How This Works › Show Me Around brings them back.
-
-• The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours.  Ask it anything about how the app works.
+• Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while, and the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.
 
 
 ANSWERS
 
-• Every citation opens its passage in the document, highlighted, with a line saying whether it was found word for word, found in part, or not found.  It used to work only in a PDF.  For Word, Excel and the like you see the text the app read from the file.
+• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 49% of the time, up from 42%.
 
-• Illustrate now sits with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage.
+• Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
+
+• Deep Think writes its answer from the passages its searches cited, checks every claim it lists, and searches side by side.  If you leave while it's working, it finishes when you come back.
+
+• Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
+
+• No more blank answers.  If Apple's model stops after a stray number, the app writes the answer again, and if that fails too it says it couldn't find the answer.
 
 
-YOUR LIBRARIES
+YOUR DOCUMENTS
+
+• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and numbers aren't misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
 
 • On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks every few minutes while the app is open.
 
-• Importing several files at once is faster: the files go in first, and their overviews and suggested questions come right after.
+• A rebuild keeps every document as it is, so your other devices no longer clear and rebuild the same library, and finished imports no longer keep a library's search index from syncing.
 
-• Importing a very large file twice no longer makes a second copy, and a library synced with iCloud no longer shows more documents on its button than it holds.
 
-• With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
+STEADIER
 
-• Rebuilding a library keeps every document as it is, so your other devices no longer clear and rebuild it too. It shows how far it has got, appears on the Lock Screen like an import, and starts again if the app is closed.
+• "Getting search ready" happens once after an update, not on every launch.
+
+• The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
+
+• A few short tips point at what isn't obvious, one at a time, and Settings › How This Works › Show Me Around brings them back.
 
 
 ALSO
 
-• The plans screen says what each plan adds.
+• Intelligence Mode and Compute Profile show what each step actually does, and two windows now share one engine, so they no longer rebuild or sync the same library at the same moment.
 
-• The Atlas lists each topic once and counts the whole library, and its similarity heatmap, which was never drawn from your documents, is gone.
+• The Atlas shows only what's real: one list of topics, the library's own counts, and no more heatmap drawn from random colors.
 
-• Two windows share one engine, so they no longer rebuild or sync the same library at the same moment.
-
-• Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
+• The app's guides sit in their own library and don't count toward your plan, and rating the app is now Apple's own sheet.
 
 
-Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+Everything still runs on your device, unless you approve Apple's Private Cloud Compute.
 ```
 
 **Release notes (`fastlane/metadata-ios/`, the same commit):**
 
 ```text
-This one's about making the app easier to start with and easier to trust.  Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
+5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
 
-GETTING STARTED
+A ONE-TIME REBUILD
 
-• The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it.  Settings › How This Works › Show Me Around brings them back.
-
-• The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours.  Ask it anything about how the app works.
+• Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while.  If you share libraries over iCloud, update every device.
 
 
 ANSWERS
 
-• Every citation opens its passage in the document, highlighted, with a line saying whether it was found word for word, found in part, or not found.  It used to work only in a PDF.  For Word, Excel and the like you see the text the app read from the file.
+• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 49% of the time, up from 42%.
 
-• Illustrate now sits with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage.
+• Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
+
+• Deep Think writes its answer from the passages its searches cited, checks every claim it lists, and searches side by side.  If you leave while it's working, it finishes when you come back.
+
+• Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
+
+• No more blank answers.  If Apple's model stops after a stray number, the app writes the answer again, and if that fails too it says it couldn't find the answer.
 
 
-YOUR LIBRARIES
+YOUR DOCUMENTS
 
-• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks when you open the app.
+• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and numbers aren't misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
 
-• Importing several files at once is faster: the files go in first, and their overviews and suggested questions come right after.
+• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.
 
-• Importing a very large file twice no longer makes a second copy, and a library synced with iCloud no longer shows more documents on its button than it holds.
+• A rebuild keeps every document as it is, so your other devices no longer clear and rebuild the same library, and finished imports no longer keep a library's search index from syncing.
 
-• With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
 
-• Rebuilding a library keeps every document as it is, so your other devices no longer clear and rebuild it too. It shows how far it has got, appears on the Lock Screen like an import, and starts again if the app is closed.
+STEADIER
 
-• A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.
+• "Getting search ready" happens once after an update, not on every launch.
+
+• The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
+
+• A few short tips point at what isn't obvious, one at a time, and Settings › How This Works › Show Me Around brings them back.
 
 
 ALSO
 
-• The plans screen says what each plan adds.
+• Intelligence Mode and Compute Profile show what each step actually does, and the X-Ray outlines your chip itself on recent iPhones and iPads.
 
-• The Atlas lists each topic once and counts the whole library, and its similarity heatmap, which was never drawn from your documents, is gone.
+• The Atlas shows only what's real: one list of topics, the library's own counts, and no more heatmap drawn from random colors.
 
-• Two windows share one engine, so they no longer rebuild or sync the same library at the same moment.
-
-• Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
+• The app's guides sit in their own library and don't count toward your plan, and rating the app is now Apple's own sheet.
 
 
-Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+Everything still runs on your device, unless you approve Apple's Private Cloud Compute.
 ```
 
 **Promotional text** (both platforms):
 
 ```text
-New in 5.8: every screen shows you around.  Guides that don't use your plan, citations that open their passage, and watched folders.  Needs Apple Intelligence.
+New in 5.8: search that finds the right passage more often, tables that come through whole, and citations that open on their exact words.  Needs Apple Intelligence.
 ```
 
 ### 5.7
