@@ -123,6 +123,29 @@ provider takes the same wipe + automatic rebuild branch, recorded per device; (5
 app (golden retrieval, tables) before it ships; (9) the iCloud mixed-version case: at least tell users in What's New to
 update every device.
 
+## Table checks: diagnosis (2026-11-12, read-only agent; Python copy of the detector in /private/tmp/claude-501/tables-diag/)
+
+51 of 174 table checks fail in `BenchmarkRuns/2026-11-08-extraction-fidelity/after11`. Score with
+`python3 scripts/ingestion_unit_tests.py BenchmarkRuns/2026-11-08-extraction-fidelity/checks <run> --compare BenchmarkRuns/2026-11-08-extraction-fidelity/after11 --show 60`
+(the checks folder must be the full path). Four general causes, 43 checks:
+- A (12, JAMA p5, p7): `TextLayerTableDetector.swift:117-122` ends a region when a line does not overlap the previous
+  line; compare with the union of the region's 3-plus-cell lines. `close()` (:111-115) drops a last row's wrapped label.
+  Risk: PAH p4 grew into its prose column in the Python copy.
+- B (15, BL999 p3, CD004426 p31-33): tables of words fail the 25% numbers rule (:306-311), the prose rule (:36, :82-83),
+  the six-short-lines limit (:136-141) and the one-cell continuation rule (:246-253). Accept a captioned ("Table N"),
+  3-plus-column, left-aligned region; build rows from the label column. Dropping the numbers rule alone accepted prose.
+- C (10-12, PAH p8-9, CD004426 p26/28, JAMA p6): a Vision table with 70% of the word runs' cells wins and hides its words
+  from the detector (`StructuredDocumentParser.swift:889-896, 907-913`); run the detector on all words and prefer it
+  where it has as many filled cells. Risk: ruled tables (ijms, BST pass 21/21).
+- D (4, fbioe p12) and a loss beyond tables: the layout-text path keeps only words inside Vision blocks with confidence
+  >= 0.5 (`LayoutAwareExtractor.swift:105, 277`, re-read :136-143); text-layer words outside them never reach storage
+  (fbioe p12 lost 43.2, 33.6, 94.5, 0.7; reference pages p15/p16 lost 55 and 62 numbers). Add the coverage pass
+  (`uncoveredBlocks`) to `extractWithLayout`, anchored like `textLayerText`.
+- Not explained (8, fbioe p8, p11): tables that are images with no text layer; possible fix: OCR picture regions with no
+  words under them, in tiles.
+Order chosen: D first (rule 4: no lost text), then A, B, C, each checked on the 8 PDFs with the scorer and
+`scripts/extraction_fidelity.py` (no regression in the 433 passing checks or number recall).
+
 ## Exact Next Action
 
 1. When the owner says go tonight: `bash BenchmarkRuns/2026-11-12-full-suite/run_all.sh` (background; waits for games;
