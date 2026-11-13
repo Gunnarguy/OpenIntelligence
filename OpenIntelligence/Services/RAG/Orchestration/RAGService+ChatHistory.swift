@@ -736,6 +736,16 @@ extension RAGService {
             let defaultContainerId = containerService.containers.first?.id
             // Libraries with a saved rebuild item (5.8): checked below rather than dropped or rebuilt outright.
             var rebuildsToResume: [UUID: Set<UUID>] = [:]
+            // Items this restore leaves out for good, retired with a tombstone so the iCloud copy of the queue loses them
+            // too (5.8). Left out without one, the next sync pass merged them back: on the owner's devices on 2026-11-13
+            // the shared queue held 59 such items, some from 2026-10-20, and every one kept its library counted as
+            // importing, so `WorkspaceSyncService` left that library's vector store unsynced on every pass. Only items
+            // this device holds the lease on, or whose lease has run out: another device's live import is its own.
+            var retired: [IngestionItem] = []
+            func retire(_ item: IngestionItem) {
+                if item.isLeased(to: currentDeviceID, at: now) || !item.hasActiveLease(at: now) { retired.append(item) }
+            }
+            var rebuildItemsByLibrary: [UUID: [IngestionItem]] = [:]
 
             for item in state.items {
                 guard !tombstonedIds.contains(item.id) else { continue }
@@ -788,6 +798,7 @@ extension RAGService {
                     // (the owner's iPhone, 2026-11-03 16:11: a 21-document rebuild ended by a relaunch).
                     if item.metrics.isRebuild {
                         rebuildsToResume[resolvedContainerId, default: []].insert(existingDoc.id)
+                        rebuildItemsByLibrary[resolvedContainerId, default: []].append(item)
                         continue
                     }
                     if existingDoc.totalChunks > 0 {
@@ -796,6 +807,7 @@ extension RAGService {
                                 + "\(item.url.lastPathComponent) (\(existingDoc.totalChunks) chunks recorded)",
                             category: .ingestion
                         )
+                        retire(item)
                         continue
                     }
 
@@ -826,6 +838,7 @@ extension RAGService {
                             "[RAGService] Dropping persisted ingestion item for already imported document: \(item.url.lastPathComponent)",
                             category: .ingestion
                         )
+                        retire(item)
                         continue
                     } else {
                         // Name what was actually inspected. Zero matches out of a store
@@ -852,6 +865,7 @@ extension RAGService {
                         Log.warning(
                             "[RAGService] Skipping persisted ingestion item because file is unreachable: \(item.url.lastPathComponent)",
                             category: .ingestion)
+                        retire(item)
                         continue
                     }
                     if FileManager.default.isUbiquitousItem(at: item.url) {
@@ -903,6 +917,16 @@ extension RAGService {
                     category: .ingestion)
                 VerificationJournal.record("rebuild.checkedAfterRelaunch", ["documents": "\(documentIds.count)"])
                 await evaluateSemanticIndexHealth(for: libraryId)
+                // The check has rebuilt what still had no passages, under items of its own, or found nothing to do;
+                // either way the saved items are done with (the next launch checks the library again).
+                for item in rebuildItemsByLibrary[libraryId] ?? [] { retire(item) }
+            }
+            if !retired.isEmpty {
+                recordIngestionQueueTombstones(for: retired)
+                Log.info(
+                    "[RAGService] Retired \(retired.count) finished or unreachable import queue item(s), so no library stays counted as importing",
+                    category: .ingestion)
+                VerificationJournal.record("queue.retired", ["items": "\(retired.count)"])
             }
 
             guard !restoredItems.isEmpty else {

@@ -258,8 +258,12 @@ extension RAGService {
     private func checkVectorsAndDocuments(of container: KnowledgeContainer, passageCount: Int) async {
         let containerId = container.id
         let db = vectorRouter.db(for: container)
+        // Each step's time (5.8): an 8-second launch freeze on the owner's iPhone on 2026-11-13 ended as this check
+        // reported, and the trace could not say which step held the main thread.
+        let started = Date()
 
         let sample = await db.getEmbeddings(forIndices: Self.sampleIndices(count: passageCount))
+        let sampleMs = Int(Date().timeIntervalSince(started) * 1000)
         if Self.vectorsLookEmpty(sample) {
             Log.warning(
                 "[RAGService] Library \(containerId): \(EmbeddingVectorCheck.unusableCount(sample)) of \(sample.count) "
@@ -279,6 +283,7 @@ extension RAGService {
         }
 
         let records: [PassageRecord]
+        let recordsStarted = Date()
         do {
             records = try await db.passageRecords()
         } catch {
@@ -295,11 +300,14 @@ extension RAGService {
             targetContainerId: containerId,
             blockingURLs: Self.blockingIngestionURLs(in: ingestionItems),
             fallbackContainerId: containerService.containers.first?.id)
+        let recordsMs = Int(Date().timeIntervalSince(recordsStarted) * 1000)
         let missing = Self.documentsMissingPassages(eligible, passagesByDocument: passagesByDocument)
         VerificationJournal.record(
             "index.health", missing.isEmpty ? .ok : .failed,
+            durationMs: Date().timeIntervalSince(started) * 1000,
             ["library": VerificationJournal.anon(containerId), "result": missing.isEmpty ? "healthy" : "missingPassages",
-                "documents": "\(eligible.count)", "passages": "\(passageCount)", "missing": "\(missing.count)"])
+                "documents": "\(eligible.count)", "passages": "\(passageCount)", "missing": "\(missing.count)",
+                "sampleMs": "\(sampleMs)", "recordsMs": "\(recordsMs)"])
         guard !missing.isEmpty else {
             librariesNeedingIndexRebuild.remove(containerId)
             return

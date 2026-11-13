@@ -386,7 +386,11 @@ struct ContentView: View {
             await entitlementStore.reconcileEntitlementsOnLaunch()
             recordBillingTier(trigger: "launch", from: nil)
 
+            // Timed (5.8): an 8-second launch freeze on the owner's iPhone on 2026-11-13 began right after the line above.
+            let refreshStarted = Date()
             await refreshSharedWorkspaceIfNeeded(forceReload: true)
+            VerificationJournal.record(
+                "launch.workspaceRefresh", .ok, durationMs: Date().timeIntervalSince(refreshStarted) * 1000)
 
             if screenshotMode.shouldImportSamples {
                 await importSamplesIfNeeded()
