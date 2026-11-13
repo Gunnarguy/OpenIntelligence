@@ -53,4 +53,4 @@ Used for: the Swift-to-Rust bridge of swift-tokenizers, linked as a prebuilt sta
 
 About 150 further crates (Hugging Face `tokenizers` and its dependencies) are under MIT and/or Apache 2.0, with a few under Unlicense, Zlib, BSD-2-Clause, BSL-1.0 or Unicode-3.0, all permissive. The per-crate list was read on 2026-11-12 from the package's Cargo.lock; their copyright notices are not yet shown in the app (Future Backlog).
 
-Verified 2026-11-12 (licence audit, read-only): no bundled model, package or asset is under a non-commercial licence. One image in the asset catalogue, LogicBoard_A18Pro, has no recorded source or licence and no code reads it.
+Verified 2026-11-12 (licence audit, read-only): no bundled model, package or asset is under a non-commercial licence. One image in the asset catalogue, LogicBoard_A18Pro, had no recorded source or licence and no code read it; it was removed the same day.
