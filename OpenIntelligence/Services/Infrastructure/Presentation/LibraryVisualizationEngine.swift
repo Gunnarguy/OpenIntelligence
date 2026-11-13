@@ -394,16 +394,16 @@ final class LibraryVisualizationEngine: ObservableObject {
     /// The profile of a library kept on disk, so the Atlas opens with it at once after a relaunch rather than
     /// analysing 6,000 passages again (24 to 61 s on the owner's iPhone, 2026-11-04 to 11-13). `key` names what it was
     /// built from (`diskKey`); a library that changed builds a new one, and that replaces this.
-    private struct StoredProfile: Codable {
-        struct Cluster: Codable {
+    nonisolated private struct StoredProfile: Codable, Sendable {
+        struct Cluster: Codable, Sendable {
             let name: String, keywords: [String], chunkCount: Int, percentage: Float
             let color: Color.Resolved, snippet: String, chunkIds: [UUID]
         }
-        struct Hot: Codable {
+        struct Hot: Codable, Sendable {
             let id: UUID, documentName: String, snippet: String, retrievalCount: Int, avgSimilarity: Float
             let lastAccessed: Date
         }
-        struct Recent: Codable {
+        struct Recent: Codable, Sendable {
             let id: UUID, documentName: String, addedAt: Date, chunkCount: Int, integrationScore: Float
             let nearestTopics: [String]
         }
@@ -417,7 +417,7 @@ final class LibraryVisualizationEngine: ObservableObject {
         let hotChunks: [Hot], coldZones: Int
         let recentAdditions: [Recent], libraryAge: TimeInterval
 
-        init(_ profile: LibraryProfile, key: String) {
+        @MainActor init(_ profile: LibraryProfile, key: String) {
             let environment = EnvironmentValues()
             self.key = key
             containerId = profile.containerId
@@ -451,7 +451,7 @@ final class LibraryVisualizationEngine: ObservableObject {
             libraryAge = profile.libraryAge
         }
 
-        var profile: LibraryProfile? {
+        @MainActor var profile: LibraryProfile? {
             guard let activity = RetrievalActivity(rawValue: retrievalActivity) else { return nil }
             return LibraryProfile(
                 containerId: containerId, timestamp: timestamp, documentCount: documentCount, chunkCount: chunkCount,
