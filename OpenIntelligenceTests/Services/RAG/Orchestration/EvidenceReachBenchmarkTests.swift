@@ -101,6 +101,15 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
         // `TEST_RUNNER_OI_EVIDENCE_REAL_MODEL=1` keeps Apple's model and the app's own checks, and records the answer
         // shown, for an answer-level run; otherwise the stand-in records what reached the model.
         let realModel = environment["OI_EVIDENCE_REAL_MODEL"] == "1"
+        // A Simulator made fresh starts the app before Apple's model is ready, and the launch check then picks Quotes
+        // only, which skips every model step (two runs of 2026-11-13 answered every question with excerpts). Moved to
+        // Apple Intelligence here, before the stand-in or the real model goes in, so the rebuild it sets off lands first.
+        if realModel, settings.quotesOnlyOnlyBecauseModelWasNotReady {
+            settings.useAppleIntelligenceNowThatItIsReady()
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            print("[EvidenceReach] Quotes only, picked at launch, lifted: \(settings.selectedModel.rawValue)")
+        }
+        XCTAssertFalse(realModel && engine.quotesOnlySelected, "Quotes only is selected; every answer would be excerpts")
         FoundationModelTokenBudget.onDeviceContextSizeOverrideForTesting = 4096
         NetworkMonitor.shared.holdForTesting(false)
         DirectModelCallsForTesting.disabled = !realModel

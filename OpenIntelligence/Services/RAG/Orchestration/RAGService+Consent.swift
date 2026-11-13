@@ -126,13 +126,27 @@ extension RAGService {
     /// update while Apple Intelligence downloads, or with Apple Intelligence switched on while the app runs, every
     /// question got the excerpts-only fallback. Measured in the iOS 27 Simulator that morning: a benchmark launched
     /// before the model was ready logged "Apple Foundation Models unavailable on this device" and answered all 53 table
-    /// questions in both modes with excerpts, though the model answered the test's own call. Checked before each
-    /// question and when the app comes to the front; a no-op while a working service is in place.
+    /// questions in both modes with excerpts, though the model answered the test's own call.
+    ///
+    /// The same launch check also picks Quotes only when the person never chose a model and the model is not ready
+    /// (`SettingsStore.init`), and Quotes only skips every model step whatever service is in place: the rerun after the
+    /// first half of this fix, at 11:33, answered all 53 questions with excerpts again ("[QuotesOnly] ... no model
+    /// call"). So that choice is undone here too, unless the person made it.
+    ///
+    /// Checked before each question and when the app comes to the front; a no-op while a working service is in place
+    /// and the person's or a ready device's model is selected.
     @MainActor
     func reconnectAppleModelIfNowAvailable() async {
-        guard !llmService.isAvailable else { return }
+        let quotesOnlyByDefault = settingsStore?.quotesOnlyOnlyBecauseModelWasNotReady ?? false
+        guard !llmService.isAvailable || quotesOnlyByDefault else { return }
         #if canImport(FoundationModels)
             guard #available(iOS 26.0, *), AppleFoundationLLMService().isAvailable else { return }
+            if quotesOnlyByDefault, let settingsStore {
+                settingsStore.useAppleIntelligenceNowThatItIsReady()
+                Log.info("[RAGService] Apple's model became ready; Quotes only, picked at launch, lifted", category: .initialization)
+                VerificationJournal.record("model.quotesOnlyLifted", [:])
+            }
+            guard !llmService.isAvailable else { return }
             if settingsStore != nil {
                 await rebuildLLMServicesFromSettings()
             } else if let service = Self.instantiateService(for: "apple_intelligence", entitlementStore: entitlementStore) {

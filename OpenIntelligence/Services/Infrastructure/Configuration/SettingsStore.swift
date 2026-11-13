@@ -421,6 +421,21 @@ final class SettingsStore: ObservableObject {
         isApplyingProgrammaticSelection = false
     }
 
+    /// Whether Quotes only is in use only because Apple's model was not ready when the app started: the person never
+    /// chose a model, and the launch check found none (5.8, 2026-11-13).
+    var quotesOnlyOnlyBecauseModelWasNotReady: Bool {
+        selectedModel == .onDeviceAnalysis && !hasUserPrimaryOverride
+    }
+
+    /// Moves to Apple Intelligence once its model has become ready, when Quotes only was picked only because it was not
+    /// (`quotesOnlyOnlyBecauseModelWasNotReady`). The launch check does the same at the next launch ("Auto-upgrade"
+    /// in `init`); this does it in the running session. The caller has checked the model is available. Not counted as
+    /// the person's choice.
+    func useAppleIntelligenceNowThatItIsReady() {
+        guard quotesOnlyOnlyBecauseModelWasNotReady else { return }
+        setSelectedModelProgrammatically(.appleIntelligence)
+    }
+
     /// Validates that a given model can run on the current hardware/configuration.
     private func isPrimarySelectionAvailable(_ selection: LLMModelType) -> Bool {
         switch selection {
