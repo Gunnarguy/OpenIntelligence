@@ -202,9 +202,20 @@ struct MessageBubbleV2: View {
                         DSHaptics.soft()
                     }
                 }
-                .tour(.answerBubble, in: Tour.chat, when: isLatestAnswer && !isUser)
+                .tour(.answerBubble, in: Tour.chat, when: isLatestAnswer && !isUser) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { showActions = true }
+                }
 
                 if !isUser { Spacer(minLength: bubbleSpacerMinLength) }
+            }
+
+            // The tour's card under the newest answer when nothing found supports one (2026-11-13): it says why, and
+            // its button asks again in Deep Think, as Go Deeper under the answer does.
+            if !isUser, isLatestAnswer, message.structuredAnswer?.refuse == true,
+                message.metadata?.canGoDeeper == true, let onGoDeeper
+            {
+                TourCard(step: .notFound, group: Tour.chat, perform: onGoDeeper)
+                    .frame(maxWidth: 420, alignment: .leading)
             }
 
             // Action bar (appears on tap)
@@ -285,6 +296,7 @@ struct MessageBubbleV2: View {
                         // Verification gate inline badge
                         if let decision = meta.gatingDecision {
                             VerificationBadge(gatingDecision: decision, claims: message.structuredAnswer?.claims ?? [])
+                                .tour(.verdictBadge, in: Tour.chat, when: isLatestAnswer)
                         }
 
                         // Tool call count badge

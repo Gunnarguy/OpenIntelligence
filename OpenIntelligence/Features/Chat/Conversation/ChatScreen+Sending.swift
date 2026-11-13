@@ -542,6 +542,10 @@ extension ChatScreen {
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
                     TourContext.answers += 1
+                    // The tour's "Not in your documents" card shows while the newest answer found nothing to stand on
+                    // and can be asked again in Deep Think (the card's button), as it is placed (`MessageBubbleV2`).
+                    TourContext.lastAnswerNotFound =
+                        assistant.structuredAnswer?.refuse == true && assistant.metadata?.canGoDeeper == true
                     // What the device checks close on (5.8): the mode, the badge, how many passages, how long.
                     VerificationJournal.record(
                         "answer.done", .ok,

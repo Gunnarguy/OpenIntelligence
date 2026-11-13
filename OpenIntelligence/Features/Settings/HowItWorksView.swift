@@ -38,6 +38,7 @@ struct HowItWorksView: View {
                 askCard
                 leavingCard
                 vocabularyCard
+                guideCard
                 replayCard
             }
             .padding(DSSpacing.lg)
@@ -148,6 +149,66 @@ struct HowItWorksView: View {
         }
     }
 
+    // MARK: - Where things are
+
+    /// The less obvious controls, to find again after their tips are gone (the tour's rebuild, 2026-11-13). Each line
+    /// was written from its control's code.
+    private static let guideEntries: [(symbol: String, title: String, text: String)] = {
+        var entries: [(symbol: String, title: String, text: String)] = [
+            ("sidebar.left", "Your conversations",
+                "Every conversation in a library is kept with its sources. The sidebar in Chat lists them, so you can pick one up again."),
+            ("ellipsis.circle", "New chat and export",
+                "The menu at the top of Chat starts a new conversation, exports or clears this one, and turns on Technical Details."),
+        ]
+        #if os(iOS)
+            entries.append(("apple.intelligence", "Rework an answer",
+                "The Apple Intelligence button in Chat turns the last answer into key facts, steps, plain English, or what it's missing."))
+        #endif
+        entries += [
+            ("mic", "Say it instead",
+                "The microphone in the question box types your words as you speak. Nothing is sent until you send it."),
+            ("paperclip", "Attach a file",
+                "A file attached in Chat is imported into this library, so later questions can use it too."),
+            ("globe.americas", "The Atlas",
+                "Passages that mean similar things sit close together, so you can see what your documents cover."),
+            ("mic.circle", "Siri and Shortcuts",
+                "Siri and Shortcuts can ask a question, search your documents and add to a library without opening the app."),
+        ]
+        return entries
+    }()
+
+    private var guideCard: some View {
+        SurfaceCard {
+            SectionHeader(icon: "map", title: "Where things are")
+            Text("Small tips point these out as you go; here they are in one place.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
+                ForEach(Self.guideEntries, id: \.title) { entry in
+                    HStack(alignment: .top, spacing: DSSpacing.md) {
+                        Image(systemName: entry.symbol)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(DSColors.accent)
+                            .frame(width: 22, height: 22)
+                            .background(DSColors.accent.opacity(0.12), in: Circle())
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                            Text(entry.title)
+                                .font(.subheadline.weight(.semibold))
+                            Text(entry.text)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+    }
+
     // MARK: - Ask
 
     private var askCard: some View {
@@ -248,7 +309,7 @@ struct HowItWorksView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Every screen's tips, again (5.8). They come back as each screen is opened, one at a time.
+            // Every screen's tips, again (5.8). They come back one at a time as each screen is used.
             Button {
                 DSHaptics.selection()
                 didRequestTour = true
@@ -272,10 +333,10 @@ struct HowItWorksView: View {
             }
             .buttonStyle(.plain)
             .disabled(didRequestTour)
-            .accessibilityHint("Shows the tips on each screen again, one at a time, as you open it")
+            .accessibilityHint("Shows the tips on each screen again, one at a time, as you use it")
 
             if didRequestTour {
-                Text("Each screen shows its tips again the next time you open it.")
+                Text("The tips come back one at a time as you use each screen.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

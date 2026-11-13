@@ -156,6 +156,12 @@ struct FirstQueryPromptView: View {
                 .accessibilityElement(children: .combine)
             }
 
+            // The tour's first card (2026-11-13): what an answer here is made of. Its button asks the first suggested
+            // question, as tapping it below does.
+            if hasDocuments, let firstPrompt = prompts.first {
+                TourCard(step: .composer, group: Tour.chat) { onPromptSelected(firstPrompt) }
+            }
+
             if !prompts.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.md) {
                     ForEach(prompts, id: \.self) { prompt in

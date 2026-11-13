@@ -62,8 +62,10 @@ struct ThreadSidebarView: View {
                         }
                         .listRowBackground(ragService.activeThreadId == thread.id ? DSColors.accent.opacity(0.1) : Color.clear)
                         .listRowSeparator(.hidden)
+                        .tour(.threadSwipe, in: Tour.threads, when: thread.id == threads.first?.id)
                     }
                     .onDelete { indexSet in
+                        Tour.used(.threadSwipe)
                         let containerId = ragService.containerService.activeContainerId
                         for index in indexSet {
                             let thread = threads[index]

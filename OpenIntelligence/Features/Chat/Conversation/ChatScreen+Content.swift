@@ -38,6 +38,11 @@ extension ChatScreen {
                 messageContainerOverride: $messageContainerOverride,
                 onMaximumModeBlocked: presentMaximumModePaywall
             )
+            // The toolbar buttons' tips, drawn just under the toolbar over the header with an arrow up at their button
+            // (`tipAnchor`). A popover on a toolbar item blanked Chat (9049d416). Drawn over the content, not behind the
+            // navigation bar, where a first attempt put them out of sight (2026-11-13, TipKit logged viewDidAppear).
+            .overlay(alignment: .top) { TourToolbarTips(steps: [.sidebar, .aiHub, .moreMenu], group: Tour.chat) }
+            .zIndex(1)
 
             // The stats bar is part of the technical view (5.7); the plain chat says what it is doing in the answer's
             // own bubble instead.

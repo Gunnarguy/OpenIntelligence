@@ -135,6 +135,10 @@ struct ContainerPickerStrip: View {
                 }
             )
             .fixedSize(horizontal: true, vertical: false)
+            // The press-and-hold menu, on the first pill of the Documents screen's picker (the one with storage actions).
+            .tour(
+                .libraryMenu, in: Tour.documents,
+                when: onSetLibraryStorage != nil && container.id == containerService.pickableContainers.first?.id)
         }
     }
 
@@ -162,7 +166,7 @@ struct ContainerPickerStrip: View {
             .buttonStyle(.plain)
             .fixedSize(horizontal: true, vertical: false)
             .glassEffectHelper(isSelected: false, tintColor: .secondary)
-            .tour(.newLibrary, in: Tour.documents)
+            .tour(.newLibrary, in: Tour.documents) { onCreateLibrary?() }
         }
     }
 
