@@ -1217,6 +1217,16 @@ extension RAGService {
             return nil
         }
 
+        // A value the question already states is never its answer (5.8, 2026-11-13). Asked "... under ADHD
+        // (n = 3026)?", the extractor locked onto "3026" on a misread figure caption ("1845l5 Participants without
+        // ADHU 3026 Participants with ADHD") and Deep Think returned that line as the whole answer, without the model.
+        if Self.valueRestatesQuestion(result.answerSpan, question: question) {
+            Log.info(
+                "[RAGService] Extracted value not used as the answer: \"\(result.answerSpan)\" is a number the question gives",
+                category: .pipeline)
+            return nil
+        }
+
         // The value has to be about what was asked (5.7). Every one of the five places that let an
         // extracted value stand in for the answer comes through here.
         guard
@@ -1282,6 +1292,23 @@ extension RAGService {
     /// the extractor's synonyms added (`SpecificationExtractor.subjectSynonyms`). A question with no
     /// subject words left is not checked. A value that fails is not used, and the model answers as it
     /// would without one.
+    /// Whether an extracted value is only numbers the question itself gives ("3026" for "... under ADHD
+    /// (n = 3026)?"). A value with no number, or with a letter, is never one. Thousands separators and spaces inside a number are ignored.
+    nonisolated static func valueRestatesQuestion(_ value: String, question: String) -> Bool {
+        func numbers(_ text: String) -> [String] {
+            let joined = text.replacingOccurrences(of: #"(?<=\d)[,\u{2009}\u{202F} ](?=\d{3}\b)"#, with: "", options: .regularExpression)
+            guard let regex = try? NSRegularExpression(pattern: #"\d+(?:\.\d+)?"#) else { return [] }
+            return regex.matches(in: joined, range: NSRange(joined.startIndex..., in: joined)).compactMap {
+                Range($0.range, in: joined).map { String(joined[$0]) }
+            }
+        }
+        let inValue = numbers(value)
+        // Only a value that is numbers and nothing else: "Owner-1A" for "Who owns Project M1?" names something.
+        guard !inValue.isEmpty, !value.contains(where: \.isLetter) else { return false }
+        let inQuestion = Set(numbers(question))
+        return inValue.allSatisfy(inQuestion.contains)
+    }
+
     nonisolated static func extractedValueAnswersQuestion(_ question: String, label: String?, context: String) -> Bool {
         var subject = lookupWords(in: question).subtracting(genericValueWords)
         guard !subject.isEmpty else { return true }

@@ -53,6 +53,11 @@ nonisolated enum RetrievalAblation {
         /// A streamed Standard answer with no `[S#]` label gets labels from its context (`CitationAttribution`, 5.8);
         /// off, it is kept without, the path before it.
         case citationAttribution
+        /// Deep Think's final step opens with one sentence that answers the question, the value and its label, and
+        /// does not call a value missing that a passage gives (5.8, 2026-11-13); off, the comprehensive-essay prompt
+        /// alone, the path before it. On 53 table questions its answers ran a median 2,231 characters and 19 said a
+        /// value was absent or not stated, some of them while giving it.
+        case answerFirst
     }
 
     /// The rules switched off for this process, read once.

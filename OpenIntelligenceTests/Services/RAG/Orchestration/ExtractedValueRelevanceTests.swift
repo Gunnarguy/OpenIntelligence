@@ -116,6 +116,16 @@ final class ExtractedValueRelevanceTests: XCTestCase {
             "\"does\" and \"this\" are not subject words")
     }
 
+    func testANumberTheQuestionGivesIsNotItsAnswer() {
+        let question = "What value is given for Charlson Comorbidity Index, mean (SD) under ADHD (n = 3026)?"
+        XCTAssertTrue(RAGService.valueRestatesQuestion("3026", question: question))
+        XCTAssertTrue(RAGService.valueRestatesQuestion("3,026", question: question))
+        XCTAssertFalse(RAGService.valueRestatesQuestion("0.57 (1.35)", question: question))
+        XCTAssertFalse(RAGService.valueRestatesQuestion("3026 (1.35)", question: question), "a value with a number of its own")
+        XCTAssertFalse(RAGService.valueRestatesQuestion("0W-20", question: "Which oil grade?"))
+        XCTAssertFalse(RAGService.valueRestatesQuestion("Owner-1A", question: "Who owns Project M1?"))
+    }
+
     func testPluralsFoldOnlyWhereTheyArePlurals() {
         XCTAssertEqual(RAGService.lookupWords(in: "tanks quarts"), ["tank", "quart"])
         XCTAssertEqual(RAGService.lookupWords(in: "does this glass status"), ["does", "this", "glass", "status"])

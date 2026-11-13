@@ -864,6 +864,7 @@ supposed to be agentic.
   second run; the second time the same 2,295-character decision prompt and the same 648 tokens in and 23 out).
   `loopMayRunResearch` now lets the loop run research once; the check after it still runs, with the passages research
   added. `[evidence: test_verified for loopMayRunResearch, AnswerReplacementGuardTests; code_verified, AgenticOrchestrator+SelfRAG.swift:525; artifact_derived for the two loops, his iPhone trace 2026-11-05 13:05 and 21:48 PT; the fixed loop not yet run on a device]`
+  **2026-11-13:** the final step's prompt (both the source-passage prompt and the notes-only system prompt) opens with `AgenticOrchestrator.answerFirstInstruction`, one sentence that answers the question with its value and label before the full answer, and adds `noFalseAbsenceInstruction`; `RetrievalAblation.answerFirst` switches both off for the paired benchmark. `[evidence_level: code_verified, confidence: high]`
 
 - **Synthesis truncation was removing the highest-ranked chunk, and it is now budgeted rather than
   cut.** `executeDirectSynthesis` and `executeSynthesisStep` each ended in a hardcoded

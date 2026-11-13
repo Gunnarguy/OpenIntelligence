@@ -1261,7 +1261,9 @@ extension AgenticOrchestrator {
                     .joined(separator: "\n")
 
                 let synthesisSystemPrompt =
-                    "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
+                    (RetrievalAblation.isOff(.answerFirst) ? "" : Self.answerFirstInstruction)
+                    + "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
+                    + (RetrievalAblation.isOff(.answerFirst) ? "" : " " + Self.noFalseAbsenceInstruction)
 
                 // The passages the passes cited, in their own words, beside the notes (5.8, `ChainSynthesisEvidence`).
                 // Not when the picker sends sessions to Private Cloud Compute (`sessionsMayLeaveDevice`): this plan is
@@ -1480,9 +1482,9 @@ extension AgenticOrchestrator {
             NOTES FROM EACH READING PASS (written by the model while reading; they can be wrong):
             \(notesBlock)
 
-            Write a comprehensive, detailed answer to: "\(query)"
+            \(RetrievalAblation.isOff(.answerFirst) ? "" : Self.answerFirstInstruction)Write a comprehensive, detailed answer to: "\(query)"
             Take every number, name, date and value from the SOURCE PASSAGES, written exactly as it appears there. Use the notes to see what each pass found and where; when a note and a passage differ, the passage is right.
-            If the passages do not answer part of the question, say so for that part instead of guessing.
+            If the passages do not answer part of the question, say so for that part instead of guessing.\(RetrievalAblation.isOff(.answerFirst) ? "" : " " + Self.noFalseAbsenceInstruction)
             Write in flowing prose with complete sentences and full paragraphs. Use ### section headers to organize topics. Use **bold** sparingly for key terms only. Use bullets only for actual sequential steps or specification lists.
             Cite each fact with the [S#] label of the passage it came from, written exactly as it is labeled above. Never invent a label or move one to a sentence it does not support.
             """
@@ -1510,6 +1512,17 @@ extension AgenticOrchestrator {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+}
+
+extension AgenticOrchestrator {
+    /// The first thing Deep Think's final step is told (5.8, `RetrievalAblation.answerFirst`): the answer comes first,
+    /// then the full, detailed explanation, which keeps its depth. Ends with a line break, as the next line opens.
+    nonisolated static let answerFirstInstruction =
+        "Begin your answer with one sentence that answers the question directly: the exact value, name or finding, written as the source writes it, with its [S#] label. After that sentence comes the full answer below.\n"
+    /// No value called missing that a passage gives (5.8): 19 of 53 table answers said a value was absent or not
+    /// stated, some while giving it, one while its own sources held it.
+    nonisolated static let noFalseAbsenceInstruction =
+        "Never say a value is missing, absent or not stated when a passage above gives it."
 }
 
 /// Thrown when Deep Think's synthesis is cut off twice, so the combined findings stand in for it (5.8).
