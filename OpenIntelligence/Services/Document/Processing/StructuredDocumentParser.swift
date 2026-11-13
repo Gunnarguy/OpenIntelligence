@@ -892,7 +892,27 @@ actor StructuredDocumentParser {
                 let box = table.boundingRegion.normalizedPath.boundingBox
                 let runs = TextLayerTableDetector.segmentCount(in: box, words: words)
                 let cells = Set(table.rows.flatMap { $0 }.map { "\($0.rowRange):\($0.columnRange)" }).count
-                if Double(cells) >= Double(runs) * 0.7 { keptBoxes.append(box) } else { weakTables.append((index, box)) }
+                // A table that holds its region still gives way when the words inside it make a table with more filled
+                // cells (5.8, 2026-11-12): Vision's tables on PAH p8-9, CD004426 p26 and p28 and JAMA p6 merged or left
+                // out columns, and kept their words from the detector. Its words are then searched with the rest; if no
+                // table is found among them, Vision's table stays.
+                let filled = Set(
+                    table.rows.flatMap { $0 }
+                        .filter { !$0.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        .map { "\($0.rowRange):\($0.columnRange)" }
+                ).count
+                let inside = words.filter {
+                    box.insetBy(dx: -0.004, dy: -0.004).contains(CGPoint(x: $0.box.midX, y: $0.box.midY))
+                }
+                let own = TextLayerTableDetector.tables(in: inside).first
+                let ownFilled = own.map { table in
+                    ((table.header ?? []) + table.rows.flatMap { $0 }).filter { !$0.isEmpty }.count
+                } ?? 0
+                if Double(cells) >= Double(runs) * 0.7, ownFilled <= filled {
+                    keptBoxes.append(box)
+                } else {
+                    weakTables.append((index, box))
+                }
             }
             // Prose paragraphs are not searched either (12 or more words, under a quarter of them numbers): justified
             // text has wide word gaps, and the PAH paper's right column became four columns of a 9-column table beside
