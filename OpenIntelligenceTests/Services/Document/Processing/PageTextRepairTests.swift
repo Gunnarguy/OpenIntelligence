@@ -134,6 +134,27 @@ final class PageTextRepairTests: XCTestCase {
         XCTAssertEqual(table.rows.count, 4)
     }
 
+    /// A value wrapped under its cell, then a label-only line, must not end the table (5.8, 2026-11-12): the region was
+    /// joined only while each line overlapped the line above, and "(57.2)" under the third column shares no width with a
+    /// label at the left, so JAMA's Table 1 split in two and its second half lost its header.
+    func testAWrappedValueThenALabelLineDoNotSplitTheTable() {
+        let words = layout([
+            (0.90, [(0.10, "Characteristic"), (0.30, "Group A"), (0.50, "Group B"), (0.70, "SMD")]),
+            (0.87, [(0.10, "Age, mean"), (0.30, "41.2"), (0.50, "38.9"), (0.70, "0.11")]),
+            (0.85, [(0.10, "Female, No."), (0.30, "1208"), (0.50, "96 940"), (0.70, "0.04")]),
+            (0.84, [(0.50, "(57.2)")]),
+            (0.82, [(0.10, "Race and ethnicity")]),
+            (0.80, [(0.10, "Asian"), (0.30, "312"), (0.50, "4021"), (0.70, "0.02")]),
+            (0.78, [(0.10, "Black"), (0.30, "455"), (0.50, "9871"), (0.70, "0.05")]),
+            (0.76, [(0.10, "Hispanic"), (0.30, "380"), (0.50, "7650"), (0.70, "0.01")]),
+        ])
+        let tables = TextLayerTableDetector.tables(in: words)
+        XCTAssertEqual(tables.count, 1)
+        guard let table = tables.first else { return }
+        XCTAssertEqual(table.header?.first, "Characteristic")
+        XCTAssertTrue(table.rows.contains { $0.first == "Hispanic" && $0.contains("7650") })
+    }
+
     func testTwoColumnsOfProseAreNotATable() {
         var lines: [(y: CGFloat, cells: [(x: CGFloat, text: String)])] = []
         for index in 0..<12 {

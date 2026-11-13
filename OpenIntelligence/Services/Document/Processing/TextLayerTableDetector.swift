@@ -117,7 +117,13 @@ nonisolated enum TextLayerTableDetector {
             let tabular = line.cellCount >= 3
             if let last = (pending.last ?? current.last) {
                 let gap = last.box.minY - line.box.maxY
-                let overlaps = last.box.minX < line.box.maxX && line.box.minX < last.box.maxX
+                // A line belongs to the region when it overlaps the region's rows of 3+ cells, not only the line just
+                // above it (5.8, 2026-11-12): JAMA's Table 1 split where a value wrapped under its cell ("(57.2)") was
+                // followed by a label-only line, which shared no width with the short line above it, and its forest
+                // plot broke in three at the p-values printed between rows.
+                let rows = current.filter { $0.cellCount >= 3 }
+                let reference = rows.dropFirst().reduce(rows.first?.box ?? last.box) { $0.union($1.box) }
+                let overlaps = reference.minX < line.box.maxX && line.box.minX < reference.maxX
                 if gap > height * 3 || !overlaps { close() }
             }
             if tabular {
