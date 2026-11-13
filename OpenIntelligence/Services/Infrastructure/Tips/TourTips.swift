@@ -361,9 +361,20 @@ private struct TourTipModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         let showing = active && group.currentTip?.id == step.id ? group.currentTip : nil
-        content
-            .popoverTip(showing, arrowEdge: arrow)
-            .tipBackgroundInteraction(.enabled)
+        // The popover only while this control's tip is the one showing (5.8, 2026-11-13). Attached with a nil tip, as
+        // through the first 5.8 builds, TipKit still put a `UIAppearanceMonitor` controller into the navigation stack
+        // for each control in a toolbar: Chat's stack read 4 deep with one on top (the owner's iPhone, 2026-11-07 to
+        // 11-13), and tapping the Chat tab again popped it to its root, the monitors were pushed back, and Chat went
+        // white (`chat.disappear` and `chat.appear` ten times in eight seconds, `chat.blankRebuildSkipped`).
+        Group {
+            if let showing {
+                content
+                    .popoverTip(showing, arrowEdge: arrow)
+                    .tipBackgroundInteraction(.enabled)
+            } else {
+                content
+            }
+        }
         #if DEBUG
             .onChange(of: showing?.id, initial: true) { _, id in
                 if id != nil { Tour.noteShown(step) }
