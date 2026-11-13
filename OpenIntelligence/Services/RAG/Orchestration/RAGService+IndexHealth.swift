@@ -171,6 +171,18 @@ extension RAGService {
             return
         }
 
+        // A library whose vectors an older embedding model wrote is cleared and rebuilt by `resolveEmbeddingContext`
+        // (5.8, MiniLM-L6-v2 to Granite). Ask here, at launch and on a library switch, so the rebuild starts when the
+        // person opens the library rather than inside their first question. Measured on the owner's iPhone on
+        // 2026-11-12: after the update the main library was opened and not rebuilt, because nothing had searched it.
+        if EmbeddingModelRecord.modelChanged(for: containerId, live: EmbeddingService.sharedCoreMLProvider.modelRevision)
+            || container.embeddingProviderId == EmbeddingProviderDefaults.coreAI
+        {
+            _ = await resolveEmbeddingContext(preferredContainerId: containerId)
+            // Its rebuild is queued; the empty store below is that rebuild's doing, not a second fault to heal.
+            if pendingReembedContainerIds.contains(containerId) || isProcessing { return }
+        }
+
         // Read the store rather than the container's cached `totalChunks`. The
         // cached figure is what said 420 while the vector store held none — it
         // counts what was ingested, not what is searchable.
