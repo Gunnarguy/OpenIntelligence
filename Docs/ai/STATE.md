@@ -1,78 +1,84 @@
 # Current State
 
-Updated: 2026-11-12 about 02:30 PT
+Updated: 2026-11-12 about 17:30 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 02044980
+Last verified commit: 1e86b30c
 
 ## Objective
 
-**Ship 5.8** (owner, 2026-11-10: "I feel like I should ship 5.8"). The board is 5.8 and Future Backlog only. What
-remains: the owner's short device pass, then a Xcode Cloud build and
-the App Store Connect submission at his word. Every commit carries `[ci skip]` until he asks for a build.
+**Ship 5.8 tonight (owner, 2026-11-12), as the last update for a while.** He pulled two fixes into 5.8 and wants
+everything that differs from 5.7 shown with measurements: (1) Deep Think's final step reads the passages its passes
+cited, not only their notes; (2) a streamed Standard answer with no citation numbers gets them from its own passages.
+Parts measured to do nothing stay unless they measurably hurt answers (his words: removal only if "actually fucking up
+answers"); the 2026-11-10 rule audit found none that hurt. Then the Xcode Cloud build and submission at his word.
 
 ## Status
 
-- **Answer benchmark, first run (2026-11-12 00:53, c1e4a160)**, `BenchmarkRuns/2026-11-12-0053-answer-modes/`,
-  recorded in `BenchmarkRuns/LEDGER.md`: Standard 0.45, Deep Think 0.40 (3.8 times the time), Standard with the test's
-  own model 0.50 (0.3 on 2026-10-21). 20 cases, one case is 0.05. Maximum was not measured: the free plan's 3-a-day
-  limit refused 17 of 20 because the plan the gate reads had gone back to Free; the test now sets Pro and a zero count
-  before every Maximum question (02044980).
-- **Maximum re-run alone** (02044980, `BenchmarkRuns/2026-11-12-0223-answer-modes/`): 0.50, 20 answered, 0 refused,
-  31 minutes; 8 answers open with "Needs Verification". Recorded in `LEDGER.md`.
-- **Development build of 02044980 on his iPhone 16 Pro Max**, installed 02:23 PT 2026-11-12, not launched.
-
-## Completed (2026-11-12)
-
-- Read the phone's journal and trace from his three Standard questions (47.8, 24.5, 36.6 s): the first waited on the
-  reranker's 35.8 s load; evidence in `~/Library/Developer/OpenIntelligence-evidence/2026-11-12_005528/`.
-- Journal fixes, approved by the owner ("yep fix ALL of that"), 02044980: `model.usage` times (`firstTokenMs`,
-  `writingMs`, `outputPerSecond`, `totalMs`, `cachedInput`, `continued`); `embedding.load` timed; `reranker.load` and
-  `embedding.load` carry `newInstall` and `fastPrediction`; the stall watchdog counts only time in front (a 296,980 ms
-  "stall" was a suspension). A reviewer pass found 14 points; all addressed, and the launch-time embedder load I had
-  added was reverted because the Core ML embedder's on-first-use design is out of bounds without the owner's say.
+- **Both fixes measured and kept (2026-11-12, 17:11).** Paired run on 53 of the 158 table questions, Simulator, window
+  4,096, each question off and on in one process: Deep Think right 37 to 42 (7 better, 2 worse, p=0.18), median 80 s to
+  65 s, answers with no `[S#]` 5 to 1; Standard right 44 to 45 (2 better, 1 worse), the citation change labelled 6 of
+  10 streamed answers, every label checked by hand against the saved sources. The decision rule (keep only if no worse)
+  passes for both. Recorded in `CHANGELOG.md` 5.8 and `BenchmarkRuns/LEDGER.md`; run folder
+  `BenchmarkRuns/2026-11-12-deepthink-source-passages`.
+- Found in that run, not fixed: the model sometimes cites as "(S1)", "ROW 3, S1" or "[2]", which the app does not read
+  (3 of the 4 Standard answers still unlabelled). Future Backlog candidate.
+- The comparison page for the owner (before and after: Deep Think speed on his iPhone, import fidelity, reranker):
+  https://claude.ai/artifact/8yGG3yXpwVNSTmQBMu6wfe
+- **Ledger gap:** 36 of the 39 run folders since October have no `BenchmarkRuns/LEDGER.md` entry (the Nov 8 import
+  work and the reranker swap among them), which is why that work was missed on 2026-11-12. Offered to the owner: backfill
+  one entry per folder and a session-brief warning for unindexed folders.
+- Owner asked (open): run the same graded questions on the 5.7 build for a true 5.7-vs-5.8 accuracy number.
+- Notion rows (In Progress, v5.8): https://app.notion.com/p/41649a74d54f812183e5efbe07508232 (Deep Think) and
+  https://app.notion.com/p/41649a74d54f81b88321c757ff22dfd9 (citations); close on a device check.
+- Filed Future Backlog: https://app.notion.com/p/41749a74d54f8195b436f019ac03aede (Chat's import toast counts one short
+  when a large file finishes before the rest of its batch; files import fine).
 
 ## Active Constraints
 
-- `PROCEED: IMPLEMENT` before source edits; hard-boundary files only when he names them.
-- Accuracy first: anything that changes what is read, retrieved or answered is measured on every benchmark set first.
-- Never load his Mac while he games. One `xcodebuild` at a time; device builds from `/private/tmp/oi-src` into
-  `/private/tmp/oi-build`.
+- `PROCEED: IMPLEMENT` given for these two fixes (2026-11-12). Hard-boundary files untouched.
+- Accuracy first; one `xcodebuild` at a time (the benchmark is one: no builds until it ends); never load his Mac while
+  he games (the run script waits for a game to close).
+- `scripts/run_quality_matrix.py` has a pre-existing modification that is not part of this work: never stage it.
 
 ## Working Set
 
-- `scripts/bench_answer_modes.sh`, `scripts/sim_model_copy.py`, `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`.
-- `OpenIntelligence/Services/Infrastructure/Configuration/VerificationJournal.swift` (watchdog, `firstLaunchOfThisInstall`).
-- `OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift` (`phaseFields`, `model.usage`).
-- `OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift` (`retryForMissingCitations`): the open citation finding.
+- `OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift`: `ChainSynthesisEvidence` (labels, ranking, choice,
+  fitted notes, budget 1,890 on 4,096 and 3,200 on 8,192).
+- `OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift`: Deep Think synthesis branch,
+  `sourcePassagesSynthesisPrompt`, `readWindowIndices`.
+- `OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift`: `CitationAttribution`, called in
+  `retryForMissingCitations`'s streamed branch.
+- `OpenIntelligence/Services/RAG/Tuning/RetrievalAblation.swift`: the two switches.
+- Tests: `SessionEvidencePlanTests.swift` (`ChainSynthesisEvidenceTests`), `CitationLabelNumberingTests.swift`
+  (`CitationAttributionTests`), `EvidenceReachBenchmarkTests.swift` (path "a", streamed Standard, library check).
+- `scripts/evidence_reach.py answers`: the paired scorer.
+- Docs updated: `CHANGELOG.md` (two [Orchestration] entries with `MEASUREMENT_PENDING` markers to replace with the
+  result), `Docs/RETRIEVAL_PIPELINE.md` item 18, Atlas chain paragraph, `Docs/PRIVACY_AND_ROUTING.md` new section.
+  Not yet: codemap slice `quality-modes-and-agentic-orchestrator`, `BenchmarkRuns/LEDGER.md`.
 
 ## Verification
 
-- `bash scripts/bench_answer_modes.sh` (c1e4a160) -> the table above, `SUMMARY.md` in `BenchmarkRuns/2026-11-12-0053-answer-modes/`.
-- `xcodebuild build-for-testing` + `test-without-building -only-testing:OpenIntelligenceTests/VerificationJournalTests
-  -only-testing:OpenIntelligenceTests/ModelCallPhaseFieldsTests -only-testing:OpenIntelligenceTests/AnswerUsageTallyTests`
-  on a fresh iOS 27.0 simulator -> 21 tests, 0 failures (working tree = 02044980).
-- iPhone build `-configuration Debug -destination generic/platform=iOS` -> exit 0; `devicectl device info apps` -> 5.8 (150).
-- Not built for macOS: the watchdog's `#else _ = started` branch is compiled only there.
+- `xcodebuild build-for-testing` (patched copy, iOS 27.0 simulator, `/private/tmp/oi-eval-dd`) -> exit 0.
+- `test-without-building -only-testing:` ChainSynthesisEvidenceTests, SessionEvidencePlanTests,
+  CitationAttributionTests, CitationLabelNumberingTests -> 38 tests, 0 failures.
+- Smoke run `LIMIT=2 bash run.sh 0/1` -> answers recorded; the test itself failed on its old import assertion (5 of 7
+  counted: the two PDFs over 10 MB take the streamed import and finish after the call returns; fixed in the harness).
+- Not built for macOS. Not run on a device.
 
 ## Blockers / Unknowns
 
-- **Standard answers without inline citations:** 8 of 28 Standard answers on his iPhone since 2026-11-07 had no
-  `[n]` markers ("Missing citations; preserving streamed response"), 0 of the Deep Think answers. Every Standard
-  answer there skipped structured generation for its token budget (4,096 window). A fix changes answers, so it needs
-  measuring; not filed in Notion yet.
-- **Reranker load on the iPhone:** 20 to 130 s on most launches of 2026-11-10 and 11-11; three matched installs at
-  the same minute. The new `newInstall` field settles the rest: a slow `reranker.load` with `newInstall: false` is a
-  defect.
-- **Loading the Core ML embedder after launch** (so a first question does not load it) is the owner's call: it reverses
-  the deliberate on-first-use design in `CoreMLSentenceEmbeddingProvider` (43 MiB, August launch hangs).
-- Compute profiles' retrieval side is unmeasured (QASPER 246, tables 158 per profile, the fusion ablation).
-- Retrieval findings from 2026-11-10, not fixed: Standard rewrites queries though `usesQueryRewriting` is false for it;
-  HyDE, contextual compression, extractive summarization and the entity index have no live call.
-- Device checks not done (the `device-pass` skill). Notion rows not filed for Maximum, the hazard-ratio fix, the Deep
-  Think cut-off, the 2026-11-11 fixes, or the citation finding.
+- Found in passing, not fixed: `ingestDocuments`' success count leaves out PDFs over 10 MB that are still importing.
+  Checked 2026-11-12 [code_verified; the benchmark's 5 of 7 is the reproduction]: the streamed PDF and text imports
+  remove their queue item 2 s after Complete, so a large file that finished before the rest of its batch drops out of
+  the count. Effect: Chat's "Added N documents" toast is one short; the files import and the question still waits for
+  them. Not a 5.8 defect (fails all three tests); filed Future Backlog:
+  https://app.notion.com/p/41749a74d54f8195b436f019ac03aede (row "Import count leaves out a large PDF that finished before the rest of its batch").
+- About 66 hard-coded character cuts or budgets in the answer path (22 files under Services/Agentic, RAG/Orchestration,
+  LLM); offered to the owner as one inventory after 5.8.
+- Carried: reranker slow loads to classify with `newInstall`; the Core ML embedder preload is his call.
 
 ## Exact Next Action
 
-Show the owner the 2026-11-12 answer scores (Standard 0.45, Deep Think 0.40, Maximum 0.50, Standard with the test's
-model 0.50, `BenchmarkRuns/LEDGER.md` last entry) and ask whether 5.8 waits on the citation finding or ships with it in
-Future Backlog; then file the Notion rows listed under Blockers (`notion-roadmap` skill).
+Build the committed tree to the owner's iPhone (device build from a copy outside `~/Documents`, `MARKETING_VERSION` 5.8,
+`-derivedDataPath` outside `~/Documents`; ids in auto memory `building-to-gunnars-iphone.md`), then a macOS build.
+Then, at his word, the Xcode Cloud build and submission (tick "Reset rating", `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15).

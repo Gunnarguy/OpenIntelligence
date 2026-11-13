@@ -1301,3 +1301,28 @@ median of about 63 s a question (1 to 98 s). 8 of the 20 answers open with "Need
 gates did not all pass). So on this set Maximum ties Standard with the test's own model (0.50), is one case above
 Standard on the app's path (0.45) and two above Deep Think (0.40), at about 3 times Standard's time. The first graded
 Maximum run there has been.
+
+### 2026-11-12 Deep Think reads its cited passages; Standard citations added (`2026-11-12-deepthink-source-passages`)
+
+`EvidenceReachBenchmarkTests` on the patched Simulator copy (`scripts/sim_model_copy.py`, iOS 27.0, window held at
+4,096), uncommitted tree on 1e86b30c, slice 0 of 3 of the 158 table questions (53), each question asked in one process
+twice: "before" with `RetrievalAblation.chainSourcePassages` and `.citationAttribution` off, "after" with both on.
+Scored by `python3 scripts/evidence_reach.py answers` (right means the answer holds the cell's value). One case is
+1.9%. The decision rule was set before the run: a change ships only if "after" is no worse than "before".
+
+| Mode | Before | After | Per question | Other |
+|---|---|---|---|---|
+| Deep Think, right | 37/53 | 42/53 | 7 better, 2 worse, p=0.18 | median 80 s to 65 s; answers with no `[S#]` 5 to 1; errors 0 and 0 |
+| Standard, right | 44/53 | 45/53 | 2 better, 1 worse, p=1.00 | with a citation 51 to 49; same words 0/53 |
+
+**What it settled.** Both changes pass the rule and ship in 5.8. The Deep Think final step read 3 to 8 passages in a
+prompt of about 2,100 of 4,096 tokens on 52 answers. The citation change ran on 10 streamed answers and labelled 6;
+each added label names a passage holding the sentence's value (checked by hand against the saved sources), 2 of the 6
+on the sentence beside the value's. The model's own citing varied more than the change did: before, 2 Standard answers
+reached the missing-citation path's end without a label; after, 4 did, 3 of them citing as "(S1)", "ROW 3, S1" or
+"[2]", which the app does not read (not handled; Future Backlog candidate).
+
+**Not settled.** Slices 1 and 2 (the other 105 questions); a device run; 8,192 on the Mac; the result JSON keeps
+Standard's sources but not its context text (`standardContext` is empty), so label checks used `standardSources`.
+The first attempt (stopped 25 minutes in, measuring the citation code before its review fixes) is in `aborted-1405/`;
+a 2-question smoke run in `smoke/`.

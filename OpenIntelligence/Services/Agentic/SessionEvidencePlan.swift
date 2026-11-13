@@ -159,3 +159,138 @@ nonisolated enum SessionEvidenceTokenCounter {
         #endif
     }
 }
+
+/// What Deep Think's final step reads (5.8): the passages its reading passes cited, in their own words, beside the
+/// passes' notes, sized in tokens against the live window.
+///
+/// Through 5.8's first builds the final step read the notes alone: free-text paraphrases each pass wrote, joined in
+/// order until 3,000 characters and cut there, with no passage text and no log line for what was cut
+/// (`executeReasoningChain`, "Deep Think synthesis"). 3,000 characters assumed 1.4 characters a token; prose measures
+/// about 4.4, so that was about 700 tokens of a 4,096 window, the same on an 8,192 one, and the later passes, which look
+/// for what the first ones missed, were the ones cut. A number reached the answer only as a pass had restated it.
+///
+/// The model is not asked to quote: a small model paraphrases even when told not to. The passes already cite each fact
+/// with the `[S#]` label of the passage it came from, and those labels are global positions among the routed chunks, so
+/// the code reads which passages were cited and puts their text in front of the final step.
+nonisolated enum ChainSynthesisEvidence {
+    /// The final step's response limit (`maxTokens` at both synthesis calls).
+    static let outputReserveTokens = 1_500
+    /// The prompt's fixed wording, the question twice and the system prompt, before they are counted exactly.
+    static let promptReserveTokens = 450
+    /// The most of the evidence budget the notes may take; the passages get the rest first.
+    static let notesShareOfBudget = 0.35
+    /// Passages counted for the choice, in rank order: every passage a chain can read (eight sessions of seven).
+    static let maxCandidates = SessionEvidencePlan.maxPlannedChunks
+
+    /// Tokens the passages and the notes may take together: the window less the answer, the prompt and the safety
+    /// margin, and never more than a session reads (`SessionEvidencePlan.readingCeilingTokens`). The ceiling binds only
+    /// on the 8,192 window (about 5,990 would be free there): more evidence in one prompt made the model miss passages
+    /// in the 2026-10-07 probe, and a larger final prompt has not been measured.
+    static func evidenceTokenBudget(contextSize: Int) -> Int {
+        let free = contextSize - outputReserveTokens - promptReserveTokens - SessionEvidencePlan.safetyReserveTokens
+        return max(0, min(SessionEvidencePlan.readingCeilingTokens, free))
+    }
+
+    /// The `[S#]` labels a text cites, one-based, in order of first appearance. Reads "[S3]", "[S3, S5]" and
+    /// "[S3][S5]".
+    static func citedLabels(in text: String) -> [Int] {
+        var seen = Set<Int>()
+        var labels: [Int] = []
+        let groups = text.matches(of: /\[(S\d+(?:\s*,\s*S?\d+)*)\]/)
+        for group in groups {
+            for part in group.output.1.split(separator: ",") {
+                let digits = part.trimmingCharacters(in: .whitespaces).drop { $0 == "S" }
+                if let label = Int(digits), label > 0, seen.insert(label).inserted { labels.append(label) }
+            }
+        }
+        return labels
+    }
+
+    /// Zero-based positions among the routed chunks, best first: those the notes cite, most-cited first (ties: the
+    /// earlier first citation, then the earlier position), then every other passage a pass read, in retrieval order.
+    /// Only positions a pass read count; a label naming anything else is ignored.
+    static func rankedPositions(notes: [String], readPositions: [Int]) -> [Int] {
+        let read = Set(readPositions)
+        var citations: [Int: Int] = [:]
+        var firstCited: [Int: Int] = [:]
+        var order = 0
+        for note in notes {
+            for label in citedLabels(in: note) {
+                let position = label - 1
+                guard read.contains(position) else { continue }
+                citations[position, default: 0] += 1
+                if firstCited[position] == nil {
+                    firstCited[position] = order
+                    order += 1
+                }
+            }
+        }
+        let cited = citations.keys.sorted {
+            let (a, b) = (citations[$0]!, citations[$1]!)
+            if a != b { return a > b }
+            if firstCited[$0]! != firstCited[$1]! { return firstCited[$0]! < firstCited[$1]! }
+            return $0 < $1
+        }
+        var seen = Set(cited)
+        var ranked = cited
+        for position in readPositions.sorted() where seen.insert(position).inserted { ranked.append(position) }
+        return ranked
+    }
+
+    /// Passages taken in rank order while they fit `budget`; one that does not fit is skipped and the next tried, so a
+    /// long passage cannot shut out shorter ones behind it. `counts[i]` is the token count of `ranked[i]`'s block.
+    static func choose(ranked: [Int], counts: [Int], budget: Int) -> [Int] {
+        var total = 0
+        var chosen: [Int] = []
+        for (position, count) in zip(ranked, counts) {
+            let next = count + SessionEvidencePlan.joinOverheadTokens
+            guard total + next <= budget else { continue }
+            total += next
+            chosen.append(position)
+        }
+        return chosen
+    }
+
+    /// The notes fitted to `limit` characters without dropping a later note: sentences an earlier note already holds
+    /// are removed first, and if that is not enough every note is cut at a sentence boundary to an equal share. Notes
+    /// under 20 characters and "no new information" notes are left out, as before.
+    static func fittedNotes(_ notes: [String], limit: Int) -> [String] {
+        let kept = notes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 20 && !$0.lowercased().contains("no new information") }
+        var seen = Set<String>()
+        let deduplicated = kept.map { note -> String in
+            sentences(of: note).filter { sentence in
+                let key = sentence.lowercased().filter { $0.isLetter || $0.isNumber }
+                return key.count < 12 || seen.insert(key).inserted
+            }.joined(separator: " ")
+        }.filter { $0.count >= 20 }
+        guard deduplicated.reduce(0, { $0 + $1.count }) > limit, !deduplicated.isEmpty else { return deduplicated }
+        let share = max(80, limit / deduplicated.count)
+        return deduplicated.map { cut($0, at: share) }
+    }
+
+    /// The text cut at the last sentence end within `limit` characters, or at the limit when no sentence ends there. A
+    /// sentence ends at ".", "!" or "?" followed by a space, so "12.5" is never cut to "12.".
+    static func cut(_ text: String, at limit: Int) -> String {
+        guard text.count > limit else { return text }
+        let characters = Array(text)
+        var end: Int?
+        for index in stride(from: min(limit, characters.count - 1) - 1, through: limit / 3, by: -1)
+        where ".!?".contains(characters[index]) && characters[index + 1].isWhitespace {
+            end = index
+            break
+        }
+        return end.map { String(characters[...$0]) } ?? String(characters.prefix(limit))
+    }
+
+    private static func sentences(of text: String) -> [String] {
+        var result: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, _ in
+            if let sentence {
+                let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { result.append(trimmed) }
+            }
+        }
+        return result.isEmpty ? [text] : result
+    }
+}

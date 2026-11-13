@@ -126,7 +126,8 @@ extension AgenticOrchestrator {
             // continuation check took it for a cut-off sentence and asked for up to two more turns, 1.4 to 1.7 s each on
             // the owner's iPhone (2026-11-04). The parser below reads every number in the text, so a continuation could only
             // add numbers the model offered after its answer was complete. Without it the selection is the model's answer.
-            response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 256, skipContinuation: true)
+            response = try await ragService.generateWithFreshSession(
+                prompt: prompt, maxTokens: 256, skipContinuation: true)
         } catch {
             Log.warning(
                 "[ReasoningChain] Title routing generation failed (\(type(of: error))): "
@@ -212,6 +213,9 @@ extension AgenticOrchestrator {
         var lowNoveltyStreak = 0
         var saturationStreak = 0
         var usedWindowSources: Set<String> = []
+        // The windows whose session wrote a note, for the final step's source passages (5.8). `actualSessionCount` is
+        // set before a session's early-stop check and counts skipped windows, so it overstates what was read.
+        var readWindowIndices: [Int] = []
 
         Log.info(
             "[ReasoningChain] Starting \(reasoningPolicy.isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(reasoningPolicy.shouldReportConfidence), threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)",
@@ -389,8 +393,11 @@ extension AgenticOrchestrator {
                     category: .retrieval)
                 VerificationJournal.record(
                     "deepthink.session",
-                    ["session": "\(sessionContexts.count + 1)", "path": "sentences", "chunks": "\(windowChunks.count)",
-                        "tokens": "0", "window": "\(evidenceWindowTokens)", "chars": "\(ctx.count)"])
+                    [
+                        "session": "\(sessionContexts.count + 1)", "path": "sentences",
+                        "chunks": "\(windowChunks.count)",
+                        "tokens": "0", "window": "\(evidenceWindowTokens)", "chars": "\(ctx.count)",
+                    ])
             }
 
             if let wholeWindowTokens {
@@ -403,9 +410,12 @@ extension AgenticOrchestrator {
                 // The session's token plan (5.8 journal): the Log.debug line above reaches the trace only at verbose.
                 VerificationJournal.record(
                     "deepthink.session",
-                    ["session": "\(sessionContexts.count + 1)", "path": "wholeChunks", "chunks": "\(windowChunks.count)",
+                    [
+                        "session": "\(sessionContexts.count + 1)", "path": "wholeChunks",
+                        "chunks": "\(windowChunks.count)",
                         "tokens": "\(wholeWindowTokens)", "budget": "\(evidenceTokenBudget)",
-                        "window": "\(evidenceWindowTokens)", "chars": "\(ctx.count)"])
+                        "window": "\(evidenceWindowTokens)", "chars": "\(ctx.count)",
+                    ])
             }
 
             sessionContexts.append(ctx)
@@ -486,7 +496,9 @@ extension AgenticOrchestrator {
             // A one second gap between sessions while the system asks apps to scale back (iOS 27).
             // The session count is not cut: the answer stays as deep, and takes longer.
             if sessionIndex > 0, await SystemResourceAdvice.easeOff(for: .seconds(1)) {
-                Log.debug("[ReasoningChain] Eased off before session \(sessionNum): the system asked for less", category: .llm)
+                Log.debug(
+                    "[ReasoningChain] Eased off before session \(sessionNum): the system asked for less", category: .llm
+                )
             }
 
             if Task.isCancelled { break }
@@ -676,11 +688,13 @@ extension AgenticOrchestrator {
                     let retriesLeft = retryCount < maxRetries
                     VerificationJournal.record(
                         "model.failure",
-                        ["kind": "\(failureKind)", "mode": "agentic",
+                        [
+                            "kind": "\(failureKind)", "mode": "agentic",
                             "action": isContextOverflow && retriesLeft
                                 ? "shrinkPrompt"
                                 : (failureKind == .transient || failureKind == .rateLimited) && retriesLeft
-                                    ? "retrySamePrompt" : "endSession"])
+                                    ? "retrySamePrompt" : "endSession",
+                        ])
 
                     if isContextOverflow && retryCount < maxRetries {
                         Log.warning(
@@ -1041,6 +1055,7 @@ extension AgenticOrchestrator {
                             // DON'T touch cumulativeConfidence — keep it at whatever it actually is
                             // The loop will exit because we'll set a flag below
                             chainInsights.append(insight)  // Save last insight before breaking
+                            readWindowIndices.append(contextIndex)
                             break  // Exit the session loop immediately
                         } else {
                             Log.info(
@@ -1076,6 +1091,7 @@ extension AgenticOrchestrator {
 
             // Append insight AFTER confidence check (so we compare with previous insights)
             chainInsights.append(insight)
+            readWindowIndices.append(contextIndex)
 
             // Emit thinking step
             // Session 0 was labelled `.searching` and therefore displayed as
@@ -1177,7 +1193,9 @@ extension AgenticOrchestrator {
                 Log.info(
                     "[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (4096 total limit)",
                     category: .llm)
-                let synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                let synthesisResponse = try await LLMStreamingContext.$handler.withValue(
+                    LLMStreamingContext.answerHandler
+                ) {
                     try await ragService.generateWithProperConsent(
                         prompt: exhaustivePrompt,
                         context: "",
@@ -1242,11 +1260,28 @@ extension AgenticOrchestrator {
                     .map { "[\($0.offset + 1)] \($0.element)" }
                     .joined(separator: "\n")
 
+                let synthesisSystemPrompt =
+                    "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
+
+                // The passages the passes cited, in their own words, beside the notes (5.8, `ChainSynthesisEvidence`).
+                // Not when the picker sends sessions to Private Cloud Compute (`sessionsMayLeaveDevice`): this plan is
+                // sized for the on-device window and the cloud step builds its own evidence. Nil keeps the notes-only
+                // prompt below.
+                let readPositions = readWindowIndices.filter { sessionWindowRanges.indices.contains($0) }
+                    .flatMap { Array(sessionWindowRanges[$0]) }
+                let sourcePrompt: String? =
+                    sessionsMayLeaveDevice || RetrievalAblation.isOff(.chainSourcePassages)
+                    ? nil
+                    : await sourcePassagesSynthesisPrompt(
+                        query: query, notes: chainInsights, routedChunks: routedChunks,
+                        readPositions: readPositions, contextSize: evidenceWindowTokens,
+                        systemPrompt: synthesisSystemPrompt)
+
                 // The findings carry the sessions' own labels ([S5], [S13]); the synthesis sees no passages. The prompt
                 // ended "Cite as [S1], [S2].", and the model copied the example: on the owner's iPhone (2026-10-21) a
                 // two-document comparison's write-up scored citations 0/5 in Self-RAG, because its labels pointed at
                 // passages that did not hold the claims (5.7).
-                let synthesisPrompt = """
+                let notesOnlyPrompt = """
                     QUESTION: \(query)
 
                     ALL FINDINGS:
@@ -1260,49 +1295,73 @@ extension AgenticOrchestrator {
                     The findings already carry source labels such as [S5] or [S13]. Keep each label with the sentence it supports, written exactly as it appears in the findings. Never invent a label, renumber one, or move a label to a sentence it did not support.
                     """
 
-                let synthesisSystemPrompt =
-                    "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
-
-                await ragService.waitBeforeModelCallWhileInBackground("synthesis")
-                do {
-                    var synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                // One synthesis with the response's cut-off check: a synthesis the model stopped partway is not an
+                // answer (5.8). Wait for the app to be in front (iOS cut it off in the background on the owner's iPhone
+                // on 2026-11-10) and write it again once; cut off twice, the combined findings below stand in, never
+                // the cut-off text.
+                func synthesize(_ prompt: String) async throws -> LLMResponse {
+                    var response = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
                         try await ragService.generateWithProperConsent(
-                            prompt: synthesisPrompt,
+                            prompt: prompt,
                             context: "",
                             systemPrompt: synthesisSystemPrompt,
-                            maxTokens: 1500,
+                            maxTokens: ChainSynthesisEvidence.outputReserveTokens,
                             disableTools: true,
                             qualityMode: .deepThink,
                             sourceChunks: chunks
                         )
                     }
-                    // A synthesis the model stopped partway is not an answer (5.8). Wait for the app to be in front
-                    // (iOS cut it off in the background on the owner's iPhone on 2026-11-10) and write it again once;
-                    // cut off twice, the combined findings below stand in, never the cut-off text.
-                    if synthesisResponse.streamCutOff {
+                    if response.streamCutOff {
                         Log.warning(
-                            "[ReasoningChain] Deep Think synthesis cut off after \(synthesisResponse.tokensGenerated) tokens; writing it again",
+                            "[ReasoningChain] Deep Think synthesis cut off after \(response.tokensGenerated) tokens; writing it again",
                             category: .llm)
+                        let cutTokens = response.tokensGenerated
                         await MainActor.run {
                             VerificationJournal.record(
-                                "deepthink.synthesisCutOff", .failed,
-                                ["tokens": "\(synthesisResponse.tokensGenerated)", "attempt": "1"])
+                                "deepthink.synthesisCutOff", .failed, ["tokens": "\(cutTokens)", "attempt": "1"])
                         }
                         await ragService.waitBeforeModelCallWhileInBackground("synthesis again", onDevice: true)
-                        synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                        response = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
                             try await ragService.generateWithProperConsent(
-                                prompt: synthesisPrompt,
+                                prompt: prompt,
                                 context: "",
                                 systemPrompt: synthesisSystemPrompt,
-                                maxTokens: 1500,
+                                maxTokens: ChainSynthesisEvidence.outputReserveTokens,
                                 disableTools: true,
                                 qualityMode: .deepThink,
                                 sourceChunks: chunks
                             )
                         }
-                        if synthesisResponse.streamCutOff {
+                        if response.streamCutOff {
                             throw SynthesisCutOff()
                         }
+                    }
+                    return response
+                }
+
+                await ragService.waitBeforeModelCallWhileInBackground("synthesis")
+                do {
+                    let synthesisResponse: LLMResponse
+                    if let sourcePrompt {
+                        do {
+                            synthesisResponse = try await synthesize(sourcePrompt)
+                        } catch let error where !(error is CancellationError) && !(error is SynthesisCutOff) {
+                            // A prompt sized by exact counts should fit; if the model refuses it anyway (an overflow
+                            // the count missed, a guardrail on a passage), the notes-only prompt is tried once before
+                            // the combined findings stand in.
+                            Log.warning(
+                                "[ReasoningChain] Deep Think synthesis from source passages failed (\(error)); writing it from the notes",
+                                category: .llm)
+                            let reason = String(describing: type(of: error))
+                            await MainActor.run {
+                                VerificationJournal.record(
+                                    "deepthink.synthesisEvidence", .failed,
+                                    ["path": "notesAfterFailure", "error": reason])
+                            }
+                            synthesisResponse = try await synthesize(notesOnlyPrompt)
+                        }
+                    } else {
+                        synthesisResponse = try await synthesize(notesOnlyPrompt)
                     }
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
@@ -1346,6 +1405,108 @@ extension AgenticOrchestrator {
             unansweredQuestions: evidenceTracker.unansweredQuestions,
             routedChunks: routedChunks
         )
+    }
+
+    /// Deep Think's final prompt with the passages its passes cited, in their own words, beside the passes' notes,
+    /// counted exactly against `contextSize` (`ChainSynthesisEvidence`, 5.8). Nil when the SDK cannot count, nothing
+    /// fits, or the finished prompt would not fit: the caller then writes from the notes alone, as before.
+    private func sourcePassagesSynthesisPrompt(
+        query: String,
+        notes: [String],
+        routedChunks: [RetrievedChunk],
+        readPositions: [Int],
+        contextSize: Int,
+        systemPrompt: String
+    ) async -> String? {
+        // Every way of declining is journaled: a path that silently never runs reads healthy everywhere else.
+        func decline(_ reason: String) async -> String? {
+            Log.info("[ReasoningChain] Deep Think synthesis from the notes alone: \(reason)", category: .llm)
+            await MainActor.run {
+                VerificationJournal.record(
+                    "deepthink.synthesisEvidence", .failed,
+                    ["path": "notesOnly", "reason": reason, "window": "\(contextSize)", "notes": "\(notes.count)"])
+            }
+            return nil
+        }
+        let budget = ChainSynthesisEvidence.evidenceTokenBudget(contextSize: contextSize)
+        let ranked = ChainSynthesisEvidence.rankedPositions(notes: notes, readPositions: readPositions)
+            .filter { $0 < routedChunks.count }
+            .prefix(ChainSynthesisEvidence.maxCandidates)
+        guard budget > 0 else { return await decline("noBudget") }
+        guard !ranked.isEmpty else { return await decline("noPassagesRead") }
+        let ranks = Array(ranked)
+        let blocks = ranks.map { SessionEvidencePlan.block(for: routedChunks[$0], label: $0 + 1) }
+        func numbered(_ items: [String]) -> String {
+            items.enumerated().map { "[\($0.offset + 1)] \($0.element)" }.joined(separator: "\n")
+        }
+
+        let allNotes = ChainSynthesisEvidence.fittedNotes(notes, limit: Int.max)
+        guard let counts = await SessionEvidenceTokenCounter.counts(for: blocks + [numbered(allNotes)]),
+            let fullNotesTokens = counts.last
+        else { return await decline("noTokenCount") }
+        let blockCounts = Array(counts.dropLast())
+
+        // The notes take what they need up to their share; past it they are fitted, never cut from the end.
+        let notesCap = Int(Double(budget) * ChainSynthesisEvidence.notesShareOfBudget)
+        var notesBlock = numbered(allNotes)
+        var notesTokens = fullNotesTokens
+        if fullNotesTokens > notesCap {
+            let charsPerToken = Double(notesBlock.count) / Double(max(1, fullNotesTokens))
+            var limit = Int(Double(notesCap) * charsPerToken)
+            for _ in 0..<3 {
+                let fitted = numbered(ChainSynthesisEvidence.fittedNotes(notes, limit: limit))
+                guard let count = await SessionEvidenceTokenCounter.counts(for: [fitted])?.first else {
+                    return await decline("noTokenCount")
+                }
+                notesBlock = fitted
+                notesTokens = count
+                if count <= notesCap { break }
+                limit = Int(Double(limit) * 0.85)
+            }
+            guard notesTokens <= notesCap else { return await decline("notesTooLong") }
+        }
+
+        let chosen = ChainSynthesisEvidence.choose(ranked: ranks, counts: blockCounts, budget: budget - notesTokens)
+        guard !chosen.isEmpty else { return await decline("noPassageFits") }
+        // Best first: the passage the passes cited most leads (5.8, "Deep Think leads with its best passage").
+        let passages = chosen.compactMap { position in ranks.firstIndex(of: position).map { blocks[$0] } }.joined()
+        let cited = Set(notes.flatMap(ChainSynthesisEvidence.citedLabels(in:)).map { $0 - 1 })
+
+        let prompt = """
+            QUESTION: \(query)
+
+            SOURCE PASSAGES (the documents' own words):
+            \(passages)
+            NOTES FROM EACH READING PASS (written by the model while reading; they can be wrong):
+            \(notesBlock)
+
+            Write a comprehensive, detailed answer to: "\(query)"
+            Take every number, name, date and value from the SOURCE PASSAGES, written exactly as it appears there. Use the notes to see what each pass found and where; when a note and a passage differ, the passage is right.
+            If the passages do not answer part of the question, say so for that part instead of guessing.
+            Write in flowing prose with complete sentences and full paragraphs. Use ### section headers to organize topics. Use **bold** sparingly for key terms only. Use bullets only for actual sequential steps or specification lists.
+            Cite each fact with the [S#] label of the passage it came from, written exactly as it is labeled above. Never invent a label or move one to a sentence it does not support.
+            """
+
+        // The finished prompt, counted exactly; the reserves above were estimates.
+        guard let finalCounts = await SessionEvidenceTokenCounter.counts(for: [prompt, systemPrompt]) else {
+            return await decline("noTokenCount")
+        }
+        let promptTokens = finalCounts.reduce(0, +)
+        let fits =
+            promptTokens + ChainSynthesisEvidence.outputReserveTokens + SessionEvidencePlan.safetyReserveTokens
+            <= contextSize
+        let fields: [String: String] = [
+            "path": fits ? "sourcePassages" : "notesOnlyTooLong", "passages": "\(chosen.count)",
+            "citedPassages": "\(chosen.filter { cited.contains($0) }.count)", "candidates": "\(ranks.count)",
+            "notes": "\(notes.count)", "notesTokens": "\(notesTokens)", "promptTokens": "\(promptTokens)",
+            "window": "\(contextSize)",
+        ]
+        Log.info(
+            "[ReasoningChain] Deep Think synthesis evidence: \(chosen.count) passages (\(fields["citedPassages"] ?? "0") cited), "
+                + "notes \(notesTokens) tokens, prompt \(promptTokens) of \(contextSize)\(fits ? "" : ", too long; notes only")",
+            category: .llm)
+        await MainActor.run { VerificationJournal.record("deepthink.synthesisEvidence", fits ? .ok : .failed, fields) }
+        return fits ? prompt : nil
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

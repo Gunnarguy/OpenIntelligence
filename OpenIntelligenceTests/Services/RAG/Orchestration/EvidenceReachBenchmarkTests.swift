@@ -132,7 +132,9 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             libraries.setActive(library.id)
             forcePro()
             let result = await engine.ingestDocuments(fixtures, containerId: library.id)
-            XCTAssertEqual(result.successCount, fixtures.count, "every fixture imports")
+            // A PDF over 10 MB takes the streamed large-file import and is not counted here when the call returns
+            // (2026-11-12: 5 of 7, the two large ones finished later); the library is checked once imports settle.
+            print("[EvidenceReach] imported \(result.successCount) of \(fixtures.count) when the call returned")
             settings.enableDocumentSummaries = savedSummaries
         }
         for _ in 0..<1800 {
@@ -150,6 +152,8 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
         }
         let stored = try await db.readableChunks().count
         XCTAssertGreaterThan(stored, 0, "the benchmark library holds no passages")
+        XCTAssertEqual(
+            Set(documents(in: library.id).map(\.filename)), fixtureNames, "every fixture is in the library once imports settle")
         // The keyword index is rebuilt at launch in a task of its own; wait until it holds still.
         var keywordRows: [Int] = []
         for _ in 0..<300 {
@@ -177,7 +181,8 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
         libraries.setActive(library.id)
 
         // `TEST_RUNNER_OI_EVIDENCE_CONFIGS`: configurations measured in this one process, each "name:paths:rules" with
-        // paths "s" (Standard), "d" (Deep Think) or "sd", and rules a "+"-joined list of `RetrievalAblation` names
+        // paths "s" (Standard), "d" (Deep Think's retrieval), "a" (a Deep Think answer, whole: the chain, its synthesis,
+        // research and self-check; with the real model only, 2026-11-12) or any mix, and rules a "+"-joined list of `RetrievalAblation` names
         // ("baseline:sd:" is everything on). One import serves them all; each question is asked in every configuration
         // before the next. `TEST_RUNNER_OI_EVIDENCE_SLICE=i/n` takes every n-th question from the i-th, so n simulators
         // can share a run. Without the variable, one configuration: the process's own switches, both paths.
@@ -185,6 +190,7 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             let name: String
             let standard: Bool
             let deep: Bool
+            let deepAnswer: Bool
             let off: Set<RetrievalAblation.Rule>
         }
         let configs: [Config] = (environment["OI_EVIDENCE_CONFIGS"] ?? "").split(separator: ",").compactMap { item in
@@ -192,9 +198,10 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             guard parts.count == 3 else { return nil }
             return Config(
                 name: parts[0], standard: parts[1].contains("s"), deep: parts[1].contains("d"),
+                deepAnswer: realModel && parts[1].contains("a"),
                 off: RetrievalAblation.parse(parts[2].replacingOccurrences(of: "+", with: ",")))
         }
-        let runs = configs.isEmpty ? [Config(name: label, standard: true, deep: true, off: RetrievalAblation.off)] : configs
+        let runs = configs.isEmpty ? [Config(name: label, standard: true, deep: true, deepAnswer: false, off: RetrievalAblation.off)] : configs
         let slice = (environment["OI_EVIDENCE_SLICE"] ?? "0/1").split(separator: "/").compactMap { Int($0) }
         let (sliceIndex, sliceCount) = slice.count == 2 && slice[1] > 0 ? (slice[0], slice[1]) : (0, 1)
         let mine = questions.enumerated().filter { $0.offset % sliceCount == sliceIndex }.map(\.element)
@@ -212,9 +219,11 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
                     _ = await SQLiteFullTextService.shared.deleteAllCachedQueries()
                     model.contexts = []
                     do {
+                        // With the real model the answer streams, as in the app's chat: a streamed answer takes other
+                        // paths (a missing citation is not asked again, `retryForMissingCitations`).
                         let (response, _) = try await engine.queryWithAudit(
                             question.query, containerId: library.id, qualityModeOverride: .standard,
-                            externalEvidence: nil, trace: nil)
+                            externalEvidence: nil, streamHandler: realModel ? { _ in } : nil, trace: nil)
                         // The answer's own call is the first; later calls (a citation retry, a repair) are handed
                         // shorter contexts. On 2026-11-09 the trial scored the last and read 745 of the 4,300
                         // characters assembled.
@@ -229,6 +238,23 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
                         if !ConversationMemoryService.shared.memory(for: library.id).recentTurns.isEmpty { break }
                         try? await Task.sleep(nanoseconds: 100_000_000)
                     }
+                }
+                if config.deepAnswer {
+                    engine.clearChatHistory(for: library.id)
+                    ConversationMemoryService.shared.clearMemory(for: library.id)
+                    _ = await SQLiteFullTextService.shared.deleteAllCachedQueries()
+                    forcePro()
+                    let asked = Date()
+                    do {
+                        let (response, _) = try await engine.queryWithAudit(
+                            question.query, containerId: library.id, qualityModeOverride: .deepThink,
+                            externalEvidence: nil, trace: nil)
+                        entry["deepAnswer"] = response.generatedResponse
+                        entry["deepAnswerSources"] = response.retrievedChunks.map(\.chunk.content)
+                    } catch {
+                        entry["deepAnswerError"] = String(describing: error)
+                    }
+                    entry["deepAnswerSeconds"] = Int(Date().timeIntervalSince(asked))
                 }
                 if config.deep {
                     let deep = try await engine.executeFullRetrievalPipeline(
@@ -250,7 +276,7 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             try GoldenRecording.write(
                 [
                     "label": config.name, "passages": stored, "seconds": Date().timeIntervalSince(started),
-                    "slice": "\(sliceIndex)/\(sliceCount)", "paths": (config.standard ? "s" : "") + (config.deep ? "d" : ""),
+                    "slice": "\(sliceIndex)/\(sliceCount)", "paths": (config.standard ? "s" : "") + (config.deep ? "d" : "") + (config.deepAnswer ? "a" : ""),
                     "rerankCacheHits": RerankScoreCache.shared.hits, "rerankCacheMisses": RerankScoreCache.shared.misses,
                     "ablated": config.off.map(\.rawValue).sorted(), "results": results[config.name] ?? [],
                 ],

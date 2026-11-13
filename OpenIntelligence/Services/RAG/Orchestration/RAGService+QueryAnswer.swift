@@ -81,6 +81,21 @@ extension RAGService {
                     "Missing citations; preserving streamed response",
                     category: .llm
                 )
+                // Labels from the context the model was given, with no model call and no word changed (5.8,
+                // `CitationAttribution`). Development builds can switch it off for a paired run.
+                if !RetrievalAblation.isOff(.citationAttribution) {
+                    let attributed = CitationAttribution.attach(to: responseText, context: generationContext)
+                    if attributed.attached > 0 { responseText = attributed.text }
+                    Log.info(
+                        "[RAG] Missing citations: attached \(attributed.attached) label(s) to \(attributed.sentences) sentence(s) from the context",
+                        category: .llm)
+                    VerificationJournal.record(
+                        "answer.citationsAttached", attributed.attached > 0 ? .ok : .failed,
+                        [
+                            "sentences": "\(attributed.sentences)", "attached": "\(attributed.attached)",
+                            "streamed": "\(preserveStreamingResponse)",
+                        ])
+                }
             } else {
                 let retryPrompt =
                     question
@@ -1017,4 +1032,168 @@ extension RAGService {
         return response
     }
 
+}
+
+/// `[S#]` labels for a streamed answer that came back with none (5.8).
+///
+/// On the owner's iPhone 8 of 28 Standard answers from 2026-11-07 to 11-12 had no inline citation
+/// ("Missing citations; preserving streamed response"): a streamed answer cannot be asked again without replacing
+/// text the person has already read, so `retryForMissingCitations` kept it as it was. This adds labels without a
+/// model call and without changing a word: each sentence gets the label of the passage in the model's own context
+/// that holds every number in it (read as values by `NumericValueExtractor`, the numeric gate's matcher) and a share
+/// of its words, and a sentence no passage clearly supports gets none. Passage headers (file names, pages, similarity)
+/// and the context's closing "Cite only sources" line are not passage text. Sentences that deny something, table
+/// rows and code are left bare. The labels are read from the context the model was given, so they resolve as a label
+/// the model wrote would.
+nonisolated enum CitationAttribution {
+    /// A sentence with numbers needs them all in one passage and this share of its words there.
+    static let overlapWithNumbers = 0.3
+    /// A sentence without numbers needs this share of its words in one passage, and at least `minimumSharedWords`.
+    static let overlapWithoutNumbers = 0.6
+    static let minimumSharedWords = 3
+
+    struct Result: Equatable, Sendable {
+        let text: String
+        let sentences: Int
+        let attached: Int
+    }
+
+    /// The context's passages by label, header lines left out. A label counts only the first time it starts a line
+    /// and, when the context names its range ("Cite only sources S1 to S5."), only inside it: a reference list in a
+    /// paper that starts lines "[S1] Smith 2020" stays text of the passage it is in.
+    static func passages(in context: String) -> [Int: String] {
+        let bound = context.firstMatch(of: /Cite only sources S1 to S(\d+)/).flatMap { Int($0.output.1) }
+        var starts: [(label: Int, range: Range<String.Index>)] = []
+        var seen = Set<Int>()
+        for match in context.matches(of: /(?m)^\[S(\d+)\]/) {
+            guard let label = Int(match.output.1), label > 0, bound.map({ label <= $0 }) ?? true,
+                seen.insert(label).inserted
+            else { continue }
+            starts.append((label, match.range))
+        }
+        var result: [Int: String] = [:]
+        for (index, start) in starts.enumerated() {
+            let end = index + 1 < starts.count ? starts[index + 1].range.lowerBound : context.endIndex
+            result[start.label] = body(of: String(context[start.range.upperBound..<end]))
+        }
+        return result
+    }
+
+    /// A passage's text without its header: the full form's "source p.4 • sim 0.734" line, a section tag
+    /// "[Results]", a "(file.pdf)" prefix, a "source.pdf p.4" line, and the closing "Cite only sources" line.
+    static func body(of block: String) -> String {
+        var lines = block.components(separatedBy: "\n")
+        lines.removeAll { $0.trimmingCharacters(in: .whitespaces).hasPrefix("Cite only sources") }
+        guard var first = lines.first else { return "" }
+        if first.contains(" • sim ") {
+            lines.removeFirst()
+            return lines.joined(separator: "\n")
+        }
+        first = first.replacing(/^(\s*\[[^\]]*\])+/, with: "")
+        first = first.replacing(/^\s*\([^)]*\)\s*/, with: "")
+        if lines.count > 1, first.count < 160,
+            first.trimmingCharacters(in: .whitespaces).wholeMatch(of: /.*\.[A-Za-z0-9]{2,5}( p\.\d+)?/) != nil
+        {
+            first = ""
+        }
+        lines[0] = first
+        return lines.joined(separator: "\n")
+    }
+
+    /// The answer with a label after each sentence one passage clearly supports. An answer that already has a label
+    /// is returned unchanged.
+    static func attach(to answer: String, context: String) -> Result {
+        let sources = passages(in: context)
+        guard !sources.isEmpty, answer.firstMatch(of: /\[S\d+/) == nil else {
+            return Result(text: answer, sentences: 0, attached: 0)
+        }
+        let labels = sources.keys.sorted()
+        let sourceWords = sources.mapValues(words(in:))
+        let sourceEvidence = sources.mapValues { NumericValueExtractor.evidence(from: [$0]) }
+        let skipped = tableAndCodeRanges(in: answer)
+        var insertions: [(String.Index, Int)] = []
+        var sentences = 0
+        answer.enumerateSubstrings(in: answer.startIndex..., options: .bySentences) { sentence, range, _, _ in
+            guard let sentence, !skipped.contains(where: { $0.overlaps(range) }) else { return }
+            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), !denies(trimmed) else { return }
+            let sentenceWords = words(in: trimmed)
+            let mentions = NumericValueExtractor.mentions(inAnswer: trimmed)
+            guard sentenceWords.count >= 4 || (!mentions.isEmpty && sentenceWords.count >= 2) else { return }
+            sentences += 1
+            var best: (label: Int, overlap: Double)?
+            for label in labels {
+                guard let evidence = sourceEvidence[label],
+                    mentions.allSatisfy({ NumericValueExtractor.isSupported($0, by: evidence) })
+                else { continue }
+                let shared = sentenceWords.intersection(sourceWords[label] ?? []).count
+                let overlap = Double(shared) / Double(max(1, sentenceWords.count))
+                let enough =
+                    mentions.isEmpty
+                    ? overlap >= overlapWithoutNumbers && shared >= minimumSharedWords
+                    : overlap >= overlapWithNumbers
+                if enough, overlap > (best?.overlap ?? -1) { best = (label, overlap) }
+            }
+            if let best { insertions.append((insertionPoint(in: answer, sentence: range), best.label)) }
+        }
+        var text = answer
+        for (index, label) in insertions.sorted(by: { $0.0 > $1.0 }) {
+            text.insert(contentsOf: " [S\(label)]", at: index)
+        }
+        return Result(text: text, sentences: sentences, attached: insertions.count)
+    }
+
+    /// A sentence that says something is not so ("does not", "no", "never") is not credited to a passage that holds
+    /// its words.
+    static func denies(_ sentence: String) -> Bool {
+        let padded = " " + sentence.lowercased().replacing(/[^a-z']+/, with: " ") + " "
+        return [" not ", "n't ", " no ", " never ", " neither ", " nor ", " cannot ", " none "].contains {
+            padded.contains($0)
+        }
+    }
+
+    /// Lines of a Markdown table and of a fenced code block, where a label would break the layout.
+    static func tableAndCodeRanges(in text: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var inFence = false
+        text.enumerateSubstrings(in: text.startIndex..., options: .byLines) { line, range, _, _ in
+            let trimmed = (line ?? "").trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                ranges.append(range)
+            } else if inFence || trimmed.hasPrefix("|") {
+                ranges.append(range)
+            }
+        }
+        return ranges
+    }
+
+    /// Before the sentence's closing punctuation and any trailing space: "is 14.3 US gal [S1]." After it when the last
+    /// word holds a period of its own ("7:00 a.m."), so an abbreviation keeps its period.
+    private static func insertionPoint(in text: String, sentence range: Range<String.Index>) -> String.Index {
+        var end = range.upperBound
+        while end > range.lowerBound, text[text.index(before: end)].isWhitespace { end = text.index(before: end) }
+        let afterPunctuation = end
+        while end > range.lowerBound, ".!?:;".contains(text[text.index(before: end)]) {
+            end = text.index(before: end)
+        }
+        var wordStart = end
+        while wordStart > range.lowerBound, !text[text.index(before: wordStart)].isWhitespace {
+            wordStart = text.index(before: wordStart)
+        }
+        return text[wordStart..<end].contains(".") ? afterPunctuation : end
+    }
+
+    private static let stopwords: Set<String> = [
+        "that", "this", "with", "from", "have", "were", "which", "their", "there", "these", "those", "into", "than",
+        "then", "they", "been", "also", "such", "each", "only", "what", "when", "where", "while", "would", "could",
+        "should", "about", "under", "over", "most", "more", "some", "other", "within", "between", "document",
+        "documents", "excerpts", "provided", "according", "stated", "states", "given", "value", "values",
+    ]
+
+    static func words(in text: String) -> Set<String> {
+        Set(
+            text.lowercased().split { !$0.isLetter }.map(String.init)
+                .filter { $0.count >= 4 && !stopwords.contains($0) })
+    }
 }

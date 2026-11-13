@@ -47,6 +47,12 @@ nonisolated enum RetrievalAblation {
         /// Reciprocal rank fusion ranks each search's passages by score (5.8); off, by the order the search returned,
         /// which since 5.8 is the lost-in-the-middle order.
         case fusionScoreOrder
+        /// Deep Think's final step reads the passages its passes cited beside their notes (`ChainSynthesisEvidence`,
+        /// 5.8); off, it reads the notes alone, cut at 3,000 characters, the path before it.
+        case chainSourcePassages
+        /// A streamed Standard answer with no `[S#]` label gets labels from its context (`CitationAttribution`, 5.8);
+        /// off, it is kept without, the path before it.
+        case citationAttribution
     }
 
     /// The rules switched off for this process, read once.

@@ -19,6 +19,11 @@
       chosen sentences, and the app splits and prefixes paragraphs its own way); "coverage" is that fraction for the
       best gold paragraph, averaged, compared question by question at a 0.05 margin. Each run after the first is compared with the first, question by question, with
       a two-sided sign test.
+  answers <out dir> <baseline.json> <other.json> [...]
+      Table runs with Deep Think answers (path "a", 2026-11-12): per run, how many answers hold the question's cell,
+      how many errored, the median seconds, and, against the first run, the questions won and lost with a sign test,
+      counted only where both runs answered (an error is not a wrong answer).
+      A cell counts as in the answer by `fold` (spacing, dash forms, emphasis and citation markers ignored).
 """
 import glob, json, re, shutil, sys, unicodedata
 from math import comb
@@ -199,6 +204,57 @@ def merge(out):
         print(f"{name}: {len(parts)} slices, {len(joined['results'])} questions")
 
 
+def answers(out, paths):
+    out = Path(out)
+    gold = {}
+    for l in (out / "queries.jsonl").read_text().splitlines():
+        if l.strip():
+            q = json.loads(l)
+            if "cell" in q and fold(q["cell"]).strip():
+                gold[q["qid"]] = fold(q["cell"])
+    runs = []
+    for p in paths:
+        run = json.loads(Path(p).read_text())
+        rows = {r["qid"]: r for r in run["results"] if r["qid"] in gold and ("deepAnswer" in r or "deepAnswerError" in r)}
+        runs.append((Path(p).stem, rows))
+    common = sorted(set.intersection(*(set(rows) for _, rows in runs))) if runs else []
+    right = lambda r, q: "deepAnswer" in r and gold[q] in fold(r["deepAnswer"])
+    base_name, base = runs[0]
+    print(f"{len(common)} table questions answered in every run")
+    for name, rows in runs:
+        n_right = sum(right(rows[q], q) for q in common)
+        errors = sum("deepAnswerError" in rows[q] for q in common)
+        secs = sorted(rows[q].get("deepAnswerSeconds", 0) for q in common)
+        median = secs[len(secs) // 2] if secs else 0
+        line = f"{name:28s} right {n_right}/{len(common)}  errors {errors}  median {median} s"
+        if name != base_name:
+            # Compared only where both runs answered: a model error is not a wrong answer.
+            both = [q for q in common if "deepAnswer" in rows[q] and "deepAnswer" in base[q]]
+            won = sum(1 for q in both if right(rows[q], q) and not right(base[q], q))
+            lost = sum(1 for q in both if right(base[q], q) and not right(rows[q], q))
+            line += f"  on the {len(both)} both answered: +{won}/-{lost} p={sign_p(won, lost):.2f}"
+        print(line)
+    # Standard answers (path "s" with the real model): right, and how many carry an inline [S#] label.
+    cite = re.compile(r"\[S\d+\]")
+    std = [(name, rows) for name, rows in
+           ((Path(p).stem, {r["qid"]: r for r in json.loads(Path(p).read_text())["results"]
+                            if r["qid"] in gold and "answer" in r}) for p in paths) if rows]
+    if std:
+        shared = sorted(set.intersection(*(set(rows) for _, rows in std)))
+        print(f"{len(shared)} Standard answers in every run")
+        b_name, b_rows = std[0]
+        for name, rows in std:
+            n_right = sum(gold[q] in fold(rows[q]["answer"]) for q in shared)
+            cited = sum(bool(cite.search(rows[q]["answer"])) for q in shared)
+            line = f"{name:28s} Standard right {n_right}/{len(shared)}  with a citation {cited}/{len(shared)}"
+            if name != b_name:
+                won = sum(1 for q in shared if gold[q] in fold(rows[q]["answer"]) and gold[q] not in fold(b_rows[q]["answer"]))
+                lost = sum(1 for q in shared if gold[q] in fold(b_rows[q]["answer"]) and gold[q] not in fold(rows[q]["answer"]))
+                same = sum(1 for q in shared if cite.sub("", rows[q]["answer"]).split() == cite.sub("", b_rows[q]["answer"]).split())
+                line += f"  right +{won}/-{lost} p={sign_p(won, lost):.2f}  same words {same}/{len(shared)}"
+            print(line)
+
+
 if __name__ == "__main__":
     if len(sys.argv) >= 4 and sys.argv[1] == "prepare":
         prepare(sys.argv[2], sys.argv[3])
@@ -206,6 +262,8 @@ if __name__ == "__main__":
         prepare_tables(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:])
     elif len(sys.argv) == 3 and sys.argv[1] == "merge":
         merge(sys.argv[2])
+    elif len(sys.argv) >= 4 and sys.argv[1] == "answers":
+        answers(sys.argv[2], sys.argv[3:])
     elif len(sys.argv) >= 4 and sys.argv[1] == "score":
         score(sys.argv[2], sys.argv[3:])
     else:

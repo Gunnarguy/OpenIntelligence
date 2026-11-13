@@ -185,3 +185,69 @@ final class SessionEvidencePlanTests: XCTestCase {
             "[S5] (Lease.pdf)\n\(lease)\n\n---\n[S6] (Rules.pdf)\n\(rules)\n\n---\n")
     }
 }
+
+/// Deep Think's final step reads the passages its passes cited, not only their notes (5.8). Through 5.8's first builds
+/// it read the notes alone, joined in order and cut at 3,000 characters, so the later passes were the ones lost. These
+/// pin how cited passages are found and ranked, that passages are chosen by token count without one long passage
+/// shutting out the rest, and that fitting the notes keeps every pass.
+@MainActor
+final class ChainSynthesisEvidenceTests: XCTestCase {
+    func testReadsEveryLabelFormTheSessionsWrite() {
+        XCTAssertEqual(ChainSynthesisEvidence.citedLabels(in: "A is 4 [S3]. B is 5 [S3, S7]. C [S2][S9]."), [3, 7, 2, 9])
+        XCTAssertEqual(ChainSynthesisEvidence.citedLabels(in: "Rows [S12,S13] and [S1, 4]."), [12, 13, 1, 4])
+        XCTAssertEqual(ChainSynthesisEvidence.citedLabels(in: "No labels, [1] is a note number, [S0] is not a label."), [])
+    }
+
+    func testMostCitedPassageLeadsAndOnlyReadPassagesCount() {
+        let notes = ["Value 14 [S5]. Also [S2].", "Confirms 14 [S5]. Unit kg [S6].", "Wrong label [S40]."]
+        // Positions are zero-based: [S5] is position 4. Read windows held positions 0...7.
+        let ranked = ChainSynthesisEvidence.rankedPositions(notes: notes, readPositions: Array(0..<8))
+        XCTAssertEqual(Array(ranked.prefix(3)), [4, 1, 5], "most cited first, then by first citation")
+        XCTAssertEqual(ranked.count, 8, "every read passage is a candidate, the label of an unread one is not")
+        XCTAssertEqual(Array(ranked.suffix(5)), [0, 2, 3, 6, 7], "uncited passages follow in retrieval order")
+    }
+
+    func testNoCitationsFallsBackToRetrievalOrder() {
+        XCTAssertEqual(ChainSynthesisEvidence.rankedPositions(notes: ["plain note"], readPositions: [3, 0, 1]), [0, 1, 3])
+    }
+
+    func testALongPassageDoesNotShutOutShorterOnes() {
+        // Budget 1,000: 600 fits, 900 does not and is skipped, 300 still fits.
+        let chosen = ChainSynthesisEvidence.choose(ranked: [4, 1, 5], counts: [600, 900, 300], budget: 1_000)
+        XCTAssertEqual(chosen, [4, 5])
+    }
+
+    func testFittingKeepsEveryPassAndDropsRepeatedSentences() {
+        let notes = [
+            "The cohort had 412 patients. Follow-up was 24 months.",
+            "The cohort had 412 patients. Mortality was 8.1 percent at one year.",
+            "No new information was found in these documents.",
+            "Dropout was 3 percent in the treated arm, reported in the second table.",
+        ]
+        let all = ChainSynthesisEvidence.fittedNotes(notes, limit: Int.max)
+        XCTAssertEqual(all.count, 3, "the no-new-information note is left out, as before")
+        XCTAssertFalse(all[1].contains("412"), "a sentence an earlier note holds is not repeated")
+        XCTAssertTrue(all[1].contains("8.1 percent"))
+
+        // Notes long enough to be cut: four of about 230 characters each, fitted to 600.
+        let long = (1...4).map { pass in
+            "Pass \(pass) read the table on page \(pass). The first value is \(pass)1.5 mg. "
+                + "The second value is \(pass)2.5 mg, measured at baseline in the treated arm. "
+                + "The third value is \(pass)3.5 mg, reported after twelve weeks of follow-up in the same cohort."
+        }
+        let tight = ChainSynthesisEvidence.fittedNotes(long, limit: 600)
+        XCTAssertEqual(tight.count, 4, "a tight limit shortens every note; the last pass is not dropped")
+        XCTAssertTrue(tight[3].hasPrefix("Pass 4"), "the last pass keeps its opening")
+        XCTAssertLessThanOrEqual(tight.reduce(0) { $0 + $1.count }, 600)
+        XCTAssertTrue(tight.allSatisfy { $0.hasSuffix(".") }, "each is cut at a sentence end")
+    }
+
+    func testBudgetIsTheWindowLessTheAnswerAndPrompt() {
+        XCTAssertEqual(ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 4_096), 4_096 - 1_500 - 450 - 256)
+        XCTAssertEqual(
+            ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 8_192), SessionEvidencePlan.readingCeilingTokens,
+            "the larger window stops at what a session reads until a larger final prompt is measured")
+        // The notes-only path read about 700 tokens of notes on either window.
+        XCTAssertGreaterThan(ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 4_096), 1_800)
+    }
+}

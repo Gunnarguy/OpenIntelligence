@@ -779,6 +779,14 @@ supposed to be agentic.
   character-sized path through sentence extraction, and the chain never plans more windows than
   before. Maximum's own loop is unchanged. `[evidence: test_verified for the arithmetic,
   code_verified for the loop, not run on a device]`
+  **The final step reads the cited passages (5.8, 2026-11-12).** Deep Think's synthesis used to read
+  only the sessions' notes, cut at 3,000 characters in pass order, so later passes were dropped and no
+  passage text reached it. `ChainSynthesisEvidence` (in `SessionEvidencePlan.swift`) now ranks the
+  passages the notes cite by their `[S#]` labels (global positions in the routed pool), counts each
+  exactly, and gives the final step as many as fit with the fitted notes: 1,890 tokens on a 4,096
+  window, the 3,200-token reading ceiling on 8,192. The notes-only prompt stays the fallback, and every
+  fallback is journaled (`deepthink.synthesisEvidence`). Maximum is unchanged.
+  `[evidence: test_verified for the helpers, code_verified for the call, not run on a device]`
   **Per device (2026-10-18).** In Deep Think the chain runs one session per distinct window of its
   passages and stops at 8 sessions at most on every device
   (`AgenticPolicyService.maxSessionsForMode`, `min(8, sessionCount + 4)`), so a 20-passage pool at

@@ -495,3 +495,18 @@ confidence: medium]`
 ## Quotes only makes no model call (added 2026-11-10, for 5.8)
 
 Quotes only (`LLMModelType.onDeviceAnalysis`) was answered by Apple's model under the normal route through 5.7, so a question could reach Private Cloud Compute although Settings said it never leaves the device. `RAGService.quotesOnlySelected` now runs the question through Standard's retrieval with query rewriting, HyDE and contextual compression off, and answers after the hard relevance gate with excerpts copied from the retrieved passages (`quotesOnlyResponse`, `excerpts_only`). No model is called for the answer, so no route is planned for it and nothing leaves the device; Deep Think and Maximum run as Standard in this mode, the direct-chat and reliability fallbacks are off, and no follow-up suggestions are written under its answers. `[evidence_level: code_verified, test_verified (ReleaseFinishTests), confidence: medium; not yet observed on a device]`
+
+## Deep Think's final step carries the passages its passes cited (added 2026-11-12, for 5.8)
+
+The prompt of Deep Think's closing synthesis now holds, besides the passes' notes, the text of the passages the
+notes cite (`ChainSynthesisEvidence`, `AgenticOrchestrator+ReasoningChain.swift`). Routing is unchanged: the call is
+planned as before (`generateWithProperConsent`), and the prompt is sized to fit the device's window, so the
+local-fit test does not send it to Private Cloud Compute more often. It can still go there on the existing grounds
+(Hybrid, consent, and passages from more than one document outside Standard). Then the request carries those
+passages in the prompt as well as in the minimized envelope built from the same pool: no other document leaves the
+device, but some passage text travels twice in the one request the person agreed to, and the prompt's `[S#]` labels
+(positions in the chain's pool) and the envelope's (its own order) are two numberings in one request; that second
+point predates this change, since the notes carried the same labels. When the person picks Private Cloud Compute in
+the model picker the final step keeps the notes-only prompt. `[evidence_level: code_verified, confidence: high, not
+run on a device, evidence_source: RAGService+Agentic.swift:245-290, ModelExecutionPlanner.swift:77-85,
+RAGService+Generation.swift:1214-1217]`

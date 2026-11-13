@@ -224,3 +224,109 @@ final class CitationLabelNumberingTests: XCTestCase {
         XCTAssertTrue(assembled.context.hasSuffix("Cite only sources S1 to S3."), assembled.context)
     }
 }
+
+/// A streamed Standard answer that came back with no `[S#]` label gets labels from its context (5.8): 8 of 28
+/// Standard answers on the owner's iPhone from 2026-11-07 to 11-12 had none. No word may change, a sentence no
+/// passage clearly supports gets no label, and the labels are the context's own.
+@MainActor
+final class CitationAttributionTests: XCTestCase {
+    private let context = """
+        [S1] (manual.pdf) p.4
+        The fuel tank holds 14.3 US gal of regular unleaded gasoline.
+        ---
+        [S2] (manual.pdf) p.9
+        Change the engine oil every 7,500 miles under normal service conditions.
+        ---
+        [S5] (warranty.pdf)
+        The battery warranty covers eight years or 100,000 miles, whichever comes first.
+        """
+
+    func testEachSupportedSentenceGetsItsPassagesLabelAndNoWordChanges() {
+        let answer = "The tank holds 14.3 US gal of gasoline. Change the oil every 7500 miles."
+        let result = CitationAttribution.attach(to: answer, context: context)
+        XCTAssertEqual(result.text, "The tank holds 14.3 US gal of gasoline [S1]. Change the oil every 7500 miles [S2].")
+        XCTAssertEqual(result.attached, 2)
+        XCTAssertEqual(
+            result.text.replacingOccurrences(of: " [S1]", with: "").replacingOccurrences(of: " [S2]", with: ""), answer)
+    }
+
+    func testANumberNoPassageHoldsGetsNoLabel() {
+        let result = CitationAttribution.attach(to: "The tank holds 16 US gal of gasoline.", context: context)
+        XCTAssertEqual(result.attached, 0, "a number that is in no passage is not attributed to the closest one")
+        XCTAssertEqual(result.text, "The tank holds 16 US gal of gasoline.")
+    }
+
+    func testLabelsAreTheContextsOwnNotPositions() {
+        let result = CitationAttribution.attach(
+            to: "The battery warranty covers eight years or 100,000 miles.", context: context)
+        XCTAssertTrue(result.text.contains("[S5]"), result.text)
+    }
+
+    func testAnAnswerThatAlreadyCitesIsLeftAlone() {
+        let answer = "The tank holds 14.3 US gal [S1]. Change the oil every 7,500 miles."
+        XCTAssertEqual(CitationAttribution.attach(to: answer, context: context).text, answer)
+    }
+
+    // The review of 2026-11-12: the shapes a real context and a real answer have.
+    private let fullContext = """
+        [S1] Camry Owner Manual.pdf p.4 • sim 0.734
+        The fuel tank holds 14.3 US gal of regular unleaded gasoline.
+
+        ---
+
+        [S2] Camry Owner Manual.pdf p.9 • sim 0.701
+        Change the engine oil every 7,500 miles under normal service conditions.
+
+        Cite only sources S1 to S2.
+        """
+
+    func testANumberedListKeepsItsMarkers() {
+        let answer = "1. The tank holds 14.3 US gal of gasoline.\n2. Change the oil every 7,500 miles."
+        let result = CitationAttribution.attach(to: answer, context: fullContext)
+        XCTAssertTrue(result.text.hasPrefix("1. The tank"), result.text)
+        XCTAssertTrue(result.text.contains("\n2. Change"), result.text)
+        XCTAssertFalse(result.text.contains("1 [S"), "a list marker is not a sentence: \(result.text)")
+    }
+
+    func testFileNamesAndHeadersAreNotPassageText() {
+        // Shares "camry", "owner" and "manual" with both headers and nothing with either passage.
+        let result = CitationAttribution.attach(
+            to: "The Camry owner manual recommends synthetic blends.", context: fullContext)
+        XCTAssertEqual(result.attached, 0, result.text)
+        XCTAssertFalse(CitationAttribution.passages(in: fullContext)[2]?.contains("Cite only") ?? true)
+    }
+
+    func testALineInsideAPassageThatStartsWithALabelIsText() {
+        let context = """
+            [S1] (paper.pdf) Results: the cohort had 412 patients.
+            [S1] Smith 2020, supplementary table.
+            [S2] (paper.pdf) Mortality was 8.1 percent at one year.
+
+            Cite only sources S1 to S2.
+            """
+        let passages = CitationAttribution.passages(in: context)
+        XCTAssertEqual(passages.keys.sorted(), [1, 2])
+        XCTAssertTrue(passages[1]?.contains("412") ?? false)
+    }
+
+    func testASentenceThatDeniesIsNotCredited() {
+        let result = CitationAttribution.attach(
+            to: "The manual does not say the tank holds 14.3 US gal of gasoline.", context: fullContext)
+        XCTAssertEqual(result.attached, 0, result.text)
+    }
+
+    func testTableRowsAndAbbreviationsAreLeftIntact() {
+        let table = "| Item | Value |\n|---|---|\n| Tank | 14.3 US gal of gasoline |"
+        XCTAssertEqual(CitationAttribution.attach(to: table, context: fullContext).text, table)
+        let context = "[S1] (clinic.pdf) The clinic desk opens daily at 7:00 a.m. and closes at 4:00 p.m."
+        let result = CitationAttribution.attach(to: "The clinic desk opens daily at 7:00 a.m.", context: context)
+        XCTAssertEqual(result.text, "The clinic desk opens daily at 7:00 a.m. [S1]")
+    }
+
+    func testHeadingsAndUnsupportedSentencesStayBare() {
+        let answer = "### Fuel\n\nThe documents do not describe towing capacity at all."
+        let result = CitationAttribution.attach(to: answer, context: context)
+        XCTAssertEqual(result.text, answer)
+        XCTAssertEqual(result.attached, 0)
+    }
+}
