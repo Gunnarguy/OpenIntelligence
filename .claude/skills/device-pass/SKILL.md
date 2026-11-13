@@ -12,6 +12,8 @@ very clear"). So:
 - **Never hand him a list of rows.** Hand him the pass below: at most five phone steps and seven Mac steps.
   One step proves many rows, because the development build logs every event (`VerificationJournal`) and
   `scripts/phone_evidence.py` matches those events to rows.
+- **Installing the builds is the agent's job.** The phone build installs over Wi-Fi (`devicectl`) and the Mac build is
+  copied into Applications by the agent; he never copies or installs anything for a pass.
 - **Everything the agent can prove, the agent proves.** iOS 27 Simulator with the demo copy (Apple's model
   answers there), unit tests, headless runs. Allowed for any row not about the phone itself (owner,
   2026-10-18).
@@ -48,9 +50,11 @@ Phone:
 
 Mac:
 
-1. Quit the app; he copies the Debug build (agents are refused this copy) from
-   `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` into Applications, opens it, and reads 8,192
-   on the Context Window card.
+1. He opens the app from Applications and reads 8,192 on the Context Window card. The agent installs it first, without
+   asking: quit the running app (`osascript -e 'tell application id "Gunndamental.OpenIntelligence" to quit'`), then
+   `ditto /private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app /Applications/OpenIntelligence.app`
+   (owner, 2026-11-13: "you are absolutely allowed to copy it to applications"; he runs with bypass permissions, and
+   installing a build is part of the automation, not a step for him).
 2. File > New Window, both kept open. Rebuild a small library in one; while it runs, drag a folder with a subfolder
    onto that library. Then make a library "Test", delete it, quit, reopen.
 3. Make that folder the library's watched folder; add one file to it and edit another. With the HUD on, drag a PDF
