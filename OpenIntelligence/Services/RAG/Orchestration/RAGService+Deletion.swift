@@ -619,6 +619,13 @@ extension RAGService {
             } else if rebuildReason.contains("Self-healing") || rebuildReason.contains("empty vector store") {
                 chunkingConfigHasNotChanged = true
             }
+            // A new embedding model (5.8) changes the vectors, not the passages: re-embed the stored passages rather
+            // than read and split every file again. Measured on the owner's iPhone on 2026-11-12: the full re-import
+            // took 3 of 37 documents in 4.5 minutes, because each document's own tuned chunking differs from the
+            // library default and so always counted as changed.
+            if await MainActor.run(body: { self.modelChangeRebuildContainerIds.contains(targetContainerId) }) {
+                chunkingConfigHasNotChanged = true
+            }
 
             // Try to get existing chunks from vector database first
             let db = await dbFor(targetContainerId)

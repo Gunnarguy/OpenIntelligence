@@ -1356,6 +1356,7 @@ extension RAGService {
                             ["library": VerificationJournal.anon(container.id), "reason": "modelChanged",
                                 "documents": "\(self.documentsForContainer(container.id).count)"])
                         guard hasDocs else { return }
+                        self.modelChangeRebuildContainerIds.insert(container.id)
                         self.enqueuePendingReembed(containerId: container.id)
                     }
                 } else if stored != liveFingerprint {
@@ -1425,6 +1426,7 @@ extension RAGService {
                     if hasDocs, EmbeddingModelRecord.modelChanged(for: container.id, live: service.modelRevision) {
                         EmbeddingModelRecord.record(service.modelRevision, for: container.id)
                         self.invalidateVectorStore(for: container.id, clearStorage: true)
+                        self.modelChangeRebuildContainerIds.insert(container.id)
                         self.enqueuePendingReembed(containerId: container.id)
                     } else if hasDocs {
                         self.librariesNeedingIndexRebuild.insert(container.id)

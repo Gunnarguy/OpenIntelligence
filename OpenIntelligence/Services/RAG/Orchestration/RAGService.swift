@@ -816,6 +816,9 @@ class RAGService: ObservableObject {
     // If an embedding provider/dimension changes while processing is active (e.g. ingestion),
     // defer rebuild work until processing completes to restore retrieval.
     @MainActor var pendingReembedContainerIds: Set<UUID> = []
+    /// Libraries being rebuilt because their embedding model changed (5.8): their passages are kept and only
+    /// re-embedded, whatever chunking settings each document was imported with (`reembedDocuments`).
+    @MainActor var modelChangeRebuildContainerIds: Set<UUID> = []
     @MainActor var pendingReembedTask: Task<Void, Never>?
     /// When true, suppress automatic reembed kicks (used during onboarding batch import)
     @MainActor var suppressReembedKicks: Bool = false
