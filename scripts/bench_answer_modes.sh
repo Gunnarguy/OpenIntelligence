@@ -112,8 +112,8 @@ xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1
   echo "patched copy (scripts/sim_model_copy.py), 20 cases of Benchmarks/rag_eval_v1.jsonl, graded by Apple's Evaluations model judge."
   echo "\"app\" is the app's own model service, the phone's path; \"test\" is the test's own model, the path of the 2026-10-21 runs (0.3)."
   echo
-  echo "| Mode | Model | Correct | Answered | Refused | Minutes | Result |"
-  echo "|---|---|---|---|---|---|---|"
+  echo "| Mode | Model | Right by rule | Judge | Answered | Refused | Minutes | Result |"
+  echo "|---|---|---|---|---|---|---|---|"
 } > "$OUT/SUMMARY.md"
 
 for entry in "${MODES[@]}"; do
@@ -128,6 +128,7 @@ for entry in "${MODES[@]}"; do
   env TEST_RUNNER_OI_MODEL_EVALS=1 TEST_RUNNER_OI_EVAL_MODE="$mode" ${env_model[@]+"${env_model[@]}"} \
     xcodebuild test-without-building -project "$SRC/OpenIntelligence.xcodeproj" -scheme OpenIntelligence \
     -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath "$DD" \
+    -resultBundlePath "$OUT/$name.xcresult" \
     -only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests > "$OUT/$name.log" 2>&1
   status=$?
   minutes=$(( ($(date +%s) - START) / 60 ))
@@ -136,8 +137,11 @@ for entry in "${MODES[@]}"; do
   answered=$(grep -ac '\] answered ' "$OUT/$name.txt")
   refused=$(grep -ac '\] refused ' "$OUT/$name.txt")
   result=$([ $status -eq 0 ] && echo passed || echo "failed (exit $status)")
-  echo "| $mode | $model | ${correct:-none} | $answered | $refused | $minutes | $result |" >> "$OUT/SUMMARY.md"
-  log "$mode ($model): correct ${correct:-none}, $answered answered, $refused refused, $minutes minutes, $result."
+  # The rule score (scripts/score_answer_eval.py, 2026-11-13): the judge agreed with a plain reading on 8 of 20.
+  python3 "$REPO/scripts/score_answer_eval.py" "$OUT/$name.xcresult" > "$OUT/$name.score.txt" 2>&1
+  byrule=$(grep -oE 'rule [0-9]+/[0-9]+' "$OUT/$name.score.txt" | tail -1 | cut -d' ' -f2)
+  echo "| $mode | $model | ${byrule:-none} | ${correct:-none} | $answered | $refused | $minutes | $result |" >> "$OUT/SUMMARY.md"
+  log "$mode ($model): right by rule ${byrule:-none}, judge ${correct:-none}, $answered answered, $refused refused, $minutes minutes, $result."
 done
 
 echo >> "$OUT/SUMMARY.md"
