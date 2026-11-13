@@ -1474,7 +1474,7 @@ checks quote the papers and stay in the gitignored `BenchmarkRuns/2026-11-08-ext
 - **Where this does not reach storage.** In hybrid mode, on a page with no table, `LayoutAwareExtractor`'s text (the
   whole text layer in column order) replaces every paragraph and figure the parser returns
   (DocumentProcessor+StructuredParsing.swift, `pageUsesHybridOverride`). On those pages the coverage pass, page order,
-  footnote order and figures do not apply; nothing is lost, since the layout text is the whole layer. The margin rule
+  footnote order and figures do not apply; nothing is lost, since the layout text is the whole layer. (Corrected 2026-11-12: it was not. The layout pass read the text layer only inside Vision's blocks of confidence 0.5 or more, so words in no block were dropped; fbioe-12-1379574 p12 lost four numbers of a table row and its reference pages 55 and 62. `extractWithLayout` now adds the words no block holds as blocks of their own, by `uncoveredBlocks`.) The margin rule
   does apply: the lines it found on that page are taken out of the layout text (`StructuredPageContent.marginalTexts`,
   `DocumentProcessor.withoutLines`). Without that, a header the rule removed on every table page stayed on the other
   pages, appeared on too few pages for the cross-page running-line rule, and opened a passage (TableFidelityTests,

@@ -143,6 +143,28 @@ actor LayoutAwareExtractor {
             }
         }
 
+        // Every text-layer word reaches the page's text (5.8). Vision's blocks hold only what it recognised with
+        // confidence 0.5 or more, and the text layer was read only inside them, so a word in no block was lost: on
+        // fbioe-12-1379574 p12 a table row stored "Medium 21.2 2.0" of "Medium - - - 43.2 33.6 21.2 2.0", and its
+        // reference pages lost 55 and 62 numbers (2026-11-12). The words no block holds come back as blocks of their
+        // own, in place, by the coverage rule the whole-page path uses (`StructuredDocumentParser.uncoveredBlocks`):
+        // a word counts as held when a block's box holds its anchor point and the block's text has its tokens.
+        if !textLayerWords.isEmpty {
+            let regions = blocks.map {
+                StructuredDocumentParser.CoveredRegion(
+                    box: $0.boundingBox, words: StructuredDocumentParser.coverageTokens($0.text))
+            }
+            let recovered = StructuredDocumentParser.uncoveredBlocks(items: textLayerWords, regions: regions)
+            if !recovered.isEmpty {
+                blocks += recovered.map {
+                    TextBlock(text: $0.text, boundingBox: $0.box, confidence: 1.0, pageNumber: pageNumber)
+                }
+                Log.info(
+                    "[LayoutAwareExtractor] Page \(pageNumber): \(recovered.count) text-layer block(s) no Vision block held, kept",
+                    category: .ingestion)
+            }
+        }
+
         Log.debug("[LayoutAwareExtractor] Page \(pageNumber): Vision returned \(blocks.count) text blocks", category: .ingestion)
 
         // Log some sample block positions for debugging
