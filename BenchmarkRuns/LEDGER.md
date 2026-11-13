@@ -1328,6 +1328,28 @@ The first attempt (stopped 25 minutes in, measuring the citation code before its
 a 2-question smoke run in `smoke/`.
 
 
+### 2026-11-12 Table and text fidelity, four table fixes measured one by one (`2026-11-12-tables`)
+
+`ExtractionFidelityRecorder` on the patched Simulator copy (iOS 27.0), the 8 fidelity PDFs in
+`/private/tmp/oi-fidelity/pdfs`, scored with `scripts/ingestion_unit_tests.py` against
+`2026-11-08-extraction-fidelity/checks` (515 checks; baseline `after11`, 433) and number recall with
+`scripts/extraction_fidelity.py --compare after11`. Rule set before the runs: keep a fix only if it loses no passing
+check and no paper's number recall drops. `bash run_fidelity.sh <label> <commit>` builds that commit.
+
+| Run | Commit | What it held | Passing | Lost | Note |
+|---|---|---|---|---|---|
+| `tab-d` | e9eb9992 | layout coverage (D) | 432 | 5 | fbioe number recall 0.865 to 0.973; 5 sentences out of order (oncotarget p2, p10, p11; ijms p21) |
+| `tab-da` | 8f99dac1 | D, exact-order exception; region overlap (A) | 438 | 5 | A: JAMA 26 to 32 of 47 |
+| `tab-all` | 3e01e901 | D placed after column detection; A; caption tables (B); Vision preference (C) | 438 | 6 | ijms back; C lost 2 PAH checks and raised PAH invented numbers 34.7 to 73.6 per 1,000; B gained nothing |
+| `tab-fin` | fb548e4d | D with a three-quarters-held exception; A; B searching all words; C removed | 439 | 4 | the 4 oncotarget sentences, lines swapped in pairs, all words kept |
+
+**What it settled.** A ships (no loss). D ships against the rule's letter: its 4 losses are line order on one paper
+with every word stored, and it returns about a hundred numbers on fbioe (owner's rule 4, losing text is the worst
+defect). B and C were withdrawn (de70ac6e, fb548e4d). Each open cause has a Future Backlog row.
+
+**Not settled.** Why the oncotarget lines swap; B (Vision reads word tables as paragraphs, BL999's caption is not
+text); C; the 8 checks on fbioe p8 and p11, tables that are images.
+
 ## Backfill 2026-11-12: run folders that had no entry
 
 On 2026-11-12 35 of the run folders since 2026-10-07 had no entry here, so their results were invisible to any session that searched this file. Each entry below was drafted by Antigravity (gemini-3.8-flash-high, read-only) from the folder's own files; every one of its 336 figures was checked by script to appear in that folder, and the entries for extraction fidelity, the reranker swap and Deep Think speed were read against their READMEs and completed by hand. The folder's README stays the authority; read it before quoting a figure.
