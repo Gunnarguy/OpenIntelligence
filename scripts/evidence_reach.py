@@ -25,7 +25,7 @@
       counted only where both runs answered (an error is not a wrong answer).
       A cell counts as in the answer by `fold` (spacing, dash forms, emphasis and citation markers ignored).
 """
-import glob, json, re, shutil, sys, unicodedata
+import glob, json, os, re, shutil, sys, unicodedata
 from math import comb
 from pathlib import Path
 
@@ -90,6 +90,49 @@ def fold(text):
     # answer "**14** [48]" gives the cell "14 [48]" (2026-11-10 run).
     t = re.sub(r"\[[^\]]*\]", "", t).replace("*", "").replace("_", "")
     return re.sub(r"\s+", "", t)
+
+
+_NUM = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+def _numbers(text):
+    """The numbers in `text`, in order: a thousands separator joined ("6,259", "184 315" with a thin or plain space),
+    a decimal point kept, an en dash or "to" between two numbers left out (a range is its two ends)."""
+    t = unicodedata.normalize("NFKC", text)
+    t = re.sub(r"(?<=\d)[ \u2009\u202f](?=\d{3}\b)", "", t)
+    out = []
+    for m in _NUM.finditer(t):
+        v = m.group(0)
+        if re.fullmatch(r"\d{1,3}(,\d{3})+", v):
+            v = v.replace(",", "")
+        out.append(v.replace(",", "."))
+    return out
+
+
+def holds(cell, answer):
+    """Whether `answer` gives `cell` (2026-11-13). First the exact rule, `fold(cell)` inside `fold(answer)`. Then, for a
+    cell of two or more numbers ("993 (32.8)", "4.1-24.7", "2.48 (1.11-5.55)"), the same numbers in the same order in
+    the answer with at most one other number between two of them, so "6,259 (3.4%)", "4.1 to 24.7" and "2.48 with a
+    95% CI of 1.11-5.55" count and "3646 (9.7)" does not. A one-number cell keeps the exact rule."""
+    if fold(cell) in fold(answer):
+        return True
+    want = _numbers(cell)
+    if len(want) < 2:
+        return False
+    have = _numbers(answer)
+    for start in range(len(have)):
+        if have[start] != want[0]:
+            continue
+        i, j, gaps = 1, start + 1, 0
+        while i < len(want) and j < len(have) and gaps <= 1:
+            if have[j] == want[i]:
+                i += 1
+            else:
+                gaps += 1
+            j += 1
+        if i == len(want):
+            return True
+    return False
 
 
 def prepare_tables(checks, pdfs, out, extra=()):
@@ -218,7 +261,17 @@ def answers(out, paths):
         rows = {r["qid"]: r for r in run["results"] if r["qid"] in gold and ("deepAnswer" in r or "deepAnswerError" in r)}
         runs.append((Path(p).stem, rows))
     common = sorted(set.intersection(*(set(rows) for _, rows in runs))) if runs else []
-    right = lambda r, q: "deepAnswer" in r and gold[q] in fold(r["deepAnswer"])
+    cells = {}
+    for l in (out / "queries.jsonl").read_text().splitlines():
+        if l.strip():
+            q = json.loads(l)
+            if "cell" in q and fold(q["cell"]).strip():
+                cells[q["qid"]] = q["cell"]
+    # `OI_STRICT=1` scores with the exact rule alone, as through 2026-11-12.
+    strict = os.environ.get("OI_STRICT") == "1"
+    def holds_q(text, q):
+        return gold[q] in fold(text) if strict else holds(cells[q], text)
+    right = lambda r, q: "deepAnswer" in r and holds_q(r["deepAnswer"], q)
     base_name, base = runs[0]
     print(f"{len(common)} table questions answered in every run")
     for name, rows in runs:
@@ -244,12 +297,12 @@ def answers(out, paths):
         print(f"{len(shared)} Standard answers in every run")
         b_name, b_rows = std[0]
         for name, rows in std:
-            n_right = sum(gold[q] in fold(rows[q]["answer"]) for q in shared)
+            n_right = sum(holds_q(rows[q]["answer"], q) for q in shared)
             cited = sum(bool(cite.search(rows[q]["answer"])) for q in shared)
             line = f"{name:28s} Standard right {n_right}/{len(shared)}  with a citation {cited}/{len(shared)}"
             if name != b_name:
-                won = sum(1 for q in shared if gold[q] in fold(rows[q]["answer"]) and gold[q] not in fold(b_rows[q]["answer"]))
-                lost = sum(1 for q in shared if gold[q] in fold(b_rows[q]["answer"]) and gold[q] not in fold(rows[q]["answer"]))
+                won = sum(1 for q in shared if holds_q(rows[q]["answer"], q) and not holds_q(b_rows[q]["answer"], q))
+                lost = sum(1 for q in shared if holds_q(b_rows[q]["answer"], q) and not holds_q(rows[q]["answer"], q))
                 same = sum(1 for q in shared if cite.sub("", rows[q]["answer"]).split() == cite.sub("", b_rows[q]["answer"]).split())
                 line += f"  right +{won}/-{lost} p={sign_p(won, lost):.2f}  same words {same}/{len(shared)}"
             print(line)

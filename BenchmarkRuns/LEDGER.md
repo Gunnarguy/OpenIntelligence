@@ -1315,6 +1315,8 @@ Scored by `python3 scripts/evidence_reach.py answers` (right means the answer ho
 | Deep Think, right | 37/53 | 42/53 | 7 better, 2 worse, p=0.18 | median 80 s to 65 s; answers with no `[S#]` 5 to 1; errors 0 and 0 |
 | Standard, right | 44/53 | 45/53 | 2 better, 1 worse, p=1.00 | with a citation 51 to 49; same words 0/53 |
 
+**Corrected 2026-11-13.** The exact-text rule above counted a right value written another way as wrong ("6,259 (3.4%)" for the cell "6259 (3.4)", "4.1 to 24.7" for "4.1-24.7", "2.48 with a 95% CI of 1.11-5.55"). Rescored with `evidence_reach.holds` (the same numbers in order, at most one other number between; `OI_STRICT=1` gives the old rule): Deep Think 46 before, 45 after (0 better, 1 worse); Standard 46 and 47 (1 better, 0 worse). The Deep Think change does not raise accuracy; it keeps it at 85% while answering in 65 s against 80 s. The other misses: 4 questions whose cell never reached the model (3 tables printed as images in fbioe-12-1379574, 1 row the 2026-11-12 coverage fix restores), and on the rest a value said to be absent while in the passages (PAH, Deep Think), a raw passage returned as the answer (JAMA #5#5, Deep Think), the wrong row of JAMA's wide Table 1 (#5#2, both), a forest-plot row not read (#7#14, both).
+
 **What it settled.** Both changes pass the rule and ship in 5.8. The Deep Think final step read 3 to 8 passages in a
 prompt of about 2,100 of 4,096 tokens on 52 answers. The citation change ran on 10 streamed answers and labelled 6;
 each added label names a passage holding the sentence's value (checked by hand against the saved sources), 2 of the 6
