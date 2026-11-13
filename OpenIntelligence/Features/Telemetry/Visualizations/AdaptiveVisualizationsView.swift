@@ -996,14 +996,26 @@ struct AdaptiveVisualizationsView: View {
         // The history is capped (`retrievalHistoryLimit`), so its newest entry, not its count, says it changed.
         let inputs = AnyHashable([AnyHashable(atlasContentKey), AnyHashable(history.count), AnyHashable(history.last?.id)])
         guard !engine.hasProfile(builtFrom: inputs) else { return }
+        // A visit while the same analysis runs waits for it rather than starting it over (5.8).
+        if engine.isAnalyzing(inputs: inputs) {
+            await engine.waitForRunningAnalysis()
+            return
+        }
         let documents = ragService.documents.filter { doc in
             if let cid = doc.containerId {
                 return cid == containerId
             }
             return containerId == containerService.containers.first?.id
         }
-        let chunks = await ragService.allChunksForActiveContainer()
+        // The profile kept on disk, when the library hasn't changed since it was made (5.8): the Atlas then opens with
+        // it at once instead of reading and analysing every passage again.
         let libraryPassageCount = await ragService.passageCountForActiveContainer()
+        let diskKey = LibraryVisualizationEngine.diskKey(
+            containerId: containerId, documents: documents, libraryPassageCount: libraryPassageCount,
+            // By time, not id: an entry's id is made again each time the history is loaded.
+            historyCount: history.count, newestHistory: history.last.map { "\($0.timestamp.timeIntervalSince1970)" })
+        if await engine.showStoredProfile(containerId: containerId, key: diskKey, inputs: inputs) { return }
+        let chunks = await ragService.allChunksForActiveContainer()
         // Leaving the Atlas cancels this task, and nothing checked it between the reads and the analysis (5.8): on
         // his iPhone on 2026-11-05 a 3 s visit started a 61.5 s analysis of 6,000 passages while a Deep Think answer
         // ran, with Chat the selected tab.
@@ -1015,7 +1027,8 @@ struct AdaptiveVisualizationsView: View {
             chunks: chunks,
             retrievalHistory: history,
             libraryPassageCount: libraryPassageCount,
-            inputs: inputs
+            inputs: inputs,
+            diskKey: diskKey
         )
     }
 

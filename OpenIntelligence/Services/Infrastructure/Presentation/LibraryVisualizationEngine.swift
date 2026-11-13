@@ -7,6 +7,7 @@
 
 import Combine
 import Foundation
+import CryptoKit
 import SwiftUI
 
 #if canImport(FoundationModels)
@@ -373,6 +374,161 @@ final class LibraryVisualizationEngine: ObservableObject {
         analyzedInputs == inputs && currentProfile != nil && !isAnalyzing
     }
 
+    /// What the running analysis was started from, so a second visit with the same inputs waits for it instead of
+    /// cancelling it and starting over (5.8): on the owner's iPhone on 2026-11-13 a visit 11 s into a 27 s analysis of
+    /// 6,000 passages started it again from nothing, and leaving cancelled that one too.
+    private var inFlightInputs: AnyHashable?
+
+    /// Whether an analysis from these inputs is running now.
+    func isAnalyzing(inputs: AnyHashable) -> Bool {
+        isAnalyzing && inFlightInputs == inputs && analysisTask != nil
+    }
+
+    /// Waits for the running analysis to finish.
+    func waitForRunningAnalysis() async {
+        await analysisTask?.value
+    }
+
+    // MARK: - The profile kept on disk (5.8)
+
+    /// The profile of a library kept on disk, so the Atlas opens with it at once after a relaunch rather than
+    /// analysing 6,000 passages again (24 to 61 s on the owner's iPhone, 2026-11-04 to 11-13). `key` names what it was
+    /// built from (`diskKey`); a library that changed builds a new one, and that replaces this.
+    private struct StoredProfile: Codable {
+        struct Cluster: Codable {
+            let name: String, keywords: [String], chunkCount: Int, percentage: Float
+            let color: Color.Resolved, snippet: String, chunkIds: [UUID]
+        }
+        struct Hot: Codable {
+            let id: UUID, documentName: String, snippet: String, retrievalCount: Int, avgSimilarity: Float
+            let lastAccessed: Date
+        }
+        struct Recent: Codable {
+            let id: UUID, documentName: String, addedAt: Date, chunkCount: Int, integrationScore: Float
+            let nearestTopics: [String]
+        }
+        let key: String
+        let containerId: UUID, timestamp: Date
+        let documentCount: Int, chunkCount: Int, libraryPassageCount: Int, totalWords: Int, avgChunkSize: Int
+        let topicDiversity: Float, clusterQuality: Float
+        let clusters: [Cluster]
+        let contentMix: [String: Float]
+        let retrievalActivity: String
+        let hotChunks: [Hot], coldZones: Int
+        let recentAdditions: [Recent], libraryAge: TimeInterval
+
+        init(_ profile: LibraryProfile, key: String) {
+            let environment = EnvironmentValues()
+            self.key = key
+            containerId = profile.containerId
+            timestamp = profile.timestamp
+            documentCount = profile.documentCount
+            chunkCount = profile.chunkCount
+            libraryPassageCount = profile.libraryPassageCount
+            totalWords = profile.totalWords
+            avgChunkSize = profile.avgChunkSize
+            topicDiversity = profile.topicDiversity
+            clusterQuality = profile.clusterQuality
+            clusters = profile.dominantTopics.map {
+                Cluster(
+                    name: $0.name, keywords: $0.keywords, chunkCount: $0.chunkCount, percentage: $0.percentage,
+                    color: $0.color.resolve(in: environment), snippet: $0.representativeSnippet,
+                    chunkIds: Array($0.chunkIds))
+            }
+            contentMix = Dictionary(uniqueKeysWithValues: profile.contentMix.map { ($0.key.rawValue, $0.value) })
+            retrievalActivity = profile.retrievalActivity.rawValue
+            hotChunks = profile.hotChunks.map {
+                Hot(
+                    id: $0.id, documentName: $0.documentName, snippet: $0.snippet, retrievalCount: $0.retrievalCount,
+                    avgSimilarity: $0.avgSimilarity, lastAccessed: $0.lastAccessed)
+            }
+            coldZones = profile.coldZones
+            recentAdditions = profile.recentAdditions.map {
+                Recent(
+                    id: $0.id, documentName: $0.documentName, addedAt: $0.addedAt, chunkCount: $0.chunkCount,
+                    integrationScore: $0.integrationScore, nearestTopics: $0.nearestTopics)
+            }
+            libraryAge = profile.libraryAge
+        }
+
+        var profile: LibraryProfile? {
+            guard let activity = RetrievalActivity(rawValue: retrievalActivity) else { return nil }
+            return LibraryProfile(
+                containerId: containerId, timestamp: timestamp, documentCount: documentCount, chunkCount: chunkCount,
+                libraryPassageCount: libraryPassageCount, totalWords: totalWords, avgChunkSize: avgChunkSize,
+                topicDiversity: topicDiversity, clusterQuality: clusterQuality,
+                dominantTopics: clusters.map {
+                    TopicCluster(
+                        name: $0.name, keywords: $0.keywords, chunkCount: $0.chunkCount, percentage: $0.percentage,
+                        color: Color($0.color), representativeSnippet: $0.snippet, chunkIds: Set($0.chunkIds))
+                },
+                contentMix: Dictionary(
+                    uniqueKeysWithValues: contentMix.compactMap { key, value in
+                        ContentCategory(rawValue: key).map { ($0, value) }
+                    }),
+                retrievalActivity: activity,
+                hotChunks: hotChunks.map {
+                    HotChunk(
+                        id: $0.id, documentName: $0.documentName, snippet: $0.snippet, retrievalCount: $0.retrievalCount,
+                        avgSimilarity: $0.avgSimilarity, lastAccessed: $0.lastAccessed)
+                },
+                coldZones: coldZones,
+                recentAdditions: recentAdditions.map {
+                    RecentAddition(
+                        id: $0.id, documentName: $0.documentName, addedAt: $0.addedAt, chunkCount: $0.chunkCount,
+                        integrationScore: $0.integrationScore, nearestTopics: $0.nearestTopics)
+                },
+                libraryAge: libraryAge)
+        }
+    }
+
+    /// What a stored profile must have been built from to stand for the library now: its documents (by id and
+    /// passage count), its passage count, and its question history's length and newest entry.
+    nonisolated static func diskKey(
+        containerId: UUID, documents: [Document], libraryPassageCount: Int, historyCount: Int, newestHistory: String?
+    ) -> String {
+        let documentsPart = documents.map { "\($0.id.uuidString):\($0.totalChunks)" }.sorted().joined(separator: ",")
+        let digest = SHA256.hash(data: Data(documentsPart.utf8)).prefix(12).map { String(format: "%02x", $0) }.joined()
+        return "v1|\(containerId.uuidString)|\(documents.count)|\(digest)|\(libraryPassageCount)|\(historyCount)|\(newestHistory ?? "-")"
+    }
+
+    nonisolated private static func storedProfileURL(_ containerId: UUID) -> URL {
+        let folder = OpenIntelligenceRuntimePaths.applicationSupportRoot().appendingPathComponent("LocalCache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder.appendingPathComponent("atlas_profile_\(containerId.uuidString).json")
+    }
+
+    /// Puts the profile kept on disk on screen when it was built from `key`. True when it did.
+    func showStoredProfile(containerId: UUID, key: String, inputs: AnyHashable) async -> Bool {
+        let started = Date()
+        let url = Self.storedProfileURL(containerId)
+        let stored: StoredProfile? = await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? JSONDecoder().decode(StoredProfile.self, from: data)
+        }.value
+        guard let stored, stored.key == key, let profile = stored.profile else { return false }
+        currentProfile = profile
+        insights = generateInsights(from: profile)
+        recommendedViews = recommendViews(for: profile)
+        profileCache[containerId] = profile
+        analyzedInputs = inputs
+        lastAnalyzed = profile.timestamp
+        VerificationJournal.record(
+            "atlas.analyze", .ok, durationMs: Date().timeIntervalSince(started) * 1000,
+            ["library": VerificationJournal.anon(containerId), "fromDisk": "true",
+                "libraryPassages": "\(profile.libraryPassageCount)"])
+        return true
+    }
+
+    private func storeProfile(_ profile: LibraryProfile, key: String) {
+        let stored = StoredProfile(profile, key: key)
+        let url = Self.storedProfileURL(profile.containerId)
+        Task.detached(priority: .utility) {
+            guard let data = try? JSONEncoder().encode(stored) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
     struct RecommendedView: Identifiable, Equatable {
         let id = UUID()
         let type: ViewType
@@ -424,9 +580,11 @@ final class LibraryVisualizationEngine: ObservableObject {
         chunks: [DocumentChunk],
         retrievalHistory: [RetrievalLogEntry],
         libraryPassageCount: Int? = nil,
-        inputs: AnyHashable? = nil
+        inputs: AnyHashable? = nil,
+        diskKey: String? = nil
     ) async {
         analysisTask?.cancel()
+        inFlightInputs = inputs
 
         analysisTask = Task {
             await MainActor.run { isAnalyzing = true }
@@ -479,6 +637,8 @@ final class LibraryVisualizationEngine: ObservableObject {
                 self.analyzedInputs = inputs
                 self.lastAnalyzed = Date()
                 self.isAnalyzing = false
+                self.inFlightInputs = nil
+                if let diskKey { self.storeProfile(profile, key: diskKey) }
                 VerificationJournal.record(
                     "atlas.analyze", .ok, durationMs: Date().timeIntervalSince(analysisStarted) * 1000,
                     journalFields.merging(

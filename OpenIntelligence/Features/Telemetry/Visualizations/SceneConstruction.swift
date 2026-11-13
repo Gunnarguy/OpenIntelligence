@@ -213,7 +213,43 @@ nonisolated func keepAxisLabelsInView(
         let spot = axisLabelSpot(wanted: wanted, halfSize: size, region: region, placed: placed, boxes: insets.boxes)
         placed.append(AxisLabelPlacement(center: spot, halfSize: size))
         pin.label.simdWorldPosition = worldPoint(at: spot, depth: drawDepth, camera: transform, halfAngles: halfAngles)
+        markOffViewEnd(pin, spot: spot, wanted: wanted, size: size)
     }
+}
+
+/// A label held at the edge because its axis end is off the view says so (5.8): dimmed, with an arrow on the side
+/// toward the end. Before, it sat at the edge looking like it named something there; on the owner's iPhone on
+/// 2026-11-13 the green axis's name rode down onto the card's lower edge as the map turned, and read as a bug.
+nonisolated private func markOffViewEnd(_ pin: AxisLabelPin, spot: SIMD2<Float>, wanted: SIMD2<Float>, size: SIMD2<Float>) {
+    let away = wanted - spot
+    // Off its end when held more than its own height from it (a nudge clear of another label is not that).
+    let offEnd = simd_length(away) > max(size.y * 2, 0.08)
+    pin.label.opacity = offEnd ? 0.6 : 1
+    let arrow = pin.label.childNode(withName: "edgeArrow", recursively: false) ?? {
+        let glyph = SCNText(string: "\u{25B2}", extrusionDepth: 0.02)
+        #if canImport(UIKit)
+            glyph.font = UIFont.systemFont(ofSize: 0.24, weight: .bold)
+        #else
+            glyph.font = NSFont.systemFont(ofSize: 0.24, weight: .bold)
+        #endif
+        glyph.flatness = 0.02
+        glyph.materials = pin.label.childNodes.first?.geometry?.materials ?? []
+        let (low, high) = glyph.boundingBox
+        let node = SCNNode(geometry: glyph)
+        node.pivot = SCNMatrix4MakeTranslation((low.x + high.x) / 2, (low.y + high.y) / 2, 0)
+        node.renderingOrder = 100
+        let holder = SCNNode()
+        holder.name = "edgeArrow"
+        holder.addChildNode(node)
+        pin.label.addChildNode(holder)
+        return holder
+    }()
+    arrow.isHidden = !offEnd
+    guard offEnd else { return }
+    let direction = simd_normalize(away)
+    // Beside the text on the side toward the axis end, in the label's own units, pointing at it.
+    arrow.simdPosition = SIMD3(direction.x * (pin.halfWidth + 0.22), direction.y * (pin.halfHeight + 0.22), 0)
+    arrow.simdEulerAngles = SIMD3(0, 0, atan2(direction.y, direction.x) - .pi / 2)
 }
 
 /// The part of the view a label may be drawn in, -1 to 1 across and up: the view less `insets`, less `margin` of
