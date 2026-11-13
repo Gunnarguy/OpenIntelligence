@@ -693,6 +693,8 @@ struct ContentView: View {
             #endif
             // An import that a background limit stopped continues without being asked.
             ragService.resumeIngestionStoppedInBackgroundIfNeeded()
+            // Apple's model, if it became ready while the app was away (5.8, `reconnectAppleModelIfNowAvailable`).
+            Task { await ragService.reconnectAppleModelIfNowAvailable() }
             // What arrived in a watched folder while the app was away (5.8).
             WatchedFolderService.shared.appCameForward(engine: ragService, entitlements: entitlementStore)
             // The overview, tags and suggested questions of documents imported in the background (5.7).

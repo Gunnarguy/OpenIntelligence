@@ -119,6 +119,33 @@ extension RAGService {
         updateLLMService(primary, fallbacks: fallbacks)
     }
 
+    /// Connects Apple's model when it has become available since the engine was made (5.8, 2026-11-13).
+    ///
+    /// The engine picks its model service once, when it is made, and a model not ready at that moment left the
+    /// "unavailable" placeholder in place until a relaunch or a change in Settings: on a new device, after an iOS
+    /// update while Apple Intelligence downloads, or with Apple Intelligence switched on while the app runs, every
+    /// question got the excerpts-only fallback. Measured in the iOS 27 Simulator that morning: a benchmark launched
+    /// before the model was ready logged "Apple Foundation Models unavailable on this device" and answered all 53 table
+    /// questions in both modes with excerpts, though the model answered the test's own call. Checked before each
+    /// question and when the app comes to the front; a no-op while a working service is in place.
+    @MainActor
+    func reconnectAppleModelIfNowAvailable() async {
+        guard !llmService.isAvailable else { return }
+        #if canImport(FoundationModels)
+            guard #available(iOS 26.0, *), AppleFoundationLLMService().isAvailable else { return }
+            if settingsStore != nil {
+                await rebuildLLMServicesFromSettings()
+            } else if let service = Self.instantiateService(for: "apple_intelligence", entitlementStore: entitlementStore) {
+                var primary = service
+                primary.toolHandler = self
+                updateLLMService(primary, fallbacks: _fallbackServices)
+            }
+            guard llmService.isAvailable else { return }
+            Log.info("[RAGService] Apple's model became available after launch; connected", category: .initialization)
+            VerificationJournal.record("model.reconnected", ["model": llmService.modelName])
+        #endif
+    }
+
     @MainActor
     private func applyInitialCloudConsent(from store: SettingsStore) {
         if cloudConsent[.applePCC] != store.applePCCConsent {

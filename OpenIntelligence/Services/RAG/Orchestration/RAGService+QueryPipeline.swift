@@ -56,6 +56,8 @@ extension RAGService {
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
         finishAnswerNowRequested = false
+        // A model that became ready after launch is connected before the question runs (5.8).
+        await reconnectAppleModelIfNowAvailable()
         // A question asked while search is being set up waits here, before anything else runs, and says so (5.8). It
         // used to start, run the question's understanding, embedding and search, and stop silently at the reranker, so
         // the bar read "Working" through most of the wait (the owner's iPhone, 2026-11-10).
