@@ -111,19 +111,19 @@ final class WhatsNewStore: ObservableObject {
         "5.8": WhatsNewRelease(
             version: "5.8",
             headline:
-                "5.8 is about answers you can trust and an app that gets out of your way. A new search model and a new reranker find the right passage more often, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.",
+                "5.8 is about answers you can trust and an app that gets out of your way. A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.",
             items: [
                 .init(
                     symbol: "magnifyingglass",
                     title: "A new search model, and a one-time rebuild",
                     detail:
-                        "Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. In my tests in the app it put the passage holding the answer in the top five more often in every mode. Each library rebuilds its search index once, by itself, when you open it after the update, keeping the text it already read, so nothing is imported again. A large library takes a while, and on a Mac the rebuild keeps the Mac awake. If you share libraries over iCloud, update every device."
+                        "Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. In my tests in the app it put a passage from the right document in the top five more often in every mode. Each library rebuilds its search index once, by itself, when you open it after the update, keeping the text it already read, so nothing is imported again. A large library takes a while, and on a Mac the rebuild keeps the Mac awake. If you share libraries over iCloud, update every device."
                 ),
                 .init(
                     symbol: "text.magnifyingglass",
                     title: "Answers find the right passage more often",
                     detail:
-                        "The step that re-scores each search's best candidates now uses IBM's Granite reranker. On 246 research-paper questions, the passage holding the answer made the top five 49% of the time, up from 42%. It runs on your device like everything else, and unlike the old one it wasn't trained on data licensed for research only."
+                        "The step that re-scores each search's best candidates now uses IBM's Granite reranker. On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac. It runs on your device like everything else, and unlike the old one it wasn't trained on data licensed for research only."
                 ),
                 .init(
                     symbol: "tablecells",
@@ -153,7 +153,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "exclamationmark.bubble",
                     title: "No more blank answers, and answers that answer",
                     detail:
-                        "If Apple's model stops after a stray number, the app writes the answer again, and if that fails too it says it couldn't find the answer instead of showing nothing. An answer has to answer the question you asked, and a \"how much\" question gets an amount, not a count."
+                        "If Apple's model stops after a stray number in a Standard answer, the app writes the answer again, and if that fails too it says it couldn't find the answer instead of showing nothing. An answer has to answer the question you asked, and a \"how much\" question gets an amount, not a count."
                 ),
                 .init(
                     symbol: "bolt",

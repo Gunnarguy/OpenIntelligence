@@ -198,7 +198,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 **Release notes (`fastlane/metadata/`, the macOS copy):**
 
 ```text
-5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
+5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
 
 A ONE-TIME REBUILD
@@ -208,7 +208,7 @@ A ONE-TIME REBUILD
 
 ANSWERS
 
-• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 49% of the time, up from 42%.
+• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac.
 
 • Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
 
@@ -216,7 +216,7 @@ ANSWERS
 
 • Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
 
-• No more blank answers.  If Apple's model stops after a stray number, the app writes the answer again, and if that fails too it says it couldn't find the answer.
+• No more blank answers.  If Apple's model stops after a stray number in a Standard answer, the app writes the answer again, and if that fails too it says it couldn't find the answer.
 
 
 YOUR DOCUMENTS
@@ -252,7 +252,7 @@ Everything still runs on your device, unless you approve Apple's Private Cloud C
 **Release notes (`fastlane/metadata-ios/`, the same commit):**
 
 ```text
-5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
+5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
 
 A ONE-TIME REBUILD
@@ -262,7 +262,7 @@ A ONE-TIME REBUILD
 
 ANSWERS
 
-• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 49% of the time, up from 42%.
+• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac.
 
 • Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
 
@@ -270,7 +270,7 @@ ANSWERS
 
 • Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
 
-• No more blank answers.  If Apple's model stops after a stray number, the app writes the answer again, and if that fails too it says it couldn't find the answer.
+• No more blank answers.  If Apple's model stops after a stray number in a Standard answer, the app writes the answer again, and if that fails too it says it couldn't find the answer.
 
 
 YOUR DOCUMENTS
