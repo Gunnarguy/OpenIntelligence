@@ -119,24 +119,37 @@ final class WatchedFolderService: ObservableObject {
             engine.containerService.containers.contains(where: { $0.id == folder.libraryId })
         else { return }
         let checkStarted = Date()
+        var resolveMs = 0
+        var walkMs = 0
         defer {
             VerificationJournal.record(
                 "watchedFolder.check", folder.note == "This folder can't be reached. Stop watching it and choose it again." ? .failed : .ok,
                 durationMs: Date().timeIntervalSince(checkStarted) * 1000,
-                ["folder": VerificationJournal.anon(id), "files": "\(folder.files.count)", "note": folder.note == nil ? "none" : "yes"])
+                ["folder": VerificationJournal.anon(id), "files": "\(folder.files.count)", "note": folder.note == nil ? "none" : "yes",
+                    "resolveMs": "\(resolveMs)", "walkMs": "\(walkMs)"])
             folder.lastCheckedAt = Date()
             // By id, and only if it is still there: Stop Watching can run during the waits below.
             if let index = folders.firstIndex(where: { $0.id == id }) { folders[index] = folder }
         }
         let unreachable = "This folder can't be reached. Stop watching it and choose it again."
-        guard let url = resolve(&folder) else {
+        // Resolved off the main thread (5.8): resolving a bookmark to a Files or iCloud Drive folder waits on the file
+        // provider, and on the owner's iPhone on 2026-11-13 this check held the main thread for 8.2 s at the first
+        // launch after an install (the app froze; the journal's freeze and this check ran over the same 8 s).
+        let resolveStarted = Date()
+        let resolved = await Self.resolve(bookmark: folder.bookmark)
+        resolveMs = Int(Date().timeIntervalSince(resolveStarted) * 1000)
+        guard let url = resolved.url else {
             folder.note = unreachable
             return
         }
+        if let fresh = resolved.freshBookmark { folder.bookmark = fresh }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
-        guard let found = await Self.walk(url) else {
+        let walkStarted = Date()
+        let walked = await Self.walk(url)
+        walkMs = Int(Date().timeIntervalSince(walkStarted) * 1000)
+        guard let found = walked else {
             folder.note = unreachable
             return
         }
@@ -260,7 +273,7 @@ final class WatchedFolderService: ObservableObject {
 
     // MARK: - The folder
 
-    private static func bookmark(for url: URL) throws -> Data {
+    nonisolated private static func bookmark(for url: URL) throws -> Data {
         #if os(macOS)
             try url.bookmarkData(
                 options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
@@ -270,8 +283,9 @@ final class WatchedFolderService: ObservableObject {
         #endif
     }
 
-    /// The folder's URL. A bookmark the system calls stale still resolves; it is made again while it does.
-    private func resolve(_ folder: inout WatchedFolder) -> URL? {
+    /// The folder a bookmark names (one the system calls stale still resolves, and is made again while it does), and a fresh bookmark when the saved one is stale. Off the main thread: resolving
+    /// waits on the file provider (8.2 s on the owner's iPhone at a first launch after an install, 2026-11-13).
+    @concurrent private static func resolve(bookmark: Data) async -> (url: URL?, freshBookmark: Data?) {
         var isStale = false
         #if os(macOS)
             let options: URL.BookmarkResolutionOptions = [.withSecurityScope]
@@ -280,15 +294,14 @@ final class WatchedFolderService: ObservableObject {
         #endif
         guard
             let url = try? URL(
-                resolvingBookmarkData: folder.bookmark, options: options, relativeTo: nil, bookmarkDataIsStale: &isStale
+                resolvingBookmarkData: bookmark, options: options, relativeTo: nil, bookmarkDataIsStale: &isStale
             )
-        else { return nil }
-        if isStale {
-            let scoped = url.startAccessingSecurityScopedResource()
-            if let fresh = try? Self.bookmark(for: url) { folder.bookmark = fresh }
-            if scoped { url.stopAccessingSecurityScopedResource() }
-        }
-        return url
+        else { return (nil, nil) }
+        guard isStale else { return (url, nil) }
+        let scoped = url.startAccessingSecurityScopedResource()
+        let fresh = try? Self.bookmark(for: url)
+        if scoped { url.stopAccessingSecurityScopedResource() }
+        return (url, fresh)
     }
 
     /// The folder's importable files, through its subfolders, or nil when the folder can't be read. Hidden files
