@@ -10,11 +10,11 @@
 //  reconstruct reading order from bounding box positions using clustering.
 //
 
-import Foundation
-import os
-import Vision
-import PDFKit
 import CoreImage
+import Foundation
+import PDFKit
+import Vision
+import os
 
 // MARK: - Text Block with Spatial Info
 
@@ -121,10 +121,14 @@ actor LayoutAwareExtractor {
     /// them when the two readings agree (5.8). On a page with a perfect text layer that the layout pass calls
     /// multi-column, its reading-order text was OCR's, so a header read "Int. J. lest. ocl." on one page and "Int. J.
     /// Test. Sci." on the next, and every misread was stored.
-    func extractWithLayout(from image: CIImage, pageNumber: Int, textLayerWords: [TextLayerWord] = []) async throws
+    func extractWithLayout(
+        from image: CIImage, pageNumber: Int, textLayerWords: [TextLayerWord] = []
+    ) async throws
         -> LayoutAnalysisResult
     {
-        Log.info("[LayoutAwareExtractor] 🔍 Analyzing page \(pageNumber) layout (image: \(Int(image.extent.width))×\(Int(image.extent.height)))", category: .ingestion)
+        Log.info(
+            "[LayoutAwareExtractor] 🔍 Analyzing page \(pageNumber) layout (image: \(Int(image.extent.width))×\(Int(image.extent.height)))",
+            category: .ingestion)
 
         // Report ANE activity to HUD (Vision uses Neural Engine for text recognition)
         Task { @MainActor in
@@ -139,7 +143,8 @@ actor LayoutAwareExtractor {
                     StructuredDocumentParser.textLayerAgreesForParagraph(layer, withVision: block.text)
                 else { return block }
                 return TextBlock(
-                    text: layer, boundingBox: block.boundingBox, confidence: block.confidence, pageNumber: block.pageNumber)
+                    text: layer, boundingBox: block.boundingBox, confidence: block.confidence,
+                    pageNumber: block.pageNumber)
             }
         }
 
@@ -154,7 +159,19 @@ actor LayoutAwareExtractor {
                 StructuredDocumentParser.CoveredRegion(
                     box: $0.boundingBox, words: StructuredDocumentParser.coverageTokens($0.text))
             }
-            let recovered = StructuredDocumentParser.uncoveredBlocks(items: textLayerWords, regions: regions)
+            // A recovered run of four or more words that the page's blocks already say, in that order, is not lost text:
+            // the box test missed a line its block holds, and adding it again moved the line out of its paragraph
+            // (oncotarget-07-17393 p2, p10, p11 and ijms-21-03624 p21 lost 5 passing sentences in the first run,
+            // 2026-11-12). Shorter runs, such as a table's numbers, are always kept.
+            func sequence(_ text: String) -> [String] {
+                let folded = OCRConfiguration.markingScriptsAndFractions(text).precomposedStringWithCompatibilityMapping
+                return folded.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+            }
+            let held = " " + blocks.map { sequence($0.text).joined(separator: " ") }.joined(separator: " ") + " "
+            let recovered = StructuredDocumentParser.uncoveredBlocks(items: textLayerWords, regions: regions).filter {
+                let run = sequence($0.text)
+                return run.count < 4 || !held.contains(" " + run.joined(separator: " ") + " ")
+            }
             if !recovered.isEmpty {
                 blocks += recovered.map {
                     TextBlock(text: $0.text, boundingBox: $0.box, confidence: 1.0, pageNumber: pageNumber)
@@ -165,13 +182,17 @@ actor LayoutAwareExtractor {
             }
         }
 
-        Log.debug("[LayoutAwareExtractor] Page \(pageNumber): Vision returned \(blocks.count) text blocks", category: .ingestion)
+        Log.debug(
+            "[LayoutAwareExtractor] Page \(pageNumber): Vision returned \(blocks.count) text blocks",
+            category: .ingestion)
 
         // Log some sample block positions for debugging
         if blocks.count > 0 {
             let sampleBlocks = Array(blocks.prefix(5))
             for (i, block) in sampleBlocks.enumerated() {
-                Log.debug("[LayoutAwareExtractor] Block \(i): X=\(String(format: "%.2f", block.boundingBox.minX))-\(String(format: "%.2f", block.boundingBox.maxX)), text='\(block.text.prefix(30))'", category: .ingestion)
+                Log.debug(
+                    "[LayoutAwareExtractor] Block \(i): X=\(String(format: "%.2f", block.boundingBox.minX))-\(String(format: "%.2f", block.boundingBox.maxX)), text='\(block.text.prefix(30))'",
+                    category: .ingestion)
             }
         }
 
@@ -199,7 +220,9 @@ actor LayoutAwareExtractor {
         // Step 5: Build reading order text
         let readingOrderText = buildReadingOrderText(columns: columns, tables: tableRegions)
 
-        Log.info("[LayoutAwareExtractor] Page \(pageNumber): \(columns.count) columns detected, \(blocks.count) blocks, \(tableRegions.count) tables", category: .ingestion)
+        Log.info(
+            "[LayoutAwareExtractor] Page \(pageNumber): \(columns.count) columns detected, \(blocks.count) blocks, \(tableRegions.count) tables",
+            category: .ingestion)
 
         return LayoutAnalysisResult(
             pageNumber: pageNumber,
@@ -297,9 +320,10 @@ actor LayoutAwareExtractor {
                 // Extract ALL data from observations NOW before they're released
                 return observations.compactMap { observation -> TextBlock? in
                     guard observation.confidence >= minConf,
-                          !LayoutAwareExtractor.isMarginStrip(observation.boundingBox),
-                          let text = observation.topCandidates(1).first?.string,
-                          !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        !LayoutAwareExtractor.isMarginStrip(observation.boundingBox),
+                        let text = observation.topCandidates(1).first?.string,
+                        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    else {
                         return nil
                     }
 
@@ -337,7 +361,8 @@ actor LayoutAwareExtractor {
 
             // Find this line in the page
             if let range = pageText.range(of: trimmedLine, range: searchStart..<pageText.endIndex),
-               let selection = page.selection(for: NSRange(range, in: pageText)) {
+                let selection = page.selection(for: NSRange(range, in: pageText))
+            {
 
                 let bounds = selection.bounds(for: page)
 
@@ -353,12 +378,13 @@ actor LayoutAwareExtractor {
                     continue
                 }
 
-                blocks.append(TextBlock(
-                    text: trimmedLine,
-                    boundingBox: normalizedBounds,
-                    confidence: 1.0,  // Native text is high confidence
-                    pageNumber: pageNumber
-                ))
+                blocks.append(
+                    TextBlock(
+                        text: trimmedLine,
+                        boundingBox: normalizedBounds,
+                        confidence: 1.0,  // Native text is high confidence
+                        pageNumber: pageNumber
+                    ))
 
                 searchStart = range.upperBound
             }
@@ -407,7 +433,9 @@ actor LayoutAwareExtractor {
             .keys.sorted()
             .map { CGFloat($0) * binWidth }
 
-        Log.debug("[LayoutAwareExtractor] Found \(peaks.count) column left-edge peaks at X: \(peaks.map { String(format: "%.2f", $0) })", category: .ingestion)
+        Log.debug(
+            "[LayoutAwareExtractor] Found \(peaks.count) column left-edge peaks at X: \(peaks.map { String(format: "%.2f", $0) })",
+            category: .ingestion)
 
         // If we found clear column starts, use them as boundaries
         if peaks.count >= 2 {
@@ -431,11 +459,12 @@ actor LayoutAwareExtractor {
                     }
 
                     if !columnBlocks.isEmpty {
-                        columns.append(DetectedColumn(
-                            index: columns.count,
-                            xRange: start...end,
-                            blocks: columnBlocks
-                        ))
+                        columns.append(
+                            DetectedColumn(
+                                index: columns.count,
+                                xRange: start...end,
+                                blocks: columnBlocks
+                            ))
                     }
                 }
 
@@ -452,15 +481,16 @@ actor LayoutAwareExtractor {
         // Find gaps in X distribution that indicate column boundaries
         var gaps: [(position: CGFloat, size: CGFloat)] = []
         for i in 1..<xCenters.count {
-            let gap = xCenters[i] - xCenters[i-1]
+            let gap = xCenters[i] - xCenters[i - 1]
             if gap > columnGapThreshold {
-                let gapCenter = (xCenters[i] + xCenters[i-1]) / 2
+                let gapCenter = (xCenters[i] + xCenters[i - 1]) / 2
                 gaps.append((position: gapCenter, size: gap))
             }
         }
 
         // Sort gaps by size (largest gaps are most likely column boundaries)
-        let significantGaps = gaps
+        let significantGaps =
+            gaps
             .filter { $0.size > columnGapThreshold }
             .sorted { $0.size > $1.size }
 
@@ -494,21 +524,23 @@ actor LayoutAwareExtractor {
             }
 
             if !columnBlocks.isEmpty {
-                columns.append(DetectedColumn(
-                    index: columns.count,
-                    xRange: xMin...xMax,
-                    blocks: columnBlocks
-                ))
+                columns.append(
+                    DetectedColumn(
+                        index: columns.count,
+                        xRange: xMin...xMax,
+                        blocks: columnBlocks
+                    ))
             }
         }
 
         // If no columns detected (single column layout), use all blocks
         if columns.isEmpty {
-            columns.append(DetectedColumn(
-                index: 0,
-                xRange: 0...1,
-                blocks: blocks
-            ))
+            columns.append(
+                DetectedColumn(
+                    index: 0,
+                    xRange: 0...1,
+                    blocks: blocks
+                ))
         }
 
         return columns
@@ -587,8 +619,8 @@ actor LayoutAwareExtractor {
             }
 
             if tableRows.count >= 2,
-               hasConsistentColumnAlignment(tableRows),
-               shouldTreatAsTable(tableRows, totalBlockCount: blocks.count)
+                hasConsistentColumnAlignment(tableRows),
+                shouldTreatAsTable(tableRows, totalBlockCount: blocks.count)
             {
                 let allTableBlocks = tableRows.flatMap { $0 }
                 let minX = allTableBlocks.map(\.minX).min() ?? 0
@@ -596,11 +628,12 @@ actor LayoutAwareExtractor {
                 let minY = allTableBlocks.map { $0.boundingBox.minY }.min() ?? 0
                 let maxY = allTableBlocks.map(\.topY).max() ?? 1
 
-                tables.append(TableRegion(
-                    boundingBox: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
-                    rows: tableRows.map { $0.map(\.text) },
-                    pageNumber: pageNumber
-                ))
+                tables.append(
+                    TableRegion(
+                        boundingBox: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+                        rows: tableRows.map { $0.map(\.text) },
+                        pageNumber: pageNumber
+                    ))
 
                 for block in allTableBlocks {
                     tableBlockIDs.insert(block.id)
@@ -671,7 +704,8 @@ actor LayoutAwareExtractor {
     private func buildReadingOrderText(columns: [DetectedColumn], tables: [TableRegion]) -> String {
         let sortedColumns = columns.sorted { $0.xRange.lowerBound < $1.xRange.lowerBound }
         guard !sortedColumns.isEmpty else {
-            return tables
+            return
+                tables
                 .sorted {
                     Self.readingOrderPrecedes(lhsTopY: $0.topY, lhsMinX: $0.minX, rhsTopY: $1.topY, rhsMinX: $1.minX)
                 }
@@ -700,27 +734,31 @@ actor LayoutAwareExtractor {
                 let trimmedLine = lineText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmedLine.isEmpty else { continue }
 
-                elements.append(ReadingElement(
-                    text: trimmedLine,
-                    topY: sortedLineBlocks.map(\.topY).max() ?? 0,
-                    minX: sortedLineBlocks.map(\.minX).min() ?? 0
-                ))
+                elements.append(
+                    ReadingElement(
+                        text: trimmedLine,
+                        topY: sortedLineBlocks.map(\.topY).max() ?? 0,
+                        minX: sortedLineBlocks.map(\.minX).min() ?? 0
+                    ))
             }
 
-            for (tableIndex, table) in tables.enumerated() where assignedColumnIndex(for: table, columns: sortedColumns) == column.index {
+            for (tableIndex, table) in tables.enumerated()
+            where assignedColumnIndex(for: table, columns: sortedColumns) == column.index {
                 assignedTableIndexes.insert(tableIndex)
-                elements.append(ReadingElement(
-                    text: renderTableText(table),
-                    topY: table.topY,
-                    minX: table.minX
-                ))
+                elements.append(
+                    ReadingElement(
+                        text: renderTableText(table),
+                        topY: table.topY,
+                        minX: table.minX
+                    ))
             }
 
             let orderedElements = elements.sorted {
                 Self.readingOrderPrecedes(lhsTopY: $0.topY, lhsMinX: $0.minX, rhsTopY: $1.topY, rhsMinX: $1.minX)
             }
 
-            let columnText = orderedElements
+            let columnText =
+                orderedElements
                 .map(\.text)
                 .joined(separator: "\n")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -856,32 +894,40 @@ actor LayoutAwareExtractor {
     }
 
     private func shouldTreatAsTable(_ rows: [[TextBlock]], totalBlockCount: Int) -> Bool {
-        let cellTexts = rows
+        let cellTexts =
+            rows
             .flatMap { $0 }
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard !cellTexts.isEmpty else { return false }
 
         let maxColumns = rows.map(\.count).max() ?? 0
-        let headerCells = rows.first?
+        let headerCells =
+            rows.first?
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
-        let headerLikeFirstRow = !headerCells.isEmpty && headerCells.allSatisfy {
-            isShortTableCell($0) && $0.rangeOfCharacter(from: .decimalDigits) == nil
-        }
+        let headerLikeFirstRow =
+            !headerCells.isEmpty
+            && headerCells.allSatisfy {
+                isShortTableCell($0) && $0.rangeOfCharacter(from: .decimalDigits) == nil
+            }
 
-        let numericCellRatio = Double(cellTexts.filter {
-            $0.rangeOfCharacter(from: .decimalDigits) != nil
-        }.count) / Double(cellTexts.count)
+        let numericCellRatio =
+            Double(
+                cellTexts.filter {
+                    $0.rangeOfCharacter(from: .decimalDigits) != nil
+                }.count) / Double(cellTexts.count)
         let shortCellRatio = Double(cellTexts.filter(isShortTableCell).count) / Double(cellTexts.count)
         let narrativeCellRatio = Double(cellTexts.filter(isNarrativeTableCell).count) / Double(cellTexts.count)
         let tableCoverage = Double(rows.flatMap { $0 }.count) / Double(max(1, totalBlockCount))
 
-        let looksNarrativeColumns = maxColumns == 2
+        let looksNarrativeColumns =
+            maxColumns == 2
             && numericCellRatio < 0.15
             && narrativeCellRatio >= 0.5
             && !headerLikeFirstRow
-        let looksTabular = maxColumns >= 3
+        let looksTabular =
+            maxColumns >= 3
             || numericCellRatio >= 0.2
             || headerLikeFirstRow
             || (shortCellRatio >= 0.7 && narrativeCellRatio <= 0.35)
@@ -929,7 +975,9 @@ extension LayoutAwareExtractor {
         // Try layout-aware extraction
         let layoutResult = try await extractWithLayout(from: image, pageNumber: pageNumber)
 
-        Log.debug("[LayoutAwareExtractor] Page \(pageNumber): \(layoutResult.rawBlocks.count) blocks, \(layoutResult.columnCount) columns detected", category: .ingestion)
+        Log.debug(
+            "[LayoutAwareExtractor] Page \(pageNumber): \(layoutResult.rawBlocks.count) blocks, \(layoutResult.columnCount) columns detected",
+            category: .ingestion)
 
         if !layoutResult.tables.isEmpty {
             Log.info(
@@ -941,16 +989,20 @@ extension LayoutAwareExtractor {
 
         // If we detected multiple columns, use our reading order
         if layoutResult.isMultiColumn {
-            Log.info("[LayoutAwareExtractor] Page \(pageNumber): ✅ Multi-column detected (\(layoutResult.columnCount) cols), using layout-aware order", category: .ingestion)
+            Log.info(
+                "[LayoutAwareExtractor] Page \(pageNumber): ✅ Multi-column detected (\(layoutResult.columnCount) cols), using layout-aware order",
+                category: .ingestion)
             // Log first 200 chars of reading order text for debugging
             let preview = String(layoutResult.readingOrderText.prefix(200))
-            Log.debug("[LayoutAwareExtractor] Page \(pageNumber) layout text preview: \(preview)...", category: .ingestion)
+            Log.debug(
+                "[LayoutAwareExtractor] Page \(pageNumber) layout text preview: \(preview)...", category: .ingestion)
             return layoutResult.readingOrderText
         }
 
         // Single column - native text is probably fine
         if let native = nativeText, !native.isEmpty {
-            Log.debug("[LayoutAwareExtractor] Page \(pageNumber): Single column, using native text", category: .ingestion)
+            Log.debug(
+                "[LayoutAwareExtractor] Page \(pageNumber): Single column, using native text", category: .ingestion)
             return native
         }
 
