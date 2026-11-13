@@ -109,7 +109,11 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             try await Task.sleep(nanoseconds: 2_000_000_000)
             print("[EvidenceReach] Quotes only, picked at launch, lifted: \(settings.selectedModel.rawValue)")
         }
-        XCTAssertFalse(realModel && engine.quotesOnlySelected, "Quotes only is selected; every answer would be excerpts")
+        // Stops here, not after an hour of excerpts (an XCTAssert lets the test run on: 2026-11-13, 53 questions).
+        if realModel, engine.quotesOnlySelected {
+            XCTFail("Quotes only is selected (the person's choice flag is set); every answer would be excerpts")
+            return
+        }
         FoundationModelTokenBudget.onDeviceContextSizeOverrideForTesting = 4096
         NetworkMonitor.shared.holdForTesting(false)
         DirectModelCallsForTesting.disabled = !realModel

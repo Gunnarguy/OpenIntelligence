@@ -79,6 +79,8 @@ final class SettingsStore: ObservableObject {
         static let firstFB = "firstFallbackModel" // LLMModelType.rawValue
         static let secondFB = "secondFallbackModel" // LLMModelType.rawValue
         static let primaryModelUserOverride = "primaryModelUserOverride"
+        /// Set once the 5.8 launch has cleared an override that only the launch itself recorded (see `init`).
+        static let quotesOnlyOverrideReviewed58 = "quotesOnlyOverrideReviewed58"
         static let fmPreference = "foundationModelPreference" // FoundationModelPreference.rawValue
 
         // Reviewer & consent
@@ -649,6 +651,23 @@ final class SettingsStore: ObservableObject {
         // Sync pipeline trace setting to Log (must be after all stored properties initialized)
         Log.pipelineTraceEnabled = enablePipelineTrace
 
+        // Once, in 5.8: through 5.7 the "the person chose a model" flag was recorded by the launch itself (the
+        // `$selectedModel` sink below fires once on subscription, before 2026-11-13 with no `dropFirst`), so a device
+        // whose first launch found Apple's model not ready kept On-Device Analysis for good. Through 5.7 that mode was
+        // still answered by Apple's model; since 5.8 it is Quotes only and no model writes, so those devices would
+        // have answered every question with excerpts. Found 2026-11-13 in a Simulator nobody had touched:
+        // `primaryModelUserOverride` true with `on_device_analysis`. Clearing the flag lets the check below, or
+        // `RAGService.reconnectAppleModelIfNowAvailable` once the model is ready, move them to Apple Intelligence,
+        // which is what they were getting in 5.7. Someone who wants Quotes only picks it again, and that choice stays.
+        if !defaults.bool(forKey: Keys.quotesOnlyOverrideReviewed58) {
+            defaults.set(true, forKey: Keys.quotesOnlyOverrideReviewed58)
+            if selectedModel == .onDeviceAnalysis, hasUserPrimaryOverride {
+                hasUserPrimaryOverride = false
+                defaults.set(false, forKey: Keys.primaryModelUserOverride)
+                VerificationJournal.record("settings.quotesOnlyOverrideCleared", [:])
+            }
+        }
+
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
            !hasUserPrimaryOverride,
@@ -666,7 +685,10 @@ final class SettingsStore: ObservableObject {
 
     /// Wires change observers so `@Published` values stay persisted and applied.
     private func setupPipelines() {
+        // `dropFirst`: a @Published publisher sends its current value on subscription, which is not the person
+        // choosing anything (2026-11-13; it marked every launch's selection as theirs).
         $selectedModel
+            .dropFirst()
             .sink { [weak self] _ in
                 guard let self else { return }
                 if self.isApplyingProgrammaticSelection { return }
