@@ -346,6 +346,26 @@ extension SettingsView {
         return "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: false).formatted()) tokens"
     }
 
+    /// Apple's name for the on-device model (iOS 27 `SystemLanguageModel.variant`: "AFM 3 Core" or "AFM 3 Core
+    /// Advanced", Apple's documentation read 2026-11-13), or nil before iOS 27 or where the model isn't available.
+    var onDeviceModelName: String? {
+        #if canImport(FoundationModels)
+            if #available(iOS 27.0, macOS 27.0, *) {
+                let model = SystemLanguageModel.default
+                guard case .available = model.availability else { return nil }
+                let name = model.variant.displayName.trimmingCharacters(in: .whitespaces)
+                return name.isEmpty ? nil : name
+            }
+        #endif
+        return nil
+    }
+
+    /// Private Cloud Compute's window for the Intelligence Mode card, or nil where this build or device can't use it.
+    var cloudWindowForModeCard: String? {
+        guard DeviceCapabilities.pccRoutingCompiledIn, deviceCapabilities.supportsPrivateCloudCompute else { return nil }
+        return pccWindowDescription
+    }
+
     /// The on-device window, preferring the live capability snapshot over the budget
     /// helper's fallback for the same reason as `pccWindowDescription`.
     /// The languages Apple's on-device model reports on this device, by name in the person's language, or nil

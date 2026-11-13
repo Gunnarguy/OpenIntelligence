@@ -96,6 +96,8 @@ extension SettingsView {
                 mode: settings.ragQualityMode.canonical,
                 windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true),
                 windowDescription: onDeviceWindowDescription,
+                modelName: onDeviceModelName,
+                cloudWindow: cloudWindowForModeCard,
                 deepThinkTarget: Int(DeviceCapabilityService.shared.optimizedAgenticConfig().confidenceThreshold * 100),
                 maximumLimit: entitlementStore.hasUnlimitedMaximumMode
                     ? nil

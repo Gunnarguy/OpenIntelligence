@@ -26,6 +26,12 @@ struct IntelligenceModeCard: View {
     /// The on-device window Apple's model reports, in tokens (`SystemLanguageModel.contextSize`), and as words.
     let windowTokens: Int
     let windowDescription: String
+    /// Apple's name for the on-device model this device runs (`SystemLanguageModel.variant.displayName`, iOS 27: "AFM 3
+    /// Core" or "AFM 3 Core Advanced"), or nil where the model isn't available.
+    var modelName: String? = nil
+    /// Private Cloud Compute's window ("32,768 tokens", the live `contextSize` when known), or nil where this device
+    /// can't use it.
+    var cloudWindow: String? = nil
     /// Deep Think's stopping confidence on this device (`optimizedAgenticConfig().confidenceThreshold`).
     let deepThinkTarget: Int
     /// "2 of 3 left" on a free plan; nil when Maximum has no daily limit.
@@ -246,7 +252,7 @@ struct IntelligenceModeCard: View {
                 Image(systemName: mode.icon)
                     .scaledFont(size: 11, weight: .semibold)
                 // The same header as the Compute Profile's chip: the thing at work, then the step in its colour.
-                Text("Apple's model · \(windowDescription)")
+                Text("\(modelName ?? "Apple's model") · \(windowDescription)")
                     .scaledFont(size: 12, weight: .bold, design: .monospaced)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -324,7 +330,7 @@ struct IntelligenceModeCard: View {
             RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: ["SEARCH", "REASON", "CHECK"].map(Self.stageColor), startPoint: .leading, endPoint: .trailing),
+                        colors: ["SEARCH", "REASON", "CHECK"].map { Self.stageColor($0) }, startPoint: .leading, endPoint: .trailing),
                     lineWidth: 1.2
                 )
                 .opacity(0.8)
@@ -552,51 +558,74 @@ struct IntelligenceModeCard: View {
         var caption: String = ""
     }
 
-    /// The same six tiles in the same places for every mode, only the values change (the owner, 2026-11-10: three
-    /// tiles changed name from one mode to the next). Lit where a mode goes further than Standard.
+    /// The same six tiles, with the same names and units, in every mode; only the values change (the owner, 2026-11-10
+    /// and 2026-11-13: "they should kind of say the same thing"). Each answers one question about one step, a step being
+    /// one call to Apple's model. Values traced to the code on 2026-11-13:
+    /// - On this device: the live window (`FoundationModelTokenBudget.contextSize`), the same for every mode.
+    /// - In the cloud: Private Cloud Compute's window; Standard sends an answer too long for the device there, Deep Think
+    ///   and Maximum their final write-up (their steps stay on the device, `RAGService+Agentic.swift`), both after consent.
+    /// - Reads per step: Standard's character budget, (window − 420) × 0.88 × 1.4, capped at 10,000
+    ///   (`RAGService+QueryContext.swift`); Deep Think's 4 passages, up to 7 from an 8,000-token window
+    ///   (`SessionEvidencePlan`); Maximum's 3 passages as sentences, 2,500 characters (`AgenticOrchestrator+Maximum`).
+    /// - Steps: Deep Think's chain runs 4 to 8 (early stop is checked from the fifth); Maximum's loop runs
+    ///   min(50, max(8, ...)) and only after a strong first search (`AgenticOrchestrator.swift`, `.excellent`).
+    /// - Beside each match: `RAGQualityMode`'s neighbour radius, Standard's from `ParentDocumentService`.
+    /// Chat history left the tiles: the "Reads earlier turns of the chat" row says it, correctly.
     private var tiles: [Tile] {
-        let chainPassages = windowTokens >= 8_000 ? "up to 7 passages" : "up to 4 passages"
+        let standardChars = min(10_000, max(0, Int(Double(windowTokens - 420) * 0.88 * 1.4)))
+        let standardReads = "up to \((standardChars / 100 * 100).formatted()) characters"
         let reads: String
-        let neighbours: String
-        let sessions: String
+        let readsCaption: String
+        let steps: String
+        let stepsCaption: String
         let stops: String
         let stopsCaption: String
-        let readsCaption: String
-        let chat: String
+        let beside: String
+        let besideCaption: String
+        let cloudCaption: String
         switch mode.canonical {
         case .deepThink:
-            reads = chainPassages
-            neighbours = "±3"
-            sessions = "up to 8"
-            stops = "\(deepThinkTarget)% sure, covered"
-            stopsCaption = "or sooner when complete"
-            readsCaption = "each session, or key sentences"
-            chat = "Not read"
+            reads = windowTokens >= 8_000 ? "4 to 7 passages" : "4 passages"
+            readsCaption = "or their key sentences"
+            steps = "4 to 8"
+            stepsCaption = "then one write-up"
+            stops = "\(deepThinkTarget)% sure"
+            stopsCaption = "and covered, from step 5"
+            beside = "3 passages"
+            besideCaption = "each side, while they fit"
+            cloudCaption = "the write-up, with your OK"
         case .maximum:
-            reads = "up to 2,500 chars"
-            neighbours = "±5"
-            sessions = "up to 50"
-            stops = "findings settle"
-            stopsCaption = "or complete, or at 50"
-            readsCaption = "each loop session"
-            chat = "Not read"
+            reads = "3 passages"
+            readsCaption = "their key sentences, 2,500 chars"
+            steps = "8 to 50"
+            stepsCaption = "when its first search is strong"
+            stops = "nothing new turns up"
+            stopsCaption = "from step 6, or at its limit"
+            beside = "5 passages"
+            besideCaption = "each side, while they fit"
+            cloudCaption = "the write-up, with your OK"
         default:
-            reads = "what fits"
-            neighbours = "±2 to ±8"
-            sessions = "1"
-            stops = "one answer"
-            stopsCaption = "after its checks and retries"
-            readsCaption = "up to 10,000 chars on device"
-            chat = "Read"
+            reads = "all that fit"
+            readsCaption = standardReads
+            steps = "1"
+            stepsCaption = "then its checks"
+            stops = "it has an answer"
+            stopsCaption = "checked, rewritten once at most"
+            beside = "2 passages"
+            besideCaption = "each side; 5 across topics, 8 how-to"
+            cloudCaption = "a long answer, with your OK"
         }
         let deeper = mode.canonical != .standard
         return [
-            Tile(name: "Window", value: windowDescription, icon: "ruler", up: false, caption: "the window it plans for"),
-            Tile(name: "Reads each pass", value: reads, icon: "doc.text", up: false, caption: readsCaption),
-            Tile(name: "Neighbours", value: neighbours, icon: "arrow.left.and.right", up: false, caption: "passages either side"),
-            Tile(name: "Sessions", value: sessions, icon: "link", up: deeper, caption: "reasoning windows"),
+            Tile(name: "On this device", value: windowDescription, icon: "cpu", up: false,
+                caption: "\(modelName ?? "Apple's model"), each step"),
+            Tile(name: "In the cloud", value: cloudWindow ?? "Not used", icon: "cloud", up: false,
+                caption: cloudWindow == nil ? "Private Cloud Compute is off here" : cloudCaption),
+            Tile(name: "Reads per step", value: reads, icon: "doc.text", up: false, caption: readsCaption),
+            Tile(name: "Steps", value: steps, icon: "link", up: deeper, caption: stepsCaption),
             Tile(name: "Stops when", value: stops, icon: "flag.checkered", up: false, caption: stopsCaption),
-            Tile(name: "Chat history", value: chat, icon: "bubble.left.and.bubble.right", up: false, caption: mode.canonical == .standard ? "with Conversation Memory on" : "unless it falls back"),
+            // Not lit: Standard goes to 5 or 8 for some questions, beyond Deep Think's 3.
+            Tile(name: "Beside each match", value: beside, icon: "arrow.left.and.right", up: false, caption: besideCaption),
         ]
     }
 
