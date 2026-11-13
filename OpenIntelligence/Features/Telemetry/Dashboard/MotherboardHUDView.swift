@@ -638,10 +638,13 @@ struct HardwareXRayOverlay: View {
         busyComponent?.color ?? .gray
     }
 
-    /// The label in the chip outline: the part of the chip working now, in its color ("Neural Engine", "GPU", "CPU").
-    /// It named the chip ("A18 Pro") until the owner found that odd on 2026-11-10; the legend already names the chip.
+    /// The label in the chip outline: the part of the chip working now, in its color ("ANE", "GPU", "CPU"), the same
+    /// short names the legend uses. It named the chip ("A18 Pro") until the owner found that odd on 2026-11-10; it read
+    /// "Neural Engine" in caption type until he called it bulky on 2026-11-12.
     private var socLabel: String {
-        layout.socPlacement == nil ? "" : (busyComponent ?? lastBusyComponent).rawValue
+        guard layout.socPlacement != nil else { return "" }
+        let component = busyComponent ?? lastBusyComponent
+        return component == .neuralEngine ? "ANE" : component.rawValue
     }
 
     #if canImport(UIKit)
@@ -902,23 +905,28 @@ private struct GlowingSoCBorder: View {
     }
 }
 
-/// The small capsule in an outline's corner: its name, in white on the legend's dark blur. Shown whole or not at all.
+/// The small capsule in an outline's corner: its name in the legend's micro capitals (owner, 2026-11-12: the caption-size
+/// "Neural Engine" read as bulky), on the legend's dark blur. Shown whole or not at all.
 private struct XRayOutlineLabel: View {
     let text: String
     let color: Color
 
+    @ScaledMetric(relativeTo: .caption2) private var dynamicScale: CGFloat = 1
+    private var scale: CGFloat { min(dynamicScale, SiliconLegend.maximumScale) }
+
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3 * scale) {
             Circle()
                 .fill(color)
-                .frame(width: 5, height: 5)
-            Text(text)
-                .font(.caption2.weight(.medium))
+                .frame(width: 3 * scale, height: 3 * scale)
+            Text(text.uppercased())
+                .font(.system(size: 6.5 * scale, weight: .semibold, design: .rounded))
+                .tracking(0.4 * scale)
                 .foregroundStyle(.white)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 5 * scale)
+        .padding(.vertical, 1.5 * scale)
         .background(
             Capsule()
                 .fill(Color.black.opacity(SiliconLegend.backingOpacity))
@@ -1107,10 +1115,10 @@ private struct SiliconLegend: View {
                 .foregroundStyle(componentColor(cell.color).opacity(cell.isActive ? 0.95 : 0.55))
                 .frame(width: 18 * scale, alignment: .leading)
             Text(cell.reading)
-                .font(.system(size: 7.5 * scale, weight: .medium, design: .monospaced))
+                .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
                 .monospacedDigit()
                 .foregroundStyle(.white.opacity(cell.isActive ? 1 : 0.75))
-                .frame(width: 20 * scale, alignment: .trailing)
+                .frame(width: 22 * scale, alignment: .trailing)
         }
     }
 
@@ -1119,19 +1127,19 @@ private struct SiliconLegend: View {
     private var compactContent: some View {
         HStack(spacing: 3 * scale) {
             Image(systemName: "cpu")
-                .font(.system(size: 7.5 * scale, weight: .medium))
+                .font(.system(size: 9 * scale, weight: .medium))
                 .opacity(0.7 + 0.3 * min(1.0, max(0.0, intensity)))
             Text(chipName)
-                .font(.system(size: 8 * scale, weight: .semibold, design: .rounded))
+                .font(.system(size: 9 * scale, weight: .semibold, design: .rounded))
             // A fixed gap, never a Spacer: the legend's floating window takes the legend's size, so a view
             // that grows to the width it is offered grows the window, which offers more, without end. On the
             // owner's iPhone on 2026-11-04 that loop held the main thread until iOS ended the app (0x8BADF00D).
             Color.clear.frame(width: 3 * scale, height: 1)
             Image(systemName: "memorychip")
-                .font(.system(size: 5.5 * scale, weight: .semibold))
+                .font(.system(size: 6 * scale, weight: .semibold))
                 .foregroundStyle(.green.opacity(0.85))
             Text(availableRAMText)
-                .font(.system(size: 7 * scale, weight: .regular, design: .monospaced))
+                .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                 .monospacedDigit()
                 .foregroundStyle(.white.opacity(0.7))
         }
@@ -1143,7 +1151,7 @@ private struct SiliconLegend: View {
             // Spacer or an infinite frame, for the reason above).
             Rectangle()
                 .fill(Color.white.opacity(0.12))
-                .frame(width: (2 * (3 + 3 + 18 + 3 + 20) + 8) * scale, height: 0.5)
+                .frame(width: (2 * (3 + 3 + 18 + 3 + 22) + 8) * scale, height: 0.5)
                 .padding(.vertical, 1 * scale)
             Grid(alignment: .leading, horizontalSpacing: 8 * scale, verticalSpacing: 1.5 * scale) {
                 ForEach(Array(stride(from: 0, to: cells.count, by: 2)), id: \.self) { index in
