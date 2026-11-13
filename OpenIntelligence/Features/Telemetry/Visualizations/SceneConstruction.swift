@@ -186,10 +186,11 @@ nonisolated func fitProjection(of pointOfView: SCNNode, aspect: Float) {
 /// every frame after the map's turning is applied (`renderer(_:didApplyAnimationsAtTime:)`), so a label moves with its
 /// end. `margin` is the share of the clear part's half-width and half-height kept free at its edge. A label whose end
 /// is behind the camera is hidden.
+@discardableResult
 nonisolated func keepAxisLabelsInView(
     _ pins: [AxisLabelPin], pointOfView: SCNNode, aspect: Float, insets: AxisLabelInsets = .zero, margin: Float = 0.04
-) {
-    guard let camera = pointOfView.camera, !pins.isEmpty else { return }
+) -> [AxisLabelPlacement] {
+    guard let camera = pointOfView.camera, !pins.isEmpty else { return [] }
     let transform = pointOfView.presentation.simdWorldTransform
     let halfAngles = viewHalfAngles(
         fieldOfView: Float(camera.fieldOfView), aspect: aspect, horizontal: camera.projectionDirection == .horizontal)
@@ -214,6 +215,39 @@ nonisolated func keepAxisLabelsInView(
         placed.append(AxisLabelPlacement(center: spot, halfSize: size))
         pin.label.simdWorldPosition = worldPoint(at: spot, depth: drawDepth, camera: transform, halfAngles: halfAngles)
         markOffViewEnd(pin, spot: spot, wanted: wanted, size: size)
+    }
+    return placed
+}
+
+/// Hides a cluster's label while it would be drawn over an axis's name or over a cluster label already kept (5.8,
+/// 2026-11-13): on the owner's iPhone "Platensis & Spirulina · 358 pts" sat across "Military & Medical" and neither
+/// could be read. Axis names stay, since they say what the directions mean and the clusters are also named in the
+/// legend and the chips; among cluster labels the nearer one stays. Every frame, after `keepAxisLabelsInView`.
+nonisolated func hideClusterLabelsThatCollide(
+    _ labels: [SCNNode], with axisLabels: [AxisLabelPlacement], pointOfView: SCNNode, aspect: Float
+) {
+    guard let camera = pointOfView.camera else { return }
+    let clusters = labels.filter { $0.name?.hasPrefix("clusterLabel_") ?? false }
+    guard !clusters.isEmpty else { return }
+    let transform = pointOfView.presentation.simdWorldTransform
+    let halfAngles = viewHalfAngles(
+        fieldOfView: Float(camera.fieldOfView), aspect: aspect, horizontal: camera.projectionDirection == .horizontal)
+    var kept = axisLabels
+    let seen = clusters.map { label -> (label: SCNNode, point: SIMD2<Float>, depth: Float) in
+        let (point, depth) = viewPoint(of: label.presentation.simdWorldPosition, camera: transform, halfAngles: halfAngles)
+        return (label, point, depth)
+    }
+    for entry in seen.sorted(by: { $0.depth < $1.depth }) {
+        guard entry.depth > 0.1 else {
+            entry.label.isHidden = true
+            continue
+        }
+        let (low, high) = entry.label.boundingBox
+        let half = SIMD2<Float>(Float(high.x - low.x), Float(high.y - low.y)) * 0.5 * entry.label.simdScale.x
+        let placement = AxisLabelPlacement(center: entry.point, halfSize: half / (halfAngles * entry.depth))
+        let collides = kept.contains { $0.overlaps(placement) }
+        entry.label.isHidden = collides
+        if !collides { kept.append(placement) }
     }
 }
 

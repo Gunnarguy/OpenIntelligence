@@ -35,7 +35,8 @@ extension UnifiedMetricsBar {
                     }
 
                     // 3. SESSIONS/PROGRESS - Only for Deep Think/Maximum
-                    if isRecursiveRAG || isMaximumMode {
+                    // While the live line shows, it carries this badge at its trailing edge; twice was one too many.
+                    if (isRecursiveRAG || isMaximumMode) && !shouldShowLiveReasoning {
                         modeProgressIndicator
                     }
 

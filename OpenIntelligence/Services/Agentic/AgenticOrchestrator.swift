@@ -312,7 +312,7 @@ final class AgenticOrchestrator: Sendable {
             type: .analyzing,
             input: "Evaluating \(initialChunks.count) results",
             output:
-                "Confidence: \(retrievalQuality.description) (\(String(format: "%.0f%%", retrievalQuality.confidenceScore * 100)))\nSemantic match: \(intentValid ? "✓" : "✗") \(intentReason)",
+                "First search: \(retrievalQuality.plainDescription)\nSemantic match: \(intentValid ? "✓" : "✗") \(intentReason)",
             tokensUsed: 0,
             duration: 0.05,
             timestamp: Date()

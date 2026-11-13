@@ -953,6 +953,16 @@ extension RAGService {
                 await repairResponseIntegrity(responseText: &responseText, question: question, answerIntent: answerIntent, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks, llmResponse: &llmResponse)
 
                 var responsiveness = await ensureAnswerResponds(responseText: &responseText, llmResponse: &llmResponse, question: promptForGeneration, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks)
+                // A headline number the documents don't give (a total the model added up) comes off; the cited figures
+                // under it stand (`RAGService+AnswerHeadline.swift`).
+                responseText = Self.strippingStrayLeadingListNumber(responseText)
+                let headline = Self.droppingUnsupportedHeadlineNumber(
+                    responseText, question: question, sources: generationChunks.map(\.content))
+                if let dropped = headline.dropped {
+                    Log.warning("[AnswerHeadline] \(dropped) opened the answer and no passage states it; taken off", category: .llm)
+                    VerificationJournal.record("answer.headlineDropped", ["value": "\(dropped)"])
+                    responseText = headline.text
+                }
                 let responsivenessJudgedText = responseText
 
                 let (generationTime, responseWordCount) = emitGenerationTelemetry(generationStartTime: generationStartTime, responseText: responseText, llmResponse: llmResponse, selectedName: selectedName, selectedId: selectedId)

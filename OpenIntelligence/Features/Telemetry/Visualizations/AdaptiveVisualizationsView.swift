@@ -104,7 +104,7 @@ enum AtlasSceneLabels {
             return Embedding3DSceneView.AnnotationData(
                 position: SCNVector3(centroid.x, centroid.y, centroid.z),
                 title: names[group],
-                keywords: ["\(entry.count) pts"],
+                keywords: ["\(entry.count.formatted()) passages"],
                 color: colors[group % colors.count],
                 detailLevel: detailLevel(entry.count),
                 clusterSize: entry.count,
@@ -612,7 +612,7 @@ struct AdaptiveVisualizationsView: View {
 
     private func atlas3DStatsBar(profile: LibraryProfile) -> some View {
         HStack(spacing: DSSpacing.lg) {
-            AtlasStatPill(icon: "cube.fill", value: "\(profile.chunkCount)", label: "Points", color: DSColors.accent)
+            AtlasStatPill(icon: "cube.fill", value: profile.chunkCount.formatted(), label: "Points", color: DSColors.accent)
             AtlasStatPill(icon: "doc.fill", value: "\(profile.documentCount)", label: "Sources", color: .green)
 
             if !profile.dominantTopics.isEmpty {
@@ -702,7 +702,7 @@ struct AdaptiveVisualizationsView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DSSpacing.lg) {
                 QuickMetric(icon: "doc.text", label: "Docs", value: "\(profile.documentCount)")
-                QuickMetric(icon: "square.stack.3d.down.right", label: "Passages", value: "\(profile.libraryPassageCount)")
+                QuickMetric(icon: "square.stack.3d.down.right", label: "Passages", value: profile.libraryPassageCount.formatted())
                 QuickMetric(icon: "text.word.spacing", label: "Words", value: formatNumber(profile.totalWords))
 
                 if !profile.dominantTopics.isEmpty {
@@ -913,7 +913,7 @@ struct AdaptiveVisualizationsView: View {
                 GridItem(.flexible()),
             ], spacing: DSSpacing.md) {
                 StatTile(icon: "doc.text.fill", label: "Documents", value: "\(profile.documentCount)", color: DSColors.accent)
-                StatTile(icon: "square.stack.3d.down.right.fill", label: "Passages", value: "\(profile.libraryPassageCount)", color: DSColors.accent)
+                StatTile(icon: "square.stack.3d.down.right.fill", label: "Passages", value: profile.libraryPassageCount.formatted(), color: DSColors.accent)
                 StatTile(icon: "character.cursor.ibeam", label: "Avg Chunk", value: "\(profile.avgChunkSize)w", color: .green)
                 StatTile(icon: "chart.pie.fill", label: "Diversity", value: String(format: "%.0f%%", profile.topicDiversity * 100), color: .orange)
                 StatTile(icon: "circle.hexagongrid.fill", label: "Topics", value: "\(profile.dominantTopics.count)", color: DSColors.accent)

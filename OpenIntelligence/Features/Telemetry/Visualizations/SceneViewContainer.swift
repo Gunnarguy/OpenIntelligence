@@ -124,7 +124,8 @@ struct SceneViewContainer: UIViewRepresentable {
             guard viewport.width > 0, viewport.height > 0 else { return }
             let aspect = Float(viewport.width / viewport.height)
             fitProjection(of: camera, aspect: aspect)
-            keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
+            let axisNames = keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
+            hideClusterLabelsThatCollide(labelNodes, with: axisNames, pointOfView: camera, aspect: aspect)
         }
     }
 }
@@ -240,7 +241,8 @@ struct SceneViewContainer: NSViewRepresentable {
             guard viewport.width > 0, viewport.height > 0 else { return }
             let aspect = Float(viewport.width / viewport.height)
             fitProjection(of: camera, aspect: aspect)
-            keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
+            let axisNames = keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
+            hideClusterLabelsThatCollide(labelNodes, with: axisNames, pointOfView: camera, aspect: aspect)
         }
     }
 }

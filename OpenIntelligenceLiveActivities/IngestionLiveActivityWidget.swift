@@ -361,17 +361,28 @@ struct QueryLiveActivityWidget: Widget {
             let paused = QueryLiveActivityStyle.isPaused(context.state)
             let tint = LiveActivityTint.color(hex: context.state.tintHex)
             return DynamicIsland {
+                // The icon, the title and the percent each in their own region (2026-11-13): as one label in the
+                // leading region the title was cut to "Answering you..." and the percent sign met the island's corner.
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(context.state.title, systemImage: QueryLiveActivityStyle.symbol(context.state))
+                    Image(systemName: QueryLiveActivityStyle.symbol(context.state))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint)
+                        .padding(.leading, 6)
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    Text(context.state.title)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(tint)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text("\(QueryLiveActivityStyle.percent(context.state))%")
                         .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
+                        .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -424,7 +435,9 @@ private enum QueryLiveActivityStyle {
     static func symbol(_ state: QueryLiveActivityAttributes.ContentState) -> String {
         if state.finished == true { return "checkmark.circle.fill" }
         if isPaused(state) { return "pause.circle.fill" }
-        return state.isSetup == true ? "magnifyingglass" : "brain.head.profile"
+        // A speech bubble for any answer: the state doesn't carry the mode, and Deep Think's head showed on a
+        // Standard answer (2026-11-13).
+        return state.isSetup == true ? "magnifyingglass" : "text.bubble.fill"
     }
 
     static func percent(_ state: QueryLiveActivityAttributes.ContentState) -> Int {

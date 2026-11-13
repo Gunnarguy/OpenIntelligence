@@ -833,7 +833,9 @@ private enum XRayOutlineStyle {
     }
 
     /// Activity that shows the outline's label; it stays up `labelHoldSeconds` after the chip goes quiet.
-    static let labelThreshold: Double = 0.05
+    /// 0.25 since 2026-11-13: at 0.05 the label stood at full strength over the app while its outline was at a tenth
+    /// of its opacity, so "ANE" floated on a heading with no box round it (the owner's iPhone).
+    static let labelThreshold: Double = 0.25
     static let labelHoldSeconds: Double = 2
     static let labelInset: CGFloat = 4
     /// Short and even (5.8; 0.5 s ease-in-out before, which lagged behind a tenth that changed every half second and

@@ -196,7 +196,7 @@ struct CompactAtlasSceneView: View {
         Group {
             if !legendItems.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    ForEach(legendItems.prefix(5), id: \.name) { item in
+                    ForEach(legendItems.prefix(8), id: \.name) { item in
                         HStack(spacing: DSSpacing.xs) {
                             Circle()
                                 .fill(item.color)

@@ -691,6 +691,9 @@ extension RAGService {
         // long sentence, not repeated sentences.
         result = collapseIntraLineRepetition(result)
 
+        // A list number in front of an answer that is not a list ("3. **49**", 2026-11-13).
+        result = Self.strippingStrayLeadingListNumber(result)
+
         // Remove orphaned list markers with no content (just "-" or "•" or "1." alone on a line)
         result = result.components(separatedBy: .newlines)
             .map { line in

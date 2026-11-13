@@ -77,6 +77,17 @@ public nonisolated enum AtlasLabeling {
 
     // MARK: - Tokenization
 
+    /// A stored passage without the labels the app itself wrote into it at import: "[Part 2]", "Section Path:",
+    /// "TABLE:", "HEADERS:", "ROW 3:" and "Column 1". They sit in thousands of passages (3,757 "Path:" and 1,096
+    /// "TABLE:" of 16,554 in the owner's Library 6), so they came out as what a cluster or an axis is "about": the
+    /// Atlas showed "Path & Section" and "Table & Headers" on his iPhone on 2026-11-13. The words after a label stay.
+    public static func withoutPassageMarkup(_ text: String) -> String {
+        guard text.contains(":") || text.contains("[") else { return text }
+        return text.replacingOccurrences(
+            of: #"\[Part \d+\]|\bSection Path:|\bTABLE:|\bHEADERS:|\bROW \d+:|\bColumn \d+\b"#, with: " ",
+            options: .regularExpression)
+    }
+
     /// Extracts distinct, lowercased terms from text using NLTokenizer.
     /// Works universally across languages and scripts (including languages written without spaces).
     /// Drops tokens that contain digits or are longer than 24 characters.
@@ -85,6 +96,7 @@ public nonisolated enum AtlasLabeling {
     /// Lowercases with the locale-independent lowercased().
     /// English stop words are filtered as an extra filter.
     public static func terms(in text: String) -> Set<String> {
+        let text = withoutPassageMarkup(text)
         guard !text.isEmpty else { return [] }
         var result = Set<String>()
 

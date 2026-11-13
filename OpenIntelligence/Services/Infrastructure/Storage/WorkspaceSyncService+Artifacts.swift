@@ -200,7 +200,7 @@ extension WorkspaceSyncService {
         case .mergeLibraries:
             resolvedChunks = Self.mergeVectorChunks(shared: sharedChunks, local: localChunks, allowedDocumentIds: allowedDocumentIds)
         case .useICloudWorkspace, .importExistingICloudLibraries:
-            resolvedChunks = sharedChunks.filter { allowedDocumentIds.contains($0.documentId) }
+            resolvedChunks = PassageGenerations.newest(of: sharedChunks.filter { allowedDocumentIds.contains($0.documentId) }).kept
         }
 
         if resolvedChunks.isEmpty {

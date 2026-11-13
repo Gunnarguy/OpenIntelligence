@@ -62,6 +62,8 @@ This document provides a chronological history of user-facing changes, highlight
 - **The same question finds the same evidence.** Deep Think and Maximum could gather different passages when you asked the same question twice, and three other steps could differ from one launch to the next. They now come out the same each time.
 - **A summary comes from the documents you asked about.** "Summarize my lease" could put another document's summary first. A summary question now takes summaries only from the documents its search found.
 - **The match score reads the same everywhere.** The ring under an answer and the panel's "best match" showed one result two ways, 89% and 81%. They now show the same number.
+- **No totals the documents don't state.** Asked how many participants received a treatment across several studies, an answer could open with a total it added up itself, and add it wrong. Now it gives each study's number as the document writes it, with its citation, and a headline number that no passage states is taken off.
+- **A cleaner answer bar.** The session badge no longer sits on top of "Thinking", a finished Maximum answer shows one confidence figure, not two, and the line that says what the app is doing reads as plain words, without dashes or token counts.
 
 ### Libraries
 
@@ -89,6 +91,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **The Atlas opens at once.** Its analysis of a library took 24 to 61 seconds on 6,000 passages and ran again every time you opened it. It's now kept on your device and shown straight away, and redone only when the library changes. An axis name that doesn't fit at the end of its axis is dimmed, with a small arrow pointing to it.
 - **Vision Capture is marked Experimental.** On my iPhone its boxes ran off their objects and it named things it couldn't see well. It now says what it's sure of, keeps its boxes on the picture, and is labelled Experimental.
 - **Shared links open the app again.** My website moved to gunndamental.com, and links copied with Copy Link pointed at the old address, which opened the web page instead of the app. Links now use the new address.
+- **Atlas names come from your documents, not the app's labels.** Clusters and axes could be named "Path & Section" or "Table & Headers", words the app itself adds when it stores a passage. Those are left out, labels that would sit on top of each other give way, the legend lists every cluster, and counts read "16,554 passages".
 
 ### Plans
 

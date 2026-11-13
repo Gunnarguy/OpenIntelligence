@@ -489,10 +489,12 @@ extension RAGService {
             // (e.g., "how many quarts" — single-value with unit)
             if Self.getsCountInstruction(lowerQuestion) {
                 intentSpecificInstructions = """
-                    State the exact count FIRST, then list only the directly relevant items by name.
-                    Keep each bullet brief. Copy names, labels, and values VERBATIM from the excerpts.
-                    Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
-                    Use only the minimum citations needed for the count sentence or for bullets that come from different sources.
+                    Begin with one sentence that answers the question. Never begin with a list number.
+                    If an excerpt states the number, give that number exactly as the excerpt writes it, with the group, study or item it belongs to.
+                    If different excerpts give different numbers for different groups or studies, give each number with its group and its citation. Never add numbers from different excerpts together, and never state a total the excerpts do not state.
+                    Only when the excerpts list the items without stating how many there are, count them: say the count, then list the items by name.
+                    Keep each bullet brief. Copy names, labels, and values VERBATIM from the excerpts. Never duplicate items. Never invent items not in the source.
+                    Use only the minimum citations needed.
                     """
             } else if contextualDefinitionLookup {
                 intentSpecificInstructions = """

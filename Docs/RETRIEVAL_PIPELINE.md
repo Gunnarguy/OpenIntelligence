@@ -274,6 +274,8 @@ confidence: high]`
 
 **Updated 2026-11-13.** `highPrecisionLookupOverride` declines a value made only of numbers the question itself gives (`RAGService.valueRestatesQuestion`): asked about a row "under ADHD (n = 3026)", it had locked onto "3026" on a misread figure caption and returned that line as Deep Think's whole answer. `[evidence_level: code_verified, confidence: high]`
 
+**Count questions, 2026-11-13.** A question with "how many" no longer tells the model to state a count first: it gives a stated number as the excerpt writes it, each group's number where excerpts differ, never a sum, and counts only items listed without a number. After the responsiveness step a headline number no passage states as a count of something the question names, and that is not the count of the list under it, is removed (`RAGService+AnswerHeadline.swift`).
+
 **Also 2026-11-13.** Two switches in `RetrievalAblation` for paired runs: `answerFirst` (Deep Think's and Maximum's final step open with a one-sentence answer and never call a given value missing) and `maximumSourcePassages` (Maximum's final step reads the top retrieved passages beside its claim bank). `EvidenceReachBenchmarkTests` asks Maximum answers on path `m`. A third, `draftAbstainNeedsFailedClaim`, lets the source-only check's drafting model flag an answer Needs Verification only when one of its claims failed its check (`SourceOnlyAnswerService`). `[evidence_level: code_verified, confidence: high]`
 
 ## MMR and the passages' vectors (corrected 2026-10-14, for 5.7)

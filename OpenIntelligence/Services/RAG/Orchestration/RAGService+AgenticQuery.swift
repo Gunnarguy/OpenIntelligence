@@ -26,6 +26,21 @@ import PDFKit
 extension RAGService {
     // MARK: - Thinking Timeline Helpers
 
+    /// A model's note as one plain line for the status row: list marks, heading marks and bold marks off, one space
+    /// between its lines ("- The document mentions..." showed its dash on the owner's iPhone, 2026-11-13).
+    nonisolated static func plainStatusText(_ text: String) -> String {
+        text.components(separatedBy: .newlines)
+            .map { line -> String in
+                var line = line.trimmingCharacters(in: .whitespaces)
+                if let mark = line.range(of: #"^(#{1,6}|[-*•]|\d{1,2}[.)])\s+"#, options: .regularExpression) {
+                    line.removeSubrange(mark)
+                }
+                return line.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
     @MainActor
     func resetThinkingTimeline() {
         thinkingEvents.removeAll(keepingCapacity: false)
@@ -571,11 +586,10 @@ extension RAGService {
                             // This is a reasoning session from Maximum mode - show session details
                             let sessionInfo = step.input  // e.g., "Session 5/25"
                             let confidence = step.confidence ?? 0
-                            let saturation = step.tokensUsed > 300 ? "deep" : "scanning"
-
-                            let metricsString =
-                                "\(Int(confidence * 100))% confident • \(step.tokensUsed) tokens • \(saturation)"
-                            let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
+                            // The session's own words and how sure it is; its token count and a "deep"/"scanning"
+                            // word from that count were internal values (owner, 2026-11-13).
+                            let metricsString = "\(Int(confidence * 100))% confident"
+                            let cleanOutput = Self.plainStatusText(step.output)
                             let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
 
                             self?.emitThinkingEvent(
@@ -588,11 +602,12 @@ extension RAGService {
                             // Plain words only (5.8): "Tokens: 4, Duration: 0.2s" read as internal values, and the
                             // durations were constants the steps set (0.2 s, 0.5 s), never measured.
                             var metrics: [String] = []
+                            // No token count: "Chose 5 of 25 sections to read • 5 tokens" was the size of the model's
+                            // reply, which tells the person nothing (owner, 2026-11-13).
                             if let confidence = step.confidence { metrics.append("\(Int(confidence * 100))% confident") }
-                            if step.tokensUsed > 0 { metrics.append("\(step.tokensUsed) tokens") }
                             let metricsString = metrics.joined(separator: " • ")
 
-                            let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
+                            let cleanOutput = Self.plainStatusText(step.output)
                             let detail =
                                 metricsString.isEmpty
                                 ? cleanOutput : (cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)")
@@ -622,6 +637,9 @@ extension RAGService {
                 confidence: Double(result.confidence)
             )
 
+            // The ring shows the answer's own confidence once there is one: it had kept the last session's figure, so
+            // a finished Maximum answer read 70% on the ring and 53% in the line under it (owner's iPhone, 2026-11-13).
+            deepThinkLiveConfidence = result.confidence
             emitThinkingEvent(
                 .generation,
                 title: "Synthesis complete",

@@ -23,6 +23,17 @@ enum AgenticRetrievalQuality: Sendable {
         }
     }
 
+    /// The grade in plain words for the answer's progress panel: one bracket, no second figure ("Excellent (>50%
+    /// match) (90%)" carried the grade's fixed score after its range, 2026-11-13).
+    var plainDescription: String {
+        switch self {
+        case .excellent: return "strong (best match over 50%)"
+        case .good: return "good (best match 35 to 50%)"
+        case .moderate: return "fair (best match 20 to 35%)"
+        case .low: return "weak (best match under 20%)"
+        }
+    }
+
     var description: String {
         switch self {
         case .excellent: return "Excellent (>50% match)"

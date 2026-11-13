@@ -34,6 +34,9 @@ struct WrappingRowLayout: Layout {
         var height: CGFloat = 0
     }
 
+    /// The half point of slack: a nested row is placed in bounds SwiftUI has rounded to the pixel, a fraction under the
+    /// width it asked for, and without the slack its last badge went to a second line nobody had made room for, drawn
+    /// over the row below (the session badge over "Thinking" on the owner's iPhone, 2026-11-13).
     private func arrange(_ subviews: Subviews, width: CGFloat) -> (lines: [Line], sizes: [CGSize]) {
         var sizes: [CGSize] = []
         var lines = [Line()]
@@ -42,7 +45,7 @@ struct WrappingRowLayout: Layout {
             let size =
                 ideal.width <= width ? ideal : subviews[index].sizeThatFits(ProposedViewSize(width: width, height: nil))
             sizes.append(size)
-            if !lines[lines.count - 1].indices.isEmpty, lines[lines.count - 1].width + spacing + size.width > width {
+            if !lines[lines.count - 1].indices.isEmpty, lines[lines.count - 1].width + spacing + size.width > width + 0.5 {
                 lines.append(Line())
             }
             var line = lines[lines.count - 1]

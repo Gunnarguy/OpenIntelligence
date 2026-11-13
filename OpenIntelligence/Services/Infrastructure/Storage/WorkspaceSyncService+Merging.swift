@@ -372,7 +372,22 @@ extension WorkspaceSyncService {
         ingest(shared)
         ingest(local)
 
-        return orderedIds.compactMap { byId[$0] }.sorted { lhs, rhs in
+        // One document, one set of passages (5.8, 2026-11-13, at the owner's word for this file). A rebuild gives a
+        // document new passages with new ids and often other text, so neither test above matched them to the old ones
+        // and a library rebuilt on one device kept both sets once it met the old copy: the owner's Library 6 held
+        // 16,554 passages for 37 documents, 8,324 of them from before the rebuild with the old model's vectors. Only
+        // each document's newest run of passages stays (`PassageGenerations`), which also repairs a store that
+        // already holds both: the next pass finds the stores differ from the merge and rewrites them.
+        let union = orderedIds.compactMap { byId[$0] }
+        let newest = PassageGenerations.newest(of: union)
+        if newest.removed > 0 {
+            Log.warning(
+                "[WorkspaceSyncService] Merge left out \(newest.removed) passage(s) from before a rebuild; \(newest.kept.count) kept",
+                category: .vectorDB)
+            VerificationJournal.record(
+                "sync.oldPassagesRemoved", ["removed": "\(newest.removed)", "kept": "\(newest.kept.count)"])
+        }
+        return newest.kept.sorted { lhs, rhs in
             if lhs.documentId != rhs.documentId {
                 return lhs.documentId.uuidString < rhs.documentId.uuidString
             }
