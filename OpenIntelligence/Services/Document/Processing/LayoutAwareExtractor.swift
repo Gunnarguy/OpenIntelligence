@@ -160,18 +160,19 @@ actor LayoutAwareExtractor {
                 StructuredDocumentParser.CoveredRegion(
                     box: $0.boundingBox, words: StructuredDocumentParser.coverageTokens($0.text))
             }
-            // A recovered run of four or more words that the page's blocks already say, in that order, is not lost text:
-            // the box test missed a line its block holds, and adding it again moved the line out of its paragraph
-            // (oncotarget-07-17393 p2, p10, p11 and ijms-21-03624 p21 lost 5 passing sentences in the first run,
-            // 2026-11-12). Shorter runs, such as a table's numbers, are always kept.
+            // A recovered run of four or more words whose words the page's blocks already hold (three quarters of
+            // them) is not lost text: the box test missed a line its block holds, often read by Vision with a
+            // misread word, and adding it again moved the line out of its paragraph (oncotarget-07-17393 p2, p10,
+            // p11 and ijms-21-03624 p21 lost 5 passing sentences in the first run, 2026-11-12). Shorter runs, such as
+            // a table's numbers, are always kept.
             func sequence(_ text: String) -> [String] {
                 let folded = OCRConfiguration.markingScriptsAndFractions(text).precomposedStringWithCompatibilityMapping
                 return folded.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
             }
-            let held = " " + blocks.map { sequence($0.text).joined(separator: " ") }.joined(separator: " ") + " "
+            let held = Set(blocks.flatMap { sequence($0.text) })
             let recovered = StructuredDocumentParser.uncoveredBlocks(items: textLayerWords, regions: regions).filter {
                 let run = sequence($0.text)
-                return run.count < 4 || !held.contains(" " + run.joined(separator: " ") + " ")
+                return run.count < 4 || Double(run.filter(held.contains).count) < Double(run.count) * 0.75
             }
             if !recovered.isEmpty {
                 recoveredBlocks = recovered.map {

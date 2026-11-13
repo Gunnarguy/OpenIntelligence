@@ -25,6 +25,8 @@ nonisolated enum TextLayerTableDetector {
         let header: [String]?
         /// Body rows, each with one entry per column ("" for an empty cell).
         let rows: [[String]]
+        /// Whether only its caption made it a table: under a quarter of its body cells hold numbers (5.8).
+        var acceptedByCaption = false
     }
 
     private struct Segment {
@@ -346,7 +348,8 @@ nonisolated enum TextLayerTableDetector {
             return nil
         }
         let box = rowBoxes.dropFirst().reduce(rowBoxes[0]) { $0.union($1) }
-        return Table(box: box, header: header, rows: body)
+        let numericShare = Double(bodyCells.filter(isNumeric).count) / Double(bodyCells.count)
+        return Table(box: box, header: header, rows: body, acceptedByCaption: numericShare < 0.25)
     }
 
     // MARK: - pdfplumber's "text" strategy, ported
