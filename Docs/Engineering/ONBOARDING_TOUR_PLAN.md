@@ -1,14 +1,118 @@
 # Onboarding tour: every screen teaches itself (5.8)
 
 Drafted 2026-11-03 at the owner's word ("Yep, go, do it 10x sdk 27 style") and built the same day (`TourTips.swift`).
-**As built: 42 stops** (41 on 2026-11-03; the X-Ray step added 2026-11-10). Left out of the draft below: the two tab-bar tips and the Settings search tip (a tab and a search
+**Rebuilt 2026-11-13 as 52 small, paced tips (next section).** First built with 42 stops (41 on 2026-11-03; the X-Ray step added 2026-11-10). Left out of the draft below: the two tab-bar tips and the Settings search tip (a tab and a search
 field take no popover), and the Atlas full-screen tip (the Atlas's existing `AtlasTip` already points there). Groups are
 `.firstAvailable`, not `.ordered`: tips still show in list order, but one whose rules can't pass yet doesn't hold up the
 rest. Each tip's
 text is a claim about the app, so each one was written from the control's own code (file and line given) and is
 checked again when it is built. `[evidence_level: code_verified for the controls and the TipKit calls, confidence: high]`
 
-## How it works
+## Rebuilt 2026-11-13: small tips, one at a time, when they apply
+
+The owner approved the rebuild ("YES BUILD IT", 2026-11-13) and then widened it the same day: tips "on the parts of the app
+that would be ambiguous otherwise", "small, nice and easy to read, little arrows", popping up "when intuitively
+necessary"; and, when a draft cut the tour to 30, "removing 11 tips sounds worse???". So every first-tour tip stayed,
+and a read-only pass over every screen as a newcomer found nine more (the model pill, the check badge, Fact Check,
+swipe to delete a conversation, a library's hold menu, the two icon-only delete chips, the import panel's X, the Atlas's
+size buttons). The first tour confused people: the owner's iPhone journal from 2026-11-03 to 11-13 recorded 19 tips used, 14
+of them closed without doing the thing, `processingMode` shown on 13 separate launches and still showing, and `newLibrary`
+on 13 launches before it was used. `[evidence_level: measured, confidence: high, evidence_source: the owner's iPhone
+VerificationJournal tip.status and tip.shown events, 2026-11-03 to 11-13, as relayed by the session that started this
+work]` Everything below "How it works" further down is the first tour as built on 2026-11-03, kept as the record.
+
+### What changed, and where in the code
+
+| Part | Before | Now | Code |
+|---|---|---|---|
+| Pacing | `.displayFrequency(.immediate)`, no per-tip limit: a tip came back every launch until closed | Each tip gives up after 3 showings (`MaxDisplayCount`) or 60 s on screen in all (`MaxDisplayDuration`; 60 s is TipKit's floor, developer.apple.com/documentation/tipkit/tips/maxdisplayduration, fetched 2026-11-13, and the Simulator's TipKit log showed the 60 s monitor). One new tip at most every 90 s, none in the first 60 s after launch | `TourTip.options`, `Tour.claimTurn`, `Tour.startPacing`, `TourContext.pace` |
+| Why a rule paces it | | TipKit's `DisplayFrequency` offers `immediate`, `hourly`, `daily`, `weekly`, `monthly` and nothing shorter (Xcode 27.0's `iPhoneOS27.0.sdk` TipKit.swiftinterface), so "every few minutes" is a `#Rule` on a `.transient` parameter: "launch", then "open", then the name of the one paced tip that holds the turn | `TourTip.rules` |
+| Essentials | none | Six skip the pacing, each tied to the moment it applies: the empty chat, the first source, a source's match line, the answer modes, "not in your documents", Add Document | `TourStep.isEssential` |
+| Count | 41 tips, plus `AtlasTip` and `ModelConfigTip` | 52: the 41 kept and rewritten short, "not in your documents", and nine found by the newcomer pass (`TourTipTests` keeps it at 41 or more) | `TourStep`, `Tour.screens` |
+| Triggers | the screen opened | what the person did: an answer that found nothing (`StructuredAnswer.refuse` → `TourContext.lastAnswerNotFound`), a large import running (3+ files, or a file of 50 pages or 10 MB → `TourContext.largeImportRunning`), the second answer, the third document | `ChatScreen+Sending.swift`, `IngestionQueueOverlay.isLargeImport` |
+| Placement | popovers everywhere, toolbar items included | popovers with an arrow on in-content controls; cards in content (`TourCard`) for the empty chat, the first answer with a source, and an answer that found nothing; the three toolbar buttons (sidebar, Apple Intelligence, More) get a `TipView` under the toolbar whose arrow points at the button through iOS 26's `tipAnchor`, never a popover on the toolbar item | `TourTipModifier`, `TourCard`, `TourCardStyle`, `TourToolbarTips`, `tourAnchor` |
+| Look | system popover; `CompactTipViewStyle` on `.ultraThinMaterial` for two inline tips | system popover (Liquid Glass on iOS 26 and later); cards on `glassEffect(.regular)` with the app's accent, its caption and subheadline sizes and a 44-point close button | `TourCardStyle` |
+| Anchoring | the popover on the control | a popover hangs from a clear layer behind its control (`TourTipModifier`): on a control with interactive Liquid Glass (Documents' action chips) the popover attached to the control drew its words with no background (the iOS 27 Simulator, 2026-11-13). The toolbar tips are drawn over Chat's header (`ChatScreen+Content.swift`): drawn at the top of the whole chat they sat behind the navigation bar, shown by TipKit's own log and invisible | `TourTipModifier`, `TourToolbarTips` |
+| Size | Apple's popover with a 40-point icon and 17-point body text, about a third of a 6.3-inch screen | a 24-point icon (`tipImageSize`) and text set on the tip's own `Text`: subheadline semibold title and footnote sentence (15 and 13 points at the default size, against TipKit's 17), still following Dynamic Type. Tried first and dropped: a custom popover style (it broke the popover's layout, the close button clipped) and a smaller `dynamicTypeSize` around the popover (it reached the inline toolbar tip, not the popover) | `TourTip.title`, `TourTip.message`, `tourTipSize()` |
+| Words | up to 220 characters, several sentences | a title of at most four words, one sentence of at most 130 characters, each rewritten from its control's code | `TourTipTests.testEveryTipIsShort` |
+| Actions | none | Try a Question (asks the first suggested question), Show Me (opens the first source; opens an answer's buttons), Go Deeper, New Library | `TourStep.actionTitle`, `.tour(perform:)`, `TourCard(perform:)` |
+
+`[evidence_level: code_verified, confidence: high]`
+
+Tests: `TourTipTests` (unit, 9 of 9 pass) and `TourTipCloseUITests` (each tip closes on one tap of its X, 3 of 3 pass) on an iOS 27 Simulator, 2026-11-13. `TourFlowUITests` (a fresh install's empty-chat card asks a question, the answer carries the citation card, Show Me opens the source with its match-line tip) has not passed yet: it skipped twice, because on a heavily loaded Mac the guide library's import outlasted the card's minute on screen. Run it on a freshly erased simulator on a quiet Mac. Nothing here was checked on a device.
+
+No popover sits on a toolbar item. Through the first 5.8 builds a `.popoverTip` on Chat's toolbar buttons put TipKit's
+`UIAppearanceMonitor` controller into Chat's navigation stack, and tapping the Chat tab again blanked Chat (fixed in
+9049d416 by attaching a popover only while its tip shows; that fix stays in `TourTipModifier`). The toolbar tips use
+iOS 26's `tipAnchor(_:)` with `TipView(_:arrowEdge:anchorID:)`, drawn in Chat's content (Apple: "Use this modifier to
+specify an anchor view for a TipView's arrow to point towards", developer.apple.com/documentation/swiftui/view/tipanchor(_:),
+fetched 2026-11-13). Settings › How This Works › Where Things Are also describes them.
+
+### The 52 tips
+
+One at a time per screen (`TipGroup(.firstAvailable)`, in this order). "Paced" means it waits its turn (`Tour.claimTurn`).
+
+| Screen | Tip (step) | Control | File | Shows when |
+|---|---|---|---|---|
+| Chat | Ask your documents (`composer`) | card in the empty chat, Try a Question | `FirstQueryPromptView.swift` | no answer yet, suggestions ready |
+| Chat | Not in your documents (`notFound`) | card under the answer, Go Deeper | `MessageBubbleV2.swift` | the newest Standard answer found nothing to stand on |
+| Chat | Check the source (`citation`) | card under the answer, Show Me | `GroundedAnswerView.swift` | the newest answer has a source |
+| Chat | Checked against your files (`factCheck`) | Fact Check count | `GroundedAnswerView.swift` | the newest answer has claims, paced |
+| Chat | Standard or Deep Think (`modePicker`) | mode picker | `ChatScreen.swift` | after the first answer |
+| Chat | Where answers are written (`modelPill`) | model pill (Hybrid, On-Device, PCC) | `ChatScreen.swift` | after the first answer, paced |
+| Chat | Tap an answer (`answerBubble`) | the newest answer, Show Me | `MessageBubbleV2.swift` | after the second answer, paced |
+| Chat | Not enough? Go Deeper (`goDeeper`) | Go Deeper | `MessageActionsBar.swift` | the answer's buttons are open, paced |
+| Chat | How it was answered (`details`) | Details | `MessageActionsBar.swift` | the answer's buttons are open, paced |
+| Chat | Where it ran (`routeBadge`) | route badge | `MessageBubbleV2.swift` | after the first answer, paced |
+| Chat | How it held up (`verdictBadge`) | check badge (Verified ... Not Checked) | `MessageBubbleV2.swift` | after the first answer, paced |
+| Chat | Rework an answer (`aiHub`) | Apple Intelligence toolbar button, tip under the toolbar | `ChatScreen+Actions.swift` | after the first answer, paced |
+| Chat | Questions search one library (`libraryPills`) | another library's pill | `ChatScreen.swift` | 2+ libraries, paced |
+| Chat | Add a file here (`attach`) | attach | `ChatComposerV2.swift` | after the first answer, paced |
+| Chat | Say it instead (`dictation`) | microphone | `ChatComposerV2.swift` | after the first answer, paced |
+| Chat | New chat and export (`moreMenu`) | More toolbar menu, tip under the toolbar | `ChatScreen+Body.swift` | after the second answer, paced |
+| Chat | Your conversations (`sidebar`) | sidebar toolbar button, tip under the toolbar | `ChatScreen+Body.swift` | after the third answer, paced |
+| Chat | Keyboard shortcuts (`keyboard`) | question box | `ChatComposerV2.swift` | Mac, second launch, paced |
+| Conversations | Swipe to delete (`threadSwipe`) | first conversation | `ThreadSidebarView.swift` | the list is open, paced |
+| Source | Is it really there? (`matchBanner`) | match line | `SourceTextView.swift, SourcePageView.swift` | the first source opened |
+| Source | Need more context? (`moreContext`) | Show Earlier/Later Text | `SourceTextView.swift` | paced |
+| Documents | Add your files (`addDocument`) | Add Document chip | `DocumentLibraryView+DocumentList.swift` | first visit |
+| Documents | This library's settings (`librarySettings`) | Library Settings chip | `DocumentLibraryView+DocumentList.swift` | 1+ document, paced |
+| Documents | Paste works too (`paste`) | Paste chip | `DocumentLibraryView+DocumentList.swift` | 1+ document, paced |
+| Documents | Search by meaning (`semanticSearch`) | Semantic Search chip | `DocumentLibraryView+DocumentList.swift` | 3+ documents, paced |
+| Documents | Keep topics apart (`newLibrary`) | New Library, New Library button | `ContainerPicker.swift` | 3+ documents, paced |
+| Documents | Hold a library (`libraryMenu`) | first library pill (hold menu) | `ContainerPicker.swift` | 1+ document, iPhone and iPad, paced |
+| Documents | Touch and hold (`documentMenu`) | first document card | `DocumentLibraryView+DocumentList.swift` | 3+ documents, iPhone and iPad, paced |
+| Documents | Drop files here (`dragAndDrop`) | document list | `DocumentLibraryView+DocumentList.swift` | iPad and Mac, paced |
+| Documents | Empty this library (`removeAll`) | Remove All Documents chip | `DocumentLibraryView+DocumentList.swift` | 1+ document, paced |
+| Documents | Delete this library (`deleteLibrary`) | Delete Library chip | `DocumentLibraryView+DocumentList.swift` | 2+ libraries, paced |
+| Import | Pause anytime (`pauseImport`) | Pause | `IngestionQueueOverlay.swift` | an import of 3+ files, or of 50 pages or 10 MB, paced |
+| Import | Stop or hide (`importStop`) | the panel's X | `IngestionQueueOverlay.swift` | an import can be stopped, paced |
+| Import | Faster or cooler (`processingMode`) | processing mode | `IngestionQueueOverlay.swift` | an import runs, paced |
+| Library Settings | Watch a folder (`watchFolder`) | Watch a Folder | `WatchedFolderSection.swift` | paced |
+| Library Settings | How this library searches (`searchStyle`) | search style | `ContainerSettingsSheet+Search.swift` | paced |
+| Library Settings | Documents in another language? (`translation`) | Translation Language | `ContainerSettingsSheet+Intelligence.swift` | paced |
+| Atlas | What the map found (`insights`) | first insight card | `AdaptiveVisualizationsView.swift` | paced |
+| Atlas | Change the view (`atlasSettings`) | slider button | `AdaptiveVisualizationsView.swift` | paced |
+| Atlas | Map size (`atlasMode`) | smaller and larger buttons | `AdaptiveVisualizationsView.swift` | paced |
+| Atlas | All libraries at once (`allLibraries`) | libraries picker, full screen | `Fullscreen3DAtlasView.swift` | 2+ libraries, paced |
+| Database | One library or all (`databaseScope`) | scope chips | `DatabaseDashboardView+Header.swift` | paced |
+| Database | Look inside the index (`databaseSections`) | section picker | `DatabaseDashboardView+Header.swift` | paced |
+| Database | Something off? (`runCheck`) | Run Check | `DatabaseDashboardView+MaintenanceAndSearch.swift` | paced |
+| Settings | How it really works (`howItWorks`) | How This Works row | `SettingsView+List.swift` | paced |
+| Settings | Cloud use is optional (`privateCloud`) | Private Cloud Compute row | `SettingsView+List.swift` | the device supports it, paced |
+| Settings | Every term explained (`glossary`) | Plain English row | `SettingsView+List.swift` | second Settings visit, paced |
+| Settings | Ask with Siri (`siri`) | Siri & Shortcuts row | `SettingsView+List.swift` | second Settings visit, paced |
+| Settings | See the work (`technicalDetails`) | Appearance › Technical Details | `SettingsView+AppearanceAndSupport.swift` | paced |
+| Settings | Where your chip is (`xray`) | Appearance › Telemetry HUD | `SettingsView+AppearanceAndSupport.swift` | not a Mac, a measured chip spot, paced |
+| Settings | Menu bar questions (`menuBar`) | Appearance, Mac | `SettingsView+AppearanceAndSupport.swift` | Mac, paced |
+| Plans | Have a code? (`redeemCode`) | Redeem a Code | `PlanUpgradeSheet.swift` | paced |
+
+Every tip also needs the welcome closed, and goes for good once its control is used (`Tour.used`), its X is tapped, it
+has been shown 3 times, or it has been on screen 60 s in all.
+
+## The first tour as built on 2026-11-03 (superseded 2026-11-13)
+
+### How it works
 
 1. **The welcome stays as the first-run path.** Its two pages and the sample library are unchanged.
 2. **Each screen teaches itself the first time it is opened.** A screen's tips are one `TipGroup(.ordered)`: one arrow at a

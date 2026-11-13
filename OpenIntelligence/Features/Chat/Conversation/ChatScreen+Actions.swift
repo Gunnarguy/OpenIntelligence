@@ -575,6 +575,8 @@ extension ChatScreen {
                         deeperMessage.containerId = containerId
                         deeperMessage.thinkingEvents = self.thinkingEvents
                         self.appendAndPersistMessage(deeperMessage, for: containerId)
+                        // A Deep Think answer can't go deeper, so the tour's "Not in your documents" card is done.
+                        TourContext.lastAnswerNotFound = false
 
                         self.currentRetrievedChunks = response.retrievedChunks
                         self.currentMetadata = response.metadata
@@ -699,7 +701,7 @@ extension ChatScreen {
                 .imageScale(.large)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(hasAssistantMessages ? DSColors.accent : .secondary)
-                .tour(.aiHub, in: Tour.chat)
+                .tourAnchor(.aiHub)
         }
         .disabled(!hasAssistantMessages || isProcessing || writingToolsProcessing)
     }

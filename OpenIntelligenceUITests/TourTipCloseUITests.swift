@@ -47,7 +47,7 @@ final class TourTipCloseUITests: XCTestCase {
     }
 
     /// Settings shows its tips one at a time (`Tour.settings`, first available): four on the list, then
-    /// "Want to see the work?" in Appearance. Each must close on one tap.
+    /// "See the work" in Appearance. Each must close on one tap.
     @MainActor
     private func closeTheSettingsTipsOnOneTapEach(hud: Bool) throws {
         let app = launch(hud: hud)
@@ -57,11 +57,11 @@ final class TourTipCloseUITests: XCTestCase {
 
         var missed: [String] = []
         if !closesOnOneTap("How it really works", in: app) { missed.append("How it really works") }
-        if !closesOnOneTap("You decide when it's used", in: app) { missed.append("You decide when it's used") }
+        if !closesOnOneTap("Cloud use is optional", in: app) { missed.append("Cloud use is optional") }
         XCTAssertTrue(missed.isEmpty, "Settings tips still up after one tap of the X (HUD \(hud ? "on" : "off")): \(missed)")
     }
 
-    /// "Want to see the work?" in Settings, Appearance, the tip the owner had to tap several times on 2026-11-04.
+    /// "See the work" in Settings, Appearance, the tip the owner had to tap several times on 2026-11-04.
     @MainActor
     private func closeTheAppearanceTipOnOneTap(hud: Bool) throws {
         let app = launch(hud: hud, only: "technicalDetails")
@@ -77,7 +77,7 @@ final class TourTipCloseUITests: XCTestCase {
             throw XCTSkip("no Appearance row on screen")
         }
         appearance.tap()
-        if !closesOnOneTap("Want to see the work?", in: app) { missed.append("Want to see the work?") }
+        if !closesOnOneTap("See the work", in: app) { missed.append("See the work") }
         XCTAssertTrue(missed.isEmpty, "tips still up after one tap of the X (HUD \(hud ? "on" : "off")): \(missed)")
     }
 

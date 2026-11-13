@@ -331,6 +331,7 @@ struct CompactChatHeader: View {
 
         // Model indicator (compact)
         ModelStatusIndicator()
+            .tour(.modelPill, in: Tour.chat)
     }
 
     /// Stats for active container

@@ -460,7 +460,7 @@ extension ChatScreen {
                         } label: {
                             Image(systemName: "sidebar.left")
                                 .imageScale(.large)
-                                .tour(.sidebar, in: Tour.chat)
+                                .tourAnchor(.sidebar)
                         }
                     }
 
@@ -507,7 +507,7 @@ extension ChatScreen {
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
-                                .tour(.moreMenu, in: Tour.chat)
+                                .tourAnchor(.moreMenu)
                                 .imageScale(.large)
                         }
                         .animation(nil, value: messages.count)
@@ -522,7 +522,7 @@ extension ChatScreen {
                         } label: {
                             Image(systemName: "sidebar.left")
                                 .imageScale(.large)
-                                .tour(.sidebar, in: Tour.chat)
+                                .tourAnchor(.sidebar)
                         }
                     }
 
@@ -563,7 +563,7 @@ extension ChatScreen {
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
-                                .tour(.moreMenu, in: Tour.chat)
+                                .tourAnchor(.moreMenu)
                                 .imageScale(.large)
                         }
                         .animation(nil, value: messages.count)
@@ -724,7 +724,6 @@ extension ChatScreen {
                             "watchdog": "\(MainThreadWatchdog.shared.isRunning)"])
                     MainThreadWatchdog.shared.phase = "chatOpen"
                 }
-                Task { await TourContext.chatOpened.donate() }
                 if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
                     needsSuggestedQuestionsRefresh = false
                     refreshDynamicQuestions()
@@ -1098,6 +1097,10 @@ extension ChatScreen {
                 didSeedScreenshotDemo = true
                 onboardingStore.markAskedFirstQuery()
                 seedStoreScene(storeScene)
+                // The tour reads the staged answer as a real one, so its answer tips can be screenshotted.
+                TourContext.answers = max(TourContext.answers, 1)
+                TourContext.lastAnswerNotFound =
+                    messages.last?.structuredAnswer?.refuse == true && messages.last?.metadata?.canGoDeeper == true
                 return
             }
 
@@ -1377,7 +1380,9 @@ extension ChatScreen {
                 retrievalConfigSummary: "Balanced",
                 gatingDecision: nil,
                 toolCallsMade: 0,
-                embeddingProvider: "coreml_sentence_embedding"
+                embeddingProvider: "coreml_sentence_embedding",
+                // A Standard answer can be asked again in Deep Think, so the tour's "Not in your documents" card shows.
+                originalQuery: "Am I allowed to have a dog?"
             )
 
             let askTermination = ChatMessage(role: .user, content: "How much notice do I need to give to end my lease?")

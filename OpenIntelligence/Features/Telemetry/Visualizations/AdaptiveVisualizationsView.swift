@@ -218,15 +218,8 @@ struct AdaptiveVisualizationsView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: DSSpacing.lg) {
-                // Atlas is the least self-explanatory tab in the app: it had no
-                // `InfoButtonView`, no empty-state copy explaining what a cluster or an
-                // embedding is, and nothing telling a new user why they would open it.
-                //
-                // The tip retires itself once the user actually explores — the
-                // `atlasViewed` event is donated on opening the fullscreen atlas or
-                // expanding a view, not on appearance, so it does not flash once and
-                // vanish before it has been read.
-                InlineTipView(tip: AtlasTip())
+                // `AtlasTip` stood here until the tour's rebuild (2026-11-13); Settings › How This Works › Where Things
+                // Are says what the Atlas shows.
 
                 // HERO: 3D Atlas (always visible for libraries with content)
                 if let profile = engine.currentProfile, profile.chunkCount >= 10 {
@@ -312,17 +305,10 @@ struct AdaptiveVisualizationsView: View {
         }
         .onChange(of: show3DFullscreen) { _, entering in
             if entering {
-                // Retires `AtlasTip`. Donated on real exploration rather than on appear,
-                // so the tip survives until it has done its job.
-                Task { await AtlasTip.atlasViewed.donate() }
                 DSHaptics.medium()
             }
         }
-        .onChange(of: expandedView) { _, expanded in
-            if expanded != nil {
-                Task { await AtlasTip.atlasViewed.donate() }
-            }
-        }
+
         // One task, not two. A bare `.task` and `.task(id:)` both called `refreshAnalysis()`, so
         // every Atlas entry built the profile twice. `.task(id:)` already fires on first
         // appearance as well as on container change, so it covers both cases the pair covered.
@@ -440,6 +426,7 @@ struct AdaptiveVisualizationsView: View {
             HStack(spacing: DSSpacing.xxs) {
                 ForEach([AtlasMode.compact, AtlasMode.expanded], id: \.self) { mode in
                     Button {
+                        Tour.used(.atlasMode)
                         withAnimation(DSAnimations.snappySpring) {
                             atlasMode = mode
                         }
@@ -454,6 +441,7 @@ struct AdaptiveVisualizationsView: View {
                     }
                 }
             }
+            .tour(.atlasMode, in: Tour.atlas)
 
             Button {
                 show3DFullscreen = true

@@ -127,7 +127,6 @@ struct ChatComposerV2: View {
                         .writingToolsBehavior(.complete)
                         .padding(.vertical, DSSpacing.md)
                         .padding(.leading, DSSpacing.lg)
-                        .tour(.composer, in: Tour.chat)
                         .tour(.keyboard, in: Tour.chat)
 
                     // Dictation: the words go into the field as they are recognised, unsent (5.7).

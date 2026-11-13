@@ -367,6 +367,14 @@ struct IngestionQueueOverlay: View {
         items.filter { !$0.stage.isTerminal }.count
     }
 
+    /// Three or more files, or a file of 50 pages or 10 MB, still importing, and asked for by the person (not a
+    /// watched folder's): the import the tour's Pause tip is for.
+    private var isLargeImport: Bool {
+        guard !isAutomatic, !hasPausedItems else { return false }
+        let running = items.filter { !$0.stage.isTerminal }
+        return running.count >= 3 || running.contains { $0.metrics.pageCount >= 50 || $0.metrics.fileSizeMB >= 10 }
+    }
+
     private var completedCount: Int {
         items.filter { $0.stage == .complete }.count
     }
@@ -551,6 +559,10 @@ struct IngestionQueueOverlay: View {
             }
         }
         .animation(DSAnimations.bubbleAppear, value: isVisible)
+        // The tour's Pause tip shows only while an import big enough to want pausing runs (2026-11-13).
+        .onChange(of: isLargeImport, initial: true) { _, large in
+            if TourContext.largeImportRunning != large { TourContext.largeImportRunning = large }
+        }
         .onChange(of: items.isEmpty) { _, isEmpty in
             if isEmpty {
                 isDismissed = false
@@ -749,6 +761,7 @@ struct IngestionQueueOverlay: View {
             // delete their checkpoints with no question.
             if !hasPausedItems {
                 Button {
+                    Tour.used(.importStop)
                     DSHaptics.medium()
                     onStopAndDismiss?()
                     withAnimation(DSAnimations.snappySpring) { isDismissed = true }
@@ -765,6 +778,7 @@ struct IngestionQueueOverlay: View {
             .buttonStyle(.plain)
             .accessibilityLabel(hasCancelableItems ? "Stop and dismiss ingestion" : "Dismiss ingestion summary")
             .accessibilityHint(hasCancelableItems ? "Stops the current queue and prevents automatic restoration of these items." : "Closes the completed ingestion summary.")
+            .tour(.importStop, in: Tour.importQueue, when: hasCancelableItems && !isMinimized)
             }
         }
     }

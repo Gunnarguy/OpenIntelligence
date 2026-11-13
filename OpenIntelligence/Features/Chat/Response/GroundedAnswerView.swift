@@ -18,6 +18,22 @@ struct GroundedAnswerView: View {
     @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
     @Environment(\.tourIsLatestAnswer) private var tourIsLatestAnswer
     
+    /// The passage the answer's first source link opens (`CitationLinker`), or nil when no link resolves.
+    static func firstCitedChunk(in linkedAnswer: String, among retrievedChunks: [RetrievedChunk]) -> RetrievedChunk? {
+        var rest = linkedAnswer[...]
+        while let start = rest.range(of: CitationLinker.scheme + "://") {
+            let tail = rest[start.lowerBound...]
+            let end = tail.firstIndex(of: ")") ?? tail.endIndex
+            if let url = URL(string: String(tail[..<end])),
+                let chunk = CitationLinker.chunk(for: url, in: retrievedChunks)
+            {
+                return chunk
+            }
+            rest = tail[end...]
+        }
+        return nil
+    }
+
     private var modeColor: Color {
         let mode = modeName?.lowercased() ?? ""
         if mode.contains("max") { return .orange }
@@ -42,7 +58,6 @@ struct GroundedAnswerView: View {
                 font: .body,
                 foregroundColor: DSColors.primaryText
             )
-            .tour(.citation, in: Tour.chat, when: tourIsLatestAnswer && linkedAnswer.contains(CitationLinker.scheme + ":"))
             .environment(\.openURL, OpenURLAction { url in
                 if url.scheme == CitationLinker.scheme, VerificationJournal.isEnabled {
                     // A label tapped (5.8 journal): its passage's number, or 0 when it opens nothing.
@@ -83,7 +98,26 @@ struct GroundedAnswerView: View {
                 }
             }
 
-            
+            // The tour's citation card, under the newest answer that has a source to tap (2026-11-13). Show Me opens
+            // the first one, as a tap on it would.
+            // An answer whose sources are only under Fact Check opens the first claim's evidence instead, resolved as
+            // the answer's own links are (a passage id, or a label such as S1).
+            if tourIsLatestAnswer,
+                let firstCited = Self.firstCitedChunk(in: linkedAnswer, among: retrievedChunks)
+                    ?? answer.evidence.lazy.compactMap({ evidence in
+                        retrievedChunks.first { $0.chunk.id.uuidString == evidence.evidenceId }
+                            ?? Self.firstCitedChunk(
+                                in: CitationLinker.linkedMarkdown(
+                                    "[\(evidence.evidenceId)]", evidence: answer.evidence,
+                                    retrievedChunks: retrievedChunks),
+                                among: retrievedChunks)
+                    }).first
+            {
+                TourCard(step: .citation, group: Tour.chat) {
+                    selectedCitationChunk = firstCited
+                }
+            }
+
             if !answer.claims.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
@@ -109,6 +143,7 @@ struct GroundedAnswerView: View {
                         .padding(.vertical, DSSpacing.xxs)
                         .background(modeColor.opacity(0.1))
                         .clipShape(Capsule())
+                        .tour(.factCheck, in: Tour.chat, when: tourIsLatestAnswer)
                     }
                     .padding(.top, DSSpacing.xxs)
                     
@@ -123,6 +158,7 @@ struct GroundedAnswerView: View {
                             },
                             isExpanded: expandedClaimIndex == index,
                             onTap: {
+                                Tour.used(.factCheck)
                                 withAnimation(DSAnimations.snappySpring) {
                                     if expandedClaimIndex == index {
                                         expandedClaimIndex = nil

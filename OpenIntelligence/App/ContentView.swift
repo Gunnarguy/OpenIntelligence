@@ -165,7 +165,8 @@ struct ContentView: View {
         // there are. Someone who asked before 5.8 counts as having had an answer, so the composer's tip is for new
         // people only.
         .onChange(of: onboardingStore.isChecklistVisible, initial: true) { _, visible in
-            TourContext.welcomeClosed = !visible
+            // Screenshot runs never show the welcome, so nothing is over the tips there.
+            TourContext.welcomeClosed = !visible || screenshotMode.isEnabled
             if onboardingStore.hasAskedFirstQuery, TourContext.answers == 0 { TourContext.answers = 1 }
         }
         .onChange(of: containerService.containers.count, initial: true) { _, count in

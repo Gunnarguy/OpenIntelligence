@@ -508,9 +508,11 @@ extension DocumentLibraryView {
                 isEnabled: !filteredDocuments.isEmpty,
                 iconOnly: true
             ) {
+                Tour.used(.removeAll)
                 DSHaptics.medium()
                 showingClearAllConfirmation = true
             }
+            .tour(.removeAll, in: Tour.documents)
 
             DocumentActionChip(
                 title: activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",
@@ -519,11 +521,13 @@ extension DocumentLibraryView {
                 isEnabled: activeLibrary != nil && containerService.containers.count > 1,
                 iconOnly: true
             ) {
+                Tour.used(.deleteLibrary)
                 DSHaptics.medium()
                 if let activeLibrary {
                     handleDeleteLibrary(activeLibrary)
                 }
             }
+            .tour(.deleteLibrary, in: Tour.documents)
         }
         .padding(.horizontal, DSSpacing.lg)
         .padding(.vertical, DSSpacing.sm)
