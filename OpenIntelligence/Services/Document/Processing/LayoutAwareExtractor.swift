@@ -154,6 +154,7 @@ actor LayoutAwareExtractor {
         // reference pages lost 55 and 62 numbers (2026-11-12). The words no block holds come back as blocks of their
         // own, in place, by the coverage rule the whole-page path uses (`StructuredDocumentParser.uncoveredBlocks`):
         // a word counts as held when a block's box holds its anchor point and the block's text has its tokens.
+        var recoveredBlocks: [TextBlock] = []
         if !textLayerWords.isEmpty {
             let regions = blocks.map {
                 StructuredDocumentParser.CoveredRegion(
@@ -173,7 +174,7 @@ actor LayoutAwareExtractor {
                 return run.count < 4 || !held.contains(" " + run.joined(separator: " ") + " ")
             }
             if !recovered.isEmpty {
-                blocks += recovered.map {
+                recoveredBlocks = recovered.map {
                     TextBlock(text: $0.text, boundingBox: $0.box, confidence: 1.0, pageNumber: pageNumber)
                 }
                 Log.info(
@@ -196,6 +197,11 @@ actor LayoutAwareExtractor {
             }
         }
 
+        // A page Vision found nothing on keeps its text-layer words as its blocks.
+        if blocks.isEmpty {
+            blocks = recoveredBlocks
+            recoveredBlocks = []
+        }
         guard !blocks.isEmpty else {
             return LayoutAnalysisResult(
                 pageNumber: pageNumber,
@@ -211,6 +217,25 @@ actor LayoutAwareExtractor {
 
         // Step 3: Detect columns using spatial clustering
         var columns = detectColumns(from: nonTableBlocks)
+
+        // The recovered text-layer blocks join the column their centre falls in after the columns are found, not
+        // before: added before, a page number or header line on 82 pages changed the columns found, and five sentences
+        // that read correctly before came apart (oncotarget-07-17393 p2, p10, p11; ijms-21-03624 p21; 2026-11-12).
+        if !recoveredBlocks.isEmpty, columns.isEmpty {
+            columns = [DetectedColumn(index: 0, xRange: 0...1, blocks: [])]
+        }
+        if !recoveredBlocks.isEmpty {
+            for block in recoveredBlocks {
+                let x = block.boundingBox.midX
+                let target =
+                    columns.indices.first { columns[$0].xRange.contains(x) }
+                    ?? columns.indices.min {
+                        abs((columns[$0].xRange.lowerBound + columns[$0].xRange.upperBound) / 2 - x)
+                            < abs((columns[$1].xRange.lowerBound + columns[$1].xRange.upperBound) / 2 - x)
+                    }!
+                columns[target].blocks.append(block)
+            }
+        }
 
         // Step 4: Sort blocks within each column by reading order (top to bottom)
         for i in columns.indices {
