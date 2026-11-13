@@ -148,13 +148,14 @@ Order chosen: D first (rule 4: no lost text), then A, B, C, each checked on the 
 
 ## Exact Next Action
 
-1. When the owner says go tonight: `bash BenchmarkRuns/2026-11-12-full-suite/run_all.sh` (background; waits for games;
-   builds the MiniLM copy at 6e486015, then golden retrieval and the 158 table questions with each embedder, then
-   slices 1/3 and 2/3 of the paired answer run on the Granite build). Results in that folder; ledger entry and
-   `Docs/ai/MEASUREMENTS.md` rows A3 and A5 the same day; replace `MEASUREMENT_PENDING_EMBEDDER` in `CHANGELOG.md`.
-   Ship Granite only if it is no worse than MiniLM in the app.
-2. Phone checks for the owner: open the app, let search setup and the one-time Granite rebuild finish, then relaunch
-   twice; read `reranker.load`, `embedding.load` (`fixedPath`, `newInstall`) and `index.rebuildRequested`
-   (`reason: modelChanged`) off the phone with devicectl.
-3. Then the 51 failing table checks (`BenchmarkRuns/2026-11-08-extraction-fidelity`, after11: BL999 0/8, JAMA 7/21,
-   fbioe 17/29, CD004426 25/35, PAH 53/60), owner-approved 2026-11-12.
+1. Table fixes, one fidelity run each (`bash BenchmarkRuns/2026-11-12-tables/run_fidelity.sh <label> <commit>`; it waits
+   while WoW or League runs, builds that commit on the patched Simulator copy, scores the 515 checks against after11 and
+   number recall): `tab-d` at e9eb9992 (layout coverage, D) was queued 2026-11-12 ~20:50; then `tab-a` at a0f24355
+   (region overlap, A) plus `PageTextRepairTests`. Keep a fix only if no passing check is lost and number recall does not
+   drop; replace `MEASUREMENT_PENDING_LAYOUT_COVERAGE` / `MEASUREMENT_PENDING_TABLE_REGION` in `CHANGELOG.md`. Then
+   causes B (captioned tables of words) and C (prefer the text-layer table over Vision's) from the diagnosis above.
+2. Only after the owner says GO: `bash BenchmarkRuns/2026-11-12-full-suite/run_all.sh` (rsync the tree into
+   `/private/tmp/oi-eval-src` and re-run `scripts/sim_model_copy.py` on it first). Granite ships only if no worse than
+   MiniLM in the app; replace `MEASUREMENT_PENDING_EMBEDDER`.
+3. Done 2026-11-12 on the owner's iPhone: Granite rebuild finished (37 documents healthy); reranker and embedder loaded
+   in 1.6 s on a launch with no install; 1,793 MB of old compiled models removed.
