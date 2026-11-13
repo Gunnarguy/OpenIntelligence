@@ -2,7 +2,7 @@
 
 Updated: 2026-11-12 about 17:30 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 1e86b30c
+Last verified commit: 2859d9a5
 
 ## Objective
 
@@ -125,6 +125,13 @@ update every device.
 
 ## Exact Next Action
 
-Build the committed tree to the owner's iPhone (device build from a copy outside `~/Documents`, `MARKETING_VERSION` 5.8,
-`-derivedDataPath` outside `~/Documents`; ids in auto memory `building-to-gunnars-iphone.md`), then a macOS build.
-Then, at his word, the Xcode Cloud build and submission (tick "Reset rating", `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15).
+1. When the owner says go tonight: `bash BenchmarkRuns/2026-11-12-full-suite/run_all.sh` (background; waits for games;
+   builds the MiniLM copy at 6e486015, then golden retrieval and the 158 table questions with each embedder, then
+   slices 1/3 and 2/3 of the paired answer run on the Granite build). Results in that folder; ledger entry and
+   `Docs/ai/MEASUREMENTS.md` rows A3 and A5 the same day; replace `MEASUREMENT_PENDING_EMBEDDER` in `CHANGELOG.md`.
+   Ship Granite only if it is no worse than MiniLM in the app.
+2. Phone checks for the owner: open the app, let search setup and the one-time Granite rebuild finish, then relaunch
+   twice; read `reranker.load`, `embedding.load` (`fixedPath`, `newInstall`) and `index.rebuildRequested`
+   (`reason: modelChanged`) off the phone with devicectl.
+3. Then the 51 failing table checks (`BenchmarkRuns/2026-11-08-extraction-fidelity`, after11: BL999 0/8, JAMA 7/21,
+   fbioe 17/29, CD004426 25/35, PAH 53/60), owner-approved 2026-11-12.
