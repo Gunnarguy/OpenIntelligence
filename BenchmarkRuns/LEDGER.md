@@ -1374,6 +1374,12 @@ Maximum's gains are three cases each and Deep Think is a tie; one run's spread i
 attempt answered 3 and refused 17 (the plan reset the 11-12 fix addresses), so the figure above is the re-run with
 that fix.
 
+**Correction, 2026-11-13 afternoon: do not cite the table above.** The Evaluations model judge that graded it agreed
+with a plain reading of the answers on 8 of 5.8 Deep Think's 20 (it failed answers that gave the reference word for
+word and passed one that gave another token), so these means do not say which version answers better. The answers are
+rescored by rule with `scripts/score_answer_eval.py` from the runs' result bundles; these three folders kept none
+(bundles are kept since 7a7f3594), so 5.7 against 5.8 by rule needs a rerun of both.
+
 ### 2026-11-13 Granite against MiniLM in the app (`2026-11-12-full-suite`)
 
 `DeepThinkRetrievalGoldenTests`, one pass, device windows, Simulator (CPU embeddings), MiniLM at 6e486015 (the
@@ -1390,6 +1396,29 @@ commit before the swap) against Granite at HEAD, scored by `2026-11-09-reranker-
 **What it settled.** Granite is no worse than MiniLM in the app on this set, so it ships (the rule set 2026-11-12).
 **Not settled.** The 158 table questions with each embedder (`tables-score.txt`, running at the time of writing; that
 comparison also differs in the 2026-11-12 table fixes); significance per mode.
+
+**The table run, 2026-11-13.** MiniLM finished (`reach-minilm.json`, 04:12 to 08:14). Granite's run died at question
+143 of 158 at 12:06, when simulator services crashed on all three Simulators booted at once on this 18 GB Mac (crash
+reports for tccd, geoanalyticsd, dtdeviceinfod and PosterBoard, 12:03 to 12:06); the test saves its results only at
+the end, so nothing of it was kept. To rerun alone.
+
+### 2026-11-13 Deep Think answer-first and Maximum source passages, paired (`2026-11-13-answer-first`, `2026-11-13-maximum-passages`)
+
+Paired runs of `EvidenceReachBenchmarkTests` (each question asked with the switch off and on in one process), 53
+slice-0 table questions for `answerFirst` and 30 for `maximumSourcePassages`. **Three attempts on 2026-11-13 were
+invalid and are not results:** every answer was "Here are the most relevant excerpts" (`[QuotesOnly] ... no model
+call`). The fresh Simulators started the app before Apple's model was ready, so the launch picked On-Device Analysis
+(Quotes only, which since 5.8 calls no model), and the launch recorded that as the person's choice
+(`primaryModelUserOverride`), so nothing lifted it. That was an app defect, fixed in 98582397, 09e29487 and 7cac2076;
+the first attempts' files are under `invalid-model-unavailable/`, and the 12:31 attempt's `score.txt` (44 of 53 both
+ways, 0 with a citation) is excerpts scored, not answers. The benchmark now stops at once when Quotes only is
+selected. Results: below, when the rerun on 7cac2076 finishes.
+
+### Not runs: `household_v1` and `xcloud` (noted 2026-11-13)
+
+`household_v1` is a fixture set (nine household documents, 17 answerable questions and 3 negative controls, its
+`manifest.json`), not a run; runs that use it name it in their own entries. `xcloud` holds only `last_run.json`, the id
+and number (499) of the last Xcode Cloud build a script started. Neither has results to record.
 
 ## Backfill 2026-11-12: run folders that had no entry
 
