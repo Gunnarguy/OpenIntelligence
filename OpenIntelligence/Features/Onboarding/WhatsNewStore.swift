@@ -129,7 +129,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "tablecells",
                     title: "Tables and numbers come through whole",
                     detail:
-                        "PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and numbers aren't misread. A table that wrapped a value onto a second line no longer splits in two, and words that sat outside the parts the page scan recognised are kept. On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began."
+                        "PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and far fewer numbers are misread. A table that wrapped a value onto a second line no longer splits in two, and words that sat outside the parts the page scan recognised are kept. On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began."
                 ),
                 .init(
                     symbol: "checkmark.seal",
@@ -183,7 +183,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "cpu",
                     title: "Settings show what really happens",
                     detail:
-                        "Intelligence Mode and Compute Profile show what each step actually does, Active Device shows your device the way Apple and the hardware describe it, and Library Settings no longer lists techniques no mode runs. The X-Ray outlines the chip itself on recent iPhones and iPads, and its labels can be turned off."
+                        "Intelligence Mode and Compute Profile show what each step actually does, Active Device shows your device the way Apple and the hardware describe it, and Intelligence Mode no longer lists techniques no mode runs. The X-Ray outlines the chip itself on recent iPhones and iPads, and its labels can be turned off."
                 ),
                 .init(
                     symbol: "globe.americas",

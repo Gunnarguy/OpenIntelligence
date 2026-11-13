@@ -21,7 +21,7 @@ ANSWERS
 
 YOUR DOCUMENTS
 
-• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and numbers aren't misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
+• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and far fewer numbers are misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
 
 • On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks every few minutes while the app is open.
 
