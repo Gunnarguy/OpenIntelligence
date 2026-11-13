@@ -1350,6 +1350,45 @@ defect). B and C were withdrawn (de70ac6e, fb548e4d). Each open cause has a Futu
 **Not settled.** Why the oncotarget lines swap; B (Vision reads word tables as paragraphs, BL999's caption is not
 text); C; the 8 checks on fbioe p8 and p11, tables that are images.
 
+### 2026-11-13 Answer quality by mode, 5.7 against 5.8 (`2026-11-13-0014-answer-modes-5.8`, `2026-11-13-0142-answer-modes-v5.7.0`, `2026-11-13-0638-answer-modes-v5.7.0-max`)
+
+`AnswerQualityEvaluationTests` through the app's own model service (`OI_EVAL_MODEL=app`), iOS 27.0 Simulator, 20
+cases of `Benchmarks/rag_eval_v1.jsonl`, graded by Apple's Evaluations model judge, one run per mode. 5.8 is HEAD
+cc8f4691 patched by `scripts/sim_model_copy.py`; 5.7 is the `v5.7.0` tag with the same four switches patched by
+content (5.7's files were not yet split) and the answer test from 02044980 (5.7's own test had no mode switch). Run by
+`BenchmarkRuns/2026-11-12-full-suite/overnight.sh` beside another Simulator job, so the seconds are indicative only.
+
+| Mode | 5.7 | 5.8 | Median seconds 5.7 / 5.8 |
+|---|---|---|---|
+| Standard | 0.30 | 0.45 | 8 / 20.5 |
+| Deep Think | 0.40 | 0.40 | 67 / 71.5 |
+| Maximum | 0.25 | 0.40 | 78.5 / 79.5 |
+
+**What it settled.** On this set 5.8 is no worse than 5.7 in any mode. Each case is 0.05, so Standard's and
+Maximum's gains are three cases each and Deep Think is a tie; one run's spread is about two cases (Maximum on 5.8 gave
+0.50 on 11-12 and 0.40 here).
+
+**Not settled.** Per-question agreement (the test prints the mean only); repeat runs; the 5.7 run's first Maximum
+attempt answered 3 and refused 17 (the plan reset the 11-12 fix addresses), so the figure above is the re-run with
+that fix.
+
+### 2026-11-13 Granite against MiniLM in the app (`2026-11-12-full-suite`)
+
+`DeepThinkRetrievalGoldenTests`, one pass, device windows, Simulator (CPU embeddings), MiniLM at 6e486015 (the
+commit before the swap) against Granite at HEAD, scored by `2026-11-09-reranker-swap/scripts/score_golden.py`
+(`golden-score.txt`):
+
+| Mode, questions | hit@1 | hit@5 | MRR | rank better / worse |
+|---|---|---|---|---|
+| Deep Think 15, 92 | 0.402 to 0.413 | 0.511 to 0.609 | 0.461 to 0.495 | 20 / 12, p=0.215 |
+| Deep Think 24, 19 | 0.421 to 0.421 | 0.579 to 0.632 | 0.498 to 0.528 | 5 / 2 |
+| Maximum 15, 36 | 0.472 to 0.444 | 0.500 to 0.667 | 0.499 to 0.517 | 7 / 4 |
+| Standard 20, 19 | 0.421 to 0.421 | 0.526 to 0.789 | 0.488 to 0.537 | 5 / 2 |
+
+**What it settled.** Granite is no worse than MiniLM in the app on this set, so it ships (the rule set 2026-11-12).
+**Not settled.** The 158 table questions with each embedder (`tables-score.txt`, running at the time of writing; that
+comparison also differs in the 2026-11-12 table fixes); significance per mode.
+
 ## Backfill 2026-11-12: run folders that had no entry
 
 On 2026-11-12 35 of the run folders since 2026-10-07 had no entry here, so their results were invisible to any session that searched this file. Each entry below was drafted by Antigravity (gemini-3.8-flash-high, read-only) from the folder's own files; every one of its 336 figures was checked by script to appear in that folder, and the entries for extraction fidelity, the reranker swap and Deep Think speed were read against their READMEs and completed by hand. The folder's README stays the authority; read it before quoting a figure.
