@@ -87,6 +87,42 @@ answers"); the 2026-11-10 rule audit found none that hurt. Then the Xcode Cloud 
   LLM); offered to the owner as one inventory after 5.8.
 - Carried: reranker slow loads to classify with `newInstall`; the Core ML embedder preload is his call.
 
+## Embedder swap plan (owner approved 2026-11-12: "Approved: CoreMLSentenceEmbeddingProvider.swift and CoreAISentenceEmbeddingProvider.swift", "PROCEED: IMPLEMENT", "everything in 5.8")
+
+Model: `ibm-granite/granite-embedding-small-english-r2` rev 2ab6fa8e (Apache 2.0, card: no MS MARCO; 384 dims, CLS pooling,
+ModernBERT BPE tokenizer). Converted by `scripts/build_embedding_model.py` (new; two functions len256/len512, CLS + L2 in
+graph, palettized, refuses below cosine 0.995 against Hugging Face). Earlier fp16 builds from 2026-11-09 sit in
+`/private/tmp/oi-embed/ane/granite_1x*.mlpackage`; HF cache `/Volumes/SD/Scratch/oi-embed-hf`, venv `/private/tmp/oi-embed/venv`.
+
+What the app does today when a library's vectors came from another model (read-only map, file:line in the agent report
+summarised here):
+- Same provider id and 384 dims, different fingerprint: `RAGService+Storage.swift` `resolveEmbeddingContext` (~1333)
+  marks it stale, overwrites the stored fingerprint with the live one, keeps searching the old vectors with new query
+  vectors (cross-model, wrong), shows only an orange Documents banner; `librariesNeedingIndexRebuild` is in memory, so
+  the warning is lost on relaunch. Must change for the swap.
+- Different provider id or dimension: wipes the vector store and queues `enqueuePendingReembed` automatically (~1400).
+- Rebuild swaps per document (`RAGService+Deletion.swift` ~738-861); iOS keeps it running with
+  `BGContinuedProcessingTaskRequest`; **macOS has nothing** (no `ProcessInfo.beginActivity`, `BackgroundTaskService`
+  is a stub there).
+- Default provider: Core ML on iOS, **Core AI on macOS 27** (`EmbeddingService.swift` ~619). Core AI's model is
+  `EmbeddingModel.bundle` (MiniLM, built with `coreai_torch`, `scripts/compile_core_ai_model.py`); no Granite Core AI
+  build exists.
+- Vector stores sync through iCloud (`WorkspaceSyncService+Artifacts.swift`, hard boundary): a device still on 5.7
+  would read Granite vectors with MiniLM queries, and a rebuild there would sync MiniLM vectors back.
+- Import checkpoint embedding cache key has no model term (`EmbeddingService.swift` ~360).
+- About 20 user-facing strings say MiniLM (About, EmbeddingInfoSheet, ContainerSettingsSheet and +Search/+NerdStats,
+  DocumentDetailsView, DocumentChunk, SemanticSearchView, IntelligenceModeCard, Glossary, SampleDocumentManager);
+  `RebuildFalseAlarmTests` pins the MiniLM revision strings.
+
+Steps: (1) build the model and tokenizer, check token ids against Hugging Face; (2) Core ML provider to Granite I/O
+(two functions, `embedding` output, no token_type_ids, pad id from the tokenizer), new `modelRevision`/`poolingRecipe`,
+fixed-path load via `RerankerModelLocation`; (3) Core AI provider: unavailable (bundle removed) and macOS default to Core
+ML, so Mac libraries take the provider-change branch (wipe + automatic rebuild); (4) a model change on the same
+provider takes the same wipe + automatic rebuild branch, recorded per device; (5) keep the Mac awake during a rebuild;
+(6) a one-time notice that libraries are being updated for the new model; (7) strings, tests, docs; (8) measure in the
+app (golden retrieval, tables) before it ships; (9) the iCloud mixed-version case: at least tell users in What's New to
+update every device.
+
 ## Exact Next Action
 
 Build the committed tree to the owner's iPhone (device build from a copy outside `~/Documents`, `MARKETING_VERSION` 5.8,
