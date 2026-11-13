@@ -234,7 +234,7 @@ STEADIER
 
 • The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
 
-• A few short tips point at what isn't obvious, one at a time, and Settings › How This Works › Show Me Around brings them back.
+• Small tips point out what isn't plain from the screen, one at a time and only when they're useful, and Settings › How This Works › Show Me Around brings them back.
 
 
 ALSO
@@ -288,7 +288,7 @@ STEADIER
 
 • The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
 
-• A few short tips point at what isn't obvious, one at a time, and Settings › How This Works › Show Me Around brings them back.
+• Small tips point out what isn't plain from the screen, one at a time and only when they're useful, and Settings › How This Works › Show Me Around brings them back.
 
 
 ALSO

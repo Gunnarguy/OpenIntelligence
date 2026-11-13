@@ -163,9 +163,9 @@ final class WhatsNewStore: ObservableObject {
                 ),
                 .init(
                     symbol: "hand.point.up.left",
-                    title: "Tips that teach, one at a time",
+                    title: "Small tips, when you need them",
                     detail:
-                        "A few short tips point at what isn't obvious, like what a citation shows and when to use Deep Think, one at a time and only after you've done something that makes them useful. Settings › How This Works › Show Me Around brings them back."
+                        "A short tip with a small arrow points out what isn't plain from the screen, like where an answer came from, what Deep Think does or what an icon-only button is for. One shows at a time, at the moment it's useful, and each goes away once you've used it, closed it or seen it three times. Settings › How This Works › Show Me Around brings them back."
                 ),
                 .init(
                     symbol: "folder.badge.gearshape",

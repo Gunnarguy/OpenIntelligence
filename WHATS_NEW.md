@@ -9,7 +9,7 @@ Public release highlights for OpenIntelligence.
 
 ### Getting Started
 
-- **Every screen shows you around.** The first time you open a screen, an arrow points at what's there, one at a time, and says what it is, what it does and why you'd use it. Each goes away once you've used it. Settings › How This Works › Show Me Around brings them back.
+- **Small tips show you around, when you need them.** A short tip with a small arrow points out anything that isn't plain from the screen, like where an answer came from, what Deep Think does, or what an icon-only button is for. It appears at the moment it's useful, for example "Not in your documents" right under an answer that found nothing to stand on. Only one shows at a time, a new one at most every minute and a half and never as the app opens, and each goes away once you've used it, closed it or seen it three times. Settings › How This Works › Show Me Around brings them all back.
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
 
 ### Answers
