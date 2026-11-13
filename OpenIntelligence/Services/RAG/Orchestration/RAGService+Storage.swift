@@ -1335,9 +1335,11 @@ extension RAGService {
                 {
                     // A different model wrote these vectors (5.8: MiniLM-L6-v2 to Granite small english r2, for the
                     // owner's rule 1). Unlike a pipeline tweak, its vectors are in another space: a query embedded by
-                    // the new model scores them as noise, so they cannot stay searchable while the user decides.
-                    // Clear them and rebuild now, as a provider change does below; keyword search and the reranker
-                    // keep answering meanwhile, and each document is searchable again as it is re-embedded.
+                    // the new model scores them as noise, so they cannot wait for the user to choose a rebuild.
+                    // Rebuild now, re-embedding the stored passages in place, document by document. The store is not
+                    // cleared first: it holds the only complete copy of the passages' text (on the owner's iPhone on
+                    // 2026-11-12 the full-text index held 3,616 passages for all libraries against 8,202 in one), and
+                    // clearing it made the rebuild read and split every file again (3 documents in 4.5 minutes).
                     Log.warning(
                         "[RAGService] Embedding model changed for container \(container.id) "
                             + "(\(EmbeddingModelRecord.recorded(for: container.id) ?? "a model before 5.8") → \(service.modelRevision)); "
@@ -1349,7 +1351,6 @@ extension RAGService {
                         updated.embeddingFingerprint = liveFingerprint
                         self.containerService.updateContainer(updated)
                         EmbeddingModelRecord.record(service.modelRevision, for: container.id)
-                        self.invalidateVectorStore(for: container.id, clearStorage: true)
                         let hasDocs = !self.documentsForContainer(container.id).isEmpty
                         VerificationJournal.record(
                             "index.rebuildRequested",
@@ -1425,7 +1426,6 @@ extension RAGService {
                     // whose vectors the new model's queries cannot search: clear and rebuild, as a model change does.
                     if hasDocs, EmbeddingModelRecord.modelChanged(for: container.id, live: service.modelRevision) {
                         EmbeddingModelRecord.record(service.modelRevision, for: container.id)
-                        self.invalidateVectorStore(for: container.id, clearStorage: true)
                         self.modelChangeRebuildContainerIds.insert(container.id)
                         self.enqueuePendingReembed(containerId: container.id)
                     } else if hasDocs {
@@ -1457,8 +1457,14 @@ extension RAGService {
                 self.containerService.updateContainer(updated)
                 EmbeddingModelRecord.record(service.modelRevision, for: container.id)
 
-                // Clear any persisted vectors created under a different dimension.
-                self.invalidateVectorStore(for: container.id, clearStorage: true)
+                // Clear any persisted vectors created under a different dimension. A provider change at the same
+                // dimension (5.8: the retired Core AI copy of MiniLM to Granite on Core ML) keeps the store, whose
+                // passages the rebuild re-embeds in place; only a dimension change makes them unreadable.
+                if container.embeddingDim != actualDimension {
+                    self.invalidateVectorStore(for: container.id, clearStorage: true)
+                } else {
+                    self.modelChangeRebuildContainerIds.insert(container.id)
+                }
 
                 // If the library already has docs, schedule reindex so retrieval works again.
                 // ALWAYS use the pending queue (not a direct Task) so onboarding can cancel it

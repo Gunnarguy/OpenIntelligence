@@ -1172,6 +1172,16 @@ class RAGService: ObservableObject {
             self.previousContainerId = self.containerService.activeContainerId
         }
 
+        // The library open at launch gets the check a switch gives (5.8). A switch was the only trigger, so after an
+        // update that changes the embedding model, the library already open was not rebuilt until its first question:
+        // seen in the iOS 27 Simulator on 2026-11-12. A few seconds after launch, off the first frame, and only in the
+        // foreground app (an extension or a background launch leaves it to the next open).
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !SystemResourceAdvice.prefersReducedUsage else { return }
+            await self.evaluateSemanticIndexHealth(for: self.containerService.activeContainerId)
+        }
+
         // Subscribe to container ID changes
         containerService.$activeContainerId
             .receive(on: DispatchQueue.main)

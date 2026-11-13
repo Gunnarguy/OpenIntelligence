@@ -609,15 +609,20 @@ extension RAGService {
             let targetStrategy = container?.chunkingDirective?.strategy ?? "balanced"
 
             var chunkingConfigHasNotChanged = false
-            if let docMetadata = document.processingMetadata,
+            if rebuildReason.contains("Self-healing") || rebuildReason.contains("empty vector store") {
+                // A self-healing rebuild restores vectors the store lost; the document's passages are what they were
+                // (`chunksToReembed` falls back to the full-text store's copy). Until 5.8 this was checked only for a
+                // document with no chunking metadata, so a document imported with its own tuned chunking, which
+                // never equals the library default, was read and split again from the file: on the owner's iPhone
+                // on 2026-11-12, a resumed rebuild re-extracted every PDF.
+                chunkingConfigHasNotChanged = true
+            } else if let docMetadata = document.processingMetadata,
                 let docWindow = docMetadata.targetWordWindow,
                 let docOverlap = docMetadata.overlapWords
             {
                 chunkingConfigHasNotChanged =
                     (docWindow == targetWindow && docOverlap == targetOverlap
                         && docMetadata.chunkingStrategy == targetStrategy)
-            } else if rebuildReason.contains("Self-healing") || rebuildReason.contains("empty vector store") {
-                chunkingConfigHasNotChanged = true
             }
             // A new embedding model (5.8) changes the vectors, not the passages: re-embed the stored passages rather
             // than read and split every file again. Measured on the owner's iPhone on 2026-11-12: the full re-import
