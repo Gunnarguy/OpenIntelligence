@@ -24,9 +24,18 @@ answers"); the 2026-11-10 rule audit found none that hurt. Then the Xcode Cloud 
   (3 of the 4 Standard answers still unlabelled). Future Backlog candidate.
 - The comparison page for the owner (before and after: Deep Think speed on his iPhone, import fidelity, reranker):
   https://claude.ai/artifact/8yGG3yXpwVNSTmQBMu6wfe
-- **Ledger gap:** 36 of the 39 run folders since October have no `BenchmarkRuns/LEDGER.md` entry (the Nov 8 import
-  work and the reranker swap among them), which is why that work was missed on 2026-11-12. Offered to the owner: backfill
-  one entry per folder and a session-brief warning for unindexed folders.
+- **Ledger gap closed (2026-11-12):** all run folders now have a `BenchmarkRuns/LEDGER.md` entry (35 backfilled, figures
+  script-checked against each folder), and `.claude/hooks/session-start.sh` prints how many folders lack one.
+- **Embedder licence (owner's rule 1, open):** `all-MiniLM-L6-v2` still ships; its card lists MS MARCO (non-commercial
+  terms). The owner said 2026-11-12 to swap it. Granite small english r2 was measured on the Mac 2026-11-09
+  (`BenchmarkRuns/2026-11-09-reranker-swap`): 39.0% top 5 against 37.0%, MRR@10 +0.039 (p=0.006), with the Granite
+  reranker 50.8% against 48.8%. Not converted to Core ML, not measured in the app; needs a re-embed migration and his
+  naming of the provider files (Tier 2). Whether 5.8 waits for it: asked, not answered.
+- **Reranker recompiles on most launches (found 2026-11-12):** about 30 slow loads (20 to 130 s) since 2026-11-09, most
+  with no install between, and 202 compiled copies (1.47 GB) in the phone's `Library/Caches/.../com.apple.e5rt.e5bundlecache`.
+  On the Mac the cache is keyed by the model's path (a copy elsewhere recompiled, 21 s; a touch did not). Proposed:
+  copy the model once to a fixed path and load it there; awaiting `PROCEED: IMPLEMENT`. The new build journals
+  `newInstall` on each `reranker.load`, which tells whether the bundle path changes between launches.
 - Owner asked (open): run the same graded questions on the 5.7 build for a true 5.7-vs-5.8 accuracy number.
 - Notion rows (In Progress, v5.8): https://app.notion.com/p/41649a74d54f812183e5efbe07508232 (Deep Think) and
   https://app.notion.com/p/41649a74d54f81b88321c757ff22dfd9 (citations); close on a device check.

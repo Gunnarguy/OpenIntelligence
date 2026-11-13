@@ -1326,3 +1326,218 @@ reached the missing-citation path's end without a label; after, 4 did, 3 of them
 Standard's sources but not its context text (`standardContext` is empty), so label checks used `standardSources`.
 The first attempt (stopped 25 minutes in, measuring the citation code before its review fixes) is in `aborted-1405/`;
 a 2-question smoke run in `smoke/`.
+
+
+## Backfill 2026-11-12: run folders that had no entry
+
+On 2026-11-12 35 of the run folders since 2026-10-07 had no entry here, so their results were invisible to any session that searched this file. Each entry below was drafted by Antigravity (gemini-3.8-flash-high, read-only) from the folder's own files; every one of its 336 figures was checked by script to appear in that folder, and the entries for extraction fidelity, the reranker swap and Deep Think speed were read against their READMEs and completed by hand. The folder's README stays the authority; read it before quoting a figure.
+
+### 2026-10-07 On-device language model context window latency, cache, and recall (`2026-10-07-context-window-probe`)
+
+The probe measured latency, cache reuse, recall, and multi-hop reasoning on an Apple M3 Pro Mac with 18 GB memory running macOS 27.0 26A428 and Xcode 27.0 27A266a using SystemLanguageModel.default.contextSize 8192 with the AFM 3 Core Advanced variant and greedy sampling. The test used 93 distinct chunks of research-paper text saved across 25 evidence listings, testing evidence targets of 800, 2,000, and 6,600 tokens with 80 response tokens. It left iPhone and iPad measurements open, noting no iPhone or iPad was measured.
+
+Source: README.md.
+
+### 2026-10-09 Semantic chunker execution time and memory footprint on large text (`2026-10-09-chunker-large-text`)
+
+Execution time and memory footprint were measured on an Apple M3 Pro running macOS 27.0 after an 88.50 MB file with 92,730,215 characters froze a 5.7 development build on an iPhone 16 Pro Max. For 1,000,525 characters, execution time dropped from 13.94 s before to 6.47 s after, and for 4,000,142 characters from 148.52 s to 26.38 s. Peak memory footprint for 1,000,525 characters dropped from 107.4 MB to 22.1 MB. The change settled chunker performance on generated text, leaving verified identical outputs across 75 runs and 7,719 chunks.
+
+Source: README.md.
+
+### 2026-10-09 Language model session cache reuse and prewarm latency (`2026-10-09-session-cache-probe`)
+
+Session caching and prewarming were measured on an Apple M3 Pro Mac with 18 GB memory running macOS 27.0 (26A428) with SystemLanguageModel.default contextSize 8192 on prompts of about 6,100 input tokens. A fresh session without prewarm had a time to first token of 7.64s and a total time of 8.49s with cached 0 tokens, while a second turn in the same session reached a time to first token of 3.03s and total time of 3.10s with cached 6304 tokens. Prewarm put no prompt tokens in the cache across four forms tried, and a prewarm while another session generated delayed that session first word by about 5 s. The run left open whether cache behavior differs on an iPhone or cold model.
+
+Source: results.txt.
+
+### 2026-10-10 Core AI embedding model throughput and input shapes (`2026-10-10-embedding-model-throughput`)
+
+Embedding model throughput and input shapes were measured on an Apple M3 Pro running macOS 27.0 using probe.swift calling InferenceFunction.run on 420 real tokens padded to 512. Single calls processed 173.6 passages a second at 5.8 ms each, rising to 213.8 a second with 2 calls in flight, 219.0 a second with 4 calls, and 223.0 a second with 8 calls. Shapes other than [1, 512], including [1, 256] and batched inputs like [4, 512], were refused. The probe settled that the model requires fixed 512 positions, leaving open what more calls in flight yield on a phone.
+
+Source: README.md.
+
+### 2026-10-10 Ingestion data loss points and interface responsiveness hotspots (`2026-10-10-ingestion-and-ui-audit`)
+
+Ingestion stages and interface responsiveness were audited through code inspection and a scratch probe on macOS 27. In the probe, text normalization deleted tabular numeric cells such as 34, 2024, and SKU10293, while garbage filtering on Greek, Chinese, or Arabic text deleted 4 of 4 lines. The UI audit identified 15 responsiveness hotspots, including 24 Published properties on RAGService and 56 on SettingsStore driving main actor updates. The audit mapped defects and potential fixes, leaving code implementations open.
+
+Source: A-ingestion-cost-and-loss-map.md, D-ui-responsiveness.md.
+
+### 2026-10-10 Architectural cost map and work packages for large libraries (`2026-10-10-large-library`)
+
+No result recorded in the folder. It holds markdown analysis files and work packages including A-services-cost-map.md, C-interface-cost-map.md, and W4-per-passage-costs.md. The work mapped passage scaling hotspots across services and interfaces, including bounding spec table scans to a 5,000-passage sample for libraries over 5,000 items.
+
+Source: W4-per-passage-costs.md.
+
+### 2026-10-12 Documentation drift and factual claim verification for version 5.7 (`2026-10-12-docs-sync`)
+
+Documentation drift and decision records were audited across repository documentation following 5.7 changes. The drift report checked documentation files and found about 75 statements out of date, classifying 35 as STALE and 32 as UNVERIFIED. A companion refuting review inspected 540 statements against the implementation and reported 0 WRONG and 0 UNSETTLED. The audit settled the alignment between doc statements and codebase reality without running benchmark suites.
+
+Source: D1-doc-drift-opus.md, R1-refute-gemini.md.
+
+### 2026-10-13 Library analysis execution time and memory on a large store (`2026-10-13-launch-analysis`)
+
+LibraryIntelligenceCenter.analyzeLibrary was measured on an iOS 27.0 Simulator test process on an Apple M3 Pro Mac with 18 GB memory using an unoptimised build and a synthetic 144,247-passage store of 143.8 MB text. The path as it was through 5.6 on all 144,247 passages took 199.1 s with a peak memory increase of +1,054 MB, whereas the 5.7 sampling path on 3,999 passages took 6.22 s with +4 MB memory in the final commit tree. The first-question vocabulary build completed in 2.65 s on the final tree. The run settled the sampling strategy for large library analysis while noting profile timing with multiple documents was not included.
+
+Source: README.md.
+
+### 2026-10-14 Speech transcription latency and utterance extraction across audio formats (`2026-10-14-asset-transcriber-probe`)
+
+Speech transcription was probed across audio and video containers using audio file input, asset input, and each-track modes. On speech.aiff, audio file input took 0.46s and asset input took 0.24s for 3 utterance(s). For speech-opus.mp4, audio file input returned OSStatus error -1, while asset input took 0.14s and each track mode took 0.15s, both extracting 3 utterance(s). On twotracks.mov, audio file input took 0.26s with 0 utterance(s), whereas each track mode took 0.22s and extracted 3 utterance(s).
+
+Source: results.txt.
+
+### 2026-10-15 Accessibility audit issue counts across screens with hardware HUD disabled (`2026-10-15-accessibility-audit-xray-off`)
+
+Apple accessibility audit issues were measured on Chat, Documents, and Settings in an iOS 27.0 Simulator (iPhone 18 Pro) with Xcode 27.0 on a Debug build after commit 94c4007 with showSiliconHUD = false. In light mode with default text, the audit reported 54 issues, consisting of 28 contrast, 20 Dynamic Type, and 6 clipped text issues. In dark mode with default text, it found 44 issues, with 18 contrast, 20 Dynamic Type, and 6 clipped text issues. At the largest accessibility text size, issues totaled 35 in light mode and 31 in dark mode.
+
+Source: README.md.
+
+### 2026-10-15 Accessibility audit issues with default hardware HUD enabled (`2026-10-15-accessibility-audit`)
+
+Accessibility audit issues were measured across Chat, Documents, and Settings on an iOS 27.0 Simulator (iPhone 18 Pro) running Debug build c300bf8 with Xcode 27.0. The audit reported 26 contrast issues in light mode with default text and 26 in dark mode, with zero Dynamic Type or clipped text issues recorded. At largest accessibility text, the audit reported 27 issues in light mode and 25 in dark mode. Every contrast issue except one Settings search field issue was caused by the hardware X-Ray overlay floating over the screen. An evening correction settled that switching off the overlay revealed 31 to 54 underlying screen issues.
+
+Source: README.md, CORRECTION-2026-10-15-evening.md.
+
+### 2026-10-15 Atlas categorization and dimensional projection execution time (`2026-10-15-atlas-main-thread`)
+
+Atlas categorization and projection algorithms were timed on an Apple M3 Pro Mac with 18 GB memory running macOS 27.0 26A428 with Xcode 27.0 (27A266a) using Swift 6.4 compiled with -O. On 6,000 synthetic passages, categorizeContent took 3496 ms on run one and 3501 ms on run two, while findNearestTopics for 5 recent documents took 36 ms and 34 ms. For 6,000 random vectors of 512 dimensions, projection times were 227 ms for pca, 3 ms for rp, 13393 ms for umap, and 30769 ms for tsne. The probe settled why Atlas categorization and map projection were moved off the main actor in version 5.7.
+
+Source: README.md.
+
+### 2026-10-16 Accessibility audit issue reductions following style pass 1 (`2026-10-16-accessibility-pass-1`)
+
+Accessibility audit issues were measured on Chat, Documents, and Settings in an iOS 27.0 Simulator on a Debug build after commit e13f664 with the hardware X-Ray off. With default text, issues dropped from 54 before to 22 after pass 1 in light mode, and from 44 before to 18 after in dark mode. At the largest accessibility text size, issues dropped from 35 before to 11 after in light mode, and from 31 before to 9 after in dark mode. Pixel contrast measurements on gray text improved from 3.4 to 5.2 to 1 on white, while .caption2 text remained reported as partially unsupported Dynamic Type.
+
+Source: README.md.
+
+### 2026-10-16 Accessibility audit issue reductions following layout pass 2 (`2026-10-16-accessibility-pass-2`)
+
+Accessibility audit issues were measured on Chat, Documents, and Settings in an iOS 27.0 Simulator on a Debug build after commit 54f0f84 with pass 2 and review fixes applied. In light mode with default text, issues fell from 54 originally to 22 after pass 1 and reached 11 in the final tree. In dark mode with default text, issues decreased from 44 originally to 18 after pass 1 and reached 14 in the final tree. At largest accessibility text, issues reached 7 in light mode and 7 in dark mode. Pixel measurements confirmed that named contrast items measured 5.06 to 13.3 to 1, while .caption2 remained flagged by the audit.
+
+Source: README.md.
+
+### 2026-10-16 Accessibility contrast and layout across common task flows (`2026-10-16-accessibility-pass-3`)
+
+Common user task flows including first run, seeded answers, and document import were audited on an iPhone 18 Pro Simulator running iOS 27.0 across five appearance and text size settings. Initial run t3 revealed broken words, cut buttons on the import panel, and measured contrast failures on the sources list and plans sheet. After layout and review fixes in runs t4 through t6, library rows improved from initial contrast ratios of 3.35 to 3.38 to 1 up to passing levels, with remaining items between 2.0 and 4.5 being off-screen or paused row details at 4.24 to 4.43. The audit settled common task layouts at large text sizes, leaving VoiceOver on physical devices unmeasured.
+
+Source: README.md.
+
+### 2026-10-17 Semantic chunker keyword tie determinism and passage overlap bounds (`2026-10-17-chunker-overlap-and-ties`)
+
+Determinism and chunk overlap were evaluated on an Apple M3 Pro Mac running macOS 27.0 with Swift 6.4 across old (commit 37f20d6), new (commit a30dba7), and fix versions of SemanticChunker.swift. Across two unseeded processes without deterministic hashing, lines differing between runs dropped from 45 of 75 in the old version to 0 of 75 in new and fix. On the jsonl-250k text under the processor setting (overlap 50), passages dropped from 463 in old to 289 in new and 288 in fix, with median overlap falling from 64 to 50 and passages inside the one before falling from 224 to 0. The fix stopped redundant trailing overlap passages, settling deterministic chunking output.
+
+Source: README.md.
+
+### 2026-10-18 Core ML compute plan device allocation and inference latency (`2026-10-18-compute-plan`)
+
+MLComputePlan device allocations and single prediction latencies were measured for EmbeddingModel and ReRankerModel on an Apple M3 Pro Mac (18 GB memory, macOS 27.0 26A428, Xcode 27.0) across four MLComputeUnits settings. For EmbeddingModel, median latency was 7.86 ms on cpuOnly (161 CPU operations), 4.78 ms on cpuAndGPU (161 GPU operations), and 6.90 ms on all (150 ANE, 11 CPU operations). For ReRankerModel, median latency was 0.69 ms on cpuOnly, 0.87 ms on cpuAndGPU, and 0.74 ms on all (55 ANE, 11 CPU operations). The probe confirmed both models compile without validation errors to Neural Engine operations under the all setting on macOS.
+
+Source: README.md.
+
+### 2026-10-19 Library chip drag reordering and drop target stability (`2026-10-19-library-reorder`)
+
+Drag-and-drop reordering of library chips was evaluated in an iOS 27.0 Simulator (OI 5.7 A17 Pro, iPhone 15 Pro) using a DemoDriver automated robot to diagnose crashes and failed moves. Probing isolated crashes to glassEffectHelper inside SwiftUI container hierarchies, while dropped reordering was blocked by monolithic drop targets. Splitting the drop target into separate regions above and below the strip in reorderfix2 allowed Product Notes to move before General and persist after relaunch. In the final build across nine drag runs, seven moved and held order after relaunch without crashing.
+
+Source: README.md.
+
+### 2026-10-19 Metal GPU versus Accelerate vDSP vector search latency (`2026-10-19-metal-vs-vdsp-search`)
+
+Vector search execution time was compared between CPU vDSP_mmul and GPU Metal on an Apple M3 Pro Mac with 18 GB memory running macOS 27.0 with Xcode 27.0 using 384-dimension random vectors. In the Swift array copy benchmark across 15 runs, CPU vDSP outperformed GPU Metal at 1,000 passages (0.01 ms versus 0.28 ms), 10,000 passages (0.08 ms versus 0.65 ms), 50,000 passages (0.86 ms versus 1.85 ms), and 150,000 passages (2.50 ms versus 4.74 ms). In the zero-copy page-aligned benchmark at 150,016 passages, CPU vDSP took 3.80 ms versus 5.69 ms for GPU Metal. The run settled that CPU vDSP remained faster than Metal across all tested passage counts on this Mac.
+
+Source: README.md.
+
+### 2026-10-19 Automated robot validation of quick actions, conversation limits, and notifications (`2026-10-19-robot-rows`)
+
+Three roadmap items were tested in an iOS 27.0 Simulator (OI 5.7 A17 Pro, iPhone 15 Pro) on Debug build c478948 using a DemoDriver robot harness. Quick action testing verified that the icon menu lists Ask, Add Document, and Scan Document, launching Chat and the file picker. Conversation limit testing verified that reaching five active threads displayed the limit warning and maintained five conversations when queries advanced from 3 to 12. Background import testing showed notification banner delivery for a short text file in run notif4, while a 125 KB Markdown import in notif3 outlasted the 30 s background grant.
+
+Source: README.md.
+
+### 2026-11-04 On-device query time budget and Deep Think stage latencies (`2026-11-04-speed-research`)
+
+Time budgets and execution stage durations were analyzed from 3,594 unique verification events and 72,266 trace lines gathered on an iPhone 16 Pro Max (A18 Pro) running app 5.8 (150) in Debug on an 8,410-passage library. Two uncontended Deep Think runs took 270.7 s and 236.2 s, giving a mean total time of 254.2 s. Five evidence sessions consumed a mean of 113.0 s (44.4% of total time), the synthesis model call took 56.4 s (22.2%), and multi-query search across 5 sub-queries took 17.1 s (6.7%). The research identified unlogged gaps of 8.5 s, 8.3 s, and 6.7 s, settling targets for Deep Think optimization.
+
+Source: measured_budget.md.
+
+### 2026-11-05 File splitting plan and verification protocol for large Swift files (`2026-11-05-file-split`)
+
+An overnight refactoring plan and validation protocol were established to split large Swift files into focused extensions without adding or dropping code. The target files included ChatScreen.swift at 4,922 lines, DocumentProcessor.swift at 10,669 lines, and SettingsView.swift at 3,684 lines. The procedure mandated verifying 0 lines added and 0 lost via prove_move.py, checking overload sets, and confirming clean compilation across iOS and macOS test loops. It settled safety rules against silent rebinding and overload shadowing during large file extractions.
+
+Source: OVERNIGHT.md.
+
+### 2026-11-05 Golden retrieval benchmark search latencies across baseline and fix runs (`2026-11-05-golden-retrieval`)
+
+No result recorded in the folder. It holds queries.json alongside result runs including results-base1.json and results-fix1.json. Across 71 documents, 7197 passages, and 760 searches, results-base1.json records firstPassSeconds of 716.8477289676666 and secondPassSeconds of 710.0369800329208. In comparison, results-fix1.json records firstPassSeconds of 682.9647109508514 and secondPassSeconds of 691.4023239612579.
+
+Source: results-base1.json, results-fix1.json.
+
+### 2026-11-06 Surgical decomposition strategy for monolithic query and parsing functions (`2026-11-06-decomposition`)
+
+A surgical extraction plan was specified to decompose three large functions while preserving exact runtime behavior and byte-for-byte golden test outputs. Target functions were RAGService.queryInternal across 5,826 lines (lines 126-5948), RAGService.addDocument across 1,438 lines (lines 862-2299), and structured parsing functions spanning 1,232 and 420 lines. The plan required dual-pass golden recorders for the Standard pipeline, structured parsing, and ingestion enrichment prior to any source edits. The specifications settled a zero-logic-change extraction rule verified by deterministic hashing.
+
+Source: PLAN.md.
+
+### 2026-11-07 Optimization plan for Deep Think query latency without depth loss (`2026-11-07-deepthink-speed`)
+
+An engineering plan targeted Deep Think query latency reductions for version 5.8 on iPhone 16 Pro Max, referencing baseline runs averaging 254 s (measured at 270.7 s and 236.2 s). Three unlogged guided-generation planner gaps of 8.5 s, 8.3 s, and 6.7 s were identified as optimization targets. Proposed changes included a 120 s planner cache estimated to save ~15 s, concurrent execution of 5 sub-queries in executeMultiQuerySearch estimated to save 7-9 s, and skipping unnecessary generic continuation checks to save 3-6 s. The plan established latency optimization goals while maintaining response depth and accuracy.
+
+Source: PLAN.md.
+
+### 2026-11-07 Documentation code citations and factual claim accuracy audit (`2026-11-07-docs-audit`)
+
+A documentation audit evaluated code citations, symbol names, and behavioral claims across repository documentation against the post-decomposition working tree. The audit brief mandated checking line numbers, verifying symbol existence, confirming version statements against Docs/SHIPPED_VERSION.json, and validating internal links. Three independent reviews evaluated proposed corrections: review_a evaluated 71 proposals, review_b evaluated 154 proposals, and review_c evaluated 215 proposals. The review established verified line corrections without modifying codebase implementation.
+
+Source: BRIEF.md, REVIEW_BRIEF.md, review_a.json, review_b.json, review_c.json.
+
+### 2026-11-07 Unified metrics bar displayed value accuracy against pipeline reality (`2026-11-07-metrics-bar`)
+
+Displayed metrics bar telemetry was audited against underlying code and verification journal events during a Deep Think run on an iPhone running build beb94eca. The audit found that the bar reported 1 invoked agentic tool while the journal logged 0 tool calls, and displayed five uncoordinated confidences including a 91% ring confidence, 92% synthesis row, 97% gates confidence, and 68-84% claims. The token budget displayed 3,016 output tokens without subtracting usage, and reported 20 retrieved chunks from a library holding 8,202 passages. It settled which metrics were genuine and identified dead subviews across UnifiedMetricsBar.swift across 434 lines.
+
+Source: MAP.md.
+
+### 2026-11-07 On-device answer responsiveness judge classification accuracy and latency (`2026-11-07-responsiveness`)
+
+AnswerResponsivenessJudge was tested on a Mac running macOS 27 with Apple on-device models using greedy sampling over 160 test cases. Across four prompt iterations, the shipped v4 prompt achieved 56 full, 32 partial, and 7 none judgments on 95 gold questions, with a median latency of 1.65 s. On 25 invalid page range answers, v4 classified 22 as none, 2 as partial, and 1 as full. On 15 section heading answers, v4 classified 13 as none and 2 as partial. The test settled the production prompt used by Standard mode to trigger rewrites when answers fail responsiveness criteria.
+
+Source: README.md.
+
+### 2026-11-07 App Store Connect API automation scripts for Xcode Cloud (`2026-11-07-xcode-cloud`)
+
+No result recorded in the folder. It holds Python automation scripts and identifiers including asc.py, start.py, run_id, and tests_workflow_id. The scripts interface with App Store Connect to dispatch build runs for Xcode Cloud workflow 77b13ba4-2ea7-4742-94ab-424586ef6ab5 on repository bec570a6-ac71-4f19-a898-060f290b33bb. Build run cf566a75-4937-48fd-a00e-0fc3a56547e2 was triggered, but no execution results or benchmark measurements are stored in the directory.
+
+Source: start.py, run_id, tests_workflow_id.
+
+### 2026-11-08 PDF document extraction text fidelity and number recall (`2026-11-08-extraction-fidelity`)
+
+Extraction fidelity was measured for 8 PDFs comprising 141 pages scored against PDF text layers from pdftotext -layout. Between the baseline before run and after8, mean body number recall improved from 0.898 to 0.941, while mean body word recall rose from 0.967 to 0.972. Invented numbers dropped from 53.2 to 24.9 per 1,000, and invented words dropped from 29.2 to 22.4 per 1,000, with total extraction time increasing from 594 s to 632 s. On 515 image-derived ground-truth checks, passing checks increased from 344 (0.668) in before to 389 (0.755) in after8. The final tree of that work (after18) passed 433 of 515, with number recall 0.944, body number recall 0.966, body word recall 0.975, invented numbers 22.7 and words 20.4 per 1,000, and 641 s for all 8; olmOCR-Bench 160 pages, mean of four categories 0.539 (run-after8) to 0.611 (run-v6).
+
+Source: README.md.
+
+### 2026-11-08 On-device document ingestion techniques and research literature survey (`2026-11-08-ingestion-research`)
+
+No result recorded in the folder. It holds ingestion_best_practices.md, containing a read-only literature and industry survey on on-device RAG document ingestion. The survey covers PDF lane choice, text-layer word positioning, complex page processing, chunking strategies, table extraction methods, and metadata generation. It compares current OpenIntelligence architecture against published methods and standards, outlining recommendations without changing repository code or executing runtime benchmark runs.
+
+Source: ingestion_best_practices.md.
+
+### 2026-11-09 Embedding and reranker model retrieval accuracy and latency bake-off (`2026-11-09-reranker-swap`)
+
+Embedder and reranker models were evaluated on an Apple M3 Pro Mac running macOS 27 across QASPER 80 (246 questions over 80 papers with 3,912 passages) and BEIR datasets. On QASPER hybrid retrieval with app prefixes, MiniLM without a reranker achieved 37.0% top 5 accuracy, MiniLM with TinyBERT achieved 41.9%, and MiniLM with the Granite reranker achieved 48.8% in PyTorch and 48.4% in Core ML 4-bit palettized format. Core ML 4-bit Granite reranker inference took 14.4 ms for 256 tokens on the Neural Engine. The benchmark settled replacing TinyBERT with the 4-bit palettized Granite reranker in production. Embedders were measured too and not swapped: Granite small english r2 reached 39.0% top 5 against MiniLM's 37.0% (20/15, p=0.50; MRR@10 +0.039, p=0.006), BEIR nDCG@10 SciFact 0.754 against 0.655 and NFCorpus 0.373 against 0.311, and with the Granite reranker and context sentences 50.8% against 48.8% (13/8, p=0.38).
+
+Source: README.md.
+
+### 2026-11-10 Passage highlighting accuracy on PDF pages before and after PassageFinder (`2026-11-10-passage-highlight`)
+
+Passage highlighting on PDF pages was evaluated across 10,029 passages in 44 PDFs before and after PassageFinder using harness_main.swift on macOS. Passages highlighted increased from 8,341 before to 9,423 in the final version, and passages covering at least 60% of target text increased from 5,852 (58.4%) to 8,920 (88.9%). The count of passages highlighted at over three times their length dropped from 773 in the first version to 2 in the final version. The run settled passage locator accuracy on Mac PDFKit, leaving scanned pages and on-device rendering unmeasured.
+
+Source: README.md.
+
+### 2026-11-10 Ablation audit of post-reranker retrieval heuristic rules (`2026-11-10-rule-audit`)
+
+Post-reranker heuristic retrieval rules were ablated on an iOS 27 Simulator on commit 2313b62b plus 5.8 reranker work across QASPER (246 questions over 80 papers). The baseline configuration achieved a coverage score of 0.617, reached 54.5%, and placed gold evidence first in Deep Think 32.5% of the time and in the top five 50.0% of the time. Switching off corrective retrieval lowered coverage to 0.595 (p = 0.01), while disabling the focused window reduced coverage to 0.608 (p = 0.08). The audit settled which downstream heuristics provide measurable retrieval gains, retaining corrective retrieval and the focused window.
+
+Source: README.md.
+
+### 2026-11-10 Physical SoC chip package positions for motherboard HUD telemetry (`2026-11-10-xray-chip-positions`)
+
+Hardware chip package coordinates were measured as fractions of device outlines from teardown photos fitted by screw holes using work/fit.py for MotherboardHUDView.socPlacement. Four measurement passes (A, B, C, D) adjudicated component placement across iPhone and iPad models, with iPhone 17 fitted at 0.330-0.522 horizontal and 0.177-0.291 vertical. Teardown video leads for four unmeasured devices were cataloged in gemini_video_leads_UNVERIFIED.json.txt but left out of production code per repository verification rules. The measurement settled verified physical placement for supported devices, leaving unmeasured models without an outline.
+
+Source: README.md.

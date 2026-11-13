@@ -133,5 +133,19 @@ if [ "$SOURCE" = "compact" ] && [ -f "$CKPT" ]; then
   head -16 "$CKPT" | sed 's/^/  /'
 fi
 
+# Every measurement lives in a BenchmarkRuns/<date>-<name> folder, indexed by BenchmarkRuns/LEDGER.md.
+# Added 2026-11-12, when 36 of 39 recent folders had no entry and a whole import comparison was missed.
+LEDGER="BenchmarkRuns/LEDGER.md"
+if [ -f "$LEDGER" ]; then
+  UNINDEXED=0
+  for d in BenchmarkRuns/20*/; do
+    [ -d "$d" ] || continue
+    n="${d%/}"; n="${n##*/}"
+    grep -qF "$n" "$LEDGER" 2>/dev/null || UNINDEXED=$((UNINDEXED + 1))
+  done
+  echo "Measured results: $LEDGER, one entry per run folder. Search it before saying something was or wasn't measured."
+  [ "$UNINDEXED" -gt 0 ] && echo "  LEDGER GAP: $UNINDEXED run folder(s) under BenchmarkRuns/ have no ledger entry. Add one per folder."
+fi
+
 echo "Read Docs/ai/STATE.md before substantive work. Load other docs only as the task needs them."
 exit 0

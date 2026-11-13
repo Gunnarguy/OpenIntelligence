@@ -148,6 +148,7 @@ Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`. `xcodebuild test
 | Component map and which doc owns which area | `Docs/ai/ARCHITECTURE.md` |
 | Which file of a split type holds what (RAGService, ChatScreen, DocumentProcessor and 14 more) | `Docs/ai/FILE_MAP.md` |
 | Why something is the way it is | `Docs/ai/DECISIONS.md` |
+| What has been measured, and what each run found | `BenchmarkRuns/LEDGER.md`, one entry per `BenchmarkRuns/` folder; the session brief counts folders with none |
 | How to build, test, release, recover | `Docs/ai/RUNBOOK.md` |
 | Full agent directives | `AGENTS.md` |
 | Tool-neutral pointer for agents that do not read this file | `HANDOFF.md` |
