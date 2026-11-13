@@ -39,7 +39,8 @@ Phone:
    Think question: the sheet must appear again; tap Deny.
 3. **Siri.** With the app closed and Library 8 open last: "Hey Siri, ask OpenIntelligence how much DHA is
    recommended"; on the card tap a document, Ask a Follow-Up ("compare the DHA and EPA amounts"), Think Deeper. Then
-   "Open <document> in OpenIntelligence", and "Search OpenIntelligence for <a phrase>".
+   "Open <document> in OpenIntelligence", and "Search OpenIntelligence for <a phrase>". From the Home Screen, search
+   a document's name and tap the document itself (not a passage): it should open the document.
 4. **Share.** Share an answer to Messages, then as Image; Copy Link on a document, paste in Notes, tap it.
 5. **Lock Screen and Control Center.** Add the "Ask OpenIntelligence" and "Your Library" widgets, the Ask and Scan
    controls on the Lock Screen, and Add and Scan in Control Center; tap each; scan one page into a library; start a
