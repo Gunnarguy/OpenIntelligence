@@ -39,7 +39,7 @@
   "entries": ["OpenIntelligence/App/ReviewPromptService.swift::ReviewPromptService", "OpenIntelligence/Features/Billing/AppStoreRatingSnapshot.swift::AppStoreRatingSnapshot"],
   "owns": ["OpenIntelligence/App/ReviewPromptService.swift", "OpenIntelligence/Features/Billing/AppStoreRatingSnapshot.swift"],
   "decisions": [],
-  "traps": ["The 120-day gate covers only the automatic request in ReviewPromptService; the thumbs-up alert can bring one sooner (CHANGELOG 5.4)."],
+  "traps": ["From 5.8 the only ask is Apple's sheet: first verified answer or third finished answer, once per version, 14 days apart (the 120-day gate and the thumbs-up alert are gone). ContentView.askForRatingWhenInFront makes the request only while the scene is active and holds it otherwise; didAsk must not be called for a request that was held."],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [

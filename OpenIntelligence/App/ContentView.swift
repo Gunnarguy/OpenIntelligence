@@ -96,6 +96,24 @@ struct ContentView: View {
         return .accentColor
     }
 
+    /// Hands the rating request to StoreKit two seconds on, and only while the app is in front. Until 5.8 it was
+    /// made, and recorded as made for this version, even when the person had already switched away, where no sheet
+    /// can show: that spent the version's one ask on nothing. Held instead, it is made on the next return.
+    private func askForRatingWhenInFront() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard reviewPrompt.wantsPrompt else { return }
+            guard scenePhase == .active else {
+                VerificationJournal.record("review.held", ["why": "notInFront"])
+                return
+            }
+            requestReview()
+            // Apple decides whether the sheet shows; this records only that it was asked (5.8).
+            VerificationJournal.record("review.requested")
+            reviewPrompt.didAsk()
+        }
+    }
+
     var body: some View {
         ZStack {
             tabViewContent
@@ -234,13 +252,7 @@ struct ContentView: View {
         // it actually appears (at most three times a year).
         .onChange(of: reviewPrompt.wantsPrompt) { _, wants in
             guard wants else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                requestReview()
-                // Apple decides whether the sheet shows; this records only that it was asked (5.8).
-                VerificationJournal.record("review.requested")
-                reviewPrompt.didAsk()
-            }
+            askForRatingWhenInFront()
         }
         // The one look at the plans that comes at the end of setup rather than at a limit.
         // Only when the checklist was finished (not skipped), free tier only, once per install,
@@ -410,6 +422,8 @@ struct ContentView: View {
             #endif
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
+            // A rating request held because the app wasn't in front is made when it comes back (5.8).
+            if newPhase == .active, reviewPrompt.wantsPrompt { askForRatingWhenInFront() }
             handleScenePhaseChange(from: oldPhase, to: newPhase)
         }
         // The "Your Library" widget shows the open library and its document count (5.7, `WidgetSnapshot`), written
