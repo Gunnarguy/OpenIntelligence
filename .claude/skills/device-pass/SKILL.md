@@ -73,6 +73,23 @@ TestFlight signing" (step 2 on the TestFlight build of 5.8 closes it).
 Update this list when a release's rows change, keeping the limit of five and seven. Merge steps; never add a step for a
 single row.
 
+### Added to the steps on 2026-11-14 (the owner's word: on his pass, not the backlog)
+
+The owner's checklist page holds the full list with what to look for: https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT
+(source `device-pass-58.html`, published from the session of 2026-11-14). These thirteen actions sit inside the steps
+above; none is a step of its own:
+
+- Phone step 1: run the shortcut action Check Import Status during the import; share a web page from Safari; import
+  three files at once.
+- Phone step 2: Export Conversation as Markdown, then as PDF.
+- Phone step 3: a shortcut that passes Ask My Documents' answer to Notes; Find Documents with a property filter.
+- Phone step 4: the library's Paste chip three times (text, a link, a file).
+- Phone step 5: turn a Focus with the OpenIntelligence library filter on, then off.
+- Mac step 4: Export Conversation as Markdown and as PDF; the Paste chip for a link, a paragraph and a file.
+- Mac step 6: Open <document> from Spotlight.
+- Not on the pass: the TestFlight purchase check (needs the TestFlight build), re-importing the KBIE paper and the
+  parameter question on arXiv 2507.13575 (the agent runs those in the Simulator).
+
 ## When he says "done"
 
 ```bash
