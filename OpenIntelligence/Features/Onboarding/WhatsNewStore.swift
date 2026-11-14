@@ -117,7 +117,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "magnifyingglass",
                     title: "A new search model, and a one-time rebuild",
                     detail:
-                        "Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. In my tests in the app it put a passage from the right document in the top five more often in every mode. Each library rebuilds its search index once, by itself, when you open it after the update, keeping the text it already read, so nothing is imported again. A large library takes a while, and on a Mac the rebuild keeps the Mac awake. If you share libraries over iCloud, update every device."
+                        "Search now finds passages with IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only. In my tests in the app it put a passage from the right document in the top five on 15 of 19 Standard questions, up from 10, and more often in every mode. Each library rebuilds its search index once, by itself, when you open it after the update, keeping the text it already read, so nothing is imported again. A large library takes a while, and on a Mac the rebuild keeps the Mac awake. If you share libraries over iCloud, update every device."
                 ),
                 .init(
                     symbol: "text.magnifyingglass",
@@ -141,7 +141,13 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "brain",
                     title: "Deep Think checks more and waits for you",
                     detail:
-                        "Deep Think writes its answer from the passages its searches cited, checks every claim it lists, and searches side by side. If you leave while it's working, it finishes when you come back, and if iOS closes the app, the question is asked again the next time you open it. Its panel shows what actually ran."
+                        "Deep Think writes its answer from the passages its searches cited, opens with the answer, checks every claim it lists, and shows Needs Verification only when a claim failed. If you leave while it's working, it finishes when you come back, and if iOS closes the app, the question is asked again the next time you open it. Its panel shows what actually ran."
+                ),
+                .init(
+                    symbol: "flame",
+                    title: "Maximum answers from the documents' own words",
+                    detail:
+                        "Maximum's last step now reads the source passages themselves, not only its notes. On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change. On my 20 mixed test questions it got 14 right where 5.7 got 10. Measured in the iOS 27 Simulator."
                 ),
                 .init(
                     symbol: "quote.opening",

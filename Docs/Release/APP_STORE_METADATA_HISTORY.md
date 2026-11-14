@@ -212,7 +212,9 @@ ANSWERS
 
 • Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
 
-• Deep Think writes its answer from the passages its searches cited, checks every claim it lists, and searches side by side.  If you leave while it's working, it finishes when you come back.
+• Deep Think writes its answer from the passages its searches cited, opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back.
+
+• Maximum now reads the source passages themselves at its last step.  On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change (iOS 27 Simulator).
 
 • Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
 
@@ -266,7 +268,9 @@ ANSWERS
 
 • Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
 
-• Deep Think writes its answer from the passages its searches cited, checks every claim it lists, and searches side by side.  If you leave while it's working, it finishes when you come back.
+• Deep Think writes its answer from the passages its searches cited, opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back.
+
+• Maximum now reads the source passages themselves at its last step.  On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change (iOS 27 Simulator).
 
 • Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
 
