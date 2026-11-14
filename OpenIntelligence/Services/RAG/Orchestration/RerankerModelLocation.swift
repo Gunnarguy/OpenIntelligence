@@ -21,6 +21,7 @@ import Foundation
 /// as before.
 nonisolated enum RerankerModelLocation {
     static let folderName = "Models"
+    static let appGroup = "group.Gunndamental.OpenIntelligence"
     private static let completeSuffix = ".complete"
     private static let stagingPrefix = ".staging-"
     /// Files up to this size are hashed whole; larger ones (the weights) by name and size, which change with them.
@@ -29,8 +30,14 @@ nonisolated enum RerankerModelLocation {
     /// The model to load: the fixed-path copy of a compiled `.mlmodelc`, or `bundled` itself when it is anything else,
     /// Application Support cannot be found, or the copy cannot be made.
     static func loadURL(for bundled: URL, fileManager: FileManager = .default) -> (url: URL, fixedPath: Bool) {
+        // The app group's folder first (2026-11-13): the app's own data folder gets a new address at each install (five
+        // in one day's trace on the owner's iPhone), so a copy in Application Support was at a new path after every
+        // install and Core ML compiled again, 36 to 90 s each time, with nothing clearing its cache. Whether the group
+        // folder's address survives an install is being measured on his iPhone (`reranker.load` after two installs).
         guard bundled.pathExtension == "mlmodelc",
-            let root = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+            let root = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?
+                .appendingPathComponent("Library/Application Support", isDirectory: true)
+                ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
             let copy = stableCopy(of: bundled, under: root, fileManager: fileManager)
         else { return (bundled, false) }
         return (copy, true)

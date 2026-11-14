@@ -749,7 +749,7 @@ struct HardwareXRayOverlay: View {
                             frame: tapticFrame,
                             intensity: telemetry.hapticIntensity,
                             glowMultiplier: settings.hudGlowIntensity,
-                            label: settings.hudShowLabels ? "Taptic Engine" : ""
+                            label: settings.hudShowLabels ? "TAP" : ""
                         )
                         .allowsHitTesting(false)
                         .transition(.opacity)
@@ -965,9 +965,12 @@ private struct GlowingTapticBorder: View {
             )
             .overlay(alignment: .topLeading) {
                 if !label.isEmpty {
+                    // Only while the outline itself shows (2026-11-13): the label stood alone over the chat's text
+                    // field on the owner's iPhone, a tag on nothing, which read as a stray piece of debug text.
                     XRayOutlineLabel(text: label, color: hapticColor)
                         .fixedSize()
                         .padding(XRayOutlineStyle.labelInset)
+                        .opacity(XRayOutlineStyle.level(intensity) >= XRayOutlineStyle.labelThreshold ? 1 : 0)
                 }
             }
             .frame(width: frame.width, height: frame.height)

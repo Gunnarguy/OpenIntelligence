@@ -955,6 +955,12 @@ extension RAGService {
                 var responsiveness = await ensureAnswerResponds(responseText: &responseText, llmResponse: &llmResponse, question: promptForGeneration, currentQuestion: question, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks)
                 // A headline number the documents don't give (a total the model added up) comes off; the cited figures
                 // under it stand (`RAGService+AnswerHeadline.swift`).
+                let echoed = Self.removingEchoedPromptSections(responseText, question: question)
+                if echoed.removed > 0 {
+                    Log.warning("[AnswerHeadline] Removed \(echoed.removed) section(s) the answer echoed from its prompt", category: .llm)
+                    VerificationJournal.record("answer.promptEchoRemoved", ["removed": "\(echoed.removed)"])
+                    responseText = echoed.text
+                }
                 responseText = Self.removingCopiedReferenceNumbers(responseText, sources: generationChunks.map(\.content)).text
                 responseText = Self.strippingStrayLeadingListNumber(responseText)
                 let headline = Self.droppingUnsupportedHeadlineNumber(

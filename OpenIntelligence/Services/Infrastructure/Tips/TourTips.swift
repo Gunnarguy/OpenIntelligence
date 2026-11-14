@@ -452,7 +452,25 @@ enum Tour {
     nonisolated static let launchQuietSeconds: Double = 60
     /// After a paced tip shows, the next one waits this long. TipKit's own display frequency goes no lower than
     /// hourly (`Tips.ConfigurationOption.DisplayFrequency`, iOS 27 SDK), so the pacing is a rule (`TourContext.pace`).
-    nonisolated static let secondsBetweenTips: Double = 90
+    /// 300 s since 2026-11-13 (90 before): the owner, a day into a build, found tips "kind of invasive ... popping up at
+    /// random ... I'm not onboarding anymore".
+    nonisolated static let secondsBetweenTips: Double = 300
+    /// At most this many paced tips in one launch of the app.
+    nonisolated static let pacedTipsPerLaunch = 2
+    /// The tour shows itself for this many days after it first ran on the device (or after Show Me Around), then
+    /// only the tips tied to something that just happened (`TourStep.isEssential`) appear.
+    nonisolated static let tourDays: Double = 3
+    nonisolated static let tourStartedKey = "tour.startedAt.v1"
+    private static var pacedTipsThisLaunch = 0
+
+    /// Whether the tour is still inside its days. Starts the count the first time it is asked.
+    nonisolated static func tourIsRunning(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        guard let started = defaults.object(forKey: tourStartedKey) as? Date else {
+            defaults.set(now, forKey: tourStartedKey)
+            return true
+        }
+        return now.timeIntervalSince(started) < tourDays * 86_400
+    }
     nonisolated static let paceAtLaunch = "launch"
     /// The tip's icon. TipKit's own is about 40 points, a third of a tip on a 6.3-inch iPhone (2026-11-13).
     nonisolated static let imageSize = CGSize(width: 24, height: 24)
@@ -462,7 +480,8 @@ enum Tour {
     static func startPacing() {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(launchQuietSeconds))
-            if TourContext.pace == paceAtLaunch { TourContext.pace = "open" }
+            // Past its days the tour stays closed: the pace never opens, so no paced tip shows.
+            if TourContext.pace == paceAtLaunch, tourIsRunning() { TourContext.pace = "open" }
         }
     }
 
@@ -471,9 +490,11 @@ enum Tour {
     static func claimTurn(_ step: TourStep) {
         guard !step.isEssential, TourContext.pace == "open" else { return }
         TourContext.pace = step.rawValue
+        pacedTipsThisLaunch += 1
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(secondsBetweenTips))
-            if TourContext.pace == step.rawValue { TourContext.pace = "open" }
+            // The launch's last paced tip leaves the pace closed until the app is opened again.
+            if TourContext.pace == step.rawValue, pacedTipsThisLaunch < pacedTipsPerLaunch { TourContext.pace = "open" }
         }
     }
 
@@ -485,7 +506,9 @@ enum Tour {
     /// Settings › How This Works › Show Me Around: every tip can show again, with no relaunch, still one at a time.
     static func showAgain() async {
         for step in TourStep.allCases { await TourTip(step).resetEligibility() }
-        if TourContext.pace == paceAtLaunch { TourContext.pace = "open" }
+        UserDefaults.standard.set(Date(), forKey: tourStartedKey)
+        pacedTipsThisLaunch = 0
+        TourContext.pace = "open"
         VerificationJournal.record("tour.showAgain")
     }
 

@@ -109,10 +109,66 @@ extension RAGService {
             let bracket = "[" + squeezed(inner) + "]"
             let copied = held.contains { $0.contains(bracket) }
             let beyondSources = numbers.contains { $0 > sources.count }
-            guard copied || beyondSources else { continue }
+            guard copied || beyondSources else {
+                // The model's own shorthand for a source ("[2]" for "[S2]", "[2, 4]"): written out as the app's label,
+                // so Fact Check and the chat read it as the citation it is.
+                let labels = numbers.map { "S\($0)" }.joined(separator: ", ")
+                let lead = result.substring(with: match.range).hasPrefix("[") ? "" : " "
+                result = result.replacingCharacters(in: match.range, with: "\(lead)[\(labels)]") as NSString
+                continue
+            }
             result = result.replacingCharacters(in: match.range, with: "") as NSString
             removed += 1
         }
         return (result as String, removed)
+    }
+
+    private nonisolated static let promptSectionTitles: Set<String> = [
+        "recent conversation", "conversation context", "previous conversation", "previous discussion summary",
+        "earlier turns", "current question",
+    ]
+
+    /// Takes out of an answer what it echoed from its prompt (5.8, 2026-11-13): a section under one of the prompt's
+    /// own titles ("Recent Conversation"), with its text up to the next heading, and a heading that only repeats the
+    /// question. By rule, after generation, so an answer never shows them whatever the model does with its prompt.
+    nonisolated static func removingEchoedPromptSections(_ text: String, question: String) -> (text: String, removed: Int) {
+        func key(_ value: String) -> String {
+            value.lowercased().filter { $0.isLetter || $0.isNumber || $0 == " " }
+                .split(separator: " ").joined(separator: " ")
+        }
+        func headingTitle(_ line: String) -> String? {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let marks = trimmed.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
+                return String(trimmed[marks.upperBound...])
+            }
+            if trimmed.hasPrefix("**"), trimmed.hasSuffix("**"), trimmed.count > 4, !trimmed.dropFirst(2).dropLast(2).contains("**") {
+                return String(trimmed.dropFirst(2).dropLast(2))
+            }
+            return nil
+        }
+        let asked = key(question)
+        var kept: [String] = []
+        var skipping = false
+        var removed = 0
+        for line in text.components(separatedBy: "\n") {
+            if let title = headingTitle(line) {
+                let titleKey = key(title)
+                if promptSectionTitles.contains(titleKey) {
+                    skipping = true
+                    removed += 1
+                    continue
+                }
+                skipping = false
+                if !asked.isEmpty, titleKey == asked {
+                    removed += 1
+                    continue
+                }
+            }
+            if !skipping { kept.append(line) }
+        }
+        guard removed > 0 else { return (text, 0) }
+        let result = kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        // Never an empty answer: if everything sat under an echoed title, the text is left as it was.
+        return result.isEmpty ? (text, 0) : (result, removed)
     }
 }

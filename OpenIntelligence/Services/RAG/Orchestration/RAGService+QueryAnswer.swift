@@ -648,6 +648,20 @@ extension RAGService {
         }
     }
 
+    /// What stands in front of the earlier turns in a prompt (5.8, 2026-11-13). They went in under markdown headings
+    /// ("## Conversation Context", "### Recent Conversation") with nothing saying what they were for, and the on-device
+    /// model answered them: on the owner's iPhone "What regulates mitochondrial quality?" came back opening with a
+    /// "Recent Conversation" section saying the sources hold nothing about a creatine mix, the question before.
+    nonisolated static let earlierTurnsFraming =
+        "(Earlier turns of this conversation follow, for reference only, in case the question points back at them. "
+        + "Do not answer them, repeat them or mention them, and write no heading for them.)\n"
+
+    /// Text with its markdown heading marks taken off each line, so a block of context does not read as a section of
+    /// the answer to be written.
+    nonisolated static func withoutHeadingMarks(_ text: String) -> String {
+        text.replacingOccurrences(of: #"(?m)^[ \t]{0,3}#{1,6}[ \t]+"#, with: "", options: .regularExpression)
+    }
+
     /// Step 6 (history): adds conversation history or memory to the prompt and decides whether citations are required.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
     func buildGenerationPrompt(
@@ -680,7 +694,7 @@ extension RAGService {
             let memoryContext = ConversationMemoryService.shared.contextInjection(
                 for: selectedId, query: question)
             if !memoryContext.isEmpty {
-                historyContext = memoryContext + "\nCURRENT QUESTION: "
+                historyContext = Self.earlierTurnsFraming + Self.withoutHeadingMarks(memoryContext) + "\nCURRENT QUESTION: "
                 Log.debug(
                     "[ConversationMemory] Injected memory context (\(memoryContext.count) chars)",
                     category: .retrieval)
@@ -690,7 +704,7 @@ extension RAGService {
         // Fallback to simple history if memory service didn't provide context
         if historyContext.isEmpty, !previousMessages.isEmpty {
             historyContext =
-                "PREVIOUS CONVERSATION:\n"
+                Self.earlierTurnsFraming
                 + previousMessages.map {
                     let role = $0.role == .user ? "User" : "Assistant"
                     // Truncate long history items to preserve token budget for RAG context

@@ -1414,6 +1414,20 @@ the first attempts' files are under `invalid-model-unavailable/`, and the 12:31 
 ways, 0 with a citation) is excerpts scored, not answers. The benchmark now stops at once when Quotes only is
 selected. Results: below, when the rerun on 7cac2076 finishes.
 
+**Answer first, valid run (7cac2076, 13:08 to 16:34).** 0 `[QuotesOnly]` lines, 0 excerpt answers of 106.
+
+| Deep Think, 53 questions | Right (`holds`) | Median seconds |
+|---|---|---|
+| `answerFirst` off | 45 | 82 |
+| `answerFirst` on | 46 | 68 |
+
+3 gained, 2 lost, p = 1.00. **Settled:** the change does not cost accuracy on these questions and is faster at the
+median; kept on (rule: keep unless the right count drops). **Not settled:** a gain in accuracy (one question); other
+question kinds; the seconds were taken while device builds ran beside it. The same process's Standard answers, which
+the switch does not touch, were right on 49 and 47 of 53 with different words in all 53: one run's spread for Standard
+is two questions. Files: `reach-before-s0.json`, `reach-after-s0.json`, `score-valid.txt` (`score.txt` there is the
+12:31 excerpts run).
+
 ### Not runs: `household_v1` and `xcloud` (noted 2026-11-13)
 
 `household_v1` is a fixture set (nine household documents, 17 answerable questions and 3 negative controls, its

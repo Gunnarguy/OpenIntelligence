@@ -81,8 +81,40 @@ final class AnswerHeadlineTests: XCTestCase {
         let result = RAGService.removingCopiedReferenceNumbers(answer, sources: passages)
         XCTAssertEqual(result.removed, 4)
         XCTAssertEqual(result.text, "The ER contact site uncouples through MFN2. DRP1 and fusion matter [S2].")
-        let own = RAGService.removingCopiedReferenceNumbers("It is 60 days [2].", sources: ["Sixty days.", "60 days.", "x"])
-        XCTAssertEqual(own.removed, 0, "a bracket no passage holds, within the sources, is left")
+        let own = RAGService.removingCopiedReferenceNumbers("It is 60 days [2]. Also [1, 3].", sources: ["Sixty days.", "60 days.", "x"])
+        XCTAssertEqual(own.removed, 0, "a bracket no passage holds, within the sources, is the model's own citation")
+        XCTAssertEqual(own.text, "It is 60 days [S2]. Also [S1, S3].")
+    }
+
+    func testAnAnswerDoesNotShowSectionsItEchoedFromItsPrompt() {
+        let question = "What regulates mitochondrial quality?"
+        let answer = """
+            ### Recent Conversation
+            The provided sources [S1] through [S4] do not contain information regarding participants receiving a creatine mix.
+
+            ### What regulates mitochondrial quality?
+            Mitochondrial quality is regulated through mitophagy and fusion [S2].
+
+            ### Calcium
+            Calcium signalling matters too [S1].
+            """
+        let result = RAGService.removingEchoedPromptSections(answer, question: question)
+        XCTAssertEqual(result.removed, 2)
+        XCTAssertTrue(result.text.hasPrefix("Mitochondrial quality is regulated"))
+        XCTAssertFalse(result.text.contains("creatine"))
+        XCTAssertTrue(result.text.contains("### Calcium"), "the answer's own headings stay")
+        let plain = "### Mitophagy\nIt clears damaged mitochondria [S1]."
+        XCTAssertEqual(RAGService.removingEchoedPromptSections(plain, question: question).removed, 0)
+        XCTAssertEqual(RAGService.removingEchoedPromptSections("### Recent Conversation\nOnly this.", question: question).removed, 0, "never an empty answer")
+        XCTAssertEqual(RAGService.withoutHeadingMarks("## Conversation Context\n\n### Recent Conversation\nUser (1): hi"), "Conversation Context\n\nRecent Conversation\nUser (1): hi")
+    }
+
+    func testTheTourEndsAfterItsDays() {
+        let defaults = UserDefaults(suiteName: "tour-\(UUID().uuidString)")!
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertTrue(Tour.tourIsRunning(now: start, defaults: defaults), "the first ask starts it")
+        XCTAssertTrue(Tour.tourIsRunning(now: start.addingTimeInterval(2 * 86_400), defaults: defaults))
+        XCTAssertFalse(Tour.tourIsRunning(now: start.addingTimeInterval(3 * 86_400 + 1), defaults: defaults))
     }
 
     func testTheLiveStatusLineIsPlainWords() {
