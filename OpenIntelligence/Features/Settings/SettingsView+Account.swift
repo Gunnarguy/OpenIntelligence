@@ -118,7 +118,7 @@ extension SettingsView {
                 tierBadge
             }
 
-            Divider()
+            planPanel
 
             // Always show a button to access subscription management
             Button {
@@ -142,20 +142,6 @@ extension SettingsView {
             }
             .buttonStyle(.plain)
 
-            // Show quota info
-            HStack(spacing: DSSpacing.lg) {
-                quotaItem(
-                    icon: "doc.text",
-                    value: entitlementStore.documentLimitDisplayText,
-                    label: "Documents"
-                )
-                quotaItem(
-                    icon: "folder",
-                    value: "\(entitlementStore.libraryLimit)",
-                    label: "Libraries"
-                )
-            }
-
             if entitlementStore.activeTier == .free, entitlementStore.isLegacyPaidProtected {
                 Text("Previous paid purchases on this Apple ID now unlock Lifetime access on this device.")
                     .font(.caption)
@@ -169,6 +155,36 @@ extension SettingsView {
         .padding(DSSpacing.lg)
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+    }
+
+    /// What the plan allows and how much of it is used, as lit blocks (5.8). The figures are the entitlement
+    /// store's and the engine's own counts, the ones the limits are checked against.
+    private var planPanel: some View {
+        let documents = SettingsStatusPanel.used(ragService.countedDocumentCount, of: entitlementStore.documentLimit)
+        let libraries = SettingsStatusPanel.used(containerService.countedLibraryCount, of: entitlementStore.libraryLimit)
+        let dailyLimit = QuotaPolicy.freeMaximumModeDailyLimit
+        let maximumLeft = entitlementStore.maximumModeRemainingUses
+        return SettingsStatusPanel(
+            symbol: "creditcard",
+            title: "Your plan",
+            badge: entitlementStore.effectiveTier.displayName,
+            badgeColor: entitlementStore.effectiveTier == .free ? Color.white.opacity(0.7) : .orange,
+            blocks: [
+                .init(
+                    symbol: "doc.text", name: "Documents", color: .blue, figure: documents.figure,
+                    share: documents.share, caption: documents.caption),
+                .init(
+                    symbol: "books.vertical", name: "Libraries", color: .purple, figure: libraries.figure,
+                    share: libraries.share, caption: libraries.caption),
+                entitlementStore.hasUnlimitedMaximumMode
+                    ? .init(
+                        symbol: "bolt.fill", name: "Maximum", color: .orange, figure: "No cap", share: nil,
+                        caption: "every day")
+                    : .init(
+                        symbol: "bolt.fill", name: "Maximum", color: .orange,
+                        figure: "\(maximumLeft) of \(dailyLimit)",
+                        share: Double(maximumLeft) / Double(max(1, dailyLimit)), caption: "left today"),
+            ])
     }
 
     private var subscriptionStatusText: String {

@@ -140,6 +140,8 @@ extension SettingsView {
             // the device window. "Massive" is doing work that a number should do. And the
             // 32,768 was hardcoded directly above a block that renders the *live* figure,
             // so the same screen could show two different numbers.
+            contextWindowPanel
+
             VStack(alignment: .leading, spacing: DSSpacing.md) {
                 // Corrected 2026-10-15: the sentence named only the answer too large for the device.
                 // `ModelExecutionPlanner` also sends a Deep Think or Maximum answer drawn from more than one
@@ -147,23 +149,6 @@ extension SettingsView {
                 Text("Answers are written on this device unless Private Cloud Compute is allowed: with Hybrid, for an answer whose passages don't fit in this device's model, or a Deep Think or Maximum answer drawn from more than one document; with Private Cloud Compute chosen in the model picker, for every answer drawn from your documents.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
-
-                VStack(spacing: 0) {
-                    pccWindowRow(
-                        icon: "iphone",
-                        label: "On this device",
-                        value: onDeviceWindowDescription
-                    )
-                    Divider().padding(.leading, DSSpacing.xxl)
-                    pccWindowRow(
-                        icon: "cloud",
-                        label: "Private Cloud Compute",
-                        value: pccWindowDescription
-                    )
-                }
-                .padding(.vertical, DSSpacing.xs)
-                .background(DSColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 HStack {
                     Text("When to allow it")
@@ -240,6 +225,58 @@ extension SettingsView {
     }
 
     @ViewBuilder
+    /// How much each model can read at once, side by side (5.8): the two figures the rows below this used to
+    /// state, with each bar lit in proportion to the larger window.
+    private var contextWindowPanel: some View {
+        let device = pccCapability?.onDeviceContextSize ?? 0
+        let onDevice = device > 0 ? device : FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let reported = pccCapability?.pccContextSize ?? 0
+        let cloud = reported > 0 ? reported : FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: false)
+        let cloudOn = deviceCapabilities.supportsPrivateCloudCompute
+        let largest = Double(max(1, max(onDevice, cloudOn ? cloud : 0)))
+        let available = pccCapability?.pccAvailable ?? cloudOn
+        return SettingsStatusPanel(
+            symbol: "text.viewfinder",
+            title: "Reads at once",
+            badge: available ? "Cloud ready" : "On device only",
+            badgeColor: available ? .green : Color.white.opacity(0.7),
+            blocks: [
+                .init(
+                    symbol: "iphone", name: "On this device", color: .blue,
+                    figure: onDevice > 0 ? onDevice.formatted() : "Unavailable",
+                    share: Double(onDevice) / largest, caption: onDevice > 0 ? "tokens" : "no model"),
+                .init(
+                    symbol: "cloud.fill", name: "Private Cloud Compute", color: .cyan,
+                    figure: cloudOn ? cloud.formatted() : "Unavailable",
+                    share: cloudOn ? Double(cloud) / largest : 0, caption: cloudOn ? "tokens" : "not on this system"),
+            ])
+    }
+
+    /// Where the libraries live, as lit blocks (5.8): how many stay on this device, how many sync, how many watch a folder.
+    private var librariesPanel: some View {
+        let own = containerService.containers.filter { !containerService.isGuideLibrary($0.id) }
+        let synced = own.filter { $0.syncMode == .iCloudShared }.count
+        let local = own.count - synced
+        let watched = WatchedFolderService.shared.folders.count
+        let total = Double(max(1, own.count))
+        return SettingsStatusPanel(
+            symbol: "books.vertical",
+            title: own.count == 1 ? "1 library" : "\(own.count) libraries",
+            badge: synced > 0 ? "Syncing" : "Local only",
+            badgeColor: synced > 0 ? .green : Color.white.opacity(0.7),
+            blocks: [
+                .init(
+                    symbol: "internaldrive", name: "On this device", color: .blue, figure: "\(local)",
+                    share: Double(local) / total, caption: "local only"),
+                .init(
+                    symbol: "icloud.fill", name: "In iCloud", color: .cyan, figure: "\(synced)",
+                    share: Double(synced) / total, caption: "on your devices"),
+                .init(
+                    symbol: "folder", name: "Watched", color: .green, figure: "\(watched)",
+                    share: Double(watched) / total, caption: watched == 1 ? "folder" : "folders"),
+            ])
+    }
+
     var sharedWorkspaceCard: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
@@ -262,6 +299,8 @@ extension SettingsView {
                     .foregroundStyle(sharedWorkspaceModeColor)
                     .clipShape(Capsule())
             }
+
+            librariesPanel
 
             Text(sharedWorkspaceSummary)
                 .font(.caption)

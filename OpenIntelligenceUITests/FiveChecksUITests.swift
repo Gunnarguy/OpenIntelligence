@@ -152,6 +152,45 @@ final class FiveChecksUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Watched Folder"].firstMatch.waitForExistence(timeout: 5), "the sheet did not open")
     }
 
+    /// Every Settings page, top and one screen down, for a look at them side by side.
+    @MainActor
+    func testShotsOfEverySettingsPage() {
+        let app = launch()
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 20), "no Settings tab")
+        settings.tap()
+        sleep(2)
+        clearTheScreen(app)
+        keep(app, "settings-00-list")
+        let pages = [
+            "Intelligence Mode", "Apple Intelligence", "Private Cloud Compute", "Libraries & iCloud",
+            "Device & Performance", "Appearance", "Notifications", "Plan & Usage", "Siri & Shortcuts", "Advanced",
+            "About",
+        ]
+        for (index, page) in pages.enumerated() {
+            let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", page)).firstMatch
+            var tries = 0
+            while !row.isHittable, tries < 6 {
+                app.swipeUp(velocity: .slow)
+                tries += 1
+            }
+            guard row.exists, row.isHittable else {
+                note("settings-missing-\(index)", "no row for \(page)")
+                continue
+            }
+            row.tap()
+            sleep(2)
+            let name = String(format: "settings-%02d-%@", index + 1, page.replacingOccurrences(of: " ", with: "-"))
+            keep(app, name)
+            app.swipeUp(velocity: .slow)
+            sleep(1)
+            keep(app, name + "-2")
+            let back = app.navigationBars.buttons.firstMatch
+            if back.exists { back.tap() } else { settings.tap() }
+            sleep(1)
+        }
+    }
+
     // MARK: - 3
 
     @MainActor
