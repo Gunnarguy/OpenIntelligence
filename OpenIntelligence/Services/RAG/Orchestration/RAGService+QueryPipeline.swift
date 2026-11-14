@@ -952,9 +952,10 @@ extension RAGService {
 
                 await repairResponseIntegrity(responseText: &responseText, question: question, answerIntent: answerIntent, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks, llmResponse: &llmResponse)
 
-                var responsiveness = await ensureAnswerResponds(responseText: &responseText, llmResponse: &llmResponse, question: promptForGeneration, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks)
+                var responsiveness = await ensureAnswerResponds(responseText: &responseText, llmResponse: &llmResponse, question: promptForGeneration, currentQuestion: question, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks)
                 // A headline number the documents don't give (a total the model added up) comes off; the cited figures
                 // under it stand (`RAGService+AnswerHeadline.swift`).
+                responseText = Self.removingCopiedReferenceNumbers(responseText, sources: generationChunks.map(\.content)).text
                 responseText = Self.strippingStrayLeadingListNumber(responseText)
                 let headline = Self.droppingUnsupportedHeadlineNumber(
                     responseText, question: question, sources: generationChunks.map(\.content))
@@ -978,7 +979,7 @@ extension RAGService {
                     // be a page range or a table cell that says nothing on its own.
                     if sourceLockedFinalResponse, responseText != responsivenessJudgedText,
                         let judged = responsiveness, judged.verdict != .none,
-                        let lockedJudgment = await judgeResponsiveness(question: promptForGeneration, answer: responseText, stage: "extracted"),
+                        let lockedJudgment = await judgeResponsiveness(question: Self.judgedQuestion(prompt: promptForGeneration, question: question), answer: responseText, stage: "extracted"),
                         lockedJudgment.verdict == .none
                     {
                         Log.info("[Responsiveness] The extracted value does not answer the question; keeping the model's answer", category: .llm)
@@ -1035,7 +1036,7 @@ extension RAGService {
                     // The shown text was replaced after the judge read it (precision override or source-only rewrite): judge
                     // the text the reader gets, so the verdict is about that answer.
                     if responsiveness != nil, finalResponseText != responsivenessJudgedText {
-                        responsiveness = await judgeResponsiveness(question: promptForGeneration, answer: finalResponseText, stage: "final")
+                        responsiveness = await judgeResponsiveness(question: Self.judgedQuestion(prompt: promptForGeneration, question: question), answer: finalResponseText, stage: "final")
                     }
                     if let responsiveness {
                         gatingSummary = appendedGatingDecision(gatingSummary, responsiveness.gatingToken)

@@ -55,6 +55,13 @@ extension RAGService {
         generationChunks: [DocumentChunk]
     ) async -> (responseText: String, preserveStreamingResponse: Bool) {
         var responseText = llmResponse.text
+        // A paper's own reference numbers, copied from its passages, come out before the answer's labels are looked for.
+        let references = Self.removingCopiedReferenceNumbers(responseText, sources: generationChunks.map(\.content))
+        if references.removed > 0 {
+            responseText = references.text
+            Log.info("[RAG] Removed \(references.removed) reference number(s) copied from the passages", category: .llm)
+            VerificationJournal.record("answer.referenceNumbersRemoved", ["removed": "\(references.removed)"])
+        }
 
         let preserveStreamingResponse = LLMStreamingContext.handler != nil
         if requiresCitations, !responseHasCitations(responseText) {

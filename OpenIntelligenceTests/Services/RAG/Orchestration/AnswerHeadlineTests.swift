@@ -64,6 +64,27 @@ final class AnswerHeadlineTests: XCTestCase {
         XCTAssertNil(RAGService.droppingUnsupportedHeadlineNumber(prose, question: "How many days?", sources: []).dropped)
     }
 
+    func testTheJudgeIsGivenTheQuestionAskedNotTheConversationBeforeIt() {
+        let question = "What regulates mitochondrial quality?"
+        let prompt = "PREVIOUS CONVERSATION:\nUser: How many participants received the creatine mix?\nAssistant: 16 [S3]\n\nCURRENT QUESTION: " + question
+        let judged = RAGService.judgedQuestion(prompt: prompt, question: question)
+        XCTAssertTrue(judged.hasPrefix(question), "the question comes first, alone")
+        XCTAssertTrue(judged.contains("for reference only"))
+        XCTAssertTrue(judged.contains("creatine mix"), "a follow-up can still be read against the turns before it")
+        XCTAssertFalse(judged.contains("CURRENT QUESTION"))
+        XCTAssertEqual(RAGService.judgedQuestion(prompt: question, question: question), question)
+    }
+
+    func testAPapersOwnReferenceNumbersComeOutOfAnAnswer() {
+        let passages = ["MERCS regulate mitophagy [124]. MFN2 disruption uncouples them [222].", "DRP1 drives fission [205, 206].", "Fusion [3]."]
+        let answer = "The ER contact site [124] uncouples through MFN2 [222]. DRP1 [205, 206] and fusion [3] matter [S2]."
+        let result = RAGService.removingCopiedReferenceNumbers(answer, sources: passages)
+        XCTAssertEqual(result.removed, 4)
+        XCTAssertEqual(result.text, "The ER contact site uncouples through MFN2. DRP1 and fusion matter [S2].")
+        let own = RAGService.removingCopiedReferenceNumbers("It is 60 days [2].", sources: ["Sixty days.", "60 days.", "x"])
+        XCTAssertEqual(own.removed, 0, "a bracket no passage holds, within the sources, is left")
+    }
+
     func testTheLiveStatusLineIsPlainWords() {
         XCTAssertEqual(
             RAGService.plainStatusText("- The document mentions \"fusion\".\n- **Depolarizing** mitochondria leads to"),

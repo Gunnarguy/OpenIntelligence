@@ -46,6 +46,29 @@ extension RAGService {
         return judgment
     }
 
+    /// The question as the judge should read it (5.8, 2026-11-13). The generation prompt carries the conversation's
+    /// earlier turns in front of the question, and handed to the judge whole it was read as one question: on the
+    /// owner's iPhone "What regulates mitochondrial quality?" was judged as asking for "number of participants" (the
+    /// question before it), so a good answer was called incomplete and rewritten into "The provided sources do not
+    /// contain information regarding participants receiving a creatine mix" under a "Recent Conversation" heading.
+    /// The earlier turns stay, for a follow-up that points back ("And the second one?"), marked as context.
+    nonisolated static func judgedQuestion(prompt: String, question: String) -> String {
+        let asked = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let whole = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !asked.isEmpty, whole != asked, whole.hasSuffix(asked) else { return whole.isEmpty ? asked : whole == asked ? asked : whole }
+        var earlier = String(whole.dropLast(asked.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        if earlier.uppercased().hasSuffix("CURRENT QUESTION:") {
+            earlier = String(earlier.dropLast("CURRENT QUESTION:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !earlier.isEmpty else { return asked }
+        return """
+            \(asked)
+
+            (Earlier in this conversation, for reference only. It is not the question, and the answer does not have to cover it:
+            \(earlier))
+            """
+    }
+
     /// Whether an answer holds no word at all: empty, or only digits, list markers and punctuation ("1", "2.", "-").
     /// Such an answer is never what this app writes, since even a bare value carries its citation ("60 [S1]"), so it is
     /// written again without asking the judge (5.8). On 2026-11-09 the on-device model stopped after "1" with a prompt
@@ -79,6 +102,7 @@ extension RAGService {
         responseText: inout String,
         llmResponse: inout LLMResponse,
         question: String,
+        currentQuestion: String,
         genConfig: InferenceConfig,
         requiresCitations: Bool,
         generationContext: String,
@@ -96,7 +120,8 @@ extension RAGService {
                 ["stage": "generated", "verdict": "degenerate", "answerChars": "\(responseText.count)"])
             judged = ResponsivenessJudgment(verdict: .none, askedFor: "", missing: "", seconds: 0)
         } else {
-            judged = await judgeResponsiveness(question: question, answer: responseText, stage: "generated")
+            judged = await judgeResponsiveness(
+                question: Self.judgedQuestion(prompt: question, question: currentQuestion), answer: responseText, stage: "generated")
         }
         guard let first = judged else { return nil }
         guard first.verdict != .full else { return first }
@@ -116,8 +141,11 @@ extension RAGService {
         var retryConfig = genConfig
         retryConfig.temperature = min(retryConfig.temperature, 0.2)
         retryConfig.skipContinuation = true
+        // The rewrite is told which question is the one to answer: with the earlier turns in front of it, it answered
+        // the question before under a heading of its own (2026-11-13).
         let retryPrompt =
             question + "\n\n" + first.regenerationNote
+            + " Answer only this question: \"\(currentQuestion)\" Do not answer or mention earlier turns of the conversation, and write no heading naming them."
             + (requiresCitations ? " Cite the sources with bracket ids like [S1]." : "")
         let regenerated: LLMResponse? = try? await LLMStreamingContext.$handler.withValue(nil) {
             try await generateWithFallback(
@@ -132,7 +160,9 @@ extension RAGService {
             return first
         }
         let candidate = cleanupResponseText(regenerated.text)
-        guard let second = await judgeResponsiveness(question: question, answer: candidate, stage: "rewritten"),
+        guard
+            let second = await judgeResponsiveness(
+                question: Self.judgedQuestion(prompt: question, question: currentQuestion), answer: candidate, stage: "rewritten"),
             Self.responsivenessRank(second.verdict) > Self.responsivenessRank(first.verdict)
         else {
             Log.warning(

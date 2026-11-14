@@ -87,4 +87,32 @@ extension RAGService {
         let kept = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         return (kept, value)
     }
+
+    /// Takes a paper's own reference numbers out of an answer (5.8, 2026-11-13). Passages from research papers carry
+    /// the paper's citations ("[222]", "[205, 206]"), and the model copied them into its answer in place of the app's
+    /// "[S#]" labels: on the owner's iPhone a Standard answer cited "[124]", "[222]" and "[3]", and the chat drew "[3]"
+    /// as a link to the answer's third source, which it was not. A bracketed number with no "S" is removed when a
+    /// passage holds the same bracket or it is larger than the number of sources; the sentence's words stay, and the
+    /// answer then gets its own labels from its passages (`CitationAttribution`). A marker no passage holds and that
+    /// could be a source is left alone.
+    nonisolated static func removingCopiedReferenceNumbers(_ text: String, sources: [String]) -> (text: String, removed: Int) {
+        guard text.contains("["),
+            let marker = try? NSRegularExpression(pattern: #"\s?\[(\d{1,4}(?:\s*[,;\u2013-]\s*\d{1,4})*)\]"#)
+        else { return (text, 0) }
+        func squeezed(_ value: String) -> String { value.filter { !$0.isWhitespace } }
+        let held = sources.map(squeezed)
+        var result = text as NSString
+        var removed = 0
+        for match in marker.matches(in: text, range: NSRange(location: 0, length: result.length)).reversed() {
+            let inner = result.substring(with: match.range(at: 1))
+            let numbers = inner.components(separatedBy: CharacterSet.decimalDigits.inverted).compactMap(Int.init)
+            let bracket = "[" + squeezed(inner) + "]"
+            let copied = held.contains { $0.contains(bracket) }
+            let beyondSources = numbers.contains { $0 > sources.count }
+            guard copied || beyondSources else { continue }
+            result = result.replacingCharacters(in: match.range, with: "") as NSString
+            removed += 1
+        }
+        return (result as String, removed)
+    }
 }
