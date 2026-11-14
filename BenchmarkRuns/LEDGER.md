@@ -1428,6 +1428,19 @@ the switch does not touch, were right on 49 and 47 of 53 with different words in
 is two questions. Files: `reach-before-s0.json`, `reach-after-s0.json`, `score-valid.txt` (`score.txt` there is the
 12:31 excerpts run).
 
+**Maximum source passages, valid run (e9a6cd80, 17:05 to 18:59).** 0 `[QuotesOnly]` lines, 0 excerpt answers, 0
+refusals of 60.
+
+| Maximum, 30 questions | Right (`holds`) | Median seconds |
+|---|---|---|
+| `maximumSourcePassages` and `answerFirst` off | 8 | 117 |
+| both on | 25 | 79 |
+
+17 gained, 0 lost, p < 0.001. **Settled:** with the top source passages in front of its final step (and the
+answer-first instruction), Maximum gives the table's value on 25 of 30 where its notes alone gave it on 8; both stay
+on. **Not settled:** each switch's own share for Maximum (they were off together); the other 128 table questions;
+prose questions. Files: `reach-before-s0.json`, `reach-after-s0.json`, `score-valid.txt`.
+
 ### Not runs: `household_v1` and `xcloud` (noted 2026-11-13)
 
 `household_v1` is a fixture set (nine household documents, 17 answerable questions and 3 negative controls, its
