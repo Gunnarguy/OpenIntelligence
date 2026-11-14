@@ -725,7 +725,10 @@ extension ChatScreen {
 
                         var errorMsg = ChatMessage(
                             role: .assistant,
-                            content: "\(friendlyMessage)\n\nPlease try again."
+                            // Not twice: most of the messages already end by asking ("Something went wrong. Please
+                            // try again." got a second "Please try again." under it, 2026-11-13).
+                            content: friendlyMessage.lowercased().contains("try again")
+                                ? friendlyMessage : "\(friendlyMessage)\n\nPlease try again."
                         )
                         errorMsg.containerId = capturedUsedContainerId
                         self.appendAndPersistMessage(errorMsg, for: capturedUsedContainerId)

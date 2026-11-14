@@ -29,6 +29,17 @@ final class RerankerSetupStatus: ObservableObject {
     @Published private(set) var justFinished = false
     /// When the load began (a second before the card showed), for the card's estimated progress.
     private(set) var startedAt: Date?
+    /// Which of the model's two forms is being prepared (1: passages up to 256 tokens, 2: up to 512), 0 before the
+    /// first; and when that one began. The card names the step and counts its seconds (5.8, 2026-11-13: the bar ran
+    /// to 95% on a guess and sat there, and the owner asked what it was doing).
+    @Published private(set) var step = 0
+    private(set) var stepStartedAt: Date?
+    nonisolated static let stepCount = 2
+
+    func setStep(_ number: Int) {
+        step = number
+        stepStartedAt = Date()
+    }
 
     /// How long a load runs before the app says so. 3 s (5.8, 2026-11-10): on the owner's iPhone a load from the
     /// compiled cache took 0.46 s and 1.52 s, and a first load after an install 20.8 to 59.7 s (journal
@@ -55,6 +66,8 @@ final class RerankerSetupStatus: ObservableObject {
         } else {
             onLiveEvent?(.finished)
             startedAt = nil
+            step = 0
+            stepStartedAt = nil
             justFinished = true
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(Self.readyShownSeconds))
@@ -70,6 +83,29 @@ final class RerankerSetupStatus: ObservableObject {
         guard let startedAt else { return 0 }
         let elapsed = max(0, now.timeIntervalSince(startedAt))
         return min(0.95, elapsed / expectedSeconds)
+    }
+
+    /// The bar by step: each of the two forms has half the bar, filled by its own seconds against half of
+    /// `expectedSeconds` and held short of its end until the step really ends. Before the first step is known, the
+    /// whole-load estimate.
+    nonisolated static func progress(step: Int, stepStartedAt: Date?, startedAt: Date?, now: Date) -> Double {
+        guard step >= 1, let stepStartedAt else { return estimatedProgress(startedAt: startedAt, now: now) }
+        let share = 1.0 / Double(stepCount)
+        let within = min(0.92, max(0, now.timeIntervalSince(stepStartedAt)) / (expectedSeconds * share))
+        return min(0.97, (Double(min(step, stepCount) - 1) + within) * share)
+    }
+
+    /// What the card says under its bar: the step, and how long the whole setup has run.
+    nonisolated static func stepLine(step: Int, startedAt: Date?, now: Date) -> String {
+        let seconds = Int(max(0, now.timeIntervalSince(startedAt ?? now)))
+        let what: String
+        switch step {
+        case 1: what = "Step 1 of 2: compiling the model for short passages"
+        case 2: what = "Step 2 of 2: compiling the model for long passages"
+        default: what = "Starting"
+        }
+        let slow = Double(seconds) > expectedSeconds + 10 ? ", longer than usual on this device" : ""
+        return "\(what) · \(seconds) s\(slow)"
     }
 }
 

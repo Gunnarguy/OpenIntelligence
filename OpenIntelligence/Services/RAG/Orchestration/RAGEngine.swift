@@ -114,7 +114,8 @@ actor RAGEngine {
                 let location = RerankerModelLocation.loadURL(for: bundledURL)
                 let url = location.url
                 var loaded: [(length: Int, model: MLModel)] = []
-                for length in [256, 512] {
+                for (index, length) in [256, 512].enumerated() {
+                    Task { @MainActor in RerankerSetupStatus.shared.setStep(index + 1) }
                     do {
                         let config = MLModelConfiguration()
                         config.computeUnits = .cpuAndNeuralEngine

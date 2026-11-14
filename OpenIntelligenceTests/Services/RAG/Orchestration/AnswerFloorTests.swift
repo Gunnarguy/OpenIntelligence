@@ -179,5 +179,26 @@ final class AnswerFloorTests: XCTestCase {
             accuracy: 0.001)
         XCTAssertEqual(
             RerankerSetupStatus.estimatedProgress(startedAt: start, now: start.addingTimeInterval(500)), 0.95)
+        // The compiled models are cleared only when a bundled model changes, never for a new app version alone.
+        XCTAssertFalse(ModelCompileCache.shouldClear(models: "a,b", clearedFor: "a,b", adoptedFromVersionKey: false))
+        XCTAssertTrue(ModelCompileCache.shouldClear(models: "a,c", clearedFor: "a,b", adoptedFromVersionKey: true))
+        XCTAssertFalse(ModelCompileCache.shouldClear(models: "a,b", clearedFor: nil, adoptedFromVersionKey: true))
+        XCTAssertTrue(ModelCompileCache.shouldClear(models: "a,b", clearedFor: nil, adoptedFromVersionKey: false), "an update from 5.7")
+        // By step (2026-11-13): each of the two forms has half the bar and never reaches the end of its half early.
+        let second = start.addingTimeInterval(30)
+        XCTAssertEqual(
+            RerankerSetupStatus.progress(step: 1, stepStartedAt: start, startedAt: start, now: start.addingTimeInterval(12.5)),
+            0.25, accuracy: 0.001)
+        XCTAssertLessThan(
+            RerankerSetupStatus.progress(step: 1, stepStartedAt: start, startedAt: start, now: start.addingTimeInterval(500)), 0.5)
+        XCTAssertEqual(
+            RerankerSetupStatus.progress(step: 2, stepStartedAt: second, startedAt: start, now: second), 0.5, accuracy: 0.001)
+        XCTAssertLessThan(
+            RerankerSetupStatus.progress(step: 2, stepStartedAt: second, startedAt: start, now: second.addingTimeInterval(500)), 1)
+        XCTAssertEqual(
+            RerankerSetupStatus.stepLine(step: 2, startedAt: start, now: start.addingTimeInterval(41)),
+            "Step 2 of 2: compiling the model for long passages · 41 s")
+        XCTAssertTrue(
+            RerankerSetupStatus.stepLine(step: 2, startedAt: start, now: start.addingTimeInterval(75)).hasSuffix("longer than usual on this device"))
     }
 }

@@ -53,12 +53,23 @@ struct RerankerSetupCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    // The step being prepared and the seconds so far, under a bar that fills by step (2026-11-13): the
+                    // bar alone ran to 95% on an estimate and sat there until "Search is ready".
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                        ProgressView(
-                            value: RerankerSetupStatus.estimatedProgress(startedAt: status.startedAt, now: context.date)
-                        )
-                        .tint(DSColors.accent)
-                        .animation(reduceMotion ? nil : .linear(duration: 0.5), value: context.date)
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            ProgressView(
+                                value: RerankerSetupStatus.progress(
+                                    step: status.step, stepStartedAt: status.stepStartedAt, startedAt: status.startedAt,
+                                    now: context.date)
+                            )
+                            .tint(DSColors.accent)
+                            .animation(reduceMotion ? nil : .linear(duration: 0.5), value: context.date)
+                            Text(RerankerSetupStatus.stepLine(step: status.step, startedAt: status.startedAt, now: context.date))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
                     }
                     .padding(.top, DSSpacing.xs)
                 }

@@ -64,6 +64,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         /// the owner's iPhone (Instruments, 2026-10-21).
         private var loadedComputeUnits: MLComputeUnits?
         private var wantedComputeUnits: MLComputeUnits?
+        /// When a failed prediction moved the model to the CPU (`prediction(from:length:model:)`); it goes back to the
+        /// device's own compute units two minutes later.
+        private var movedToCPUAt: Date?
     #endif
 
     /// Written once by the load task in `loadTokenizer()` and read by `embed` and `countTokens`.
@@ -147,6 +150,10 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         modelLock.lock()
         defer { modelLock.unlock() }
 
+        if let moved = movedToCPUAt, Date().timeIntervalSince(moved) > 120 {
+            movedToCPUAt = nil
+            wantedComputeUnits = DeviceCapabilityService.shared.preferredComputeUnits
+        }
         if let wanted = wantedComputeUnits {
             wantedComputeUnits = nil
             if models.isEmpty || loadedComputeUnits != wanted {
@@ -169,6 +176,47 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         models = Self.makeModels(computeUnits: units)
         if !models.isEmpty { loadedComputeUnits = units }
         return models
+    }
+
+    /// One prediction that survives the model's handle going bad (5.8, 2026-11-13).
+    ///
+    /// On the owner's iPhone a Maximum question asked while the app was left and reopened three times failed whole
+    /// with "Unable to compute the asynchronous prediction using ML Program" from this model, 12 s after the app came
+    /// back, and Chat said "Something went wrong". The loaded model was held from before the app was suspended; a
+    /// prediction on the Neural Engine can fail after that, or while the app is in the background. An embedding is
+    /// too small a thing to lose an answer over: the model is loaded again and the prediction retried, and if that
+    /// fails too it runs on the CPU, where nothing can be taken away (the same vectors to float rounding). Each step
+    /// is journaled (`embedding.predictionRetry`).
+    private func prediction(from inputs: MLFeatureProvider, length: Int, model: MLModel) async throws -> MLFeatureProvider {
+        do {
+            return try await model.prediction(from: inputs)
+        } catch {
+            Log.warning(
+                "[CoreMLSentenceEmbeddingProvider] Prediction failed (\(error.localizedDescription)); loading the model again",
+                category: .embedding)
+            let units = modelLock.withLock { loadedComputeUnits } ?? DeviceCapabilityService.shared.preferredComputeUnits
+            for (attempt, computeUnits) in [units, MLComputeUnits.cpuOnly].enumerated() {
+                let reloaded = Self.makeModels(computeUnits: computeUnits)
+                guard let fresh = reloaded.first(where: { $0.length == length })?.model else { continue }
+                do {
+                    let output = try await fresh.prediction(from: inputs)
+                    modelLock.withLock {
+                        models = reloaded
+                        loadedComputeUnits = computeUnits
+                        movedToCPUAt = computeUnits == .cpuOnly && units != .cpuOnly ? Date() : nil
+                    }
+                    VerificationJournal.record(
+                        "embedding.predictionRetry", .ok, ["attempt": "\(attempt + 1)", "cpu": "\(computeUnits == .cpuOnly)"])
+                    return output
+                } catch {
+                    Log.warning(
+                        "[CoreMLSentenceEmbeddingProvider] Retry \(attempt + 1) failed: \(error.localizedDescription)",
+                        category: .embedding)
+                }
+            }
+            VerificationJournal.record("embedding.predictionRetry", .failed, ["error": error.localizedDescription])
+            throw error
+        }
     }
 
     /// The model's functions, `len256` and `len512`, at the given compute units, or empty.
@@ -329,7 +377,7 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 "input_ids": MLFeatureValue(multiArray: inputIds),
                 "attention_mask": MLFeatureValue(multiArray: mask),
             ])
-            let output = try await model.prediction(from: inputs)
+            let output = try await prediction(from: inputs, length: length, model: model)
             guard let vector = output.featureValue(for: "embedding")?.multiArrayValue, vector.count == dimension else {
                 throw EmbeddingError.outputParsingFailed
             }

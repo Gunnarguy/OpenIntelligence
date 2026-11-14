@@ -457,7 +457,9 @@ struct IntelligenceModeCard: View {
     private func stepRow(_ step: Step) -> some View {
         let isOpen = expanded == step.id
         let runsHere = step.modes.contains(mode)
-        let isNew = added.contains(where: { $0.id == step.id })
+        // Every step a mode above Standard runs is lit, not only what it adds to the mode below (owner, 2026-11-13:
+        // Maximum lit one row where Deep Think lit three, though it runs the phrasings and the chain too).
+        let isNew = runsHere && previous != nil
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Button {
                 expanded = isOpen ? nil : step.id
