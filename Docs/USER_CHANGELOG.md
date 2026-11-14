@@ -13,7 +13,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ### Getting Started
 
-- **Small tips show you around, when you need them.** A short tip with a small arrow points out anything that isn't plain from the screen, like where an answer came from, what Deep Think does, or what an icon-only button is for. It appears at the moment it's useful, for example "Not in your documents" right under an answer that found nothing to stand on. Only one shows at a time. Apart from a few you need first, like the one in an empty chat, none shows in the app's first minute and a new one waits at least a minute and a half, and each goes away once you've used it, closed it or seen it three times. Settings › How This Works › Show Me Around brings them all back.
+- **Small tips show you around, when you need them.** A short tip with a small arrow points out anything that isn't plain from the screen, like where an answer came from, what Deep Think does, or what an icon-only button is for. It appears at the moment it's useful, for example "Not in your documents" right under an answer that found nothing to stand on. Only one shows at a time. Apart from a few you need first, like the one in an empty chat, none shows in the app's first minute and a new one waits at least five minutes, no more than two show each time you open the app, the tour ends after three days, and each goes away once you've used it, closed it or seen it three times. Settings › How This Works › Show Me Around brings them all back. Four tips carry a button that does the thing for you (Try a Question, Show Me, Go Deeper, New Library), and Settings › How This Works has a new card, Where Things Are, that lists where each part of the app lives.
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
 
 ### Answers
@@ -68,6 +68,9 @@ This document provides a chronological history of user-facing changes, highlight
 - **The match score reads the same everywhere.** The ring under an answer and the panel's "best match" showed one result two ways, 89% and 81%. They now show the same number.
 - **No totals the documents don't state.** Asked how many participants received a treatment across several studies, an answer could open with a total it added up itself, and add it wrong. Now it gives each study's number as the document writes it, with its citation, and a headline number that no passage states is taken off.
 - **A cleaner answer bar.** The session badge no longer sits on top of "Thinking", a finished Maximum answer shows one confidence figure, not two, and the line that says what the app is doing reads as plain words, without dashes or token counts.
+- **A follow-up answers the question you just asked.** In a longer conversation the answer check could judge, and then rewrite, the answer against an earlier question. It reads the one you asked.
+- **A paper's own reference numbers stay out of your answer.** When a passage held citations like [3] or [124], an answer could copy them, and [3] then looked like a link to source 3. They're removed, and a bare [2] the model writes for a source becomes a working [S2].
+- **"Getting search ready" says which step it's on.** It shows Step 1 of 2 or Step 2 of 2 with the seconds so far, where it used to sit near the end and then finish.
 
 ### Libraries
 
@@ -93,14 +96,18 @@ This document provides a chronological history of user-facing changes, highlight
 - **Footnotes stay out of the middle of a sentence.** A page's footnotes go after its body text, and a sentence that a caption, figure or table interrupted is put back together.
 - **Sync never deletes a document it can't place.** A file no library record names is moved aside for 30 days instead of deleted, and sync leaves every file alone while an import or rebuild is still running.
 - **The Atlas opens at once.** Its analysis of a library took 24 to 61 seconds on 6,000 passages and ran again every time you opened it. It's now kept on your device and shown straight away, and redone only when the library changes. An axis name that doesn't fit at the end of its axis is dimmed, with a small arrow pointing to it.
-- **Vision Capture is marked Experimental.** On my iPhone its boxes ran off their objects and it named things it couldn't see well. It now says what it's sure of, keeps its boxes on the picture, and is labelled Experimental.
 - **Shared links open the app again.** My website moved to gunndamental.com, and links copied with Copy Link pointed at the old address, which opened the web page instead of the app. Links now use the new address.
 - **Atlas names come from your documents, not the app's labels.** Clusters and axes could be named "Path & Section" or "Table & Headers", words the app itself adds when it stores a passage. Those are left out, labels that would sit on top of each other give way, the legend lists every cluster, and counts read "16,554 passages".
+- **Faded scans and fine print.** A scanned page is now also read in four overlapping quarters, which picks up small print the full-page pass missed, and a washed-out scan has its contrast raised before it's read.
+- **Text in another script stays.** A Greek, Hebrew, Arabic, Cyrillic, Chinese, Japanese, Korean or Hindi line inside an English document was thrown away as scanning noise. It's kept.
+- **Spreadsheets, saved web pages and photos.** A CSV saved by Windows software, or one with a quote mark inside a value like a 55" screen, imports correctly. A saved .html file imports as readable text with its tables, not as raw markup. A portrait photo is read the right way up; it used to be read on its side.
+- **Libraries & iCloud says where your libraries are kept.** Settings › Libraries & iCloud replaces "Storage location" with a plain description of where your libraries live, with the technical details below it.
 
 ### Plans
 
 - **The plans screen shows the plan you have.** If your Lifetime came from a purchase before 5.5, the plans screen said Free and offered you plans you already had, while Plan & Usage said Lifetime. It says Lifetime now.
 - **The plans screen says what each plan adds.** "Why upgrade now?" is "What you get" now, with what paying actually changes.
+- **Free, Pro and Lifetime, side by side.** Under the three plans there's now a table of everything a paid plan changes and what each plan has of it: Maximum mode, documents, libraries, conversations in each library and watched folders. Your own plan is marked. The conversation limit (5 on Free, 20 on Pro, unlimited on Lifetime) was always there and wasn't written anywhere.
 
 ### Ratings
 
