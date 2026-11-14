@@ -12,8 +12,7 @@
 //  the same page twice ("[S1]" and "[S2]", both CD004426.pdf p.24).
 //
 //  A document's passages are all made in one import or rebuild, minutes apart at most. So where a document has passages
-//  the same place twice (two passages with one index) and passages made more than `gap` apart, the newest run is the
-//  document and the older runs are leftovers.
+//  the same place twice (two passages with one index), each place keeps its newest passage and the old set's leftovers go.
 //
 
 import Foundation
@@ -24,26 +23,36 @@ nonisolated enum PassageGenerations {
 
     /// The passages of each document's newest import or rebuild, in the order given. `removed` is how many older ones
     /// were left out.
+    ///
+    /// Only a document that holds one place twice (two passages with one index) has two sets: a rebuild starts again
+    /// at passage 0, and an import paused for hours holds every place once and is left whole. For such a document each
+    /// place keeps its newest passage, and a passage made more than `gap` before the newest set began (the earliest of
+    /// the places held twice) is a leftover of the old set at a place the new set no longer has.
+    ///
+    /// The first version (same day) cut a document at any 30-minute gap going back from its newest passage. A document's
+    /// summary passage is made after its others, 33 to 36 minutes after on the owner's iPhone, so that one passage was
+    /// taken for the newest set and the document's 1,100 real passages were removed: his Library 6 went from 16,554 to
+    /// 4,292 at 17:32 on 2026-11-13, where 8,226 was right. Restored from the Mac's copy.
     static func newest(of chunks: [DocumentChunk]) -> (kept: [DocumentChunk], removed: Int) {
-        var cutoff: [UUID: Date] = [:]
-        for (documentId, passages) in Dictionary(grouping: chunks, by: \.documentId) {
-            // Only a document that holds one place twice has two sets: a rebuild starts again at passage 0. A long
-            // import that was paused for hours has passages made far apart and every place once; it is left whole.
-            var places = Set<Int>()
-            guard passages.contains(where: { !places.insert($0.metadata.chunkIndex).inserted }) else { continue }
-            let sorted = passages.map(\.metadata.createdAt).sorted(by: >)
-            var oldestOfNewestRun = sorted[0]
-            for date in sorted.dropFirst() {
-                guard oldestOfNewestRun.timeIntervalSince(date) <= gap else { break }
-                oldestOfNewestRun = date
+        var dropped = Set<UUID>()
+        for (_, passages) in Dictionary(grouping: chunks, by: \.documentId) {
+            let byPlace = Dictionary(grouping: passages, by: \.metadata.chunkIndex)
+            let heldTwice = byPlace.values.filter { $0.count > 1 }
+            guard !heldTwice.isEmpty else { continue }
+            func newest(_ group: [DocumentChunk]) -> DocumentChunk {
+                group.max { $0.metadata.createdAt < $1.metadata.createdAt } ?? group[0]
             }
-            if oldestOfNewestRun != sorted[sorted.count - 1] { cutoff[documentId] = oldestOfNewestRun }
+            let newSetBegan = heldTwice.map { newest($0).metadata.createdAt }.min() ?? .distantPast
+            let cutoff = newSetBegan.addingTimeInterval(-gap)
+            for group in byPlace.values {
+                let keeper = newest(group)
+                for passage in group where passage.id != keeper.id || passage.metadata.createdAt < cutoff {
+                    dropped.insert(passage.id)
+                }
+            }
         }
-        guard !cutoff.isEmpty else { return (chunks, 0) }
-        let kept = chunks.filter { chunk in
-            guard let from = cutoff[chunk.documentId] else { return true }
-            return chunk.metadata.createdAt >= from
-        }
+        guard !dropped.isEmpty else { return (chunks, 0) }
+        let kept = chunks.filter { !dropped.contains($0.id) }
         return (kept, chunks.count - kept.count)
     }
 }
