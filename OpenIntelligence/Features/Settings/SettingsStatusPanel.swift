@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-/// A dark panel with a title line and up to three lit blocks, drawn the way `ComputeProfileCard`'s chip is.
+/// A dark panel with a title line and up to four lit blocks, drawn the way `ComputeProfileCard`'s chip is.
 /// Every figure is the caller's: the panel draws what it is given and computes nothing.
 struct SettingsStatusPanel: View {
     struct Block: Identifiable {
@@ -45,7 +45,7 @@ struct SettingsStatusPanel: View {
             }
             .foregroundStyle(Color.white.opacity(0.85))
 
-            HStack(spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 ForEach(blocks) { block in
                     blockView(block)
                 }
@@ -82,19 +82,19 @@ struct SettingsStatusPanel: View {
 
     private func blockView(_ block: Block) -> some View {
         let share = min(1, max(0, block.share ?? 1))
-        return VStack(spacing: 3) {
+        return VStack(spacing: 2) {
             Image(systemName: block.symbol)
-                .scaledFont(size: 15, weight: .semibold)
+                .scaledFont(size: 12, weight: .semibold)
                 .foregroundStyle(Color.white)
                 // One height for every symbol, so two blocks' lines sit level whatever their symbols' shapes.
-                .frame(height: 20)
+                .frame(height: 14)
             Text(block.name)
-                .scaledFont(size: 10, weight: .bold)
+                .scaledFont(size: 9, weight: .bold)
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.6)
             Text(block.figure)
-                .scaledFont(size: 13, weight: .heavy, design: .monospaced)
+                .scaledFont(size: 12, weight: .heavy, design: .monospaced)
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -102,7 +102,7 @@ struct SettingsStatusPanel: View {
             // The bar: the lit part is the share.
             Capsule()
                 .fill(Color.white.opacity(0.12))
-                .frame(height: 4)
+                .frame(height: 3)
                 .overlay(alignment: .leading) {
                     GeometryReader { proxy in
                         Capsule()
@@ -112,13 +112,13 @@ struct SettingsStatusPanel: View {
                 }
                 .padding(.horizontal, DSSpacing.xs)
             Text(block.caption)
-                .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                .scaledFont(size: 8, weight: .semibold, design: .monospaced)
                 .foregroundStyle(Color.white.opacity(0.85))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs + 1)
         .padding(.horizontal, DSSpacing.xxs)
         .background(
             RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
@@ -131,7 +131,7 @@ struct SettingsStatusPanel: View {
             RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .strokeBorder(block.color.opacity(0.95), lineWidth: 1)
         )
-        .shadow(color: block.color.opacity(0.25 + 0.3 * share), radius: 4 + 8 * share)
+        .shadow(color: block.color.opacity(0.25 + 0.3 * share), radius: 3 + 5 * share)
     }
 
     /// "3 of 5", or "3" and no limit when the limit is unlimited.

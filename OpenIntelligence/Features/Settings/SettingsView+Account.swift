@@ -162,6 +162,11 @@ extension SettingsView {
     private var planPanel: some View {
         let documents = SettingsStatusPanel.used(ragService.countedDocumentCount, of: entitlementStore.documentLimit)
         let libraries = SettingsStatusPanel.used(containerService.countedLibraryCount, of: entitlementStore.libraryLimit)
+        // Conversations are limited in each library, so this is the open library's count.
+        let open = containerService.activeContainer?.id
+        let conversations = SettingsStatusPanel.used(
+            open.map { ragService.listThreads(for: $0).count } ?? 0,
+            of: QuotaPolicy.evidenceThreadLimit(for: entitlementStore.effectiveTier))
         let dailyLimit = QuotaPolicy.freeMaximumModeDailyLimit
         let maximumLeft = entitlementStore.maximumModeRemainingUses
         return SettingsStatusPanel(
@@ -176,6 +181,9 @@ extension SettingsView {
                 .init(
                     symbol: "books.vertical", name: "Libraries", color: .purple, figure: libraries.figure,
                     share: libraries.share, caption: libraries.caption),
+                .init(
+                    symbol: "bubble.left.and.bubble.right", name: "Chats here", color: .green,
+                    figure: conversations.figure, share: conversations.share, caption: conversations.caption),
                 entitlementStore.hasUnlimitedMaximumMode
                     ? .init(
                         symbol: "bolt.fill", name: "Maximum", color: .orange, figure: "No cap", share: nil,

@@ -35,20 +35,22 @@ struct WatchedFolderRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DSSpacing.md) {
+            // One line, the height of a chip (the owner, 2026-11-14: the two-line card was too big for what it is).
+            HStack(spacing: DSSpacing.sm) {
                 WatchedFolderGlyph()
-                    .font(.title3)
+                    .font(.body)
                     .foregroundStyle(folder == nil ? DSColors.secondaryText : Color.accentColor)
-                    .frame(width: DSSpacing.tapTarget * 0.75)
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(folder.map { "Watching \($0.name)" } ?? "Watch a Folder")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DSColors.primaryText)
-                    detail
-                        .font(.caption)
-                        .foregroundStyle(DSColors.secondaryText)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(folder.map { "Watching \($0.name)" } ?? "Watch a Folder")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DSColors.primaryText)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                detail
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if folder == nil, !hasAccess {
                     Text("Pro")
                         .font(.caption2.weight(.bold))
@@ -58,11 +60,11 @@ struct WatchedFolderRow: View {
                         .foregroundStyle(Color.accentColor)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(DSColors.secondaryText)
             }
             .padding(.horizontal, DSSpacing.md)
-            .padding(.vertical, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs + DSSpacing.xxs)
             .background(
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.surface.opacity(0.6))
@@ -86,7 +88,7 @@ struct WatchedFolderRow: View {
                 Text("Not checked yet")
             }
         } else {
-            Text("New files import by themselves")
+            Text("imports new files by itself")
         }
     }
 }

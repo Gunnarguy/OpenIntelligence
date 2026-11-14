@@ -249,7 +249,20 @@ extension SettingsView {
                     symbol: "cloud.fill", name: "Private Cloud Compute", color: .cyan,
                     figure: cloudOn ? cloud.formatted() : "Unavailable",
                     share: cloudOn ? Double(cloud) / largest : 0, caption: cloudOn ? "tokens" : "not on this system"),
+                permissionBlock,
             ])
+    }
+
+    /// The permission setting as a block: what the picker below it is set to.
+    private var permissionBlock: SettingsStatusPanel.Block {
+        switch settings.pccSetting {
+        case .never:
+            .init(symbol: "hand.raised.fill", name: "Permission", color: .green, figure: "Never", share: 0, caption: "stays here")
+        case .ask:
+            .init(symbol: "hand.raised.fill", name: "Permission", color: .green, figure: "Asks", share: 0.5, caption: "each time")
+        case .allow:
+            .init(symbol: "hand.raised.fill", name: "Permission", color: .green, figure: "Allowed", share: 1, caption: "without asking")
+        }
     }
 
     /// Where the libraries live, as lit blocks (5.8): how many stay on this device, how many sync, how many watch a folder.
@@ -259,6 +272,7 @@ extension SettingsView {
         let local = own.count - synced
         let watched = WatchedFolderService.shared.folders.count
         let total = Double(max(1, own.count))
+        let documents = SettingsStatusPanel.used(ragService.countedDocumentCount, of: entitlementStore.documentLimit)
         return SettingsStatusPanel(
             symbol: "books.vertical",
             title: own.count == 1 ? "1 library" : "\(own.count) libraries",
@@ -274,6 +288,9 @@ extension SettingsView {
                 .init(
                     symbol: "folder", name: "Watched", color: .green, figure: "\(watched)",
                     share: Double(watched) / total, caption: watched == 1 ? "folder" : "folders"),
+                .init(
+                    symbol: "doc.text", name: "Documents", color: .orange, figure: documents.figure,
+                    share: documents.share, caption: documents.caption),
             ])
     }
 
