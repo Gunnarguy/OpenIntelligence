@@ -2,7 +2,7 @@
 
 Updated: 2026-11-14 afternoon PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: e71874e6
+Last verified commit: 86f53f92
 
 ## Objective
 
@@ -24,10 +24,12 @@ build. Rows still open after his pass that do not meet 3 move to the next releas
 | Unit suite | 1,751 run overnight with one failure fixed (145187be); not rerun since. `PlanBenefitsTests` 5 of 5 on 4c96aa37 |
 | Plans screen | "Free, Pro and Lifetime" table of all five paid limits (4c96aa37), tests pass, **never seen rendered** |
 | Release text | audited against all 288 commits since v5.7.0 by an Antigravity job; gaps fixed in e71874e6. App Store Connect not pushed |
-| Mac | build of e71874e6 in Applications |
-| iPhone | **still on the 11:12 build (df67ec96)**: `devicectl` install fails with CoreDeviceError 4016, phone unreachable. The built app is at `/private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app` |
-| Five Simulator checks | not run. The simulator control tool was refused (access prompt unanswered); write them as UI tests or wait for access |
-| Roadmap | v5.8: about 100 In Progress |
+| Rating request | made only while the app is in front, held otherwise (807fd68d); rules unchanged. The sheet came up in a Simulator UI run |
+| Five Simulator checks | done (807fd68d, `FiveChecksSimulatorTests`, `FiveChecksUITests`). Rows closed: [S12] citation, no-vector rebuild (engine level), No Sources badge, Glossary and metrics note (Glossary sentence corrected in 86f53f92). Open: "Summarize my lease" (40049a74d54f814eadbace9c62d87ef9), one question on the owner's phone, on the checklist |
+| Mac | build of 86f53f92 in Applications |
+| iPhone | **still on the 11:12 build (df67ec96)**: `devicectl` install fails with CoreDeviceError 4016, device listed "unavailable". The built app of 86f53f92 is at `/private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app` |
+| Other repos | OpenCone rating request committed locally (fe9d398). OpenResponses' is written, untested, uncommitted; its session waits for this session's word that the build slot is free |
+| Roadmap | v5.8: about 96 In Progress |
 
 ## The five Simulator checks (each closes one row)
 
@@ -61,5 +63,7 @@ submitting, deleting his data.
 
 When the owner says the iPhone is unlocked and on the Mac's network, run
 `xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549 /private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app`
-(rebuild first if HEAD has moved past e71874e6 in app source). Then run the five Simulator checks above and close the
-rows that pass.
+(rebuild first if HEAD has moved past 86f53f92 in app source) and tell him the checklist can start. When he says
+"done", run `python3 scripts/phone_evidence.py --since <install time>` and the same with `--mac`, close the rows
+they prove, and move what is left and does not lose data, break an advertised feature or block the build to the next
+release. Then push and submit only at his word.
