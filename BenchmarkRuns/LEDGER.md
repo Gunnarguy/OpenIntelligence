@@ -1441,6 +1441,31 @@ answer-first instruction), Maximum gives the table's value on 25 of 30 where its
 on. **Not settled:** each switch's own share for Maximum (they were off together); the other 128 table questions;
 prose questions. Files: `reach-before-s0.json`, `reach-after-s0.json`, `score-valid.txt`.
 
+### 2026-11-14 Overnight: unit suite, answer test by rule on 5.8 and 5.7, the draft-abstain switch (`2026-11-14-overnight`, `2026-11-14-0149-answer-modes`, `2026-11-14-0255-answer-modes-draftAbstainOff`, `2026-11-14-0346-answer-modes-v5.7.0`, `2026-11-14-0345-answer-modes-v5.7.0`, `2026-11-13-draft-abstain`)
+
+One Simulator at a time, iOS 27.0, the app's own model path. 5.8 is 581a37b6; 5.7 is `v5.7.0` with its four Simulator
+switches patched by content and the answer test from 02044980. Scored by rule (`scripts/score_answer_eval.py`); the
+model judge's column is not used.
+
+| 20 cases, right by rule | 5.7 | 5.8 |
+|---|---|---|
+| Standard | 10 | 10 |
+| Deep Think | 12 | 13 |
+| Maximum | 10 | 14 |
+
+**Unit suite (5.8, unpatched):** 1,751 tests, 20 skipped, 1 failure (`ExtractedValueRelevanceTests`, an invalid
+regular expression in 5.8 code, fixed the same morning and rerun green).
+
+**Draft abstain (Deep Think):** off, 8 answers with Needs Verification (7 right, 1 wrong), 14 right; on, 3 (2 right, 1
+wrong), 13 right. Kept on.
+
+**What it settled.** On this set 5.8's Maximum answers 4 more of 20 than 5.7's; Standard is level and Deep Think one
+case ahead, inside a run's spread of about two. **Not settled, and why the totals are low in both versions:** the
+three lost-in-the-middle cases were asked unscoped in every run (the test's own scoping logged `scoped=0`), so at most
+one can pass; five "which document mentions" cases are answered "[S1], which ..." without the file's name, which the
+rule needs. `2026-11-14-0345-answer-modes-v5.7.0` is the first 5.7 attempt, stopped at once (no patched-copy marker);
+`2026-11-13-draft-abstain` was stopped by a game after 7 minutes and its table questions never reached the check.
+
 ### Not runs: `household_v1` and `xcloud` (noted 2026-11-13)
 
 `household_v1` is a fixture set (nine household documents, 17 answerable questions and 3 negative controls, its

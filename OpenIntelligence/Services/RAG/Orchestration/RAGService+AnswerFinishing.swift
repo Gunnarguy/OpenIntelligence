@@ -1299,7 +1299,7 @@ extension RAGService {
     /// (n = 3026)?"). A value with no number, or with a letter, is never one. Thousands separators and spaces inside a number are ignored.
     nonisolated static func valueRestatesQuestion(_ value: String, question: String) -> Bool {
         func numbers(_ text: String) -> [String] {
-            let joined = text.replacingOccurrences(of: #"(?<=\d)[,\u{2009}\u{202F} ](?=\d{3}\b)"#, with: "", options: .regularExpression)
+            let joined = text.replacingOccurrences(of: #"(?<=\d)[,\x{2009}\x{202F} ](?=\d{3}\b)"#, with: "", options: .regularExpression)
             guard let regex = try? NSRegularExpression(pattern: #"\d+(?:\.\d+)?"#) else { return [] }
             return regex.matches(in: joined, range: NSRange(joined.startIndex..., in: joined)).compactMap {
                 Range($0.range, in: joined).map { String(joined[$0]) }
