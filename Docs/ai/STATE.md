@@ -1,89 +1,59 @@
 # Current State
 
-Updated: 2026-11-13 about 13:30 PT
+Updated: 2026-11-14 about 00:15 PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 75243fb7
+Last verified commit: 581a37b6
 
 ## Objective
 
-**Ship 5.8 with every change since 5.7 measured and described truthfully.** The owner asked on 2026-11-13 for 5.8 to be
-"genuinely ready to be pushed to the App Store". Submission (Xcode Cloud build, App Store Connect, ticking "Reset
-rating when this version is released", `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15) is his, at his word.
-Every commit since 2026-11-02 carries `[ci skip]`; nothing is pushed.
+**Ship 5.8 on 2026-11-14.** The owner does one device pass (5 phone steps, 7 Mac steps, `.claude/skills/device-pass/SKILL.md`)
+on the final build, says "done", and then gives the word to push the Xcode Cloud build and submit (tick "Reset rating
+when this version is released", `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15). Every commit carries `[ci skip]`;
+nothing is pushed.
 
-## Release gate: what still blocks submission
+## Running now
 
-1. **Three answer changes are on in the build and unmeasured** (`RetrievalAblation`: release builds turn nothing off):
-   `answerFirst` (Deep Think opens with the answer, a1b67367), `maximumSourcePassages` (Maximum reads source passages,
-   a8ee4986), `draftAbstainNeedsFailedClaim` (9ed8c3da). Each is kept only if its paired run shows no drop, else
-   switched off before submission. Their user text is not written yet; it goes in with the decision. The CHANGELOG
-   entries say "behind ... until measured".
-2. **Paired reruns in progress** on 7cac2076, one Simulator at a time: `bash BenchmarkRuns/2026-11-13-answer-first/run.sh all`
-   then `.../2026-11-13-maximum-passages/run.sh all` (background job started about 13:05). Before reading any score:
-   `grep -c '\[QuotesOnly\]' answers.log` must be 0 (the benchmark now stops at once if Quotes only is selected).
-3. **draftAbstain** has no run yet: the 20-case answer test, rule-scored (`scripts/score_answer_eval.py`), with
-   `TEST_RUNNER_OI_RETRIEVAL_ABLATE=draftAbstainNeedsFailedClaim` off against on (`scripts/bench_answer_modes.sh` has
-   no ablation passthrough yet).
-4. **Granite against MiniLM on the 158 table questions**: MiniLM done (`BenchmarkRuns/2026-11-12-full-suite/reach-minilm.json`);
-   Granite's run died at 143 of 158 in the 12:06 Simulator crash and must rerun alone (about 4 h,
-   `PHASES=embedder` part of `BenchmarkRuns/2026-11-12-full-suite/run_all.sh`).
-5. **5.7 against 5.8 answer quality by rule**: the LEDGER's judge-graded table is withdrawn (judge agreed with a plain
-   reading on 8 of 20); both versions need a rerun with result bundles kept, then `score_answer_eval.py`.
+`bash BenchmarkRuns/2026-11-14-overnight/run.sh` (background, started about 00:10; `progress.log` there): 1 unit suite
+on HEAD (`unit.log`, `unit.xcresult`), 2 the 20-case answer test in three modes on HEAD, 3 Deep Think and Standard with
+`draftAbstainNeedsFailedClaim` off, 4 v5.7.0 in three modes, 5 `rule-scores.txt` (rule scores of every run's bundle).
+It waits while a game runs. One Simulator at a time: three at once crashed two runs on 2026-11-13.
 
-Not a gate: the device pass (127 v5.8 rows In Progress wait on a phone or Mac check; `device-pass` skill, at most 5
-phone and 7 Mac steps).
+## Status
 
-## Done 2026-11-13 (all committed)
-
-| What | Commit |
+| What | Result |
 |---|---|
-| Apple's model reconnects when ready after launch | 98582397 |
-| Launch-picked Quotes only lifted when the model is ready | 09e29487 |
-| The launch recorded its own model selection as the person's choice (`$selectedModel` sink fired on subscription), so devices whose first launch found the model not ready stayed on Quotes only for good; fixed, plus a one-time 5.8 clear (`quotesOnlyOverrideReviewed58`) | 7cac2076 |
-| TipKit tour rebuilt (52 tips) merged from `agent/tipkit-overhaul-ab8417` | fb2c8376 |
-| Release text: tour wording | ddd069c2 |
-| Release text checked against run records: reranker 48% (shipped 4-bit model, not PyTorch 49%), embedder test counts documents not passages, citation share, twelve chips, essential tips at launch, Standard-only blank rewrite, unmeasured speed claims reworded | 6283647e |
-| Release text completeness: 12 noticeable changes added, two outdated lines and one overclaim fixed, wrong screen in What's New fixed | da8ed932 |
-| App size: models are 124.6 MB against 5.7's 144.6 MB (the Core AI embedder copy is gone), not "68 MB larger" | b31eea82 |
-| LEDGER corrections (judge table withdrawn, lost table run, invalid paired attempts, non-run folders) | 75243fb7 |
-| Notion: 8 rows filed for today's fixes, tour row and Quotes-only row updated | (Notion) |
+| `answerFirst` (Deep Think) | measured, kept: 45 to 46 of 53, median 82 s to 68 s (`BenchmarkRuns/2026-11-13-answer-first`) |
+| `maximumSourcePassages` (with `answerFirst`, Maximum) | measured, kept: 8 to 25 of 30, median 117 s to 79 s (`2026-11-13-maximum-passages`) |
+| `draftAbstainNeedsFailedClaim` | not measured: the table questions never reach the check (source-only check skipped on all 32 answers); step 3 of the overnight run is its test. Keep unless right answers lose nothing and wrong ones keep their banner; else switch off before submission |
+| Library 6 (owner's) | 8,225 passages on iPhone, Mac and iCloud after two wrong merge rules cut it to 4,292 and 6,843 on 2026-11-13; backup of the 16,554 original at `~/Library/Developer/OpenIntelligence-evidence/library6-backup-2026-11-13` |
+| Builds on his devices | iPhone and Mac at b76dd50c (18:53); later commits are docs and ledger only |
+| Roadmap | v5.8: about 105 In Progress; 44 are the agent's (tests, Simulator), the rest close from the device pass |
+
+## Standing approvals (owner, 2026-11-14 about 00:05)
+
+Install builds on both devices; open the Mac app in the background when a check or repair needs it (it syncs his real
+library); edit hard-boundary files when a test proves a defect there; close and move roadmap rows with evidence. Not
+given: pushing, submitting, deleting his data.
 
 ## Active Constraints
 
-- Commits `[ci skip]`, no attribution lines, never `git add .`, never stage `scripts/run_quality_matrix.py`.
-- **One Simulator benchmark at a time.** Three booted at once crashed simulator services on all three at 12:03 to 12:06
-  and killed two benchmark runs (18 GB Mac, swap about 11 GB). One `xcodebuild` at a time.
-- Hard-boundary files only when the owner names them.
-- `Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` stay byte-identical (`VersionHistoryTests`).
+- Commits `[ci skip]`, no attribution, never `git add .`, never stage `scripts/run_quality_matrix.py`.
+- Any rule that removes stored passages is replayed on a copy of real data before a device runs it (two were not).
+- `Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` stay byte-identical.
 
-## Working Set
+## Known and not fixed
 
-- `BenchmarkRuns/2026-11-13-answer-first/run.sh`, `BenchmarkRuns/2026-11-13-maximum-passages/run.sh`: paired runs, own
-  builds in `/private/tmp/oi-eval58-*` and `/private/tmp/oi-eval59-*`, Simulators "OI answer first" 9C4F1C39 and
-  "OI maximum passages" FE71F476.
-- `OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift`: override flag, `quotesOnlyOnlyBecauseModelWasNotReady`, `useAppleIntelligenceNowThatItIsReady`.
-- `OpenIntelligence/Services/RAG/Orchestration/RAGService+Consent.swift`: `reconnectAppleModelIfNowAvailable`.
-- `OpenIntelligence/Services/RAG/Tuning/RetrievalAblation.swift`: the three unmeasured switches.
-- Release text: `Docs/USER_CHANGELOG.md`, `WHATS_NEW.md`, `OpenIntelligence/Features/Onboarding/WhatsNewStore.swift`,
-  `fastlane/metadata{,-ios}/en-US/release_notes.txt`, `promotional_text.txt`, `Docs/Release/APP_STORE_METADATA_HISTORY.md`.
-
-## Verification
-
-- Build of 98582397 for the Simulator (`answer-first/run.sh build`) -> exit 0 (11:33); 09e29487 -> exit 0 (12:31).
-- Rerun at 12:31 -> the new guard fired (`Quotes only is selected`), 212 `[QuotesOnly]` lines: invalid, which led to 7cac2076.
-- `python3 scripts/secret_scan.py` -> no sensitive tokens. CloudKit APIs in `OpenIntelligence/`: 0. App Shortcuts: 10.
-- `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical (after b31eea82).
-- Not run since the merge: the unit suite, the smoke build, `TourFlowUITests` (skipped twice under load in the TipKit session).
-
-## Blockers / Unknowns
-
-- Router size test (`python3 -m unittest test_repoos_router` in its scripts folder): every-task read set 51,914 bytes against 40,000; trim `Docs/ai/ARCHITECTURE.md` or the owner raises the cap. Tooling only.
-- The App Store download size of 5.8 is not measured (only file sizes before compile and compression).
-- Rows filed Future Backlog 2026-11-12: line pairs swapped (oncotarget), tables of words as loose lines, Vision's table merging columns, import toast one short.
+- "Getting search ready" runs 25 to 50 s after every install: Core ML compiles again; neither removing the app's own
+  cache clearing nor keeping the models under the app group folder stopped it (`reranker.load`, owner's iPhone).
+- Chat's passage chip sums documents' recorded counts (8,574) and not the store's (8,225).
+- A tip can point at the passage chip after its anchor scrolls away.
+- About 310 old passages can remain in a library rebuilt before b76dd50c, at places the new set lacks; Rebuild clears them.
+- Tapping a document in Spotlight asked for a question in the Simulator (row 3ff49a74...595e); the owner's phone step 3 decides.
 
 ## Exact Next Action
 
-When the background paired runs finish, read `BenchmarkRuns/2026-11-13-answer-first/score.txt` and
-`BenchmarkRuns/2026-11-13-maximum-passages/score.txt` after confirming `grep -c '\[QuotesOnly\]' answers.log` is 0 in
-each; keep or switch off `answerFirst` and `maximumSourcePassages` by their rule (right count must not drop), replace
-their `MEASUREMENT_PENDING` notes in CHANGELOG, LEDGER and `Docs/ai/MEASUREMENTS.md`, and add user text for any kept.
+When `BenchmarkRuns/2026-11-14-overnight/progress.log` says "done": read `unit.log`'s last "Executed" line and any
+failures; read `rule-scores.txt`; decide `draftAbstainNeedsFailedClaim` from step 3 against step 2's Deep Think and
+Standard; write the LEDGER entry for the folder and the 5.7 against 5.8 table by rule; close the agent's rows the
+suite proves (the two triage tables are in the session of 2026-11-13; test names are in each row's note or the
+`device-pass` skill); then build HEAD to both devices and tell the owner the pass is ready.
