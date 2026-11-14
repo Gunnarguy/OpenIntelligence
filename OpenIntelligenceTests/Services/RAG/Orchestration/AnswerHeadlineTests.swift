@@ -147,17 +147,18 @@ final class AnswerHeadlineTests: XCTestCase {
         let new = (0..<4).map { passage($0, document, rebuilt.addingTimeInterval(Double($0) * 60)) }
         let untouched = (0..<3).map { passage($0, other, rebuilt.addingTimeInterval(-30 * 86_400 + Double($0))) }
         let result = PassageGenerations.newest(of: old + untouched + new)
-        XCTAssertEqual(result.removed, 5)
-        XCTAssertEqual(result.kept.filter { $0.documentId == document }.count, 4)
+        XCTAssertEqual(result.removed, 4, "the four places both sets hold")
+        XCTAssertEqual(result.kept.filter { $0.documentId == document }.count, 5, "the new four, and the old set's fifth place")
         XCTAssertEqual(result.kept.filter { $0.documentId == other }.count, 3, "a document imported once is whole")
         XCTAssertEqual(PassageGenerations.newest(of: new + untouched).removed, 0)
-        // A document's summary passage is made half an hour after its others: it is part of the new set, not a set of
-        // its own (the first rule kept it alone and removed the document, 2026-11-13).
-        let summary = passage(4, document, rebuilt.addingTimeInterval(35 * 60))
-        let withSummary = PassageGenerations.newest(of: old + new + [summary])
-        XCTAssertEqual(withSummary.kept.count, 5, "the four new passages and the summary")
-        XCTAssertEqual(withSummary.removed, 5)
-        XCTAssertTrue(withSummary.kept.contains { $0.id == summary.id })
+        // A summary passage made half an hour after the others, then made again that evening on another device: only
+        // the older summary goes. Two rules that read the times removed the document itself (2026-11-13).
+        let summary = passage(9, document, rebuilt.addingTimeInterval(35 * 60))
+        let remade = passage(9, document, rebuilt.addingTimeInterval(14 * 3600))
+        let twice = PassageGenerations.newest(of: new + [summary, remade])
+        XCTAssertEqual(twice.removed, 1)
+        XCTAssertEqual(twice.kept.count, 5)
+        XCTAssertTrue(twice.kept.contains { $0.id == remade.id })
         let paused = (0..<3).map { passage($0, other, rebuilt) } + (3..<6).map { passage($0, other, rebuilt.addingTimeInterval(5 * 3600)) }
         XCTAssertEqual(PassageGenerations.newest(of: paused).removed, 0, "an import paused for hours holds each place once")
     }

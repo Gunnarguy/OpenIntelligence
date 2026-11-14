@@ -18,41 +18,24 @@
 import Foundation
 
 nonisolated enum PassageGenerations {
-    /// Passages made further apart than this belong to different imports or rebuilds of the document.
-    static let gap: TimeInterval = 30 * 60
-
-    /// The passages of each document's newest import or rebuild, in the order given. `removed` is how many older ones
-    /// were left out.
-    ///
-    /// Only a document that holds one place twice (two passages with one index) has two sets: a rebuild starts again
-    /// at passage 0, and an import paused for hours holds every place once and is left whole. For such a document each
-    /// place keeps its newest passage, and a passage made more than `gap` before the newest set began (the earliest of
-    /// the places held twice) is a leftover of the old set at a place the new set no longer has.
-    ///
-    /// The first version (same day) cut a document at any 30-minute gap going back from its newest passage. A document's
-    /// summary passage is made after its others, 33 to 36 minutes after on the owner's iPhone, so that one passage was
-    /// taken for the newest set and the document's 1,100 real passages were removed: his Library 6 went from 16,554 to
-    /// 4,292 at 17:32 on 2026-11-13, where 8,226 was right. Restored from the Mac's copy.
+    /// Each document's passages with one passage a place: where two hold the same place (the same index), the newer
+    /// one stays. In the order given. `removed` is how many were left out.
     static func newest(of chunks: [DocumentChunk]) -> (kept: [DocumentChunk], removed: Int) {
-        var dropped = Set<UUID>()
-        for (_, passages) in Dictionary(grouping: chunks, by: \.documentId) {
-            let byPlace = Dictionary(grouping: passages, by: \.metadata.chunkIndex)
-            let heldTwice = byPlace.values.filter { $0.count > 1 }
-            guard !heldTwice.isEmpty else { continue }
-            func newest(_ group: [DocumentChunk]) -> DocumentChunk {
-                group.max { $0.metadata.createdAt < $1.metadata.createdAt } ?? group[0]
-            }
-            let newSetBegan = heldTwice.map { newest($0).metadata.createdAt }.min() ?? .distantPast
-            let cutoff = newSetBegan.addingTimeInterval(-gap)
-            for group in byPlace.values {
-                let keeper = newest(group)
-                for passage in group where passage.id != keeper.id || passage.metadata.createdAt < cutoff {
-                    dropped.insert(passage.id)
-                }
-            }
+        // By place and nothing else. Two rules that also read the times passages were made each removed real passages
+        // on the owner's iPhone on 2026-11-13: a 30-minute gap took a document's later summary for a new set (16,554 to
+        // 4,292), and a cutoff from "when the new set began" took a summary re-made that evening on the Mac for the
+        // start of a set and dropped the document made that morning (8,237 to 6,843). A passage is left out only when
+        // a newer passage of the same document holds the same place. An old set's passages at places the new set does
+        // not reach stay (310 of 16,554 in his Library 6); a Rebuild of the library removes them.
+        var keeper: [String: DocumentChunk] = [:]
+        for chunk in chunks {
+            let place = "\(chunk.documentId.uuidString)|\(chunk.metadata.chunkIndex)"
+            if let held = keeper[place], held.metadata.createdAt >= chunk.metadata.createdAt { continue }
+            keeper[place] = chunk
         }
-        guard !dropped.isEmpty else { return (chunks, 0) }
-        let kept = chunks.filter { !dropped.contains($0.id) }
+        guard keeper.count < chunks.count else { return (chunks, 0) }
+        let keptIds = Set(keeper.values.map(\.id))
+        let kept = chunks.filter { keptIds.contains($0.id) }
         return (kept, chunks.count - kept.count)
     }
 }
