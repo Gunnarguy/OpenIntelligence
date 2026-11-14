@@ -1,59 +1,65 @@
 # Current State
 
-Updated: 2026-11-14 about 00:15 PT
+Updated: 2026-11-14 afternoon PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 581a37b6
+Last verified commit: e71874e6
 
 ## Objective
 
-**Ship 5.8 on 2026-11-14.** The owner does one device pass (5 phone steps, 7 Mac steps, `.claude/skills/device-pass/SKILL.md`)
-on the final build, says "done", and then gives the word to push the Xcode Cloud build and submit (tick "Reset rating
-when this version is released", `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15). Every commit carries `[ci skip]`;
-nothing is pushed.
+**Ship 5.8.** The owner does one device pass on the final build (the checklist page
+https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT: 5 iPhone steps, 7 Mac steps, 13 added actions), says "done", and then
+gives the word to push the Xcode Cloud build and submit (tick "Reset rating when this version is released",
+`Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15). Every commit carries `[ci skip]`; nothing is pushed.
 
-## Running now
+## The bar the owner agreed to discuss (2026-11-14), not yet confirmed by him
 
-`bash BenchmarkRuns/2026-11-14-overnight/run.sh` (background, started about 00:10; `progress.log` there): 1 unit suite
-on HEAD (`unit.log`, `unit.xcresult`), 2 the 20-case answer test in three modes on HEAD, 3 Deep Think and Standard with
-`draftAbstainNeedsFailedClaim` off, 4 v5.7.0 in three modes, 5 `rule-scores.txt` (rule scores of every run's bundle).
-It waits while a game runs. One Simulator at a time: three at once crashed two runs on 2026-11-13.
+1 no mode scores below 5.7; 2 unit suite green; 3 nothing found loses data, breaks an advertised feature or blocks the
+build. Rows still open after his pass that do not meet 3 move to the next release with their closing condition.
 
 ## Status
 
 | What | Result |
 |---|---|
-| `answerFirst` (Deep Think) | measured, kept: 45 to 46 of 53, median 82 s to 68 s (`BenchmarkRuns/2026-11-13-answer-first`) |
-| `maximumSourcePassages` (with `answerFirst`, Maximum) | measured, kept: 8 to 25 of 30, median 117 s to 79 s (`2026-11-13-maximum-passages`) |
-| `draftAbstainNeedsFailedClaim` | not measured: the table questions never reach the check (source-only check skipped on all 32 answers); step 3 of the overnight run is its test. Keep unless right answers lose nothing and wrong ones keep their banner; else switch off before submission |
-| Library 6 (owner's) | 8,225 passages on iPhone, Mac and iCloud after two wrong merge rules cut it to 4,292 and 6,843 on 2026-11-13; backup of the 16,554 original at `~/Library/Developer/OpenIntelligence-evidence/library6-backup-2026-11-13` |
-| Builds on his devices | iPhone and Mac at b76dd50c (18:53); later commits are docs and ledger only |
-| Roadmap | v5.8: about 105 In Progress; 44 are the agent's (tests, Simulator), the rest close from the device pass |
+| 20-case answer test by rule, final build df67ec96 | Standard 17, Deep Think 17, Maximum 17 of 20 (5.7: 10, 12, 10). `BenchmarkRuns/2026-11-14-1112-answer-modes`, LEDGER entry written. The nine misses are not read one by one |
+| Unit suite | 1,751 run overnight with one failure fixed (145187be); not rerun since. `PlanBenefitsTests` 5 of 5 on 4c96aa37 |
+| Plans screen | "Free, Pro and Lifetime" table of all five paid limits (4c96aa37), tests pass, **never seen rendered** |
+| Release text | audited against all 288 commits since v5.7.0 by an Antigravity job; gaps fixed in e71874e6. App Store Connect not pushed |
+| Mac | build of e71874e6 in Applications |
+| iPhone | **still on the 11:12 build (df67ec96)**: `devicectl` install fails with CoreDeviceError 4016, phone unreachable. The built app is at `/private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app` |
+| Five Simulator checks | not run. The simulator control tool was refused (access prompt unanswered); write them as UI tests or wait for access |
+| Roadmap | v5.8: about 100 In Progress |
+
+## The five Simulator checks (each closes one row)
+
+1 row 40049a74...e0bd: after a relaunch a citation past [S12] opens its passage and Copy lists it. 2 row 3c049a74: a
+library with no vectors shows the rebuild as vetoed and keeps its banner. 3 row 40649a74: a Standard answer with no
+passages shows No Sources and is not Source-Locked. 4 row 40049a74...814e: "Summarize my lease" uses only the lease.
+5 row 40049a74...b094: the Glossary's Private Cloud Compute entry and the metrics bar note read correctly.
 
 ## Standing approvals (owner, 2026-11-14 about 00:05)
 
-Install builds on both devices; open the Mac app in the background when a check or repair needs it (it syncs his real
-library); edit hard-boundary files when a test proves a defect there; close and move roadmap rows with evidence. Not
-given: pushing, submitting, deleting his data.
+Install builds on both devices; open the Mac app in the background when a check or repair needs it; edit
+hard-boundary files when a test proves a defect there; close and move roadmap rows with evidence. Not given: pushing,
+submitting, deleting his data.
 
 ## Active Constraints
 
 - Commits `[ci skip]`, no attribution, never `git add .`, never stage `scripts/run_quality_matrix.py`.
-- Any rule that removes stored passages is replayed on a copy of real data before a device runs it (two were not).
+- One Simulator benchmark and one xcodebuild at a time. Never the whole macOS unit suite.
 - `Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` stay byte-identical.
+- iCloud Sync stays off the plans screen until roadmap row 3ca49a74d54f8103b69be921f0335171 closes.
 
 ## Known and not fixed
 
-- "Getting search ready" runs 25 to 50 s after every install: Core ML compiles again; neither removing the app's own
-  cache clearing nor keeping the models under the app group folder stopped it (`reranker.load`, owner's iPhone).
+- "Getting search ready" runs 25 to 50 s after every install (Core ML compiles again).
 - Chat's passage chip sums documents' recorded counts (8,574) and not the store's (8,225).
 - A tip can point at the passage chip after its anchor scrolls away.
-- About 310 old passages can remain in a library rebuilt before b76dd50c, at places the new set lacks; Rebuild clears them.
-- Tapping a document in Spotlight asked for a question in the Simulator (row 3ff49a74...595e); the owner's phone step 3 decides.
+- Image tables in PDFs. Tapping a document in Spotlight asked for a question in the Simulator (his phone step 3 decides).
+- `.claude/skills/device-pass/SKILL.md` does not yet list the 13 added actions that the checklist page has.
 
 ## Exact Next Action
 
-When `BenchmarkRuns/2026-11-14-overnight/progress.log` says "done": read `unit.log`'s last "Executed" line and any
-failures; read `rule-scores.txt`; decide `draftAbstainNeedsFailedClaim` from step 3 against step 2's Deep Think and
-Standard; write the LEDGER entry for the folder and the 5.7 against 5.8 table by rule; close the agent's rows the
-suite proves (the two triage tables are in the session of 2026-11-13; test names are in each row's note or the
-`device-pass` skill); then build HEAD to both devices and tell the owner the pass is ready.
+When the owner says the iPhone is unlocked and on the Mac's network, run
+`xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549 /private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app`
+(rebuild first if HEAD has moved past e71874e6 in app source). Then run the five Simulator checks above and close the
+rows that pass.
