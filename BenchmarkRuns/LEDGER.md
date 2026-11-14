@@ -1704,3 +1704,5 @@ Misses. Standard: `exact_capex`, `exact_temperature_limit`, `lost_in_middle_midd
 answer by answer. The model judge agreed with the rule on 10, 8 and 9 of 20, as before. 0 refused in any mode.
 The gain from 581a37b6 is mostly the five which-document and three lost-in-the-middle cases, which the two changes
 in df67ec96 address directly; part of it is therefore the test now scoping a question the way the app does.
+Like for like (the 17 cases outside lost-in-the-middle, whose test scoping changed): 5.7 scored 9, 11, 9 and 5.8 at df67ec96
+scored 15, 14, 14. This is the comparison the release text states.

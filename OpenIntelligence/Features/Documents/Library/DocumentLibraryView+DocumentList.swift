@@ -190,6 +190,16 @@ extension DocumentLibraryView {
                 } message: {
                     Text("This library's copy in iCloud is removed, and it stops appearing on your other devices. The documents stay on this device. Switching back to iCloud Sync uploads them again.")
                 }
+
+            // The watched folder, on the page itself (5.8). Not for the guide library, which holds the app's guides only.
+            if !containerService.isGuideLibrary(containerService.activeContainer?.id) {
+                WatchedFolderRow(library: containerService.activeContainer, hasAccess: hasICloudSyncAccess) {
+                    Tour.used(.watchFolder)
+                    DSHaptics.light()
+                    showingWatchedFolder = true
+                }
+                .padding(.horizontal, DSSpacing.lg)
+            }
         }
     }
 

@@ -131,6 +131,27 @@ final class FiveChecksUITests: XCTestCase {
         note("library-\(name)", "chip: label=\(chip.label) value=\(String(describing: chip.value)) selected=\(chip.isSelected)")
     }
 
+    // MARK: - Screens, for a look at them (no assertions about content beyond being reachable)
+
+    /// The Documents page with its watched folder row, the row's sheet, and the Settings list.
+    @MainActor
+    func testShotsOfTheDocumentsPageAndItsWatchedFolderRow() {
+        let app = launch()
+        let documents = app.buttons["Documents"].firstMatch
+        XCTAssertTrue(documents.waitForExistence(timeout: 20), "no Documents tab")
+        documents.tap()
+        sleep(2)
+        clearTheScreen(app)
+        keep(app, "look-documents")
+        let row = app.buttons["watchedFolderRow"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "no watched folder row on the Documents page")
+        note("look-watched-row", row.label)
+        row.tap()
+        sleep(2)
+        keep(app, "look-watched-sheet")
+        XCTAssertTrue(app.staticTexts["Watched Folder"].firstMatch.waitForExistence(timeout: 5), "the sheet did not open")
+    }
+
     // MARK: - 3
 
     @MainActor

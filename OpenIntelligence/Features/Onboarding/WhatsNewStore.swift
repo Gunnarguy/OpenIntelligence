@@ -114,6 +114,12 @@ final class WhatsNewStore: ObservableObject {
                 "5.8 is about answers you can trust and an app that gets out of your way. A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.",
             items: [
                 .init(
+                    symbol: "chart.bar.fill",
+                    title: "Measured against 5.7",
+                    detail:
+                        "On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9. One run each, in the iOS 27 Simulator with Apple's model."
+                ),
+                .init(
                     symbol: "magnifyingglass",
                     title: "A new search model, and a one-time rebuild",
                     detail:
@@ -147,7 +153,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "flame",
                     title: "Maximum answers from the documents' own words",
                     detail:
-                        "Maximum's last step now reads the source passages themselves, not only its notes. On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change. On my 20 mixed test questions it got 14 right where 5.7 got 10. Measured in the iOS 27 Simulator."
+                        "Maximum's last step now reads the source passages themselves, not only its notes. On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change. Measured in the iOS 27 Simulator."
                 ),
                 .init(
                     symbol: "quote.opening",

@@ -451,6 +451,10 @@ extension DocumentLibraryView {
             .sheet(isPresented: $showingContainerSettings) {
                 ContainerSettingsSheet(containerService: containerService, ragService: ragService)
             }
+            .sheet(isPresented: $showingWatchedFolder) {
+                WatchedFolderSheet(
+                    library: containerService.activeContainer, ragService: ragService, hasAccess: hasICloudSyncAccess)
+            }
             .sheet(isPresented: $showingSemanticSearch) {
                 SemanticSearchView(
                     ragService: ragService,

@@ -28,6 +28,8 @@ struct DocumentLibraryView: View {
     @State private var showingProcessingSummary = false
     @State private var lastProcessedSummary: ProcessingSummary?
     @State var showingContainerSettings = false
+    /// The watched folder's own sheet, opened from its row on the page (5.8).
+    @State var showingWatchedFolder = false
     @State var showingSemanticSearch = false
     /// The document a request from outside the screen opened: Spotlight, the Open Document action,
     /// Handoff (5.7). Through 5.6 those landed on the document's library.

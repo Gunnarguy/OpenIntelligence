@@ -1,6 +1,10 @@
 5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
 
+MEASURED AGAINST 5.7
+
+• On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9.  One run each, in the iOS 27 Simulator.
+
 A ONE-TIME REBUILD
 
 • Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while, and the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.

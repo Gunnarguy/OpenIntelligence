@@ -1,0 +1,130 @@
+//
+//  WatchedFolderRow.swift
+//  OpenIntelligence
+//
+//  The watched folder on the Documents page itself (5.8). Until this it was reachable only inside Library
+//  Settings, three sections down, so a person who never opened that sheet never learned it exists.
+//
+
+import SwiftUI
+
+/// A folder with an eye in it. SF Symbols has no folder-and-eye symbol in iOS 27 or macOS 27 (`folder.badge.eye`
+/// and `eye.folder` both resolve to nothing, checked 2026-11-14), so this sets the system `eye.fill` inside the
+/// system `folder`, both scaled by the font the caller gives.
+struct WatchedFolderGlyph: View {
+    var body: some View {
+        Image(systemName: "folder")
+            .overlay {
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .offset(y: 2)
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// One row under the Documents page's buttons: what the library's watched folder is doing, or an offer to pick one.
+struct WatchedFolderRow: View {
+    let library: KnowledgeContainer?
+    let hasAccess: Bool
+    let action: () -> Void
+
+    @ObservedObject private var watcher = WatchedFolderService.shared
+
+    private var folder: WatchedFolder? { watcher.folder(forLibrary: library?.id) }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DSSpacing.md) {
+                WatchedFolderGlyph()
+                    .font(.title3)
+                    .foregroundStyle(folder == nil ? DSColors.secondaryText : Color.accentColor)
+                    .frame(width: DSSpacing.tapTarget * 0.75)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    Text(folder.map { "Watching \($0.name)" } ?? "Watch a Folder")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DSColors.primaryText)
+                    detail
+                        .font(.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if folder == nil, !hasAccess {
+                    Text("Pro")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xxs)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                        .foregroundStyle(Color.accentColor)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
+            }
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    .fill(DSColors.surface.opacity(0.6))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("watchedFolderRow")
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the watched folder for this library")
+    }
+
+    @ViewBuilder private var detail: some View {
+        if let folder {
+            if watcher.isChecking {
+                Text("Checking for new files")
+            } else if let checked = folder.lastCheckedAt {
+                // `Text(_, style: .relative)` keeps counting by itself, so the row never shows a stale time.
+                Text("Checked \(Text(checked, style: .relative)) ago")
+            } else {
+                Text("Not checked yet")
+            }
+        } else {
+            Text("New files import by themselves")
+        }
+    }
+}
+
+/// The watched folder by itself, opened from the Documents page's row. The same section Library Settings shows.
+struct WatchedFolderSheet: View {
+    let library: KnowledgeContainer?
+    @ObservedObject var ragService: RAGService
+    let hasAccess: Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingPlans = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                WatchedFolderSection(
+                    library: library,
+                    ragService: ragService,
+                    hasAccess: hasAccess,
+                    showPlans: { showingPlans = true }
+                )
+            }
+            .navigationTitle("Watched Folder")
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showingPlans) {
+                PlanUpgradeSheet(entryPoint: .watchedFolder)
+            }
+        }
+        #if os(macOS)
+            .frame(minWidth: 460, minHeight: 420)
+        #endif
+    }
+}
