@@ -43,4 +43,22 @@ final class PlanBenefitsTests: XCTestCase {
         let bullets = PlanBenefits.pro + PlanBenefits.lifetime + PlanBenefits.highlights.map(\.text)
         XCTAssertFalse(bullets.contains { $0.contains("iCloud") })
     }
+
+    /// The side-by-side table names every limit `QuotaPolicy` holds, with its figures, and watched folders.
+    func testTheComparisonListsEveryPaidGate() {
+        let rows = Dictionary(uniqueKeysWithValues: PlanBenefits.comparison.map { ($0.name, $0) })
+        XCTAssertEqual(rows["Maximum mode"]?.free, "3 a day")
+        XCTAssertEqual(rows["Documents"]?.free, "5")
+        XCTAssertEqual(rows["Documents"]?.pro, "1,000")
+        XCTAssertEqual(rows["Documents"]?.lifetime, "Unlimited")
+        XCTAssertEqual(rows["Libraries"]?.pro, "10")
+        XCTAssertEqual(rows["Conversations in each library"]?.free, "5")
+        XCTAssertEqual(rows["Conversations in each library"]?.pro, "20")
+        XCTAssertEqual(rows["Conversations in each library"]?.lifetime, "Unlimited")
+        XCTAssertEqual(rows["Watched folders"]?.free, "Not included")
+        XCTAssertEqual(PlanBenefits.comparison.count, 5)
+        XCTAssertFalse(PlanBenefits.comparison.contains { $0.name.contains("iCloud") })
+        XCTAssertTrue(PlanBenefits.pro.contains("20 conversations in each library"))
+        XCTAssertTrue(PlanBenefits.lifetime.contains("Unlimited conversations in each library"))
+    }
 }

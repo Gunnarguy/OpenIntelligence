@@ -36,6 +36,7 @@ Enforcement logic is defined in [QuotaPolicy.swift](../OpenIntelligence/Services
 |---|---|---|---|
 | **Document Limit** | 5 documents | 1,000 documents | Unlimited |
 | **Library Limit** | 1 library | 10 libraries | 20 libraries |
+| **Conversations in each library** | 5 | 20 | Unlimited |
 | **Maximum Mode Runs** | 3 per day (Metered) | Unlimited | Unlimited |
 | **Standard Mode Runs** | Unlimited | Unlimited | Unlimited |
 | **Deep Think Runs** | Unlimited | Unlimited | Unlimited |
@@ -85,6 +86,16 @@ on 2026-11-02 is 519 conflict copies. Until that passes, the app doesn't adverti
 `testICloudSyncWaitsForTheTwoDeviceCheck` fails on the day the bullet is added, as a reminder to confirm it.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: PlanBenefits.swift; phone trace 2026-11-01 11:16]`
+
+**The side-by-side table (2026-11-14).** Under the three cards the screen now prints "Free, Pro and Lifetime":
+one row for each thing a paid plan changes, with what each plan has of it, the buyer's own plan marked "(yours)"
+(`PlanBenefits.comparison`, `PlanUpgradeSheet.planComparisonSection`). Five rows: Maximum mode, documents, libraries,
+conversations in each library, watched folders. The conversation limit (`QuotaPolicy.evidenceThreadLimit`: 5 on
+Free, 20 on Pro, unlimited on Lifetime, checked in `RAGService+ChatHistory.swift`) had been gated since before 5.8
+and appeared on no screen, in no bullet and not in the matrix above; it is now a bullet on every paid card too, in
+the Terms' plan list and in the App Store description, with watched folders beside it. iCloud Sync stays out of the
+table for the reason above. `testTheComparisonListsEveryPaidGate` holds the rows to `QuotaPolicy`.
+`[evidence_level: code_verified, confidence: exact, evidence_source: PlanBenefits.swift, QuotaPolicy.swift; not yet built or run]`
 
 ### What each plan says against the others (5.5)
 

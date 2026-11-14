@@ -1685,3 +1685,22 @@ Source: README.md.
 Hardware chip package coordinates were measured as fractions of device outlines from teardown photos fitted by screw holes using work/fit.py for MotherboardHUDView.socPlacement. Four measurement passes (A, B, C, D) adjudicated component placement across iPhone and iPad models, with iPhone 17 fitted at 0.330-0.522 horizontal and 0.177-0.291 vertical. Teardown video leads for four unmeasured devices were cataloged in gemini_video_leads_UNVERIFIED.json.txt but left out of production code per repository verification rules. The measurement settled verified physical placement for supported devices, leaving unmeasured models without an outline.
 
 Source: README.md.
+
+### 2026-11-14 Answer test on the final 5.8 build, by rule (`2026-11-14-1112-answer-modes`)
+
+Build df67ec96 (an answer to "which document" names the cited file; the test passes a lost-in-the-middle case's document
+to the ask action). `bash scripts/bench_answer_modes.sh standard deepThink maximum`, iOS 27 Simulator, Apple's model,
+scored with `scripts/score_answer_eval.py`. `[evidence_level: measured, confidence: high for the counts; one run per mode, and retrieval is not deterministic]`
+
+| Mode | 5.7 (v5.7.0) | 5.8 at 581a37b6 | 5.8 at df67ec96 | Minutes |
+|---|---|---|---|---|
+| Standard | 10 | 10 | 17 | 26 |
+| Deep Think | 12 | 13 | 17 | 25 |
+| Maximum | 10 | 14 | 17 | 23 |
+
+Misses. Standard: `exact_capex`, `exact_temperature_limit`, `lost_in_middle_middle`. Deep Think: `retrieval_trial_beta`,
+`missing_unreleased_battery`, `missing_confidential_price` (the last with a Needs Verification banner). Maximum:
+`retrieval_scifact_delta`, `retrieval_nfcorpus_epsilon`, `missing_confidential_price` (with the banner). Not read
+answer by answer. The model judge agreed with the rule on 10, 8 and 9 of 20, as before. 0 refused in any mode.
+The gain from 581a37b6 is mostly the five which-document and three lost-in-the-middle cases, which the two changes
+in df67ec96 address directly; part of it is therefore the test now scoping a question the way the app does.

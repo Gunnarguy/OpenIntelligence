@@ -101,6 +101,7 @@ struct PlanUpgradeSheet: View {
                         tierCard(for: option)
                     }
 
+                    planComparisonSection
                     multiDocumentTip
                     managementControls
                     complianceFooter
@@ -359,6 +360,51 @@ extension PlanUpgradeSheet {
             }
             Spacer(minLength: 0)
         }
+    }
+
+    /// What each plan has of everything a paid plan changes, under the three cards. A label on its own line and
+    /// three equal columns below it, so it still reads at the largest text sizes.
+    fileprivate var planComparisonSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            Text("Free, Pro and Lifetime")
+                .font(.headline)
+            ForEach(PlanBenefits.comparison) { row in
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    Label(row.name, systemImage: row.icon)
+                        .font(.subheadline.weight(.semibold))
+                    HStack(alignment: .top, spacing: DSSpacing.sm) {
+                        comparisonCell("Free", row.free, isCurrent: entitlementStore.effectiveTier == .free)
+                        comparisonCell("Pro", row.pro, isCurrent: entitlementStore.effectiveTier == .pro)
+                        comparisonCell(
+                            "Lifetime", row.lifetime, isCurrent: entitlementStore.effectiveTier == .lifetime)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "\(row.name). Free: \(row.free). Pro: \(row.pro). Lifetime: \(row.lifetime).")
+            }
+            Text("Apple Intelligence on your device, Deep Think and Private Cloud Compute are in every plan.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(DSSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface.opacity(0.6))
+        )
+    }
+
+    private func comparisonCell(_ plan: String, _ value: String, isCurrent: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(isCurrent ? "\(plan) (yours)" : plan)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline)
+                .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     fileprivate var multiDocumentTip: some View {

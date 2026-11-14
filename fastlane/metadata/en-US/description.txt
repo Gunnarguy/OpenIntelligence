@@ -38,7 +38,7 @@ Keep different subjects, projects, or clients in separate libraries. Choose Loca
 
 PLANS
 
-Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, one library, Maximum mode three times a day. Pro lifts that cap and grows to 1,000 documents and 10 libraries, monthly or yearly. Lifetime: one payment, unlimited documents, 20 libraries, Maximum every day, no renewal.
+Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, 1 library, Maximum 3 times a day. Pro: no Maximum cap, 1,000 documents, 10 libraries, more conversations, watched folders. Lifetime, one payment: unlimited documents and conversations, 20 libraries, watched folders.
 
 OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
 

@@ -28,9 +28,9 @@ OpenIntelligence provides privacy-first document retrieval and AI-powered questi
 """)
 
                         section(title: "3. Subscriptions & Billing", content: """
-    • **Free Tier**: 5 documents, 1 library, Standard and Deep Think access, Maximum mode limited to \(QuotaPolicy.freeMaximumModeDailyLimit) uses per day
-    • **Pro**: Monthly or annual subscription — up to 1,000 documents, 10 libraries, unlimited Maximum mode
-    • **Lifetime**: One-time purchase — unlimited documents, 20 libraries, unlimited Maximum mode
+    • **Free Tier**: 5 documents, 1 library, \(QuotaPolicy.freeEvidenceThreadLimit) conversations in each library, Standard and Deep Think access, Maximum mode limited to \(QuotaPolicy.freeMaximumModeDailyLimit) uses per day
+    • **Pro**: Monthly or annual subscription — up to 1,000 documents, 10 libraries, \(QuotaPolicy.proEvidenceThreadLimit) conversations in each library, watched folders, unlimited Maximum mode
+    • **Lifetime**: One-time purchase — unlimited documents, 20 libraries, unlimited conversations in each library, watched folders, unlimited Maximum mode
     • **Grandfathered Paid Access**: Prior paid purchases, including legacy document packs, may be treated as Lifetime access in-app
     • **Legacy Document Packs**: Document packs are no longer sold in-app
 
