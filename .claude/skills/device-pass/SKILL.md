@@ -80,15 +80,15 @@ The owner's checklist page holds the full list with what to look for: https://cl
 above; none is a step of its own:
 
 - Phone step 1: run the shortcut action Check Import Status during the import; share a web page from Safari; import
-  three files at once.
+  three files at once; import the KBIE paper again into a library that has it; import arXiv 2507.13575 and ask
+  its parameter question.
 - Phone step 2: Export Conversation as Markdown, then as PDF.
 - Phone step 3: a shortcut that passes Ask My Documents' answer to Notes; Find Documents with a property filter.
 - Phone step 4: the library's Paste chip three times (text, a link, a file).
 - Phone step 5: turn a Focus with the OpenIntelligence library filter on, then off.
 - Mac step 4: Export Conversation as Markdown and as PDF; the Paste chip for a link, a paragraph and a file.
 - Mac step 6: Open <document> from Spotlight.
-- Not on the pass: the TestFlight purchase check (needs the TestFlight build), re-importing the KBIE paper and the
-  parameter question on arXiv 2507.13575 (the agent runs those in the Simulator).
+- Not on the pass: the TestFlight purchase check (needs the TestFlight build).
 
 ## When he says "done"
 
