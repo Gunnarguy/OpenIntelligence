@@ -57,8 +57,10 @@ extension RAGService {
         var responseText = llmResponse.text
         // A paper's own reference numbers, copied from its passages, come out before the answer's labels are looked for.
         let references = Self.removingCopiedReferenceNumbers(responseText, sources: generationChunks.map(\.content))
+        // The text is taken whether or not anything was removed: a bare "[2]" written out as "[S2]" changes it too (on
+        // the owner's iPhone at 17:20 the labels were written out only after this step had already found none).
+        responseText = references.text
         if references.removed > 0 {
-            responseText = references.text
             Log.info("[RAG] Removed \(references.removed) reference number(s) copied from the passages", category: .llm)
             VerificationJournal.record("answer.referenceNumbersRemoved", ["removed": "\(references.removed)"])
         }

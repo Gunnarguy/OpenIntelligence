@@ -296,7 +296,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   `synchronizeVectorStore` skips a library whose files, documents, aliases and strategy are what they
   were when a pass last proved the device copy and the iCloud copy identical. That record was in memory
   only, so each launch decoded and compared both copies of every synced library. It is now a digest in
-  `UserDefaults` (`workspaceSync.vectorStoreSignatureDigests.v1`). `VectorStoreRouter.db(for:)` also
+  `UserDefaults` (`workspaceSync.vectorStoreSignatureDigests.v2` since 2026-11-13; `.v1` is dropped once so the newest-passages merge, `PassageGenerations`, reads every library again). `VectorStoreRouter.db(for:)` also
   records a store's disk signature when it creates the store, so the first `clearAll()` after launch
   no longer reads it a second time. `[evidence: test_verified for the record's round trip, LargeLibraryCostTests; code_verified; not timed on a device]`
 - **A pass skips the vector store of a library with an unfinished import, added 2026-10-10**: the

@@ -251,13 +251,19 @@ final class WorkspaceSyncService: ObservableObject {
     nonisolated let vectorStoreSyncSignatures = OSAllocatedUnfairLock<[UUID: String]>(
         initialState: WorkspaceSyncService.savedVectorStoreSignatureDigests())
 
-    nonisolated static let vectorStoreSignatureDigestsKey = "workspaceSync.vectorStoreSignatureDigests.v1"
+    /// `.v2` since 2026-11-13 (at the owner's word for this file): the records saved under `.v1` said "these two copies
+    /// matched", which was true under the old merge and kept the new one (one set of passages a document,
+    /// `PassageGenerations`) from ever reading a library that already held two. A new key drops them once, so every
+    /// library is compared once more; the old key's value is removed.
+    nonisolated static let vectorStoreSignatureDigestsKey = "workspaceSync.vectorStoreSignatureDigests.v2"
+    nonisolated static let retiredVectorStoreSignatureDigestsKey = "workspaceSync.vectorStoreSignatureDigests.v1"
 
     nonisolated static func vectorStoreSignatureDigest(_ signature: String) -> String {
         SHA256.hash(data: Data(signature.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     nonisolated static func savedVectorStoreSignatureDigests(defaults: UserDefaults = .standard) -> [UUID: String] {
+        defaults.removeObject(forKey: retiredVectorStoreSignatureDigestsKey)
         guard let saved = defaults.dictionary(forKey: vectorStoreSignatureDigestsKey) as? [String: String] else {
             return [:]
         }
