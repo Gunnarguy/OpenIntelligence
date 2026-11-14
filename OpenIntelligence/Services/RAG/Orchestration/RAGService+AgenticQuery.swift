@@ -801,7 +801,9 @@ extension RAGService {
             }
 
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-            let generatedAgenticAnswer = repairMalformedURLs(cleanupResponseText(result.finalAnswer))
+            let generatedAgenticAnswer = Self.namingTheCitedDocument(
+                repairMalformedURLs(cleanupResponseText(result.finalAnswer)), question: question,
+                sourceNames: result.retrievedChunks.map(\.sourceDocument))
             var extractiveAgenticAnswer = await highPrecisionLookupOverrideAnswer(
                 question: question,
                 answerIntent: agenticAnswerIntent,

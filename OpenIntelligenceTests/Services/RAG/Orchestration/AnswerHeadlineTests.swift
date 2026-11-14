@@ -117,6 +117,26 @@ final class AnswerHeadlineTests: XCTestCase {
         XCTAssertFalse(Tour.tourIsRunning(now: start.addingTimeInterval(3 * 86_400 + 1), defaults: defaults))
     }
 
+    func testAWhichDocumentAnswerNamesTheFile() {
+        let names = ["retrieval_alpha.md", "lease.pdf"]
+        let answer = "The document that mentions the ALPHA-17 review control is [S1], which includes the target phrase."
+        XCTAssertEqual(
+            RAGService.namingTheCitedDocument(answer, question: "Which document mentions the ALPHA-17 review control?", sourceNames: names),
+            "The document that mentions the ALPHA-17 review control is [S1] (retrieval_alpha.md), which includes the target phrase.")
+        XCTAssertEqual(
+            RAGService.namingTheCitedDocument("It is in [S2, S1].", question: "Find the source about the GAMMA assay.", sourceNames: names),
+            "It is in [S2, S1] (lease.pdf).")
+        let named = "It is in lease.pdf [S2]."
+        XCTAssertEqual(RAGService.namingTheCitedDocument(named, question: "What file covers the deposit?", sourceNames: names), named)
+        let spaced = "The retrieval alpha note [S1] covers it."
+        XCTAssertEqual(RAGService.namingTheCitedDocument(spaced, question: "Which document mentions it?", sourceNames: names), spaced)
+        XCTAssertEqual(
+            RAGService.namingTheCitedDocument(answer, question: "How much is the deposit?", sourceNames: names), answer,
+            "only a question that asks which document")
+        XCTAssertEqual(RAGService.namingTheCitedDocument("No citation here.", question: "Which document?", sourceNames: names), "No citation here.")
+        XCTAssertFalse(RAGService.asksWhichDocument("What is the document retention period?"))
+    }
+
     func testTheLiveStatusLineIsPlainWords() {
         XCTAssertEqual(
             RAGService.plainStatusText("- The document mentions \"fusion\".\n- **Depolarizing** mitochondria leads to"),

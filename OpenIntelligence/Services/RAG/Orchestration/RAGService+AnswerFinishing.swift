@@ -344,7 +344,8 @@ extension RAGService {
         // Clean up the response text (normalize whitespace, preserve markdown formatting)
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
         let stabilizedResponse = trimIncompleteResponseTail(cleanedResponse)
-        let repairedResponse = repairMalformedURLs(stabilizedResponse)
+        let repairedResponse = Self.namingTheCitedDocument(
+            repairMalformedURLs(stabilizedResponse), question: query, sourceNames: response.retrievedChunks.map(\.sourceDocument))
         // A label past the end of the answer's passages opens nothing, and it means the labels the model was shown
         // and the passages the answer keeps were numbered differently. It is logged, not removed, as for the
         // reasoning trace above ("This logs rather than rewrites"): on 2026-10-20 "$300.00 [S1], [S5], [S6]" was the

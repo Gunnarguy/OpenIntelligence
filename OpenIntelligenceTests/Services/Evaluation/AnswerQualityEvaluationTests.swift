@@ -296,10 +296,12 @@ private struct AnswerQualityEvaluation: Evaluation {
             scope = Set(engine.documents.filter { $0.containerId == library && names.contains($0.filename) }.map(\.id))
         }
         do {
-            let outcome = try await RAGQueryScope.$documentIds.withValue(scope) {
-                try await AskActionRunner.ask(
-                    question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library)
-            }
+            // Passed to the action itself: it sets the scope from its own `documentIds` (nil when not given), which
+            // replaced a scope set round the call, so on 2026-11-14 every run logged `scoped=0` and the three cases
+            // were asked of the whole library again.
+            let outcome = try await AskActionRunner.ask(
+                question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library,
+                documentIds: (scope ?? []).isEmpty ? nil : scope)
             print(
                 "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(outcome.answer.text.prefix(300).replacingOccurrences(of: "\n", with: " "))")
             return ModelSubject(value: outcome.answer.text)

@@ -171,4 +171,38 @@ extension RAGService {
         // Never an empty answer: if everything sat under an echoed title, the text is left as it was.
         return result.isEmpty ? (text, 0) : (result, removed)
     }
+
+    /// Whether a question asks which document holds something ("Which document mentions ...?", "What file discusses
+    /// ...?", "Find the source about ...", "In which paper ...").
+    nonisolated static func asksWhichDocument(_ question: String) -> Bool {
+        question.range(
+            of: #"(?i)\b(which|what)\s+(document|file|source|paper|pdf|report|note|fixture|book|article)s?\b|\bfind\s+the\b.{0,60}\b(document|file|source|paper|note|report|article)\b|\bwhere\s+(is|are|does|do|can)\b.{0,80}\b(mentioned|discussed|described|covered|explained)\b"#,
+            options: .regularExpression) != nil
+    }
+
+    /// Names the file in an answer to a which-document question (5.8, 2026-11-14). Asked "Which document mentions the
+    /// ALPHA-17 review control?", every mode answered "The document that mentions it is [S1], which ...": the label can
+    /// be tapped, but the answer never says the document's name, the one thing asked for (5 of 20 cases of the answer
+    /// test failed on it in 5.7 and 5.8). When the question asks which document and the answer names none of its
+    /// sources' files, the file of the first source it cites is written after that citation: "[S1] (lease.pdf)".
+    /// `sourceNames` are the answer's sources in label order. An answer with no citation, or one that already names a
+    /// file, is left as it is.
+    nonisolated static func namingTheCitedDocument(_ text: String, question: String, sourceNames: [String]) -> String {
+        guard asksWhichDocument(question), !sourceNames.isEmpty else { return text }
+        let lower = text.lowercased()
+        let alreadyNamed = Set(sourceNames).contains { name in
+            let whole = name.lowercased()
+            let stem = (name as NSString).deletingPathExtension.lowercased()
+            return !stem.isEmpty && (lower.contains(whole) || lower.contains(stem) || lower.contains(stem.replacingOccurrences(of: "_", with: " ")))
+        }
+        guard !alreadyNamed,
+            let marker = try? NSRegularExpression(pattern: #"\[S(\d+)(?:\s*[,;]\s*S?\d+)*\]"#),
+            let first = marker.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+            let labelRange = Range(first.range(at: 1), in: text), let label = Int(text[labelRange]),
+            label >= 1, label <= sourceNames.count, let whole = Range(first.range, in: text)
+        else { return text }
+        var result = text
+        result.insert(contentsOf: " (\(sourceNames[label - 1]))", at: whole.upperBound)
+        return result
+    }
 }
