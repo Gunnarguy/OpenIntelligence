@@ -2,7 +2,7 @@
 
 Updated: 2026-11-14 afternoon PT
 Branch/worktree: `main`, primary checkout
-Last verified commit: 86f53f92
+Last verified commit: 431c307e
 
 ## Objective
 
@@ -50,6 +50,30 @@ submitting, deleting his data.
 - One Simulator benchmark and one xcodebuild at a time. Never the whole macOS unit suite.
 - `Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` stay byte-identical.
 - iCloud Sync stays off the plans screen until roadmap row 3ca49a74d54f8103b69be921f0335171 closes.
+
+## Added on 2026-11-14 afternoon (all committed, both devices on the build except where noted)
+
+- Watch a Folder row on the Documents page with its own sheet; lit `SettingsStatusPanel` on Plan & Usage, Private
+  Cloud Compute, Libraries & iCloud, How This Works, Siri & Shortcuts; release text states 15, 14, 14 of 17 against
+  5.7's 9, 11, 9.
+- Mac only, seen on the owner's Mac through the app's accessibility interface: Library Settings scrolls
+  (`macGroupedForm`), View Plans opens the plans sheet from a pushed Settings page, the Watched Folder sheet's Mac
+  layout. Not seen: focus rings off (`macWithoutFocusRings`), the 70% default window (`defaultWindowPlacement`).
+- The iPhone has 385b3c90; the Mac-only commits after it change nothing there.
+- About eleven Mac sheets with no size of their own are not looked at (list in `CHANGELOG.md`, "Library Settings
+  scrolls on a Mac").
+
+## Open findings from the owner's iPhone log, 2026-11-14 15:50 to 16:43 (nothing changed for them)
+
+- Search setup after an install: embedding load 99 s and 55 s, reranker ready 131 s and 87 s after launch
+  (`embedding.load`, `reranker.load`), thermal state serious. The "25 to 50 s" figure below is too low.
+- 42 `mainThread.stall` events, all `chatOpen`, median 301 ms, worst 1,658 ms, 26 of them in the two minutes five
+  libraries were rebuilding. Cause not found: the watchdog records only the phase, and the sync artifacts functions
+  that log beside the stalls are `nonisolated`. Next: a Time Profiler capture on the phone during a rebuild
+  (`xcrun xctrace record --template 'Time Profiler' --device <id> --attach OpenIntelligence`).
+- The phone rebuilt five libraries after the Mac rebuilt the same five. Not a loop: `EmbeddingModelRecord` is kept
+  per device, the phone's trace says "a model before 5.8", and the Mac rebuilt nothing in four later launches. Each
+  device re-embeds an iCloud library once even when the other already has.
 
 ## Known and not fixed
 
