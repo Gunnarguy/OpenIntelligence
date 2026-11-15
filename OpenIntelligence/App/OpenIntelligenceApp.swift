@@ -88,6 +88,18 @@ struct OpenIntelligenceApp: App {
             OpenIntelligenceCommands()
         }
         #if os(macOS)
+            // A new window opens at 70% of the screen's width and 75% of its usable height, centred (5.8). With
+            // no default the first window took its content's smallest size, about 900 by 450 points on the
+            // owner's Mac. macOS restores the size a person last left a window at, so this decides only the
+            // first launch and windows opened with File > New Window where none is remembered.
+            .defaultWindowPlacement { _, context in
+                let visible = context.defaultDisplay.visibleRect
+                let size = CGSize(width: visible.width * 0.7, height: visible.height * 0.75)
+                return WindowPlacement(
+                    CGPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2), size: size)
+            }
+        #endif
+        #if os(macOS)
         MenuBarExtra(isInserted: $showsMenuBarItem) {
             MenuBarAsk()
         } label: {
