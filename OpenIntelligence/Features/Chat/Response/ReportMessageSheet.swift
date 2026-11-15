@@ -67,6 +67,7 @@ struct ReportMessageSheet: View {
                         .textSelection(.enabled)
                 }
             }
+            .macGroupedForm()
             .navigationTitle("Report Response")
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -84,6 +85,10 @@ struct ReportMessageSheet: View {
                     }
                 }
         }
+        #if os(macOS)
+            // A Mac sheet with no size takes its content's narrowest width (see `ContainerSettingsSheet`).
+            .frame(minWidth: 480, idealWidth: 540, minHeight: 420)
+        #endif
     }
 
     static func buildReportText(

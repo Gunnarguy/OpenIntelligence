@@ -82,6 +82,7 @@ struct ModelConfigurationSheet: View {
                 // Reset
                 resetSection
             }
+            .macGroupedForm()
             .navigationTitle("Model Parameters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

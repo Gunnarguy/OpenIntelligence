@@ -120,6 +120,17 @@ struct ProcessingSummaryView: View {
 }
 
 extension View {
+    /// On a Mac, the grouped form System Settings uses. A `Form` with no style is laid out there in two columns,
+    /// which does not scroll, cuts long text to one line and leaves an empty column at the left: Library Settings
+    /// could not be scrolled on the Mac (the owner's screenshot, 2026-11-14). iPhone and iPad are unchanged.
+    @ViewBuilder func macGroupedForm() -> some View {
+        #if os(macOS)
+            formStyle(.grouped)
+        #else
+            self
+        #endif
+    }
+
     @ViewBuilder func iOSNavigationBarInline() -> some View {
         #if os(iOS)
             navigationBarTitleDisplayMode(.inline)

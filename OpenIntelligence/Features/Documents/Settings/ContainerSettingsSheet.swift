@@ -218,6 +218,7 @@ struct ContainerSettingsSheet: View {
                 libraryNerdStatsSection
                 deleteLibrarySection
             }
+            .macGroupedForm()
             .navigationTitle("Library Settings")
             .iOSNavigationBarInline()
             .toolbar {
