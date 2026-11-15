@@ -103,30 +103,56 @@ struct WatchedFolderSheet: View {
     @State private var showingPlans = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                WatchedFolderSection(
-                    library: library,
-                    ragService: ragService,
-                    hasAccess: hasAccess,
-                    showPlans: { showingPlans = true }
-                )
-            }
-            .navigationTitle("Watched Folder")
-            #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+        #if os(macOS)
+            // A Mac sheet: the grouped form macOS settings use, a title in the sheet and Done at the bottom. As a
+            // `NavigationStack` with an iOS form it came up with an empty band above its title and unpadded text
+            // at the sheet's edge (the owner's screenshot, 2026-11-14).
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: DSSpacing.sm) {
+                    WatchedFolderGlyph()
+                        .font(.title3)
+                        .foregroundStyle(Color.accentColor)
+                    Text("Watched Folder")
+                        .font(.title3.weight(.semibold))
                 }
+                .padding([.horizontal, .top], DSSpacing.xl)
+                Form { section }
+                    .formStyle(.grouped)
+                    .scrollContentBackground(.hidden)
+                HStack {
+                    Spacer()
+                    Button("Done") { dismiss() }
+                        .keyboardShortcut(.defaultAction)
+                }
+                .padding([.horizontal, .bottom], DSSpacing.xl)
             }
+            .frame(minWidth: 480, idealWidth: 520, maxWidth: 620, minHeight: 320)
             .sheet(isPresented: $showingPlans) {
                 PlanUpgradeSheet(entryPoint: .watchedFolder)
             }
-        }
-        #if os(macOS)
-            .frame(minWidth: 460, minHeight: 420)
+        #else
+            NavigationStack {
+                Form { section }
+                    .navigationTitle("Watched Folder")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { dismiss() }
+                        }
+                    }
+                    .sheet(isPresented: $showingPlans) {
+                        PlanUpgradeSheet(entryPoint: .watchedFolder)
+                    }
+            }
         #endif
+    }
+
+    private var section: some View {
+        WatchedFolderSection(
+            library: library,
+            ragService: ragService,
+            hasAccess: hasAccess,
+            showPlans: { showingPlans = true }
+        )
     }
 }

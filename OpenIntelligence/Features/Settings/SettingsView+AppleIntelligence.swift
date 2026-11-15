@@ -258,10 +258,28 @@ extension SettingsView {
             Divider().padding(.horizontal, DSSpacing.lg)
 
             VStack(alignment: .leading, spacing: DSSpacing.md) {
+                // What Siri and Shortcuts can do, counted from the same lists the rows below are drawn from (5.8).
+                SettingsStatusPanel(
+                    symbol: "siri", title: "Siri & Shortcuts", badge: "No setup", badgeColor: .green,
+                    blocks: [
+                        .init(
+                            symbol: "waveform", name: "Voice phrases", color: .purple,
+                            figure: "\(RAGAppShortcutsProvider.appShortcuts.count)", share: nil, caption: "say them to Siri"),
+                        .init(
+                            symbol: "square.2.layers.3d", name: "Actions", color: .blue,
+                            figure: "\(Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count })", share: nil,
+                            caption: "in Shortcuts"),
+                        .init(
+                            symbol: "checkmark.shield", name: "Checked", color: .green, figure: "Yes", share: nil,
+                            caption: "same as chat"),
+                    ]
+                )
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.top, DSSpacing.md)
+
                 Text("Instant Voice Phrases")
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, DSSpacing.lg)
-                    .padding(.top, DSSpacing.md)
 
                 VStack(spacing: DSSpacing.sm) {
                     #if os(iOS)
@@ -271,16 +289,16 @@ extension SettingsView {
                     #endif
                     // One row per App Shortcut, with the first phrase it registers
                     // (RAGAppShortcutsProvider). Keep the two in step.
-                    shortcutCommandRow(title: "Ask My Documents", phrase: "Ask OpenIntelligence a question")
-                    shortcutCommandRow(title: "List Documents", phrase: "List my documents in OpenIntelligence")
-                    shortcutCommandRow(title: "Import Status", phrase: "Is OpenIntelligence still importing")
-                    shortcutCommandRow(title: "Ask About a Document", phrase: "Ask OpenIntelligence about [Document Name]")
-                    shortcutCommandRow(title: "Summarize a Document", phrase: "Summarize [Document Name] in OpenIntelligence")
-                    shortcutCommandRow(title: "Compare Two Documents", phrase: "Compare documents in OpenIntelligence")
-                    shortcutCommandRow(title: "Ask a Library", phrase: "Ask [Library Name] in OpenIntelligence")
-                    shortcutCommandRow(title: "Add a File", phrase: "Add this document to OpenIntelligence")
-                    shortcutCommandRow(title: "Save a Web Page", phrase: "Save this page to OpenIntelligence")
-                    shortcutCommandRow(title: "Find Passages", phrase: "Find passages in OpenIntelligence")
+                    shortcutCommandRow(symbol: "questionmark.bubble", title: "Ask My Documents", phrase: "Ask OpenIntelligence a question")
+                    shortcutCommandRow(symbol: "list.bullet", title: "List Documents", phrase: "List my documents in OpenIntelligence")
+                    shortcutCommandRow(symbol: "arrow.down.circle", title: "Import Status", phrase: "Is OpenIntelligence still importing")
+                    shortcutCommandRow(symbol: "doc.text.magnifyingglass", title: "Ask About a Document", phrase: "Ask OpenIntelligence about [Document Name]")
+                    shortcutCommandRow(symbol: "text.alignleft", title: "Summarize a Document", phrase: "Summarize [Document Name] in OpenIntelligence")
+                    shortcutCommandRow(symbol: "square.split.2x1", title: "Compare Two Documents", phrase: "Compare documents in OpenIntelligence")
+                    shortcutCommandRow(symbol: "books.vertical", title: "Ask a Library", phrase: "Ask [Library Name] in OpenIntelligence")
+                    shortcutCommandRow(symbol: "plus.circle", title: "Add a File", phrase: "Add this document to OpenIntelligence")
+                    shortcutCommandRow(symbol: "safari", title: "Save a Web Page", phrase: "Save this page to OpenIntelligence")
+                    shortcutCommandRow(symbol: "text.magnifyingglass", title: "Find Passages", phrase: "Find passages in OpenIntelligence")
                 }
 
                 Divider().padding(.horizontal, DSSpacing.lg)
@@ -466,17 +484,29 @@ extension SettingsView {
         }
     }
 
-    private func shortcutCommandRow(title: String, phrase: String) -> some View {
-        HStack {
+    /// One phrase: what it does, then the words to say, with a copy button. The action leads, in the label
+    /// color, and the phrase sits under it in the system font (5.8; it was a grey title over a monospaced
+    /// quotation, which read as a list of code).
+    private func shortcutCommandRow(symbol: String, title: String, phrase: String) -> some View {
+        HStack(spacing: DSSpacing.md) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.pill, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.12)))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.caption.bold())
-                    .foregroundStyle(DSColors.secondaryText)
-                Text("\"\(phrase)\"")
-                    .font(.system(.subheadline, design: .monospaced))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
+                Text("\u{201C}\(phrase)\u{201D}")
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            Spacer(minLength: DSSpacing.sm)
             Button {
                 #if canImport(UIKit)
                 UIPasteboard.general.string = phrase
@@ -490,6 +520,7 @@ extension SettingsView {
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
             }
+            .accessibilityLabel("Copy the phrase for \(title)")
         }
         .padding(.horizontal, DSSpacing.lg)
     }

@@ -77,6 +77,16 @@ struct HowItWorksView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
+            // The four stages at a glance, lit left to right in the order they run (5.8).
+            SettingsStatusPanel(
+                symbol: "square.and.arrow.down", title: "Import", badge: "On this device", badgeColor: .green,
+                blocks: [
+                    .init(symbol: "doc.text.viewfinder", name: "Extract", color: .blue, figure: "1", share: 0.25, caption: "reads the text"),
+                    .init(symbol: "scissors", name: "Chunk", color: .purple, figure: "2", share: 0.5, caption: "splits it up"),
+                    .init(symbol: "function", name: "Embed", color: .orange, figure: "3", share: 0.75, caption: "into numbers"),
+                    .init(symbol: "tray.full", name: "Index", color: .green, figure: "4", share: 1, caption: "stores both"),
+                ])
+
             VStack(alignment: .leading, spacing: DSSpacing.md) {
                 stage(
                     number: "1",
@@ -214,6 +224,15 @@ struct HowItWorksView: View {
     private var askCard: some View {
         SurfaceCard {
             SectionHeader(icon: "text.magnifyingglass", title: "When you ask something")
+            // The same four steps the two paragraphs below describe, in order (5.8).
+            SettingsStatusPanel(
+                symbol: "text.magnifyingglass", title: "Ask", badge: "On this device", badgeColor: .green,
+                blocks: [
+                    .init(symbol: "magnifyingglass", name: "Search", color: .blue, figure: "1", share: 0.25, caption: "two ways"),
+                    .init(symbol: "arrow.up.arrow.down", name: "Rerank", color: .purple, figure: "2", share: 0.5, caption: "best first"),
+                    .init(symbol: "text.bubble", name: "Answer", color: .orange, figure: "3", share: 0.75, caption: "with sources"),
+                    .init(symbol: "checkmark.shield", name: "Check", color: .green, figure: "4", share: 1, caption: "or says so"),
+                ])
             Text("Your question is searched both ways at once, then a second model reads the passages that came back and reorders them by how well they actually answer what you asked. Only after that does anything get written.")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)

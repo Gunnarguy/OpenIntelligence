@@ -163,7 +163,7 @@ final class FiveChecksUITests: XCTestCase {
         clearTheScreen(app)
         keep(app, "settings-00-list")
         let pages = [
-            "Intelligence Mode", "Apple Intelligence", "Private Cloud Compute", "Libraries & iCloud",
+            "How This Works", "Intelligence Mode", "Apple Intelligence", "Private Cloud Compute", "Libraries & iCloud",
             "Device & Performance", "Appearance", "Notifications", "Plan & Usage", "Siri & Shortcuts", "Advanced",
             "About",
         ]
