@@ -1340,6 +1340,17 @@ extension RAGService {
                     // cleared first: it holds the only complete copy of the passages' text (on the owner's iPhone on
                     // 2026-11-12 the full-text index held 3,616 passages for all libraries against 8,202 in one), and
                     // clearing it made the rebuild read and split every file again (3 documents in 4.5 minutes).
+                    //
+                    // Unless the vectors here are already the new model's: another device rebuilt the library and
+                    // iCloud brought its vectors (`storedVectorsAlreadyMatchLiveModel`, 5.8).
+                    if await self.storedVectorsAlreadyMatchLiveModel(for: container, service: service) {
+                        await MainActor.run {
+                            var updated = container
+                            updated.embeddingFingerprint = liveFingerprint
+                            self.containerService.updateContainer(updated)
+                            EmbeddingModelRecord.record(service.modelRevision, for: container.id)
+                        }
+                    } else {
                     Log.warning(
                         "[RAGService] Embedding model changed for container \(container.id) "
                             + "(\(EmbeddingModelRecord.recorded(for: container.id) ?? "a model before 5.8") → \(service.modelRevision)); "
@@ -1359,6 +1370,7 @@ extension RAGService {
                         guard hasDocs else { return }
                         self.modelChangeRebuildContainerIds.insert(container.id)
                         self.enqueuePendingReembed(containerId: container.id)
+                    }
                     }
                 } else if stored != liveFingerprint {
                     Log.warning(
@@ -1405,8 +1417,19 @@ extension RAGService {
                 //
                 // An empty container is adopted silently as before: there is nothing to rebuild,
                 // and anything imported from now on is embedded correctly.
+                // The vectors may already be the live model's, brought by iCloud from a device that rebuilt (5.8).
+                let alreadyLive =
+                    EmbeddingModelRecord.modelChanged(for: container.id, live: service.modelRevision)
+                    ? await self.storedVectorsAlreadyMatchLiveModel(for: container, service: service) : false
                 await MainActor.run {
                     let hasDocs = !self.documentsForContainer(container.id).isEmpty
+                    if hasDocs, alreadyLive {
+                        var updated = container
+                        updated.embeddingFingerprint = liveFingerprint
+                        self.containerService.updateContainer(updated)
+                        EmbeddingModelRecord.record(service.modelRevision, for: container.id)
+                        return
+                    }
                     if hasDocs {
                         Log.warning(
                             "[RAGService] Container \(container.id) has no embedding fingerprint and "

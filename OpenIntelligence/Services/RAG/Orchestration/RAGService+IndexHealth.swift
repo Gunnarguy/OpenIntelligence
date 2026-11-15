@@ -325,6 +325,41 @@ extension RAGService {
         enqueueSelfHealingRebuild(for: containerId, onlyDocuments: Set(untried.map(\.id)))
     }
 
+    /// Whether the vectors this device holds for a library were already written by the live embedding model, so
+    /// its one-time rebuild can be skipped (5.8, `StoredVectorModelCheck`). Two passages of every document are
+    /// embedded again and compared with what is stored; anything short of every one matching says no, and the
+    /// library is rebuilt as before. A library that translates before embedding never matches, and is rebuilt.
+    @MainActor
+    func storedVectorsAlreadyMatchLiveModel(for container: KnowledgeContainer, service: EmbeddingService) async -> Bool {
+        let started = Date()
+        let documentIds = Set(documentsForContainer(container.id).map(\.id))
+        let db = vectorRouter.db(for: container)
+        guard let chunks = try? await db.readableChunks(),
+            let sample = StoredVectorModelCheck.sample(of: chunks, documentIds: documentIds)
+        else { return false }
+        let texts = sample.map(StoredVectorModelCheck.embeddedText)
+        // A passage that was cut to fit the model was embedded from other text than this.
+        guard texts.allSatisfy({ service.countTokens($0) <= service.maxSafeTokens }) else { return false }
+        let stored = await db.getEmbeddings(forChunkIDs: sample.map(\.id))
+        guard let fresh = try? await service.generateEmbeddings(for: texts) else { return false }
+        let lowest = StoredVectorModelCheck.lowestSimilarity(stored: stored, fresh: fresh)
+        let live = (lowest ?? 0) >= StoredVectorModelCheck.minimumSimilarity
+        Log.info(
+            "[RAGService] Library \(container.id): \(sample.count) stored vectors from \(documentIds.count) document(s) "
+                + "compared with the live model, lowest similarity \(lowest.map { String(format: "%.3f", $0) } ?? "none"); "
+                + (live ? "already the live model's, no rebuild." : "not the live model's, rebuilding."),
+            category: .embedding)
+        VerificationJournal.record(
+            "index.modelCheck", live ? .ok : .info,
+            [
+                "library": VerificationJournal.anon(container.id), "result": live ? "alreadyLive" : "rebuild",
+                "sampled": "\(sample.count)", "documents": "\(documentIds.count)",
+                "lowest": lowest.map { String(format: "%.3f", $0) } ?? "none",
+                "ms": "\(Int(Date().timeIntervalSince(started) * 1000))",
+            ])
+        return live
+    }
+
     /// The stored vectors of the candidates that came without one, by passage id, for MMR (5.7).
     ///
     /// The store hands passages back without their vectors, so through 5.6 MMR compared empty

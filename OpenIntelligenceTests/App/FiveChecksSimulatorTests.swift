@@ -160,6 +160,37 @@ final class FiveChecksSimulatorTests: XCTestCase {
         try await assertTheRebuildIsVetoed(engine, library: library, document: document, storeLabel: "zero vectors")
     }
 
+    // MARK: - Vectors another device already rebuilt (5.8)
+
+    /// With the real embedding model: the vectors an import just wrote are recognised as the live model's, so a
+    /// device that receives them need not rebuild; the same passages under other vectors are not.
+    func testStoredVectorsFromTheLiveModelAreRecognised_andOtherVectorsAreNot() async throws {
+        let engine = RAGService()
+        let (library, _) = try await libraryWithOneNote("Five checks model check", in: engine)
+        let context = await engine.resolveEmbeddingContext(preferredContainerId: library)
+        let container = try XCTUnwrap(engine.containerService.containers.first { $0.id == library })
+        let database = try await engine.dbForContainer(library)
+        let stored = try await database.allChunks()
+        let vectors = await database.getEmbeddings(forChunkIDs: stored.map(\.id))
+        let usable = vectors.filter { vector in vector.contains { $0 != 0 } }.count
+        print("[FiveChecks] model check: \(stored.count) passages, \(usable) with a non-zero vector, provider \(context.providerId)")
+        try XCTSkipIf(usable == 0, "this Simulator's embedding model writes zero vectors, so nothing can be compared")
+
+        let asWritten = await engine.storedVectorsAlreadyMatchLiveModel(for: container, service: context.service)
+        XCTAssertTrue(asWritten, "the vectors the live model just wrote are its own")
+
+        // The same passages under vectors from somewhere else: each one reversed, as another model's would be unrelated.
+        try await database.clear()
+        try await database.storeBatch(
+            chunks: zip(stored, vectors).map { chunk, vector in
+                DocumentChunk(
+                    id: chunk.id, documentId: chunk.documentId, content: chunk.content, parentContent: chunk.parentContent,
+                    contextualPrefix: chunk.contextualPrefix, embedding: Array(vector.reversed()), metadata: chunk.metadata)
+            })
+        let foreign = await engine.storedVectorsAlreadyMatchLiveModel(for: container, service: context.service)
+        XCTAssertFalse(foreign, "vectors from another space are not the live model's")
+    }
+
     // MARK: - A saved answer that cites [S13]
 
     private func passage(_ text: String, document: UUID, index: Int) -> DocumentChunk {
