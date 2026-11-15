@@ -87,6 +87,12 @@ on 2026-11-02 is 519 conflict copies. Until that passes, the app doesn't adverti
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: PlanBenefits.swift; phone trace 2026-11-01 11:16]`
 
+**Where the plans screen opens from on a Mac (2026-11-14).** `PlanUpgradeSheet` is presented by the Settings list
+(`SettingsView.body`). On macOS a pushed Settings page replaces the list, so View Plans on Plan & Usage, and the
+upgrade buttons on Intelligence Mode and Libraries & iCloud, did nothing there. Each Settings page presents the sheet
+itself on macOS (`detailScroll` in `SettingsView+List.swift`), and the sheet has a Mac size. Seen on the owner's Mac
+before and after. `[evidence_level: measured, macOS 27]`
+
 **The side-by-side table (2026-11-14).** Under the three cards the screen now prints "Free, Pro and Lifetime":
 one row for each thing a paid plan changes, with what each plan has of it, the buyer's own plan marked "(yours)"
 (`PlanBenefits.comparison`, `PlanUpgradeSheet.planComparisonSection`). Five rows: Maximum mode, documents, libraries,

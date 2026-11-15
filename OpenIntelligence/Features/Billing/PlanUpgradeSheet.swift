@@ -129,6 +129,10 @@ struct PlanUpgradeSheet: View {
             }
         }
         .presentationDetents([.large])
+        #if os(macOS)
+            // A Mac sheet with no size takes its content's narrowest width (see `ContainerSettingsSheet`).
+            .frame(minWidth: 560, idealWidth: 640, maxWidth: 760, minHeight: 560, idealHeight: 720)
+        #endif
         .alert(
             alertMessage ?? "",
             isPresented: Binding(

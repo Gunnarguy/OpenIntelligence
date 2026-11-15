@@ -560,6 +560,15 @@ extension SettingsView {
             DSColors.background
                 .ignoresSafeArea()
         )
+        #if os(macOS)
+            // On a Mac a pushed page replaces the list, so the plans sheet attached to the list (`SettingsView.body`)
+            // has nothing to present from: View Plans on Plan & Usage did nothing (seen on the owner's Mac,
+            // 2026-11-14). The page presents it itself there. On iPhone and iPad the list stays under the page
+            // and presents it, and a second presenter for the same flag would fight the first.
+            .sheet(isPresented: $showPlanSheet) {
+                PlanUpgradeSheet(entryPoint: planEntryPoint)
+            }
+        #endif
     }
 
 }
