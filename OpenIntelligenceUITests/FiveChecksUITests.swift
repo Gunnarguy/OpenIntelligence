@@ -152,6 +152,22 @@ final class FiveChecksUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Watched Folder"].firstMatch.waitForExistence(timeout: 5), "the sheet did not open")
     }
 
+    /// The Database tab, screen by screen as it scrolls, and the Settings list, for a look at their type.
+    @MainActor
+    func testShotsOfTheDatabaseTab() {
+        let app = launch()
+        let tab = app.buttons["Database"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20), "no Database tab")
+        tab.tap()
+        sleep(3)
+        clearTheScreen(app)
+        for index in 0..<6 {
+            keep(app, String(format: "database-%02d", index))
+            app.swipeUp(velocity: .slow)
+            sleep(1)
+        }
+    }
+
     /// Every Settings page, top and one screen down, for a look at them side by side.
     @MainActor
     func testShotsOfEverySettingsPage() {
