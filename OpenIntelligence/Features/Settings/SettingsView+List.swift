@@ -10,11 +10,11 @@ import SwiftUI
 import TipKit
 
 #if canImport(FoundationModels)
-import FoundationModels
+    import FoundationModels
 #endif
 
 #if canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 extension SettingsView {
@@ -72,7 +72,6 @@ extension SettingsView {
         let title: String
         let subtitle: String
         let icon: String
-        let tint: Color
         let keywords: [String]
 
         static let all: [SettingsEntry] = [
@@ -83,7 +82,7 @@ extension SettingsView {
                 id: .howItWorks, group: .intelligence,
                 title: "How This Works",
                 subtitle: "What happens to a document, and what stays on this device",
-                icon: "questionmark.circle", tint: .accentColor,
+                icon: "questionmark.circle",
                 keywords: [
                     "how", "works", "explain", "privacy", "on-device", "on device", "local",
                     "server", "upload", "cloud", "embedding", "chunk", "index", "retrieval",
@@ -97,7 +96,7 @@ extension SettingsView {
                 id: .glossary, group: .intelligence,
                 title: "Plain English",
                 subtitle: "Every word this app uses, defined twice",
-                icon: "character.book.closed", tint: .accentColor,
+                icon: "character.book.closed",
                 keywords: [
                     "glossary", "plain", "english", "definition", "definitions", "meaning",
                     "jargon", "vocabulary", "terms", "what does", "explain", "chunk",
@@ -109,91 +108,115 @@ extension SettingsView {
                 id: .intelligenceMode, group: .intelligence,
                 title: "Intelligence Mode",
                 subtitle: "Standard, Deep Think or Maximum, and how much each reads",
-                icon: "sparkles", tint: .accentColor,
-                keywords: ["standard", "deep think", "maximum", "quality", "reasoning", "verification", "gates", "agentic"]
+                icon: "sparkles",
+                keywords: [
+                    "standard", "deep think", "maximum", "quality", "reasoning", "verification", "gates", "agentic",
+                ]
             ),
             .init(
                 id: .appleIntelligence, group: .intelligence,
                 title: "Apple Intelligence",
                 subtitle: "On-device features and the active model",
-                icon: "apple.logo", tint: .primary,
-                keywords: ["smart replies", "content tagging", "spotlight", "writing tools", "speech", "translation", "model", "foundation models"]
+                icon: "apple.logo",
+                keywords: [
+                    "smart replies", "content tagging", "spotlight", "writing tools", "speech", "translation", "model",
+                    "foundation models",
+                ]
             ),
             .init(
                 id: .privateCloudCompute, group: .intelligence,
                 title: "Private Cloud Compute",
                 subtitle: "When a question may leave this device",
-                icon: "cloud", tint: .accentColor,
+                icon: "cloud",
                 keywords: ["pcc", "cloud", "privacy", "consent", "routing", "context window", "quota"]
             ),
             .init(
                 id: .librariesSync, group: .library,
                 title: "Libraries & iCloud",
                 subtitle: "Sharing your libraries between devices",
-                icon: "icloud", tint: .accentColor,
+                icon: "icloud",
                 keywords: ["icloud", "sync", "workspace", "shared", "libraries", "containers"]
             ),
             .init(
                 id: .devicePerformance, group: .device,
                 title: "Device & Performance",
                 subtitle: "Your chip, memory and Compute Profile",
-                icon: "cpu", tint: .secondary,
-                keywords: ["chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "context window", "batch", "languages"]
+                icon: "cpu",
+                keywords: [
+                    "chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "context window",
+                    "batch", "languages",
+                ]
             ),
             .init(
                 id: .appearance, group: .device,
                 title: "Appearance",
                 subtitle: "Accent colour and the hardware HUD",
-                icon: "paintbrush", tint: .accentColor,
-                keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray", "xray", "glow", "haptics", "technical", "technical details", "console", "stats", "simple"]
+                icon: "paintbrush",
+                keywords: [
+                    "accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray",
+                    "xray", "glow", "haptics", "technical", "technical details", "console", "stats", "simple",
+                ]
             ),
             .init(
                 id: .notifications, group: .device,
                 title: "Notifications",
                 subtitle: "When an import or a long answer finishes",
-                icon: "bell.badge", tint: .secondary,
-                keywords: ["notifications", "notify", "alert", "banner", "finished", "import", "deep think", "maximum", "background"]
+                icon: "bell.badge",
+                keywords: [
+                    "notifications", "notify", "alert", "banner", "finished", "import", "deep think", "maximum",
+                    "background",
+                ]
             ),
             .init(
                 id: .plan, group: .account,
                 title: "Plan & Usage",
                 subtitle: "Documents, libraries, and Maximum runs",
-                icon: "creditcard", tint: .accentColor,
-                keywords: ["plan", "billing", "subscription", "pro", "lifetime", "quota", "limit", "upgrade", "purchase"]
+                icon: "creditcard",
+                keywords: [
+                    "plan", "billing", "subscription", "pro", "lifetime", "quota", "limit", "upgrade", "purchase",
+                ]
             ),
             .init(
                 id: .siriShortcuts, group: .account,
                 title: "Siri & Shortcuts",
                 subtitle: "Voice commands and automation actions",
-                icon: "mic", tint: .accentColor,
+                icon: "mic",
                 keywords: ["siri", "shortcuts", "app intents", "automation", "voice"]
             ),
             .init(
                 id: .advanced, group: .system,
                 title: "Advanced",
                 subtitle: "Temperature, response length, system prompt",
-                icon: "slider.horizontal.3", tint: .secondary,
-                keywords: ["system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k", "sampling", "penalty", "generation", "tuning", "context length", "context window"]
+                icon: "slider.horizontal.3",
+                keywords: [
+                    "system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k",
+                    "sampling", "penalty", "generation", "tuning", "context length", "context window",
+                ]
             ),
             .init(
                 id: .developer, group: .system,
                 title: "Developer & Diagnostics",
                 subtitle: "RAG audit, chunk inspector, telemetry",
-                icon: "wrench.and.screwdriver", tint: .secondary,
-                keywords: ["developer", "diagnostics", "debug", "logging", "telemetry", "chunk", "audit", "validation", "benchmark"]
+                icon: "wrench.and.screwdriver",
+                keywords: [
+                    "developer", "diagnostics", "debug", "logging", "telemetry", "chunk", "audit", "validation",
+                    "benchmark",
+                ]
             ),
             .init(
                 id: .about, group: .system,
                 title: "About",
                 subtitle: "Version, device, and what's new",
-                icon: "info.circle", tint: .secondary,
-                keywords: ["about", "version", "release notes", "what's new", "support", "feedback", "privacy policy", "terms"]
+                icon: "info.circle",
+                keywords: [
+                    "about", "version", "release notes", "what's new", "support", "feedback", "privacy policy", "terms",
+                ]
             ),
             .init(
                 id: .versionHistory, group: .system,
                 title: "Version History",
                 subtitle: "Every release, and what changed in it",
-                icon: "clock.arrow.circlepath", tint: .secondary,
+                icon: "clock.arrow.circlepath",
                 keywords: ["version", "history", "changelog", "release notes", "updates", "what's new", "previous"]
             ),
         ]
@@ -227,46 +250,53 @@ extension SettingsView {
                     // A header in the readable gray (5.7): the List's own header "nearly passed" Apple's contrast audit.
                     Section {
                         ForEach(entries) { entry in
-                            if entry.id == .advanced {
-                                // Advanced opens the parameters directly. Pushing a screen
-                                // whose only content was a button that opened this sheet
-                                // made it two taps to reach the one thing behind the row.
-                                Button {
-                                    DSHaptics.selection()
-                                    showModelConfiguration = true
-                                } label: {
-                                    HStack {
-                                        settingsRow(entry)
-                                        Spacer(minLength: 0)
-                                        // A `Button` row gets no disclosure indicator of
-                                        // its own, so without this it sits between two
-                                        // NavigationLink rows looking inert.
-                                        Image(systemName: "chevron.right")
-                                            .font(.footnote.weight(.semibold))
-                                            .foregroundStyle(.tertiary)
+                            Group {
+                                if entry.id == .advanced {
+                                    // Advanced opens the parameters directly. Pushing a screen
+                                    // whose only content was a button that opened this sheet
+                                    // made it two taps to reach the one thing behind the row.
+                                    Button {
+                                        DSHaptics.selection()
+                                        showModelConfiguration = true
+                                    } label: {
+                                        HStack {
+                                            settingsRow(entry)
+                                            Spacer(minLength: 0)
+                                            // A `Button` row gets no disclosure indicator of
+                                            // its own, so without this it sits between two
+                                            // NavigationLink rows looking inert.
+                                            Image(systemName: "chevron.right")
+                                                .font(.footnote.weight(.semibold))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .contentShape(Rectangle())
                                     }
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                NavigationLink {
-                                    destination(for: entry)
-                                        .navigationTitle(entry.title)
-                                        .navigationBarTitleDisplayMode(.inline)
-                                        // The tour's step is used when its page opens (5.8). It was a tap gesture on
-                                        // the link, and with it the rows opened only now and then on the owner's
-                                        // iPhone however often he tapped (2026-11-04).
-                                        .onAppear { Self.tourStep(for: entry.id).map(Tour.used) }
-                                } label: {
-                                    settingsRow(entry)
-                                        .tour(
-                                            Self.tourStep(for: entry.id) ?? .howItWorks, in: Tour.settings,
-                                            when: Self.tourStep(for: entry.id) != nil)
+                                    .buttonStyle(.plain)
+                                } else {
+                                    NavigationLink {
+                                        destination(for: entry)
+                                            .navigationTitle(entry.title)
+                                            .navigationBarTitleDisplayMode(.inline)
+                                            // The tour's step is used when its page opens (5.8). It was a tap gesture on
+                                            // the link, and with it the rows opened only now and then on the owner's
+                                            // iPhone however often he tapped (2026-11-04).
+                                            .onAppear { Self.tourStep(for: entry.id).map(Tour.used) }
+                                    } label: {
+                                        settingsRow(entry)
+                                            .tour(
+                                                Self.tourStep(for: entry.id) ?? .howItWorks, in: Tour.settings,
+                                                when: Self.tourStep(for: entry.id) != nil)
+                                    }
                                 }
                             }
+                            .settingsIndexRowInsets()
                         }
                     } header: {
+                        // A footnote-sized header (2026-11-15): the List's default header is near title size on
+                        // iOS 27 and read louder than the rows under it.
                         Text(group.title)
+                            .font(.footnote.weight(.medium))
+                            .textCase(nil)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -281,6 +311,10 @@ extension SettingsView {
                 }
             }
         }
+        #if os(iOS)
+            // Groups closer together (2026-11-15), as in Settings.app; macOS has no section spacing to set.
+            .listSectionSpacing(.compact)
+        #endif
         .searchable(text: $settingsSearch, prompt: "Search settings")
         .sheet(isPresented: $showModelConfiguration) {
             ModelConfigurationSheet()
@@ -362,7 +396,9 @@ extension SettingsView {
 
     /// Private Cloud Compute's window for the Intelligence Mode card, or nil where this build or device can't use it.
     var cloudWindowForModeCard: String? {
-        guard DeviceCapabilities.pccRoutingCompiledIn, deviceCapabilities.supportsPrivateCloudCompute else { return nil }
+        guard DeviceCapabilities.pccRoutingCompiledIn, deviceCapabilities.supportsPrivateCloudCompute else {
+            return nil
+        }
         return pccWindowDescription
     }
 
@@ -372,12 +408,12 @@ extension SettingsView {
     /// where Foundation Models isn't available.
     var modelLanguageNames: [String]? {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *) {
-            let names = SystemLanguageModel.default.supportedLanguages.compactMap { language in
-                Locale.current.localizedString(forIdentifier: language.minimalIdentifier)
+            if #available(iOS 26.0, macOS 26.0, *) {
+                let names = SystemLanguageModel.default.supportedLanguages.compactMap { language in
+                    Locale.current.localizedString(forIdentifier: language.minimalIdentifier)
+                }
+                return Array(Set(names)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
             }
-            return Array(Set(names)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-        }
         #endif
         return nil
     }
@@ -403,6 +439,9 @@ extension SettingsView {
     /// icon goes above the text, and the two pills stack whenever they do not fit side by side
     /// (5.7): at the largest size each had about 130 points, and "PCC" and "Available" broke in
     /// the middle of the word.
+    ///
+    /// The pills became one quiet line of secondary text (2026-11-15, the owner asked for the page to look premium and
+    /// without colour), so the row reads like the Apple Account row: icon, name, status.
     private var heroSummaryRow: some View {
         let rowLayout =
             dynamicTypeSize.isAccessibilitySize
@@ -410,40 +449,41 @@ extension SettingsView {
             : AnyLayout(HStackLayout(spacing: DSSpacing.md))
         return rowLayout {
             Image(systemName: "brain.head.profile")
-                .font(.title2)
-                // Decorative and drawn in a 44-point circle, so it stops growing at the largest standard size.
+                .font(.title3)
+                // Decorative and drawn in a 40-point circle, so it stops growing at the largest standard size.
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(DSColors.accent)
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 40)
                 .background(DSColors.accent.opacity(0.12), in: Circle())
 
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("OpenIntelligence")
                     .font(.headline)
+                    .foregroundStyle(DSColors.primaryText)
+                    // One word, so at the largest accessibility size it shrank to fit instead of hyphenating as
+                    // "OpenIntelli-gence" (seen in the iOS 27 Simulator, 2026-11-15).
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 Text(statusText)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
-                    statusPills
-                }
-                .padding(.top, DSSpacing.xxs)
+                Text(routeSummary)
+                    .font(.footnote)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, DSSpacing.xs)
+        .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder
-    private var statusPills: some View {
-        statusPill(
-            icon: "checkmark.shield.fill",
-            text: "On-Device First",
-            active: true
-        )
+    /// What the two status pills said, as one line: "On-device first", and "PCC available" where it is.
+    private var routeSummary: String {
         if deviceCapabilities.supportsPrivateCloudCompute, settings.applePCCConsent != .denied {
-            statusPill(icon: "cloud.fill", text: "PCC Available", active: true)
+            return "On-device first · PCC available"
         }
+        return "On-device first"
     }
 
     private var trimmedSearch: String {
@@ -467,18 +507,27 @@ extension SettingsView {
         }
     }
 
+    // Rows sized like Settings.app's (2026-11-15, the owner: "clean it up, it doesnt need colorizing or anything but
+    // it does need to look premium"). Every icon is the accent in one weight and one column width, where each entry
+    // had its own tint, and the subtitle is a footnote held close under the title, so a row is about a system row's
+    // height instead of a tall rounded card. The subtitle still wraps rather than truncating, at every text size.
     @ViewBuilder
     private func settingsRow(_ entry: SettingsEntry) -> some View {
         Label {
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(entry.title)
+                    .font(.body)
+                    .foregroundStyle(DSColors.primaryText)
                 Text(entry.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         } icon: {
             Image(systemName: entry.icon)
-                .foregroundStyle(entry.tint)
+                .font(.body)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(DSColors.accent)
         }
         .accessibilityLabel(entry.title)
         .accessibilityHint(entry.subtitle)
@@ -494,15 +543,15 @@ extension SettingsView {
         case .intelligenceMode:
             detailScroll {
                 retrievalCard
-                #if DEBUG
-                    .onAppear {
-                        // The window the card was given to show (5.8 journal); the card moved here from Device &
-                        // Performance with the context window.
-                        VerificationJournal.record(
-                            "settings.contextWindow",
-                            ["tokens": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true))"])
-                    }
-                #endif
+                    #if DEBUG
+                        .onAppear {
+                            // The window the card was given to show (5.8 journal); the card moved here from Device &
+                            // Performance with the context window.
+                            VerificationJournal.record(
+                                "settings.contextWindow",
+                                ["tokens": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true))"])
+                        }
+                    #endif
             }
         case .appleIntelligence:
             detailScroll {
@@ -532,9 +581,9 @@ extension SettingsView {
             // `SettingsEntryID`, which is what makes adding an entry a compile error until
             // it has a destination.
             EmptyView()
-            .sheet(isPresented: $showModelConfiguration) {
-                ModelConfigurationSheet()
-            }
+                .sheet(isPresented: $showModelConfiguration) {
+                    ModelConfigurationSheet()
+                }
         case .developer:
             DeveloperDiagnosticsHubView(ragService: ragService)
         case .about:
@@ -578,4 +627,17 @@ extension SettingsView {
         #endif
     }
 
+}
+
+extension View {
+    /// Less padding above and below a Settings index row on iPhone and iPad (2026-11-15), so a row is close to a
+    /// Settings.app row's height; the side insets stay the system's. A Mac list row is already that compact.
+    @ViewBuilder
+    fileprivate func settingsIndexRowInsets() -> some View {
+        #if os(iOS)
+            listRowInsets(.vertical, 7)
+        #else
+            self
+        #endif
+    }
 }
