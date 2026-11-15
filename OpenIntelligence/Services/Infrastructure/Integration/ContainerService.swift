@@ -364,6 +364,12 @@ final class ContainerService: ObservableObject {
         }
     }
 
+    /// The saved libraries and the one last open, for a surface with no engine of its own: the Mac's menu bar
+    /// item lists them to ask one by name (5.8).
+    static func savedLibraries() -> (libraries: [KnowledgeContainer], openId: UUID?) {
+        (loadContainers(), UserDefaults.standard.string(forKey: "activeContainerId").flatMap(UUID.init(uuidString:)))
+    }
+
     private static func loadContainers() -> [KnowledgeContainer] {
         // Every write queued before this read lands first: the queue is serial, so an empty block
         // on it returns once they have. Without it, a reload right after a delete read the list

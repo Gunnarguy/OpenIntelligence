@@ -104,6 +104,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **Text in another script stays.** A Greek, Hebrew, Arabic, Cyrillic, Chinese, Japanese, Korean or Hindi line inside an English document was thrown away as scanning noise. It's kept.
 - **Spreadsheets, saved web pages and photos.** A CSV saved by Windows software, or one with a quote mark inside a value like a 55" screen, imports correctly. A saved .html file imports as readable text with its tables, not as raw markup. A portrait photo is read the right way up; it used to be read on its side.
 - **Libraries & iCloud says where your libraries are kept.** Settings › Libraries & iCloud replaces "Storage location" with a plain description of where your libraries live, with the technical details below it.
+- **The Mac's menu bar item asks any library.** It shows the app's own icon now, and with more than one library it has a picker, so you can ask a library by name without opening the app first.
 
 ### Plans
 

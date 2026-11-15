@@ -103,7 +103,7 @@ struct OpenIntelligenceApp: App {
         MenuBarExtra(isInserted: $showsMenuBarItem) {
             MenuBarAsk()
         } label: {
-            Image(systemName: "sparkle.magnifyingglass")
+            Image(nsImage: MenuBarAsk.icon)
                 .accessibilityLabel("OpenIntelligence")
         }
         .menuBarExtraStyle(.window)
