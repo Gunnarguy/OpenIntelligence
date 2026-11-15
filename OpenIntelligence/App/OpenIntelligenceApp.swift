@@ -82,6 +82,7 @@ struct OpenIntelligenceApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .macWithoutFocusRings()
         }
         .commands {
             OpenIntelligenceCommands()

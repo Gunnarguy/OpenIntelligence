@@ -131,6 +131,17 @@ extension View {
         #endif
     }
 
+    /// On a Mac, no focus ring on the app's controls (the owner, 2026-11-14). With Keyboard navigation on in
+    /// System Settings, macOS rings whichever button holds keyboard focus, and at launch the ring hopped from
+    /// button to button as the screen loaded. Tab still moves focus; only the ring is not drawn.
+    @ViewBuilder func macWithoutFocusRings() -> some View {
+        #if os(macOS)
+            focusEffectDisabled()
+        #else
+            self
+        #endif
+    }
+
     @ViewBuilder func iOSNavigationBarInline() -> some View {
         #if os(iOS)
             navigationBarTitleDisplayMode(.inline)
