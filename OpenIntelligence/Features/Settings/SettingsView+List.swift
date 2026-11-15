@@ -546,6 +546,9 @@ extension SettingsView {
 
     /// Shared chrome for a pushed detail screen, so every one of them scrolls, pads and
     /// tints the same way instead of each card carrying its own container.
+    /// The widest a Settings page's column gets, in points.
+    static let detailColumnWidth: CGFloat = 620
+
     @ViewBuilder
     private func detailScroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -553,6 +556,10 @@ extension SettingsView {
                 content()
             }
             .padding(DSSpacing.lg)
+            // A column no wider than a large phone's page, centred (5.8). On a Mac or an iPad the cards stretched to
+            // the window, which put a row's three chip dots a hand's width from the name they belong to; the
+            // iPhone's layout read better because it is narrow (the owner, 2026-11-14).
+            .frame(maxWidth: Self.detailColumnWidth)
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
