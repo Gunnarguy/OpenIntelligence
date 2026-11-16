@@ -2,7 +2,7 @@
 
 Updated: 2026-11-16
 Branch/worktree: `main`, primary checkout
-Last verified commit: adf95abb
+Last verified commit: 746085c2
 
 ## Objective
 
@@ -26,11 +26,18 @@ release with their closing condition written on them.
 | (no commit) | Read-only reviews of every Settings page and of published research on premium feel: `audit-run.log`, `premium-run.log` | $4.88 |
 | adf95abb | Ten fixes he chose: Developer row Debug-only, About facts, panel and PCC page agree, rating copy, panel text at Apple's minimum, Database empty state, privacy line up, success haptic, Annual first, Intelligence Mode titles wrap | $7.17 over two runs (the first stopped while he played a game) |
 
-Not done, his choice for later (5.9): the reorganisation group of the review (merge Notifications into Appearance and Apple
-Intelligence with Private Cloud Compute, route picker on the PCC page, Advanced sheet restyled, one technical-details
-switch, no cards inside cards). Also open: repeated bullets on the plan cards (asked, no answer yet); 8 to 10 pt text in
-the Compute Profile and Intelligence Mode lists below their panels.
-Seen only in the iOS 27 Simulator: all of the above. Not seen: the Mac, dark mode, large text, the haptic, a Release build.
+Overnight 2026-11-16, four org-credit jobs in sequence (`night-*.md` briefs and `night-*.log` reports in the session
+scratchpad, about $68 in all):
+
+| Job | Commits | What |
+|---|---|---|
+| A | b7caf016, 9e4dc8c5 | Chat-context follow-ups to e5b26f86: every refusal kind stays out of later prompts; Siri's hand-off answer kept (edits `ChatMessage.swift` under the standing approval, test written first); a deleted library's memory file removed; Standard golden 34 of 35 unchanged. Notion row 41a49a74d54f8104a826d25ee6e6cc8b |
+| B | 614ae4fa, 7c8218a3 | The type and card spec through Documents, Library Settings (12 screens to 6, developer rows behind Technical Details), sheets, Atlas, Chat chrome (bubbles untouched); no text under 11 pt there |
+| C | fa81bf58 | Settings reorganised: General (Appearance plus Notifications), Model & Privacy (with the answer-route picker), Advanced as cards, one technical switch (old Plain English value not carried over, on purpose), no nested cards, Siri & Shortcuts one card, About trimmed |
+| D | 746085c2 | Database sections each say what they are for; Maintenance opens on index health and recommends a repair only when a check finds a reason; Optimize renamed Reclaim Unused Space; Search tips corrected |
+
+Screenshots: `/private/tmp/oi-premium-after/`, `/private/tmp/oi-reorg-after/`, `/private/tmp/oi-database-after/`. All seen only in
+the iOS 27 Simulator. Open: the colour and icon pickers (job B skipped them); the repeated plan-card bullets (asked, no answer).
 
 ## Status
 
