@@ -23,6 +23,18 @@ struct SettingsStatusPanel: View {
         var id: String { name }
     }
 
+    /// Apple's smallest legible text size (Human Interface Guidelines, Typography, read 2026-11-15): 11 points on
+    /// iPhone and iPad, 10 on the Mac. Before 5.8 the panels drew captions at 8 and names at 9, and a
+    /// `minimumScaleFactor` could shrink a figure to 7; no text in a panel goes below this now.
+    #if os(macOS)
+        static let minimumTextSize: CGFloat = 10
+    #else
+        static let minimumTextSize: CGFloat = 11
+    #endif
+
+    /// The scale factor that keeps text drawn at `size` from shrinking below `minimumTextSize`.
+    static func floorScale(for size: CGFloat) -> CGFloat { min(1, minimumTextSize / size) }
+
     let symbol: String
     let title: String
     let badge: String
@@ -36,11 +48,12 @@ struct SettingsStatusPanel: View {
                     .scaledFont(size: 11, weight: .semibold)
                 Text(title)
                     .scaledFont(size: 12, weight: .bold, design: .monospaced)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .lineLimit(2)
+                    .minimumScaleFactor(Self.floorScale(for: 12))
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Text(badge.uppercased())
-                    .scaledFont(size: 10, weight: .heavy, design: .monospaced)
+                    .scaledFont(size: Self.minimumTextSize, weight: .heavy, design: .monospaced)
                     .foregroundStyle(badgeColor)
             }
             .foregroundStyle(Color.white.opacity(0.85))
@@ -89,15 +102,17 @@ struct SettingsStatusPanel: View {
                 // One height for every symbol, so two blocks' lines sit level whatever their symbols' shapes.
                 .frame(height: 14)
             Text(block.name)
-                .scaledFont(size: 9, weight: .bold)
+                .scaledFont(size: Self.minimumTextSize, weight: .bold)
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+            // A figure too wide for a quarter of a phone wraps to a second line rather than shrinking below the minimum.
             Text(block.figure)
                 .scaledFont(size: 12, weight: .heavy, design: .monospaced)
                 .foregroundStyle(Color.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(Self.floorScale(for: 12))
+                .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.numericText())
             // The bar: the lit part is the share.
             Capsule()
@@ -112,10 +127,11 @@ struct SettingsStatusPanel: View {
                 }
                 .padding(.horizontal, DSSpacing.xs)
             Text(block.caption)
-                .scaledFont(size: 8, weight: .semibold, design: .monospaced)
+                .scaledFont(size: Self.minimumTextSize, weight: .semibold, design: .monospaced)
                 .foregroundStyle(Color.white.opacity(0.85))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DSSpacing.xxs + 1)

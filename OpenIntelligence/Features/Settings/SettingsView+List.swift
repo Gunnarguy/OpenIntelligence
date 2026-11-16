@@ -74,7 +74,17 @@ extension SettingsView {
         let icon: String
         let keywords: [String]
 
-        static let all: [SettingsEntry] = [
+        /// Every entry a customer sees. Developer & Diagnostics is in Debug builds only (5.8): it showed every
+        /// customer lines such as "PCC Entitlement Missing" from the release build's diagnostics hub.
+        static let all: [SettingsEntry] = everyEntry.filter { entry in
+            #if DEBUG
+                return true
+            #else
+                return entry.id != .developer
+            #endif
+        }
+
+        private static let everyEntry: [SettingsEntry] = [
             // First row of the first group on purpose. This answers the questions a user
             // has before they have opinions about retrieval depth, and burying it under
             // About would defeat the reason it exists.
@@ -473,7 +483,10 @@ extension SettingsView {
         let libraries = SettingsStatusPanel.used(containerService.countedLibraryCount, of: entitlementStore.libraryLimit)
         let mode = settings.ragQualityMode.canonical
         // "Ready" only once the person has allowed it; available but not yet allowed reads "available", as the pill did.
-        let pccAvailable = deviceCapabilities.supportsPrivateCloudCompute && settings.applePCCConsent != .denied
+        // The same live source the Private Cloud Compute page reads (5.8): the panel said "PCC available" above a page
+        // saying Unavailable, because `supportsPrivateCloudCompute` is only "compiled in and iOS or macOS 27".
+        let pccLive = pccCapability?.pccAvailable ?? deviceCapabilities.supportsPrivateCloudCompute
+        let pccAvailable = pccLive && settings.applePCCConsent != .denied
         let pccAllowed = pccAvailable && settings.applePCCConsent == .allowed
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             SettingsStatusPanel(

@@ -125,16 +125,16 @@ extension DatabaseDashboardView {
                     figure: words.map { formatLargeNumber($0) } ?? "…", share: scoped ? wordShare : nil,
                     caption: scoped ? "in \(scopeLabel)" : "all libraries"),
                 .init(
-                    symbol: "internaldrive", name: "Size", color: .green,
+                    symbol: "internaldrive", name: "On disk", color: .green,
                     figure: stats.map { formatBytes($0.databaseSizeBytes) } ?? "…", share: nil,
-                    caption: "on disk, all"),
+                    caption: "all libraries"),
                 .init(
                     symbol: "list.bullet", name: "Terms", color: .orange,
                     // "…" while the second load runs (it sets `deepDiagnostics` after the index info), "—" if it ended
                     // without a figure, so the block never looks as if it is loading for good.
                     figure: indexInfo.map { formatLargeNumber($0.uniqueTerms) } ?? (deepDiagnostics == nil ? "…" : "—"),
                     share: nil,
-                    caption: "unique, all"),
+                    caption: "unique, all libraries"),
             ]
         )
     }

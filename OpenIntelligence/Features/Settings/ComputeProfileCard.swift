@@ -274,7 +274,7 @@ struct ComputeProfileCard: View {
                     .scaledFont(size: 12, weight: .bold, design: .monospaced)
                 Spacer()
                 Text(profile.displayName.uppercased())
-                    .scaledFont(size: 10, weight: .heavy, design: .monospaced)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .heavy, design: .monospaced)
                     .foregroundStyle(
                         Self.color(for: profile) == .secondary ? Color.white.opacity(0.7) : Self.color(for: profile)
                     )
@@ -337,10 +337,11 @@ struct ComputeProfileCard: View {
                 .foregroundStyle(on ? Color.white : chip.color.opacity(0.35))
                 .symbolEffect(.bounce, value: count)
             Text(chip.name)
-                .scaledFont(size: 10, weight: .bold)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                 .foregroundStyle(on ? Color.white : Color.white.opacity(0.35))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             // One segment per job: lit for each job this chip may run.
             HStack(spacing: 2) {
                 ForEach(0..<current.count, id: \.self) { index in
@@ -351,7 +352,10 @@ struct ComputeProfileCard: View {
             }
             .padding(.horizontal, DSSpacing.xs)
             Text("\(count) of \(current.count) jobs")
-                .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(on ? Color.white.opacity(0.85) : Color.white.opacity(0.3))
                 .contentTransition(.numericText())
         }

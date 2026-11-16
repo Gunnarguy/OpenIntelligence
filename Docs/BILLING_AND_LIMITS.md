@@ -109,13 +109,23 @@ the Settings list's top panel, open the plans screen in one tap; the Plan & Usag
 (`PlanUsage`); opened from anywhere else the panel states the plan's limits. In order: the reason it opened (not from
 Settings), the panel, the launch sale as one caption line when `LaunchSale` confirms one, the three plan cards with
 their live prices, bullets and buy buttons, the "Free, Pro and Lifetime" table, then restore, manage subscription and
-redeem a code as links, the privacy label and store rating, the auto-renewal terms and the EULA and privacy links.
+redeem a code as links, the store rating (the privacy label moved under the panel the same day, below), the auto-renewal terms and the EULA and privacy links.
 Removed: the hero, the sale and social-proof banners, the "What you get" list (`PlanBenefits.highlights`), the
 three-slide carousel and the "Built for personal research" tip; the cards and the table said the same. The entry
 points that open the sheet elsewhere (limits, Maximum running out, watched folders, the sale banner, onboarding) are
 unchanged, each with its `PlanUpgradeEntryPoint`. On a Mac the Settings pages still present the sheet themselves
 (`detailScroll`), now for the upgrade buttons on Intelligence Mode and Libraries & iCloud.
 `[evidence_level: measured, iOS 27 Simulator screenshots; build_verified, macOS]`
+
+**Order, privacy line and the success haptic (2026-11-15).** The cards run Pro (Annual), Pro (Monthly), Lifetime
+(`planOptions`), so the one filled button, Annual's, is the first plan; until then Monthly came first. The line "App
+Store privacy label: Data Not Collected" sits directly under the "Your plan" panel as one caption, not in the footer;
+the store rating stays in the footer. A purchase that returns a transaction (`BillingService.purchase` is nil for
+pending and cancelled), and a restore that leaves a paid `effectiveTier`, add one to `completedPurchases`, which
+drives `.sensoryFeedback(.success, trigger:)` on the sheet: one haptic, with the panel's figures changing at the
+same moment. `EntitlementStore` is read, not changed. `[evidence_level: code_verified, confidence: exact,
+evidence_source: PlanUpgradeSheet.swift; order and privacy line measured in iOS 27 Simulator screenshots; the haptic
+was not felt, since the Simulator plays none and no purchase was made]`
 
 ### What each plan says against the others (5.5)
 

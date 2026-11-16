@@ -21,20 +21,26 @@ extension DatabaseDashboardView {
                 // were four cards with `.title` numbers under a panel that states three of them already. Scoped
                 // alongside the panel: leaving these reading whole-store totals underneath a scoped header would
                 // have moved the confusion down the page rather than fixed it.
-                DatabaseCard(icon: "chart.bar.doc.horizontal", title: "Contents", caption: scopeSubtitle) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
-                        FigureTile(
-                            title: "Documents", value: "\(scopedDocumentCount(stats))", icon: "doc.text.fill",
-                            color: .accentColor)
-                        FigureTile(
-                            title: "Characters", value: formatLargeNumber(scopedCharacterCount(stats)),
-                            icon: "character.cursor.ibeam", color: .accentColor)
-                        FigureTile(
-                            title: "Words", value: formatLargeNumber(scopedWordCount(stats)), icon: "text.word.spacing",
-                            color: .accentColor)
-                        FigureTile(
-                            title: "Size on disk, all", value: formatBytes(stats.databaseSizeBytes),
-                            icon: "internaldrive.fill", color: .accentColor)
+                // A library with no documents gets one card saying so, with the way to fill it (5.8). It showed
+                // three zero tiles beside a whole-database size, which read as a broken library.
+                if scopedDocumentCount(stats) == 0 {
+                    emptyScopeCard
+                } else {
+                    DatabaseCard(icon: "chart.bar.doc.horizontal", title: "Contents", caption: scopeSubtitle) {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
+                            FigureTile(
+                                title: "Documents", value: "\(scopedDocumentCount(stats))", icon: "doc.text.fill",
+                                color: .accentColor)
+                            FigureTile(
+                                title: "Characters", value: formatLargeNumber(scopedCharacterCount(stats)),
+                                icon: "character.cursor.ibeam", color: .accentColor)
+                            FigureTile(
+                                title: "Words", value: formatLargeNumber(scopedWordCount(stats)), icon: "text.word.spacing",
+                                color: .accentColor)
+                            FigureTile(
+                                title: "Size on disk, all libraries", value: formatBytes(stats.databaseSizeBytes),
+                                icon: "internaldrive.fill", color: .accentColor)
+                        }
                     }
                 }
 
@@ -85,6 +91,41 @@ extension DatabaseDashboardView {
             } else {
                 emptyDatabaseState
             }
+        }
+    }
+
+    /// The overview of a scope with no documents: what this tab shows, and Add Documents for that library (5.8).
+    /// "All Libraries" opens Add Documents for the active library, as the Documents tab would.
+    private var emptyScopeCard: some View {
+        let libraryId = scopedContainerId ?? containerService.activeContainerId
+        let libraryName = containerService.containers.first { $0.id == libraryId }?.name ?? "this library"
+        return SurfaceCard {
+            VStack(spacing: DSSpacing.sm) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.title2)
+                    .foregroundStyle(DSColors.secondaryText)
+                Text(scopedContainerId == nil ? "No documents yet" : "No documents in \(scopeLabel) yet")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                Text(
+                    "This tab shows the words the app has indexed for keyword search. Add a document and its words, characters and size appear here."
+                )
+                .font(.subheadline)
+                .foregroundStyle(DSColors.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    AppNavigationRequest.post(.library(libraryId))
+                    AppNavigationRequest.post(.addDocument)
+                } label: {
+                    Label("Add Documents to \(libraryName)", systemImage: "doc.badge.plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, DSSpacing.xs)
+                .accessibilityIdentifier("database.addDocuments")
+            }
+            .padding(.vertical, DSSpacing.lg)
+            .frame(maxWidth: .infinity)
         }
     }
 

@@ -32,10 +32,13 @@ struct PlanUpgradeSheet: View {
     @State private var isRefreshingProducts: Bool = false
     @State private var isRestoring = false
     @State private var showingRedeemCode = false
+    /// Counts purchases and restores that completed with a plan, for one success haptic each (5.8). Billing played
+    /// nothing; the haptic comes with the panel's figures changing, so it is never the only sign.
+    @State private var completedPurchases = 0
     /// The storefront's country, for a sale's regular price (5.7).
     @ObservedObject private var storefront = StorefrontTerritory.shared
 
-    /// Sorted top-to-bottom by level and billing period to match the release catalog.
+    /// Annual first, so the one filled button is the first plan (5.8); then Monthly, then Lifetime.
     /// The UI intentionally surfaces every SKU so we can spot missing App Store Connect
     /// configuration early (and avoid "only 3 products show up" surprises).
     ///
@@ -45,22 +48,22 @@ struct PlanUpgradeSheet: View {
     private let planOptions: [PlanTierOption] = [
         PlanTierOption(
             tier: .pro,
-            planName: "Pro (Monthly)",
-            product: .proMonthly,
-            tagline: "Maximum mode every day, billed monthly",
-            badgeText: "Month to month",
-            tint: .accentColor,
-            isFeatured: false,
-            features: PlanBenefits.pro
-        ),
-        PlanTierOption(
-            tier: .pro,
             planName: "Pro (Annual)",
             product: .proAnnual,
             tagline: "Maximum mode every day, one payment a year",
             badgeText: nil,
             tint: .accentColor,
             isFeatured: true,
+            features: PlanBenefits.pro
+        ),
+        PlanTierOption(
+            tier: .pro,
+            planName: "Pro (Monthly)",
+            product: .proMonthly,
+            tagline: "Maximum mode every day, billed monthly",
+            badgeText: "Month to month",
+            tint: .accentColor,
+            isFeatured: false,
             features: PlanBenefits.pro
         ),
         PlanTierOption(
@@ -120,6 +123,7 @@ struct PlanUpgradeSheet: View {
                 Text(alertMessage)
             }
         }
+        .sensoryFeedback(.success, trigger: completedPurchases)
         .task { await AppStoreRatingService.refreshIfStale() }
         .onAppear {
             TelemetryCenter.emitBillingEvent(
@@ -170,6 +174,11 @@ extension PlanUpgradeSheet {
                 badge: entitlementStore.effectiveTier.displayName,
                 badgeColor: entitlementStore.effectiveTier == .free ? Color.white.opacity(0.7) : .orange,
                 blocks: usageBlocks)
+            // Under the panel since 5.8, as one quiet line: for a privacy app it is the strongest reason to trust the
+            // purchase, and at the foot of the screen it was the last thing anyone read.
+            Label("App Store privacy label: Data Not Collected", systemImage: "hand.raised.fill")
+                .font(DSTypography.caption)
+                .foregroundStyle(DSColors.secondaryText)
             if entitlementStore.activeTier == .free, entitlementStore.isLegacyPaidProtected {
                 Text("Previous paid purchases on this Apple ID now unlock Lifetime access on this device.")
                     .font(DSTypography.caption)
@@ -316,8 +325,8 @@ extension PlanUpgradeSheet {
     }
 
     /// Restore, manage, redeem, the renewal terms and the two legal links, as quiet links at the end. App Review needs
-    /// each of them on the purchase screen, so none is gone, only smaller. The privacy label and the store rating, a
-    /// banner near the top until 2026-11-15, are a caption here.
+    /// each of them on the purchase screen, so none is gone, only smaller. The store rating, a banner near the top until
+    /// 2026-11-15, is a caption here; the privacy label moved under the plan panel the same day.
     fileprivate var storeLinks: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             VStack(alignment: .leading, spacing: DSSpacing.sm) { storeButtons }
@@ -325,7 +334,6 @@ extension PlanUpgradeSheet {
                 .buttonStyle(.borderless)
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Label("App Store privacy label: Data Not Collected", systemImage: "hand.raised.fill")
                 if let rating = AppStoreRatingService.cached(), rating.isWorthShowing {
                     Label {
                         Text(rating.line)
@@ -580,7 +588,7 @@ extension PlanUpgradeSheet {
                 await entitlementStore.billingService.refreshProducts()
 
                 do {
-                    _ = try await entitlementStore.billingService.purchase(product)
+                    if try await entitlementStore.billingService.purchase(product) != nil { completedPurchases += 1 }
                 } catch {
                     let baseMessage =
                         (error as? LocalizedError)?.errorDescription
@@ -625,7 +633,8 @@ extension PlanUpgradeSheet {
         Task {
             defer { purchasingProduct = nil }
             do {
-                _ = try await entitlementStore.billingService.purchase(product)
+                // A transaction only on success: nil is pending or cancelled, which earn no haptic.
+                if try await entitlementStore.billingService.purchase(product) != nil { completedPurchases += 1 }
             } catch {
                 alertMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
@@ -638,6 +647,8 @@ extension PlanUpgradeSheet {
         Task {
             defer { isRestoring = false }
             await entitlementStore.billingService.restorePurchases()
+            // A restore succeeded when it left a paid plan in place; one that found nothing plays nothing.
+            if entitlementStore.effectiveTier != .free { completedPurchases += 1 }
         }
     }
 

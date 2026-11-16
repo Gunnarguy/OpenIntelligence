@@ -254,11 +254,12 @@ struct IntelligenceModeCard: View {
                 // The same header as the Compute Profile's chip: the thing at work, then the step in its colour.
                 Text("\(modelName ?? "Apple's model") · \(windowDescription)")
                     .scaledFont(size: 12, weight: .bold, design: .monospaced)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .lineLimit(2)
+                    .minimumScaleFactor(SettingsStatusPanel.floorScale(for: 12))
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Text(mode.displayName.uppercased())
-                    .scaledFont(size: 10, weight: .heavy, design: .monospaced)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .heavy, design: .monospaced)
                     .foregroundStyle(tint)
                     .contentTransition(.interpolate)
             }
@@ -274,7 +275,7 @@ struct IntelligenceModeCard: View {
                             .foregroundStyle(Color.white)
                             .symbolEffect(.bounce, value: sweep)
                         Text(figure.title.capitalized)
-                            .scaledFont(size: 10, weight: .bold)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                             .foregroundStyle(Color.white)
                         HStack(spacing: 2) {
                             ForEach(0..<6, id: \.self) { index in
@@ -285,10 +286,11 @@ struct IntelligenceModeCard: View {
                         }
                         .padding(.horizontal, DSSpacing.xs)
                         Text(figure.value)
-                            .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                             .foregroundStyle(Color.white.opacity(0.9))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                             .contentTransition(.interpolate)
                     }
                     .frame(maxWidth: .infinity)
@@ -470,11 +472,13 @@ struct IntelligenceModeCard: View {
                             .scaledFont(size: 11)
                             .foregroundStyle(runsHere ? Color.primary : Color.secondary)
                             .frame(width: 16)
+                        // Two lines and one size (5.8): a single line cut long titles off ("Searches again if the
+                        // first find…") and its shrink-to-fit drew short titles larger than long ones.
                         Text(step.name)
                             .scaledFont(size: 12, weight: .semibold)
                             .foregroundStyle(runsHere ? Color.primary : Color.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         Image(systemName: "chevron.down")
                             .scaledFont(size: 8, weight: .bold)
                             .foregroundStyle(.tertiary)

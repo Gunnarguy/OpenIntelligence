@@ -284,7 +284,7 @@ extension SettingsView {
                         Text("Rate on the App Store")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
-                        Text("Love OpenIntelligence? Rate it 5 stars!")
+                        Text("A rating or review helps other people find the app")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

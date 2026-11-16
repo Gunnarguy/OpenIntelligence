@@ -40,6 +40,9 @@ struct AboutView: View {
     /// The privacy policy in the app (`PrivacyPolicyView`, 5.7). Its only way in, a button on the Plans
     /// screen, became a link to the website on 2026-05-28, and nothing opened it after that.
     @State private var showingPrivacyPolicy = false
+    /// Whether Private Cloud Compute is available, from the same live snapshot the Private Cloud Compute page reads
+    /// (5.8). Nil until it loads, when the compile-time check stands in, as on that page.
+    @State private var pccAvailable: Bool?
 
     /// Single source of truth for hardware identity. `deviceCapabilities` is still used
     /// for the OS version and the Apple Intelligence availability rows, both of which it
@@ -197,7 +200,7 @@ struct AboutView: View {
                                 title: "Foundation Models", condition: deviceCapabilities.supportsFoundationModels)
                             capabilityRow(
                                 title: "Private Cloud Compute",
-                                condition: deviceCapabilities.supportsPrivateCloudCompute)
+                                condition: pccAvailable ?? deviceCapabilities.supportsPrivateCloudCompute)
                             capabilityRow(title: "Writing Tools", condition: deviceCapabilities.supportsWritingTools)
                         }
                     }
@@ -227,10 +230,13 @@ struct AboutView: View {
                         VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             LabeledContent("RAG Pipeline", value: "Hybrid (Vector + BM25 → RRF)")
                             LabeledContent("Embeddings", value: embeddingDisplayName)
-                            LabeledContent("Vector Store", value: "Persistent JSON (exact k-NN)")
-                            LabeledContent("Minimum iOS", value: "18.0")
+                            // Corrected 2026-11-15 against the code: the store is `BNNSVectorDatabase`, raw vectors in
+                            // a memory-mapped file searched exhaustively on the GPU or CPU (not JSON); the app's
+                            // deployment target is iOS 26.0 and macOS 26.0 (was "18.0"); Private Cloud Compute needs 27.
+                            LabeledContent("Vector Store", value: "Memory-mapped file (exact search)")
+                            LabeledContent("Requires", value: "iOS 26 or macOS 26")
                                 .monospacedDigit()
-                            LabeledContent("Optimized for", value: "iOS 26.0+")
+                            LabeledContent("Private Cloud Compute", value: "iOS 27 or macOS 27")
                                 .monospacedDigit()
                         }
                         .font(.subheadline)
@@ -345,6 +351,13 @@ struct AboutView: View {
         }
         .sheet(isPresented: $showingPrivacyPolicy) {
             PrivacyPolicyView()
+        }
+        .task {
+            #if canImport(FoundationModels)
+                if #available(iOS 26.0, macOS 26.0, *) {
+                    pccAvailable = await LiveFoundationModelCapabilityProvider().snapshot().pccAvailable
+                }
+            #endif
         }
     }
 
