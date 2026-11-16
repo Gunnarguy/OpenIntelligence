@@ -234,6 +234,10 @@ final class ContainerService: ObservableObject {
         // The analysis and the vocabulary kept on disk for the library hold previews and
         // snippets of its documents.
         LibraryIntelligenceCache.remove(containerId: id)
+        // Its conversation memory holds its questions and answers, and stayed on the device through 5.8's first builds.
+        if #available(iOS 26.0, *) {
+            ConversationMemoryService.shared.removeMemory(for: id)
+        }
 
         // Optionally, clean up per-container files (documents + vectors)
         // Leave files in place for safety unless we add a confirmed destructive action elsewhere.

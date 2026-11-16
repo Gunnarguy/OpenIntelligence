@@ -290,7 +290,8 @@ final class AgenticOrchestrator: Sendable {
                 totalDuration: Date().timeIntervalSince(startTime),
                 confidence: 0.0,  // Honest: we found nothing
                 sourcesUsed: 0,
-                retrievedChunks: []
+                retrievedChunks: [],
+                refused: true
             )
         }
 

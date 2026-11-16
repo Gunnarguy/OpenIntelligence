@@ -901,6 +901,10 @@ extension RAGService {
                     agenticWarnings.append("May not fully answer the question: \(judgment.missing)")
                 }
             }
+            // A refusal no gate recorded (5.8, 2026-11-16): the not-found exit, the planner's abstention, or the model
+            // refusing in its own words. It never goes back into a prompt or the query rewriter.
+            gatingDecision = Self.markingUngatedRefusal(
+                gatingDecision, answer: displayResponseText, cutOffByGuardrail: false, refused: result.refused)
             // Fact Check for the claims the answer lists (5.8, 2026-11-07), after the displayed text is fixed so the
             // answer the user reads is unchanged. Only where the gates ran: the source-only check builds its own.
             if ranAgenticGates {

@@ -194,7 +194,7 @@ struct FoundationModelErrorMapper {
             TelemetryCenter.emit(.system, severity: .warning, title: "Guardrail violation", metadata: [:])
             if isStructured {
                 return .throwError(LLMError.generationFailed(
-                    "Structured answer was filtered by Apple Intelligence guardrails."
+                    ModelErrorClassifier.structuredGuardrailMessage
                 ))
             }
             return .setFlags(guardrailViolation: true, unsupportedLanguage: false)
@@ -202,7 +202,7 @@ struct FoundationModelErrorMapper {
         case let .refusal(context):
             Log.warning("[FM] Model refused: \(context.debugDescription)", category: .llm)
             return .throwError(LLMError.generationFailed(
-                "Apple Intelligence declined this request. Try rephrasing your question."
+                ModelErrorClassifier.declinedMessage
             ))
 
         case let .unsupportedLanguageOrLocale(context):
@@ -263,7 +263,7 @@ struct FoundationModelErrorMapper {
                 return .throwError(error)
             case let .guardrailViolation(context):
                 Log.warning("[FM] Structured guardrail violation: \(context)", category: .llm)
-                return .throwError(LLMError.generationFailed("Structured answer was filtered by Apple Intelligence guardrails."))
+                return .throwError(LLMError.generationFailed(ModelErrorClassifier.structuredGuardrailMessage))
             case let .unsupportedLanguageOrLocale(context):
                 Log.warning("[FM] Structured unsupported language/locale: \(context)", category: .llm)
                 return .throwError(LLMError.generationFailed("Apple Intelligence does not support the current language/locale for structured generation."))
@@ -320,7 +320,7 @@ struct FoundationModelErrorMapper {
             case let .refusal(refusal, context):
                 Log.warning("[FM] Model refused request: \(refusal) - \(context)", category: .llm)
                 return .throwError(LLMError.generationFailed(
-                    "Apple Intelligence declined this request. Try rephrasing your question."
+                    ModelErrorClassifier.declinedMessage
                 ))
             case let .assetsUnavailable(context):
                 Log.error("[FM] Model assets unavailable: \(context)", category: .llm)

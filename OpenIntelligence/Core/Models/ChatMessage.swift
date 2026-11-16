@@ -45,6 +45,11 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     var userReportReason: String? = nil
     var userReportNotes: String? = nil
 
+    /// An answer Siri showed and handed to the chat (Ask a Follow-up, 5.8). It has neither an answer's metadata nor a
+    /// structured answer, like a failure message the app writes, and is kept apart from one so the next question still
+    /// sees it (`ConversationContextRules.isErrorMessage`). False in files saved before it.
+    var handedOff: Bool = false
+
     nonisolated init(
         id: UUID = UUID(),
         role: Role,
@@ -61,7 +66,8 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         isHidden: Bool = false,
         userReportedAt: Date? = nil,
         userReportReason: String? = nil,
-        userReportNotes: String? = nil
+        userReportNotes: String? = nil,
+        handedOff: Bool = false
     ) {
         self.id = id
         self.role = role
@@ -79,6 +85,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         self.userReportedAt = userReportedAt
         self.userReportReason = userReportReason
         self.userReportNotes = userReportNotes
+        self.handedOff = handedOff
     }
 
     enum Role: String, Codable, Sendable {
@@ -90,7 +97,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     // Exclude pipelineTrace from persistence — it's in-memory debugging data only
     enum CodingKeys: String, CodingKey {
         case id, role, content, timestamp, metadata, retrievedChunks, structuredAnswer, containerId
-        case isHidden, userReportedAt, userReportReason, userReportNotes
+        case isHidden, userReportedAt, userReportReason, userReportNotes, handedOff
         // pipelineTrace intentionally excluded
     }
 
@@ -111,6 +118,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         userReportedAt = try container.decodeIfPresent(Date.self, forKey: .userReportedAt)
         userReportReason = try container.decodeIfPresent(String.self, forKey: .userReportReason)
         userReportNotes = try container.decodeIfPresent(String.self, forKey: .userReportNotes)
+        handedOff = try container.decodeIfPresent(Bool.self, forKey: .handedOff) ?? false
     }
 
     nonisolated func sanitizedForPersistence() -> ChatMessage {
@@ -127,7 +135,8 @@ struct ChatMessage: Identifiable, Codable, Sendable {
             isHidden: isHidden,
             userReportedAt: userReportedAt,
             userReportReason: userReportReason,
-            userReportNotes: userReportNotes
+            userReportNotes: userReportNotes,
+            handedOff: handedOff
         )
     }
 

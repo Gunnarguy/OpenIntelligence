@@ -72,6 +72,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **No totals the documents don't state.** Asked how many participants received a treatment across several studies, an answer could open with a total it added up itself, and add it wrong. Now it gives each study's number as the document writes it, with its citation, and a headline number that no passage states is taken off.
 - **A cleaner answer bar.** The session badge no longer sits on top of "Thinking", a finished Maximum answer shows one confidence figure, not two, and the line that says what the app is doing reads as plain words, without dashes or token counts.
 - **A follow-up answers the question you just asked.** In a longer conversation the answer check could judge, and then rewrite, the answer against an earlier question. It reads the one you asked.
+- **An answer that found nothing no longer steers the next one.** When an answer says your documents don't cover something, in any mode, the next question in that chat doesn't build on it, including when Apple's model said so in its own words. A follow-up to an answer Siri gave you keeps that answer, with conversation memory on or off.
 - **A paper's own reference numbers stay out of your answer.** When a passage held citations like [3] or [124], an answer could copy them, and [3] then looked like a link to source 3. They're removed, and a bare [2] the model writes for a source becomes a working [S2].
 - **"Getting search ready" says which step it's on.** It shows Step 1 of 2 or Step 2 of 2 with the seconds so far, where it used to sit near the end and then finish.
 
@@ -106,6 +107,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **Spreadsheets, saved web pages and photos.** A CSV saved by Windows software, or one with a quote mark inside a value like a 55" screen, imports correctly. A saved .html file imports as readable text with its tables, not as raw markup. A portrait photo is read the right way up; it used to be read on its side.
 - **Libraries & iCloud says where your libraries are kept.** Settings › Libraries & iCloud replaces "Storage location" with a plain description of where your libraries live, with the technical details below it.
 - **The Mac's menu bar item asks any library.** It shows the app's own icon now, and with more than one library it has a picker, so you can ask a library by name without opening the app first.
+- **Deleting a library deletes what the app remembered of its conversations.** The questions and answers kept for a library's conversation memory stayed on your device after the library was deleted. They go with it now.
 
 ### Plans
 

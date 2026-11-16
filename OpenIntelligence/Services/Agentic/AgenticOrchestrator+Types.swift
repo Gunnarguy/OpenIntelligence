@@ -159,6 +159,9 @@ struct AgenticResult: Sendable {
     let sourcesUsed: Int
     /// All chunks retrieved across tool calls (for UnifiedMetricsBar)
     let retrievedChunks: [RetrievedChunk]
+    /// The run ended on a refusal it wrote itself (5.8): the not-found exit when the passages do not match the
+    /// question. The answer is marked as a refusal (`RAGService.markingUngatedRefusal`) and never goes back into a prompt.
+    var refused: Bool = false
 
     /// Compressed summary of the reasoning chain (for UI display)
     var reasoningSummary: String {

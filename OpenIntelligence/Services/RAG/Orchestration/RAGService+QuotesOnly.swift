@@ -12,6 +12,13 @@ extension RAGService {
     nonisolated static let quotesOnlyClosing =
         "These are your documents' own words. In Quotes only, no model writes or rewrites anything."
 
+    /// The gating decision of an answer of excerpts alone, Quotes only's or the fallback's when the model cannot run:
+    /// `excerpts_only`, since no model wrote it and no check ran, so it reads Not Checked. With no excerpt it answers
+    /// nothing, so it is also a refusal and never goes back into a prompt (5.8, `ConversationContextRules`).
+    nonisolated static func excerptsGatingDecision(excerptCount: Int) -> String {
+        excerptCount == 0 ? ConversationContextRules.markingRefusal("excerpts_only") : "excerpts_only"
+    }
+
     /// Whether the person picked Quotes only. Through 5.7 the mode was answered by Apple's model under the normal
     /// route, though Settings said no model writes and it never leaves the device (roadmap row
     /// `40049a74d54f811ea077ef82be46545e`). The pipeline reads this to skip every model step: query rewriting, HyDE,
@@ -56,7 +63,7 @@ extension RAGService {
             modelUsed: "Quotes only",
             retrievalTime: retrievalTime,
             retrievalConfigSummary: retrievalConfig.summary,
-            gatingDecision: "excerpts_only",
+            gatingDecision: Self.excerptsGatingDecision(excerptCount: bullets.count),
             toolCallsMade: 0,
             embeddingProvider: embeddingProviderId
         )

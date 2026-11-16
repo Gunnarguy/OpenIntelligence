@@ -42,6 +42,14 @@ nonisolated enum ModelErrorClassifier {
     static let unparsedResponseMessage = "Apple Intelligence returned a response that could not be parsed."
     static let legacyDecodeFailureMessage =
         "Failed to decode model response. This is an internal error—please try again."
+    /// What `AppleFoundationLLMService` throws when Apple's guardrail stopped a streamed answer. `kind(of:)` reads it
+    /// back as `contentFiltered` (5.8): it read `other`, so a partial answer the guardrail cut off was kept as an answer.
+    static let guardrailMessage =
+        "Apple's safety guardrails prevented this response. Please rephrase your question to avoid sensitive topics."
+    /// What `FoundationModelErrorMapper` throws when the guardrail filters a structured answer, and when the model
+    /// refuses. Both read as `contentFiltered` too (5.8).
+    static let structuredGuardrailMessage = "Structured answer was filtered by Apple Intelligence guardrails."
+    static let declinedMessage = "Apple Intelligence declined this request. Try rephrasing your question."
 
     static func kind(of error: Error) -> Kind {
         if let known = typedKind(of: error) { return known }
@@ -66,6 +74,9 @@ nonisolated enum ModelErrorClassifier {
                 return .rateLimited
             case .generationFailed(let message):
                 let unreadable = [emptyResponseMessage, unparsedResponseMessage, legacyDecodeFailureMessage]
+                if [guardrailMessage, structuredGuardrailMessage, declinedMessage].contains(message) {
+                    return .contentFiltered
+                }
                 // Any other message may be another error's text passed along, so the phrases decide.
                 return unreadable.contains(message) ? .transient : nil
             case .modelUnavailable, .notImplemented:

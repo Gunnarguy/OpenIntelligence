@@ -12,6 +12,15 @@ import os
 
 extension RAGService {
 
+    /// What the model router answers when its planner abstains (evidence not sufficient). A refusal
+    /// (`markingUngatedRefusal`, 5.8), so it never goes back into a prompt.
+    nonisolated static let plannerAbstention = """
+        I couldn't find enough supporting evidence in this library to answer that reliably.
+
+        Rather than guess, I'm stopping here. You could try rephrasing the question, \
+        selecting a different library, or adding a document that covers it.
+        """
+
     /// Execute a light reasoning chain for Standard mode
     /// Uses 3 sessions × 4096 = 12K+ effective tokens (vs single 4K)
     ///
@@ -84,7 +93,9 @@ extension RAGService {
 
     /// Generate with a fresh session (no accumulated context)
     /// Used by AgenticOrchestrator for each thinking step
-    func generateWithFreshSession(prompt: String, maxTokens: Int, skipContinuation: Bool = false) async throws -> LLMResponse {
+    func generateWithFreshSession(
+        prompt: String, maxTokens: Int, skipContinuation: Bool = false
+    ) async throws -> LLMResponse {
         try Task.checkCancellation()
         #if canImport(FoundationModels)
             // Create a temporary AppleFoundationLLMService for isolated generation
@@ -292,8 +303,10 @@ extension RAGService {
             // evidence carried none.
             VerificationJournal.record(
                 "agentic.cloudStep",
-                ["evidence": hasRenderedEvidence ? "rendered" : "envelope", "contextChars": "\(routedContext.count)",
-                    "passages": "\(routedSourceChunks.count)", "budget": "\(maximumCloudCharacters)"])
+                [
+                    "evidence": hasRenderedEvidence ? "rendered" : "envelope", "contextChars": "\(routedContext.count)",
+                    "passages": "\(routedSourceChunks.count)", "budget": "\(maximumCloudCharacters)",
+                ])
             do {
                 try await ensureConsentForDeepThink(
                     service: llmService,
@@ -347,14 +360,8 @@ extension RAGService {
                     + "returning grounded abstention instead of an availability error",
                 category: .llm
             )
-            let abstention = """
-                I couldn't find enough supporting evidence in this library to answer that reliably.
-
-                Rather than guess, I'm stopping here. You could try rephrasing the question, \
-                selecting a different library, or adding a document that covers it.
-                """
             return LLMResponse(
-                text: abstention,
+                text: Self.plannerAbstention,
                 tokensGenerated: 0,
                 timeToFirstToken: 0,
                 totalTime: 0,

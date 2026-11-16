@@ -294,7 +294,7 @@ struct MessageBubbleV2: View {
                         }
 
                         // Verification gate inline badge
-                        if let decision = meta.gatingDecision {
+                        if let decision = ConversationContextRules.shownGatingDecision(meta.gatingDecision) {
                             VerificationBadge(gatingDecision: decision, claims: message.structuredAnswer?.claims ?? [])
                                 .tour(.verdictBadge, in: Tour.chat, when: isLatestAnswer)
                         }

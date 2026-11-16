@@ -895,10 +895,7 @@ import os
 
             // Handle generation errors with user-friendly messages
             if guardrailViolation {
-                throw LLMError.generationFailed(
-                    "Apple's safety guardrails prevented this response. "
-                        + "Please rephrase your question to avoid sensitive topics."
-                )
+                throw LLMError.generationFailed(ModelErrorClassifier.guardrailMessage)
             }
 
             if unsupportedLanguage {

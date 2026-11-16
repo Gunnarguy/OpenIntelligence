@@ -922,6 +922,21 @@ extension RAGService {
         )
     }
 
+    /// `gatingDecision` marked as a refusal (`ConversationContextRules.refusedToken`) when the answer refuses and no
+    /// gate recorded it (5.8, 2026-11-16): Standard's not-found text, the planner's abstention, a guardrail that cut the
+    /// answer off, or the model refusing in its own words. Through 5.8's first builds these went back into the next
+    /// prompts and the query rewriter as answers. Unchanged otherwise; Standard and Deep Think both call it.
+    nonisolated static func markingUngatedRefusal(
+        _ gatingDecision: String?, answer: String, cutOffByGuardrail: Bool, refused: Bool = false
+    ) -> String? {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let refuses =
+            refused || cutOffByGuardrail || trimmed == notFoundAnswer
+            || trimmed == plannerAbstention.trimmingCharacters(in: .whitespacesAndNewlines)
+            || ConversationContextRules.refusesInItsOwnWords(trimmed)
+        return refuses ? ConversationContextRules.markingRefusal(gatingDecision) : gatingDecision
+    }
+
     /// Step 9 (gating): builds the gating summary, final warnings and the structured answer.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
     func summarizeGatingAndWarnings(

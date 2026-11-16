@@ -126,7 +126,9 @@ extension RAGService {
         if let value = extractedValue {
             extractedJudgment = await judgeResponsiveness(question: question, answer: value, stage: "extracted")
             if extractedJudgment?.verdict == AnswerResponsiveness.none {
-                Log.info("[Responsiveness] The extracted value does not answer the question; using the passages instead", category: .llm)
+                Log.info(
+                    "[Responsiveness] The extracted value does not answer the question; using the passages instead",
+                    category: .llm)
                 extractedValue = nil
             }
         }
@@ -359,9 +361,11 @@ extension RAGService {
                 for: capabilities.foundationModelUnavailability, isAvailable: capabilities.supportsFoundationModels)
             VerificationJournal.record(
                 "answer.excerpts",
-                ["modelAvailable": "\(capabilities.supportsFoundationModels)",
+                [
+                    "modelAvailable": "\(capabilities.supportsFoundationModels)",
                     "reason": capabilities.foundationModelUnavailability.map { "\($0)" } ?? "none",
-                    "bullets": "\(snippetBullets.count)", "markup": "\(Self.excerptMarkupCount(snippetBullets))"])
+                    "bullets": "\(snippetBullets.count)", "markup": "\(Self.excerptMarkupCount(snippetBullets))",
+                ])
             responseText = """
                 Here are the most relevant excerpts from your documents:
 
@@ -381,8 +385,8 @@ extension RAGService {
             retrievalConfigSummary: retrievalConfig.summary,
             // An answer of excerpts alone: no model wrote it and no check ran, so it reads Not
             // Checked. Through 5.6 it carried "reliability_fallback", which reads Partially Verified,
-            // the label of a best-effort answer that was checked (5.7).
-            gatingDecision: "excerpts_only",
+            // the label of a best-effort answer that was checked (5.7). With no excerpts, a refusal too (5.8).
+            gatingDecision: Self.excerptsGatingDecision(excerptCount: snippetBullets.count),
             toolCallsMade: 0,
             embeddingProvider: embeddingProviderId
         )
@@ -1665,7 +1669,8 @@ extension RAGService {
                             modelName: service.modelName,
                             toolCallsMade: 0,
                             executionReceipt: partialReceipt,
-                            streamCutOff: true
+                            streamCutOff: true,
+                            cutOffByGuardrail: ModelErrorClassifier.kind(of: error) == .contentFiltered
                         )
                     }
                     throw error
@@ -1760,7 +1765,10 @@ extension RAGService {
                         modelName: localResponse.modelName,
                         toolCallsMade: localResponse.toolCallsMade,
                         structuredRAGGeneration: localResponse.structuredRAGGeneration,
-                        executionReceipt: receipt
+                        executionReceipt: receipt,
+                        // A cut-off local answer stays marked as one (5.8): the rebuild dropped both.
+                        streamCutOff: localResponse.streamCutOff,
+                        cutOffByGuardrail: localResponse.cutOffByGuardrail
                     )
                 } catch let fallbackError {
                     Log.warning(
@@ -1784,9 +1792,11 @@ extension RAGService {
             let isRateLimited = primaryFailureKind == .rateLimited || primaryFailureKind == .transient
             VerificationJournal.record(
                 "model.failure",
-                ["kind": "\(primaryFailureKind)", "mode": "standard",
+                [
+                    "kind": "\(primaryFailureKind)", "mode": "standard",
                     "action": primaryFailureKind == .rateLimited
-                        ? "backoffLadder" : primaryFailureKind == .transient ? "retrySamePrompt" : "fallback"])
+                        ? "backoffLadder" : primaryFailureKind == .transient ? "retrySamePrompt" : "fallback",
+                ])
             if isRateLimited {
                 // Escalating backoff, because a flat one did not work.
                 //
@@ -1829,7 +1839,8 @@ extension RAGService {
                             "[RAG] Waited \(String(format: "%.0f", waited))s for the app to come back before retry \(index + 1)",
                             category: .llm)
                         VerificationJournal.record(
-                            "model.waitedForFront", ["seconds": String(format: "%.0f", waited), "retry": "\(index + 1)"])
+                            "model.waitedForFront",
+                            ["seconds": String(format: "%.0f", waited), "retry": "\(index + 1)"])
                     }
                     if Task.isCancelled { throw CancellationError() }
                     do {

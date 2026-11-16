@@ -45,6 +45,21 @@ final class ReleaseFinishTests: XCTestCase {
             question: "What is the pet policy?", passages: [], queryId: UUID(), retrievalTime: 0,
             retrievalConfig: .default, embeddingProviderId: "test")
         XCTAssertTrue(response.generatedResponse.hasPrefix("I couldn't find words in your documents"))
+        // A refusal, so it never goes back into a prompt (2026-11-16); the badge still reads Not Checked.
+        XCTAssertTrue(
+            ConversationContextRules.isRefusal(
+                structuredAnswer: response.structuredAnswer, gatingDecision: response.metadata.gatingDecision))
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: response.metadata.gatingDecision), .notChecked)
+    }
+
+    func testAnAnswerOfExcerptsIsARefusalOnlyWithNoExcerpt() {
+        XCTAssertEqual(RAGService.excerptsGatingDecision(excerptCount: 3), "excerpts_only")
+        XCTAssertFalse(
+            ConversationContextRules.isRefusal(
+                structuredAnswer: nil, gatingDecision: RAGService.excerptsGatingDecision(excerptCount: 3)))
+        XCTAssertTrue(
+            ConversationContextRules.isRefusal(
+                structuredAnswer: nil, gatingDecision: RAGService.excerptsGatingDecision(excerptCount: 0)))
     }
 
     // MARK: A lost answer is asked again once

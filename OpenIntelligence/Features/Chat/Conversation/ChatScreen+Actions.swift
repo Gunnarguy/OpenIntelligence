@@ -259,11 +259,7 @@ extension ChatScreen {
                 return
             }
             if !messages.isEmpty, !newChat() { return }
-            let now = Date()
-            messages = [
-                ChatMessage(role: .user, content: question, timestamp: now),
-                ChatMessage(role: .assistant, content: answer, timestamp: now),
-            ]
+            messages = ConversationContextRules.handOffMessages(question: question, answer: answer)
             let library = ragService.containerService.activeContainerId
             persistChatHistory(for: library)
             // The engine records each answer in the library's conversation memory, and Siri's
@@ -276,7 +272,8 @@ extension ChatScreen {
                 if latest?.userQuery.trimmingCharacters(in: .whitespacesAndNewlines) != asked {
                     Task {
                         await ConversationMemoryService.shared.addTurn(
-                            userQuery: question, assistantResponse: answer, for: library)
+                            userQuery: question, assistantResponse: answer,
+                            refused: ConversationContextRules.refusesInItsOwnWords(answer), for: library)
                     }
                 }
             }

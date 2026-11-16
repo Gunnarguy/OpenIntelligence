@@ -228,6 +228,10 @@ struct LLMResponse {
     /// whole text (Deep Think's synthesis) must not take it as finished: on the owner's iPhone on 2026-11-10 a synthesis
     /// cut off at 37 tokens when iOS took back the background time was saved as the answer, ending at "or **dementia".
     let streamCutOff: Bool
+    /// True when what cut the stream off was Apple's guardrail (`ModelErrorClassifier.Kind.contentFiltered`, 5.8): the
+    /// text is the start of an answer the model was stopped from giving, so it is a refusal and never goes back into a
+    /// prompt (`ConversationContextRules`).
+    let cutOffByGuardrail: Bool
 
     init(
         text: String,
@@ -239,9 +243,11 @@ struct LLMResponse {
         structuredRAGGeneration: StructuredRAGGeneration? = nil,
         executionReceipt: ModelExecutionReceipt? = nil,
         usage: GenerationUsage? = nil,
-        streamCutOff: Bool = false
+        streamCutOff: Bool = false,
+        cutOffByGuardrail: Bool = false
     ) {
         self.streamCutOff = streamCutOff
+        self.cutOffByGuardrail = cutOffByGuardrail
         self.text = text
         self.tokensGenerated = tokensGenerated
         self.timeToFirstToken = timeToFirstToken

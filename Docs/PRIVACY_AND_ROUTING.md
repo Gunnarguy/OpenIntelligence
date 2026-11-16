@@ -167,6 +167,14 @@ None of this changes where a question runs. What does change, none of it seen on
   and labels a quota failure from the error's own text ("Your quota has been reached", as the macOS 27 SDK
   printed it on 2026-10-09).
   `[evidence_level: code_verified for the fallback, measured for Apple's wording; confidence: high; evidence_source: RAGService.generateWithFallback; a swiftc probe printing each error's localizedDescription, 2026-10-09]`
+- *(5.8, 2026-11-16)* The three messages the app throws when Apple's guardrail or the model declines
+  (`ModelErrorClassifier.guardrailMessage` from `AppleFoundationLLMService` for a stopped stream, and
+  `structuredGuardrailMessage` and `declinedMessage` from `FoundationModelErrorMapper`) read as `contentFiltered`; they
+  read `other`. Nothing retries or routes on either kind, so where a question runs is unchanged. `generateWithFallback`
+  uses it only to mark the partial text it keeps (`LLMResponse.cutOffByGuardrail`) as a refusal, so that text never goes
+  back into a prompt, and its on-device retry after a Private Cloud Compute failure now passes `streamCutOff` and
+  `cutOffByGuardrail` on (it dropped `streamCutOff`, so Deep Think kept a cut-off write-up from that retry as finished).
+  `[evidence_level: test_verified (ConversationMemoryServiceTests testAnAnswerAGuardrailCutOffIsARefusal), confidence: high for the classification; a guardrail cut-off itself not seen]`
 
 A notification the app posts when an import or a long answer finishes (5.7, off by default) carries a fixed
 title and sentence and a link into the app. The rule that writes it is handed only whether something finished and how long it took, so it cannot carry the

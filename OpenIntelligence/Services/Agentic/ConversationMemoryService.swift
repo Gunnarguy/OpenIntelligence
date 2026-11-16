@@ -92,7 +92,7 @@ struct MemoryTurn: Codable, Sendable, Identifiable {
         self.assistantResponse = assistantResponse
         self.timestamp = timestamp
         extractedFacts = []
-        importanceScore = 0.5 // Default mid-importance
+        importanceScore = 0.5  // Default mid-importance
         self.refused = refused
     }
 
@@ -117,9 +117,13 @@ struct MemoryTurn: Codable, Sendable, Identifiable {
 
         // Longer, more substantive responses are more important
         let responseWordCount = assistantResponse.split(separator: " ").count
-        if responseWordCount > 100 { score += 0.15 }
-        else if responseWordCount > 50 { score += 0.1 }
-        else if responseWordCount < 15 { score -= 0.1 }
+        if responseWordCount > 100 {
+            score += 0.15
+        } else if responseWordCount > 50 {
+            score += 0.1
+        } else if responseWordCount < 15 {
+            score -= 0.1
+        }
 
         // Turns with extracted facts are more important
         score += Float(min(extractedFacts.count, 5)) * 0.05
@@ -155,6 +159,13 @@ nonisolated enum ConversationContextRules {
     /// A decision that starts with this is a refusal too; the failed gates follow it.
     static let refusalDecisionPrefix = "verification_gates_failed"
 
+    /// The gating token for a refusal that no gate decided (5.8, 2026-11-16), added where the refusal is written:
+    /// Quotes only finding no words, the excerpts fallback with no excerpts, Standard's not-found text, a model that
+    /// refuses in its own words, a guardrail that cut the answer off, and Deep Think and Maximum's not-found exit and
+    /// planner abstention. The badge (`VerificationOutcome`) and the chat read nothing from it, so the answer shows as it
+    /// did; only the conversation context leaves it out.
+    static let refusedToken = "answer_refused"
+
     /// Whether an answer was a refusal: its structured answer says so, or its gating decision (a comma-separated
     /// record) holds a decision only a refusal records.
     static func isRefusal(structuredAnswer: StructuredAnswer?, gatingDecision: String?) -> Bool {
@@ -163,13 +174,85 @@ nonisolated enum ConversationContextRules {
         return gatingDecision.split(separator: ",").contains { token in
             let decision = token.trimmingCharacters(in: .whitespaces)
             return refusalDecisions.contains(decision) || decision.hasPrefix(refusalDecisionPrefix)
+                || decision == refusedToken
         }
     }
 
+    /// The gating decision as the chat shows it: without `refusedToken`, and nil when that was all it held, so a
+    /// Deep Think or Maximum refusal whose string was empty draws no badge it did not draw before (5.8).
+    static func shownGatingDecision(_ gatingDecision: String?) -> String? {
+        guard let gatingDecision else { return nil }
+        let kept = gatingDecision.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0 != refusedToken }
+        return kept.isEmpty ? nil : kept.joined(separator: ",")
+    }
+
+    /// `gatingDecision` with `refusedToken` added, once.
+    static func markingRefusal(_ gatingDecision: String?) -> String {
+        guard let gatingDecision, !gatingDecision.isEmpty else { return refusedToken }
+        let tokens = gatingDecision.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return tokens.contains(refusedToken) ? gatingDecision : gatingDecision + "," + refusedToken
+    }
+
+    /// A refusal in the first person: the app could not find or answer it.
+    static let firstPersonRefusals: [String] = [
+        "i couldn't find", "i could not find", "i can't find", "i cannot find", "i was unable to",
+        "i wasn't able to", "i was not able to", "i'm unable to", "i am unable to", "i can't answer",
+        "i cannot answer", "i can't determine", "i cannot determine", "i don't have enough", "i do not have enough",
+        "i found no", "i didn't find", "i did not find", "insufficient evidence",
+    ]
+    /// Words that make a sentence about the documents as a whole, not about something in them ("the lease", "the
+    /// policy"): "Your documents do not say ..." is a refusal, "The lease does not mention pets." is an answer.
+    static let documentSubjects: [String] = [
+        "your documents", "the documents", "these documents", "the provided", "provided documents", "the passages",
+        "these passages", "the sources", "the excerpts", "your library", "your files", "the text provided",
+    ]
+    /// What a sentence about the documents says when they hold nothing on the question.
+    static let absenceWords: [String] = [
+        "do not", "don't", "does not", "doesn't", "no information", "nothing about", "no mention", "no details",
+        "not mention", "not contain", "not include", "not say", "not specify", "not provide", "not cover",
+    ]
+    /// The longest answer read as a refusal in its own words. The refusals seen run one to three sentences, about 60
+    /// to 300 characters; a longer uncited answer that opens with a gap usually goes on to answer.
+    static let ownWordsRefusalLimit = 500
+
+    /// Whether the model refused in its own words (5.8, 2026-11-16): an answer of at most `ownWordsRefusalLimit`
+    /// characters that cites no passage and whose first sentence (to the first `.`, `!`, `?`, `;` or line break)
+    /// either says in the first person that it could not find or answer it, or says of the documents as a whole that
+    /// they hold nothing on it. An answer citing a passage is never one, and neither is one opening "No," or "Yes,": a
+    /// negative finding ("No, the contract does not contain a non-compete clause.") is an answer, and is usually
+    /// uncited because citations skip negative sentences.
+    static func refusesInItsOwnWords(_ answer: String) -> Bool {
+        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= ownWordsRefusalLimit else { return false }
+        guard text.range(of: #"\[S\d"#, options: .regularExpression) == nil else { return false }
+        let lowered = text.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+        guard !lowered.hasPrefix("no,"), !lowered.hasPrefix("no."), !lowered.hasPrefix("yes") else { return false }
+        let end = lowered.firstIndex { ".!?;\n".contains($0) } ?? lowered.endIndex
+        let firstSentence = lowered[..<end]
+        if firstPersonRefusals.contains(where: { firstSentence.contains($0) }) { return true }
+        return documentSubjects.contains { firstSentence.contains($0) }
+            && absenceWords.contains { firstSentence.contains($0) }
+    }
+
+    /// The question and answer a new conversation starts with when Siri hands its answer to the chat (Ask a Follow-up,
+    /// `AppDestination.continueAnswer`).
+    @MainActor static func handOffMessages(question: String, answer: String, at time: Date = Date()) -> [ChatMessage] {
+        [
+            ChatMessage(role: .user, content: question, timestamp: time),
+            // A refusal Siri gave is left out like any other (5.8): not marked as handed off, it reads as a message
+            // with no answer behind it.
+            ChatMessage(
+                role: .assistant, content: answer, timestamp: time, handedOff: !refusesInItsOwnWords(answer)),
+        ]
+    }
+
     /// An assistant message the app wrote for a failure (an error, or an answer cut off), which has neither the
-    /// answer's metadata nor a structured answer.
+    /// answer's metadata nor a structured answer. Not Siri's hand-off answer, which has neither either (5.8,
+    /// `ChatMessage.handedOff`): with conversation memory off it was left out of the next question's history.
     @MainActor static func isErrorMessage(_ message: ChatMessage) -> Bool {
         message.role == .assistant && message.metadata == nil && message.structuredAnswer == nil
+            && !message.handedOff
     }
 
     /// Whether a memory turn may be given to the model: not refused, and not older than the library's last change
@@ -191,7 +274,8 @@ nonisolated enum ConversationContextRules {
     /// The earlier messages of a chat that may be given to the model, oldest first: no system messages, none from
     /// before the library's documents last changed, and no refused or failed answer, together with the question
     /// it answered.
-    @MainActor static func usableEarlierMessages(_ messages: [ChatMessage], documentsChangedAt: Date?) -> [ChatMessage] {
+    @MainActor static func usableEarlierMessages(_ messages: [ChatMessage], documentsChangedAt: Date?) -> [ChatMessage]
+    {
         let conversation = messages.filter { $0.role != .system }
         var dropped = Set<Int>()
         for (index, message) in conversation.enumerated() {
@@ -208,7 +292,8 @@ nonisolated enum ConversationContextRules {
             guard message.role == .assistant else { continue }
             let refused =
                 isErrorMessage(message)
-                || isRefusal(structuredAnswer: message.structuredAnswer, gatingDecision: message.metadata?.gatingDecision)
+                || isRefusal(
+                    structuredAnswer: message.structuredAnswer, gatingDecision: message.metadata?.gatingDecision)
             guard refused else { continue }
             dropped.insert(index)
             if let asked { dropped.insert(asked) }
@@ -367,6 +452,9 @@ final class ConversationMemoryService {
     /// moved and is dropped instead of writing the cleared conversation back.
     private var clearCounts: [UUID: Int] = [:]
 
+    /// Libraries deleted since launch (5.8, `removeMemory`): nothing is saved for them again.
+    private var removedLibraries: Set<UUID> = []
+
     // MARK: - Adaptive Token Budget
 
     /// Base character budget for memory context
@@ -381,9 +469,15 @@ final class ConversationMemoryService {
     /// Calculate adaptive budget based on query complexity
     private func adaptiveBudget(for query: String) -> Int {
         let wordCount = query.split(separator: " ").count
-        let hasPronouns = query.range(of: "\\b(it|this|that|they|them|those|these|he|she|his|her)\\b", options: .regularExpression) != nil
-        let hasFollowUp = query.lowercased().hasPrefix("and ") || query.lowercased().hasPrefix("also ") || query.lowercased().hasPrefix("what about")
-        let hasReference = query.contains("mentioned") || query.contains("earlier") || query.contains("before") || query.contains("previous")
+        let hasPronouns =
+            query.range(of: "\\b(it|this|that|they|them|those|these|he|she|his|her)\\b", options: .regularExpression)
+            != nil
+        let hasFollowUp =
+            query.lowercased().hasPrefix("and ") || query.lowercased().hasPrefix("also ")
+            || query.lowercased().hasPrefix("what about")
+        let hasReference =
+            query.contains("mentioned") || query.contains("earlier") || query.contains("before")
+            || query.contains("previous")
 
         var budget = baseMemoryBudget
 
@@ -446,6 +540,8 @@ final class ConversationMemoryService {
         refused: Bool = false,
         for containerId: UUID
     ) async {
+        // A turn still on its way for a deleted library would write its file back (5.8, `removeMemory`).
+        guard !removedLibraries.contains(containerId) else { return }
         var memory = memory(for: containerId)
 
         // Create the new turn
@@ -498,7 +594,9 @@ final class ConversationMemoryService {
             }
         }
 
-        Log.debug("[ConversationMemory] Added turn. Recent: \(memory.recentTurns.count), Entities: \(memory.entities.count)", category: .retrieval)
+        Log.debug(
+            "[ConversationMemory] Added turn. Recent: \(memory.recentTurns.count), Entities: \(memory.entities.count)",
+            category: .retrieval)
     }
 
     // MARK: - Semantic Relevance Scoring
@@ -507,7 +605,8 @@ final class ConversationMemoryService {
     /// Uses keyword overlap and entity matching (fast, no LLM needed)
     private func relevanceScore(turn: MemoryTurn, to query: String) -> Float {
         let queryWords = Set(query.lowercased().split(separator: " ").map(String.init))
-        let turnWords = Set((turn.userQuery + " " + turn.assistantResponse).lowercased().split(separator: " ").map(String.init))
+        let turnWords = Set(
+            (turn.userQuery + " " + turn.assistantResponse).lowercased().split(separator: " ").map(String.init))
 
         // Jaccard similarity for keyword overlap
         let intersection = queryWords.intersection(turnWords)
@@ -520,13 +619,14 @@ final class ConversationMemoryService {
         let entityOverlap = Float(Set(queryEntities).intersection(Set(turnEntities)).count)
 
         // Boost for fact relevance
-        let factBoost: Float = turn.extractedFacts.contains { fact in
-            queryWords.contains { word in fact.lowercased().contains(word) }
-        } ? 0.2 : 0
+        let factBoost: Float =
+            turn.extractedFacts.contains { fact in
+                queryWords.contains { word in fact.lowercased().contains(word) }
+            } ? 0.2 : 0
 
         // Recency boost (more recent = higher score)
         let age = Date().timeIntervalSince(turn.timestamp)
-        let recencyBoost = max(0, Float(1.0 - age / 3600)) * 0.1 // Decay over 1 hour
+        let recencyBoost = max(0, Float(1.0 - age / 3600)) * 0.1  // Decay over 1 hour
 
         return jaccard + (entityOverlap * 0.15) + factBoost + recencyBoost
     }
@@ -634,7 +734,9 @@ final class ConversationMemoryService {
             }
         }
 
-        Log.debug("[ConversationMemory] Context injection: \(context.count) chars (budget: \(budget), query-aware: \(!query.isEmpty))", category: .retrieval)
+        Log.debug(
+            "[ConversationMemory] Context injection: \(context.count) chars (budget: \(budget), query-aware: \(!query.isEmpty))",
+            category: .retrieval)
         return context
     }
 
@@ -674,6 +776,24 @@ final class ConversationMemoryService {
         memoryCache[containerId] = empty
         saveMemory(empty)
         Log.debug("[ConversationMemory] Cleared memory for container \(containerId)", category: .retrieval)
+    }
+
+    /// Removes a deleted library's memory and its file (5.8, 2026-11-16). Through 5.8's first builds a deleted
+    /// library's conversation memory stayed on the device, holding its questions and answers. Its iCloud copy goes with
+    /// the shared library (`WorkspaceSyncService.cleanupSharedWorkspace`, which removes every file of a library no
+    /// longer synced). A save waiting for its debounce is dropped, a summary still being written is discarded, nothing
+    /// is saved for the library again, and the removal is queued behind every write already queued, so none of them
+    /// writes the file back.
+    func removeMemory(for containerId: UUID) {
+        clearCounts[containerId, default: 0] += 1
+        pendingSaves.remove(containerId)
+        memoryCache.removeValue(forKey: containerId)
+        removedLibraries.insert(containerId)
+        let url = memoryURL(for: containerId)
+        Self.writeQueue.async {
+            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
+        }
+        Log.debug("[ConversationMemory] Removed memory of deleted container \(containerId)", category: .retrieval)
     }
 
     /// Waits until every memory file write queued so far is on disk. For tests.
@@ -725,7 +845,8 @@ final class ConversationMemoryService {
         }
 
         if !containersToSave.isEmpty {
-            Log.debug("[ConversationMemory] Flushed \(containersToSave.count) pending saves to disk", category: .retrieval)
+            Log.debug(
+                "[ConversationMemory] Flushed \(containersToSave.count) pending saves to disk", category: .retrieval)
         }
     }
 
@@ -761,7 +882,8 @@ final class ConversationMemoryService {
         for turn in turnsToSummarize where !turn.refused {
             // Include importance in summary for context
             let importanceLabel = turn.importanceScore > 0.7 ? "[Important] " : ""
-            textToSummarize += "\(importanceLabel)Q: \(turn.userQuery)\nA: \(String(turn.assistantResponse.prefix(500)))\n\n"
+            textToSummarize +=
+                "\(importanceLabel)Q: \(turn.userQuery)\nA: \(String(turn.assistantResponse.prefix(500)))\n\n"
         }
 
         // Generate summary using LLM (this is the slow part). Turns that were all refused leave the summary as it was.
@@ -789,7 +911,9 @@ final class ConversationMemoryService {
         scheduleDebouncedSave(for: memory.containerId)
 
         let avgImportance = turnsToSummarize.map(\.importanceScore).reduce(0, +) / Float(turnsToSummarize.count)
-        Log.info("[ConversationMemory] Background summarization: \(turnsToSummarize.count) low-importance turns (avg: \(String(format: "%.2f", avgImportance))) → \(mutableMemory.summary.count) chars", category: .retrieval)
+        Log.info(
+            "[ConversationMemory] Background summarization: \(turnsToSummarize.count) low-importance turns (avg: \(String(format: "%.2f", avgImportance))) → \(mutableMemory.summary.count) chars",
+            category: .retrieval)
     }
 
     // MARK: - Summarization
@@ -816,20 +940,22 @@ final class ConversationMemoryService {
                     instructions: Instructions("You summarise conversation history. Be concise and factual.")
                 )
                 let prompt = """
-                Summarize this conversation concisely, preserving key facts, decisions, and topics discussed.
-                Focus on information that would be relevant for follow-up questions.
-                Keep the summary under 200 words.
+                    Summarize this conversation concisely, preserving key facts, decisions, and topics discussed.
+                    Focus on information that would be relevant for follow-up questions.
+                    Keep the summary under 200 words.
 
-                Conversation:
-                \(text)
+                    Conversation:
+                    \(text)
 
-                Summary:
-                """
+                    Summary:
+                    """
 
                 let response = try await session.respond(to: prompt)
                 return response.content.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             } catch {
-                Log.warning("[ConversationMemory] LLM summarization failed: \(error). Using extractive fallback.", category: .retrieval)
+                Log.warning(
+                    "[ConversationMemory] LLM summarization failed: \(error). Using extractive fallback.",
+                    category: .retrieval)
                 return extractiveSummary(from: text)
             }
         #else
@@ -876,7 +1002,10 @@ final class ConversationMemoryService {
                 if currentPhrase.count >= 1 {
                     let phrase = currentPhrase.joined(separator: " ")
                     // Filter out common sentence starters
-                    let commonStarters = ["The", "This", "That", "It", "I", "We", "You", "He", "She", "They", "What", "How", "Why", "When", "Where", "Is", "Are", "Was", "Were", "If", "For", "To", "A", "An"]
+                    let commonStarters = [
+                        "The", "This", "That", "It", "I", "We", "You", "He", "She", "They", "What", "How", "Why",
+                        "When", "Where", "Is", "Are", "Was", "Were", "If", "For", "To", "A", "An",
+                    ]
                     if !commonStarters.contains(phrase), phrase.count > 2 {
                         entities.append(phrase)
                     }
@@ -897,7 +1026,11 @@ final class ConversationMemoryService {
     /// Extract topics from a query
     private func extractTopics(from query: String) -> [String] {
         // Remove question words and extract key noun phrases
-        let stopWords: Set<String> = ["what", "how", "why", "when", "where", "who", "which", "is", "are", "was", "were", "do", "does", "did", "can", "could", "would", "should", "the", "a", "an", "to", "for", "of", "in", "on", "at", "by", "with", "about", "this", "that", "it", "i", "me", "my", "you", "your"]
+        let stopWords: Set<String> = [
+            "what", "how", "why", "when", "where", "who", "which", "is", "are", "was", "were", "do", "does", "did",
+            "can", "could", "would", "should", "the", "a", "an", "to", "for", "of", "in", "on", "at", "by", "with",
+            "about", "this", "that", "it", "i", "me", "my", "you", "your",
+        ]
 
         let words = query.lowercased()
             .components(separatedBy: .whitespaces)
@@ -925,6 +1058,7 @@ final class ConversationMemoryService {
     }
 
     private func saveMemory(_ memory: ConversationMemory) {
+        guard !removedLibraries.contains(memory.containerId) else { return }
         let url = memoryURL(for: memory.containerId)
         do {
             let encoder = JSONEncoder()
@@ -971,4 +1105,5 @@ final class ConversationMemoryServiceUnavailable {
     func addTurn(userQuery _: String, assistantResponse _: String, for _: UUID) async {}
     func contextInjection(for _: UUID) -> String { "" }
     func clearMemory(for _: UUID) {}
+    func removeMemory(for _: UUID) {}
 }

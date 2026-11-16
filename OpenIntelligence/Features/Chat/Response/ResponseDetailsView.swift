@@ -683,7 +683,7 @@ struct ChatResponseDetailsView: View {
                 if let provider = metadata.embeddingProvider {
                     PerfMetricRow(label: "Embeddings", value: provider)
                 }
-                if let decision = metadata.gatingDecision {
+                if let decision = ConversationContextRules.shownGatingDecision(metadata.gatingDecision) {
                     PerfMetricRow(label: "Verification", value: VerificationInfo.from(gatingDecision: decision, claims: structuredAnswer?.claims ?? []).title)
                 }
                 if metadata.usedAgenticMode {

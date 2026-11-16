@@ -1039,6 +1039,13 @@ extension RAGService {
 
                     await applySourceOnlyCheck(answerIntentIsExtractive: answerIntentIsExtractive, question: question, qualityMode: qualityMode, verificationResult: verificationResult, answerIntent: answerIntent, responseText: responseText, generationRetrievedChunks: generationRetrievedChunks, sourceLockedFinalResponse: sourceLockedFinalResponse, finalResponseText: &finalResponseText, structuredAnswer: &structuredAnswer, gatingSummary: &gatingSummary, finalWarnings: &finalWarnings, finalConfidenceScore: &finalConfidenceScore, confidenceScore: confidenceScore)
 
+                    // A refusal no gate recorded (5.8, 2026-11-16), read on the text shown, which the precision override
+                    // and the source-only check can replace. The guardrail's cut counts only while the model's cut-off text
+                    // is what is shown.
+                    gatingSummary = Self.markingUngatedRefusal(
+                        gatingSummary, answer: finalResponseText,
+                        cutOffByGuardrail: llmResponse.cutOffByGuardrail && finalResponseText == responsivenessJudgedText)
+
                     // The shown text was replaced after the judge read it (precision override or source-only rewrite): judge
                     // the text the reader gets, so the verdict is about that answer.
                     if responsiveness != nil, finalResponseText != responsivenessJudgedText {

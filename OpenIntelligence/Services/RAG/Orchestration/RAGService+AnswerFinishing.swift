@@ -345,7 +345,8 @@ extension RAGService {
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
         let stabilizedResponse = trimIncompleteResponseTail(cleanedResponse)
         let repairedResponse = Self.namingTheCitedDocument(
-            repairMalformedURLs(stabilizedResponse), question: query, sourceNames: response.retrievedChunks.map(\.sourceDocument))
+            repairMalformedURLs(stabilizedResponse), question: query,
+            sourceNames: response.retrievedChunks.map(\.sourceDocument))
         // A label past the end of the answer's passages opens nothing, and it means the labels the model was shown
         // and the passages the answer keeps were numbered differently. It is logged, not removed, as for the
         // reasoning trace above ("This logs rather than rewrites"): on 2026-10-20 "$300.00 [S1], [S5], [S6]" was the
@@ -371,6 +372,14 @@ extension RAGService {
         // saved answer or an exported trace never reads as checked when the check was skipped.
         if await MainActor.run(body: { self.finishAnswerNowRequested }) {
             finalizedMetadata = finalizedMetadata.appendingGatingDecision("finished_early_by_person")
+        }
+        // A refusal in the model's own words, on every path, read on the text shown (5.8, 2026-11-16): the reliability
+        // fallback and the recovery exits write model text that no gate labels. It never goes back into a prompt.
+        if !ConversationContextRules.isRefusal(
+            structuredAnswer: finalizedStructuredAnswer, gatingDecision: finalizedMetadata.gatingDecision),
+            ConversationContextRules.refusesInItsOwnWords(repairedResponse)
+        {
+            finalizedMetadata = finalizedMetadata.appendingGatingDecision(ConversationContextRules.refusedToken)
         }
         // Apple's count for the whole answer (5.7), set by `query`'s tally.
         if let usage = AnswerUsageTally.current?.total {
@@ -1305,7 +1314,8 @@ extension RAGService {
     /// (n = 3026)?"). A value with no number, or with a letter, is never one. Thousands separators and spaces inside a number are ignored.
     nonisolated static func valueRestatesQuestion(_ value: String, question: String) -> Bool {
         func numbers(_ text: String) -> [String] {
-            let joined = text.replacingOccurrences(of: #"(?<=\d)[,\x{2009}\x{202F} ](?=\d{3}\b)"#, with: "", options: .regularExpression)
+            let joined = text.replacingOccurrences(
+                of: #"(?<=\d)[,\x{2009}\x{202F} ](?=\d{3}\b)"#, with: "", options: .regularExpression)
             guard let regex = try? NSRegularExpression(pattern: #"\d+(?:\.\d+)?"#) else { return [] }
             return regex.matches(in: joined, range: NSRange(joined.startIndex..., in: joined)).compactMap {
                 Range($0.range, in: joined).map { String(joined[$0]) }

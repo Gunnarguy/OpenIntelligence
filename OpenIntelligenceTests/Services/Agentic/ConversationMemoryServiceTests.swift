@@ -284,4 +284,219 @@ final class ConversationMemoryServiceTests: XCTestCase {
         XCTAssertEqual(emptyStart.record([], now: start), [])
         XCTAssertEqual(emptyStart.record([(leaseDoc, lease, 10)], now: start + 1), [lease])
     }
+
+    // MARK: F. Refusals no gate recorded (2026-11-16)
+
+    func testTheRefusalMarkIsReadAsARefusalAndLeavesTheBadgeAsItWas() {
+        let token = ConversationContextRules.refusedToken
+        XCTAssertEqual(ConversationContextRules.markingRefusal(nil), token)
+        XCTAssertEqual(ConversationContextRules.markingRefusal(""), token)
+        XCTAssertEqual(ConversationContextRules.markingRefusal("excerpts_only"), "excerpts_only,\(token)")
+        XCTAssertEqual(
+            ConversationContextRules.markingRefusal("excerpts_only,\(token)"), "excerpts_only,\(token)", "marked once")
+        for decision in [nil, "excerpts_only", "verified:90%", "unverified:coverage", "no_documents", "answers:none"] {
+            let marked = ConversationContextRules.markingRefusal(decision)
+            XCTAssertTrue(ConversationContextRules.isRefusal(structuredAnswer: nil, gatingDecision: marked), marked)
+            XCTAssertEqual(
+                VerificationOutcome.from(gatingDecision: marked), VerificationOutcome.from(gatingDecision: decision),
+                "the badge reads the mark as nothing: \(marked)")
+        }
+    }
+
+    func testStandardsNotFoundTextAndThePlannersAbstentionAreRefusals() {
+        for answer in [RAGService.notFoundAnswer, RAGService.plannerAbstention] {
+            let marked = RAGService.markingUngatedRefusal("verification_skipped", answer: answer, cutOffByGuardrail: false)
+            XCTAssertTrue(ConversationContextRules.isRefusal(structuredAnswer: nil, gatingDecision: marked), answer)
+        }
+    }
+
+    func testAnAnswerAGuardrailCutOffIsARefusal() {
+        XCTAssertEqual(
+            ModelErrorClassifier.kind(of: LLMError.generationFailed(ModelErrorClassifier.guardrailMessage)),
+            .contentFiltered, "what the app throws for the guardrail reads as one")
+        let marked = RAGService.markingUngatedRefusal(
+            "verified:88%", answer: "The recommended dose for adults is", cutOffByGuardrail: true)
+        XCTAssertTrue(ConversationContextRules.isRefusal(structuredAnswer: nil, gatingDecision: marked))
+        XCTAssertEqual(
+            RAGService.markingUngatedRefusal(
+                "verified:88%", answer: "The recommended dose for adults is 5 mg [S1].", cutOffByGuardrail: false),
+            "verified:88%", "a whole answer is left as it was")
+    }
+
+    func testTheChatShowsTheGatingDecisionWithoutTheMark() {
+        let token = ConversationContextRules.refusedToken
+        XCTAssertNil(ConversationContextRules.shownGatingDecision(nil))
+        XCTAssertNil(ConversationContextRules.shownGatingDecision(token), "no badge where none showed")
+        XCTAssertEqual(ConversationContextRules.shownGatingDecision("excerpts_only,\(token)"), "excerpts_only")
+        XCTAssertEqual(ConversationContextRules.shownGatingDecision("verified:90%"), "verified:90%")
+    }
+
+    func testDeepThinksNotFoundExitIsARefusal() {
+        let marked = RAGService.markingUngatedRefusal(
+            nil, answer: "I couldn't find information about \"x\" in your documents.", cutOffByGuardrail: false,
+            refused: true)
+        XCTAssertEqual(marked, ConversationContextRules.refusedToken)
+        let result = AgenticResult(
+            finalAnswer: "a", steps: [], totalTokens: 0, totalDuration: 0, confidence: 1, sourcesUsed: 0,
+            retrievedChunks: [])
+        XCTAssertFalse(result.refused, "a run's answer is not a refusal unless the run says so")
+    }
+
+    func testTheModelRefusingInItsOwnWords() {
+        for refusal in [
+            "Your documents do not say what the pet policy is.",
+            "I couldn\u{2019}t find any information about the parking rules in the provided documents.",
+            "The provided documents do not contain information about the deposit. You could try adding the addendum.",
+            "I'm unable to find the warranty period in these passages.",
+            "There is no information about late fees in your documents.",
+            "Insufficient evidence in provided sources.",
+        ] {
+            XCTAssertTrue(ConversationContextRules.refusesInItsOwnWords(refusal), refusal)
+            XCTAssertNotNil(
+                RAGService.markingUngatedRefusal(nil, answer: refusal, cutOffByGuardrail: false), refusal)
+        }
+        let longGap =
+            "The documents do not mention a grace period. "
+            + String(repeating: "Rent is due on the first of each month and is paid by bank transfer. ", count: 8)
+        for answer in [
+            "The rent is $1,200 a month [S1].",
+            "The lease does not mention a pet fee, but pets need written approval [S2].",
+            "Rent is due on the first. The lease does not mention a grace period.",
+            // Negative findings are answers, and usually uncited (review, 2026-11-16).
+            "No, the lease does not mention pets.",
+            "No, the contract does not contain a non-compete clause.",
+            "The policy doesn't say who pays; section 4 assigns repairs to the tenant.",
+            "The lease does not mention a pet fee.",
+            longGap,
+            "",
+        ] {
+            XCTAssertFalse(ConversationContextRules.refusesInItsOwnWords(answer), answer)
+            XCTAssertEqual(
+                RAGService.markingUngatedRefusal("verified:90%", answer: answer, cutOffByGuardrail: false),
+                "verified:90%", answer)
+        }
+    }
+
+    func testAMarkedRefusalIsLeftOutOfTheChatHistoryAndTheMemory() async {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let marked = ConversationContextRules.markingRefusal("excerpts_only")
+        let messages = [
+            ChatMessage(role: .user, content: "Q1 pets", timestamp: base),
+            ChatMessage(
+                role: .assistant, content: "I couldn't find words in your documents that answer this.",
+                timestamp: base.addingTimeInterval(1),
+                metadata: ResponseMetadata(
+                    totalGenerationTime: 0, tokensGenerated: 0, modelUsed: "Quotes only", retrievalTime: 0,
+                    gatingDecision: marked)),
+            ChatMessage(role: .user, content: "Q2 open", timestamp: base.addingTimeInterval(2)),
+        ]
+        XCTAssertEqual(
+            ConversationContextRules.usableEarlierMessages(messages, documentsChangedAt: nil).map(\.content),
+            ["Q2 open"])
+
+        let library = UUID()
+        await memory.addTurn(
+            userQuery: "Q1 pets", assistantResponse: "I couldn't find words in your documents that answer this.",
+            refused: ConversationContextRules.isRefusal(structuredAnswer: nil, gatingDecision: marked), for: library)
+        XCTAssertEqual(memory.contextInjection(for: library, query: "And the deposit?"), "")
+        memory.clearMemory(for: library)
+    }
+
+    // MARK: G. Siri's hand-off answer (2026-11-16)
+
+    func testASiriHandOffAnswerStaysInTheChatHistory() throws {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let handOff = ConversationContextRules.handOffMessages(
+            question: "When is the rent due?", answer: "On the first of each month.", at: base)
+        let messages = handOff + [ChatMessage(role: .user, content: "And the late fee?", timestamp: base + 5)]
+        XCTAssertEqual(
+            ConversationContextRules.usableEarlierMessages(messages, documentsChangedAt: nil).map(\.content),
+            ["When is the rent due?", "On the first of each month.", "And the late fee?"],
+            "with conversation memory off, the chat history is the only way the next question sees Siri's answer")
+
+        // As the chat saves and reloads it.
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let reloaded = try messages.map { message in
+            try decoder.decode(ChatMessage.self, from: encoder.encode(message.sanitizedForPersistence()))
+        }
+        XCTAssertEqual(
+            ConversationContextRules.usableEarlierMessages(reloaded, documentsChangedAt: nil).map(\.content),
+            ["When is the rent due?", "On the first of each month.", "And the late fee?"])
+
+        // A refusal Siri handed over goes, with its question, like any refusal.
+        let refusedHandOff = ConversationContextRules.handOffMessages(
+            question: "What is the pet policy?", answer: "I couldn't find the pet policy in your documents.", at: base)
+        XCTAssertEqual(
+            ConversationContextRules.usableEarlierMessages(
+                refusedHandOff + [ChatMessage(role: .user, content: "And the deposit?", timestamp: base + 5)],
+                documentsChangedAt: nil
+            ).map(\.content), ["And the deposit?"])
+
+        // An error message the app wrote still goes, with its question.
+        let failed = [
+            ChatMessage(role: .user, content: "Q", timestamp: base),
+            ChatMessage(role: .assistant, content: "Something went wrong.", timestamp: base + 1),
+        ]
+        XCTAssertEqual(ConversationContextRules.usableEarlierMessages(failed, documentsChangedAt: nil).count, 0)
+    }
+
+    // MARK: H. A deleted library's memory (2026-11-16)
+
+    private func memoryFileExists(_ library: UUID) -> Bool {
+        FileManager.default.fileExists(
+            atPath: AppSupportPaths.baseDir().appendingPathComponent(
+                "conversation_memory_\(library.uuidString).json"
+            ).path)
+    }
+
+    func testRemovingALibrarysMemoryDeletesTheFileAndNothingWritesItBack() async {
+        let library = UUID()
+        await memory.addTurn(userQuery: "What is the rent?", assistantResponse: "$1,200 [S1].", for: library)
+        memory.flushPendingSavesNow()
+        ConversationMemoryService.waitForWrites()
+        XCTAssertTrue(memoryFileExists(library))
+
+        // A turn waiting for its debounced save when the library goes.
+        await memory.addTurn(userQuery: "When is it due?", assistantResponse: "On the first [S1].", for: library)
+        memory.removeMemory(for: library)
+        memory.flushPendingSavesNow()
+        ConversationMemoryService.waitForWrites()
+        XCTAssertFalse(memoryFileExists(library))
+
+        // A turn or a clear arriving after the deletion writes nothing.
+        await memory.addTurn(userQuery: "Late?", assistantResponse: "Ten days [S2].", for: library)
+        memory.clearMemory(for: library)
+        memory.flushPendingSavesNow()
+        ConversationMemoryService.waitForWrites()
+        XCTAssertFalse(memoryFileExists(library))
+        XCTAssertTrue(memory.memory(for: library).recentTurns.isEmpty)
+    }
+
+    func testDeletingALibraryRemovesItsConversationMemory() async throws {
+        #if os(macOS)
+            // It makes and deletes a library, which on the Mac is the owner's real library list.
+            throw XCTSkip("Simulator only")
+        #endif
+        // A second library needs a paid plan, as `ShortcutsActionTests` sets it.
+        let tierKey = "entitlement.activeTier"
+        let savedTier = UserDefaults.standard.object(forKey: tierKey)
+        UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: tierKey)
+        addTeardownBlock { UserDefaults.standard.set(savedTier, forKey: tierKey) }
+        let libraries = ContainerService()
+        let library = try libraries.createContainer(name: "Memory delete \(UUID().uuidString.prefix(8))")
+        let id = library.id
+        addTeardownBlock { @MainActor in
+            if libraries.containers.contains(where: { $0.id == id }) { libraries.deleteContainer(id: id) }
+        }
+        await memory.addTurn(userQuery: "What is the rent?", assistantResponse: "$1,200 [S1].", for: library.id)
+        memory.flushPendingSavesNow()
+        ConversationMemoryService.waitForWrites()
+        XCTAssertTrue(memoryFileExists(library.id))
+
+        libraries.deleteContainer(id: library.id)
+        XCTAssertFalse(libraries.containers.contains { $0.id == library.id }, "the library was deleted")
+        ConversationMemoryService.waitForWrites()
+        XCTAssertFalse(memoryFileExists(library.id), "its memory went with it")
+    }
 }
