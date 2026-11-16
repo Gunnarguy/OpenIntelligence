@@ -399,11 +399,11 @@ struct ComputeProfileCard: View {
                             .frame(height: 6 + CGFloat(index) * 4)
                             .shadow(color: isSelected ? Self.color(for: step).opacity(0.6) : .clear, radius: 6)
                         Text(step.displayName)
-                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: isSelected ? .bold : .medium)
-                            .foregroundStyle(isSelected ? Self.color(for: step) : .secondary)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize + 1, weight: .semibold)
                             .lineLimit(1)
                             // Never below Apple's minimum text size (5.8 premium pass); it could shrink to 7 points.
-                            .minimumScaleFactor(SettingsStatusPanel.floorScale(for: SettingsStatusPanel.minimumTextSize))
+                            .minimumScaleFactor(SettingsStatusPanel.floorScale(for: SettingsStatusPanel.minimumTextSize + 1))
+                            .ladderChoice(selected: isSelected, color: Self.color(for: step))
                     }
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())

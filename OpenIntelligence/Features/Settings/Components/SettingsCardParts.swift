@@ -156,3 +156,32 @@ struct SettingsGroupLabel: View {
             .foregroundStyle(.secondary)
     }
 }
+
+extension View {
+    /// A choice on a mode or profile ladder drawn as a pill, the way a segmented control's segments read as buttons
+    /// (5.8, 2026-11-16, the owner: "people might not know they can tap on each of the different options? There's not
+    /// really any indicators"). The chosen one is filled in its colour; the others sit in a soft outlined pill.
+    func ladderChoice(selected: Bool, color: Color) -> some View {
+        modifier(LadderChoice(selected: selected, color: color))
+    }
+}
+
+private struct LadderChoice: ViewModifier {
+    let selected: Bool
+    let color: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let tint = color == .secondary ? Color.gray : color
+        content
+            .foregroundStyle(selected ? Color.white : Color.primary.opacity(0.75))
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(
+                Capsule().fill(selected ? AnyShapeStyle(tint.gradient) : AnyShapeStyle(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
+            )
+            .overlay(Capsule().strokeBorder(selected ? Color.clear : Color.primary.opacity(0.12), lineWidth: 0.75))
+            .shadow(color: selected ? tint.opacity(0.35) : .clear, radius: 4, y: 2)
+            .contentShape(Capsule())
+    }
+}
