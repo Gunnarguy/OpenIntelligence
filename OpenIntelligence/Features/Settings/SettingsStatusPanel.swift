@@ -66,11 +66,14 @@ struct SettingsStatusPanel: View {
                     }
                 }
             } else {
+                // Every block takes the row's height, so one whose caption wraps to two lines is not taller than
+                // the rest (Database's "unique, all libraries", 2026-11-16).
                 HStack(spacing: DSSpacing.xs) {
                     ForEach(blocks) { block in
                         blockView(block)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(DSSpacing.sm)
@@ -142,7 +145,8 @@ struct SettingsStatusPanel: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
+        // Top-aligned, so symbols, names, figures and bars sit level across blocks of one height.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.vertical, DSSpacing.xxs + 1)
         .padding(.horizontal, DSSpacing.xxs)
         .background(

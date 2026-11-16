@@ -27,7 +27,7 @@ struct LiveSystemMonitorWrapper: View {
                 icon: "gauge.with.dots.needle.bottom.50percent", title: "Live System Monitor", badge: "Live",
                 badgeColor: .green, live: true)
 
-            LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
+            SpecTileGrid() {
                 // Thermal: Apple's ProcessInfo.ThermalState terms.
                 SpecTile(
                     name: "Thermals", value: state.thermalStateName,

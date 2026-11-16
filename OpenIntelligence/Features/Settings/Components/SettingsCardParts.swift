@@ -91,7 +91,8 @@ struct SpecTile: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Fills its row's height in a `SpecTileGrid`, top-aligned, so a tile with a shorter caption isn't shorter.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, DSSpacing.sm)
         .padding(.vertical, DSSpacing.xs)
         .background(
@@ -107,6 +108,48 @@ struct SpecTile: View {
 
     /// The grid every card uses: three columns.
     static let columns = Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 3)
+}
+
+/// Three columns of `SpecTile`s where every tile in a row takes the row's height (2026-11-16: the owner's Intelligence
+/// Mode screenshots had tiles of three heights in one row). `LazyVGrid` sizes each cell to its own content.
+struct SpecTileGrid: Layout {
+    var columns = 3
+    var spacing: CGFloat = DSSpacing.xs
+
+    private func columnWidth(_ width: CGFloat) -> CGFloat {
+        max(0, (width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+    }
+
+    private func rowHeights(_ subviews: Subviews, columnWidth: CGFloat) -> [CGFloat] {
+        stride(from: 0, to: subviews.count, by: columns).map { start in
+            subviews[start..<min(start + columns, subviews.count)]
+                .map { $0.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height }
+                .max() ?? 0
+        }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 320
+        let heights = rowHeights(subviews, columnWidth: columnWidth(width))
+        let total = heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1))
+        return CGSize(width: width, height: total)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let width = columnWidth(bounds.width)
+        let heights = rowHeights(subviews, columnWidth: width)
+        var y = bounds.minY
+        for (row, height) in heights.enumerated() {
+            for column in 0..<columns {
+                let index = row * columns + column
+                guard index < subviews.count else { break }
+                subviews[index].place(
+                    at: CGPoint(x: bounds.minX + CGFloat(column) * (width + spacing), y: y),
+                    proposal: ProposedViewSize(width: width, height: height))
+            }
+            y += height + spacing
+        }
+    }
 }
 
 /// The small monospaced label above a group of rows or tiles ("HOW HARD", "WHEN YOU ASK").

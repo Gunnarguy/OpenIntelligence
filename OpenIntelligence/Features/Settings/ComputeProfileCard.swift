@@ -655,7 +655,7 @@ struct ComputeProfileCard: View {
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             // Ceilings: a hot device, Low Power Mode or a background import without the GPU steps them down (5.8 review).
             SettingsGroupLabel(text: "HOW HARD, AT MOST")
-            LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
+            SpecTileGrid() {
                 ForEach(tiles, id: \.0) { tile in
                     SpecTile(
                         name: tile.0, value: tile.1, icon: tile.2,

@@ -640,7 +640,7 @@ struct IntelligenceModeCard: View {
         let tint = Self.color(for: mode)
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             SettingsGroupLabel(text: "HOW MUCH")
-            LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
+            SpecTileGrid() {
                 ForEach(tiles, id: \.name) { tile in
                     SpecTile(
                         name: tile.name, value: tile.value, icon: tile.icon, caption: tile.caption,
