@@ -2,7 +2,7 @@
 
 Updated: 2026-11-16
 Branch/worktree: `main`, primary checkout
-Last verified commit: 641c7aa9
+Last verified commit: a9933961
 
 ## Objective
 
@@ -39,6 +39,16 @@ scratchpad, about $68 in all):
 Screenshots: `/private/tmp/oi-premium-after/`, `/private/tmp/oi-reorg-after/`, `/private/tmp/oi-database-after/`. All seen only in
 the iOS 27 Simulator. Open: the colour and icon pickers (job B skipped them); the repeated plan-card bullets (asked, no answer).
 
+## 2026-11-16 afternoon (committed, both devices run a9933961)
+
+| Commit | What |
+|---|---|
+| ebfcaba1, 8f6a4684 | Equal heights in panels and spec tiles; "this library" captions |
+| 97dc8852 | Haptics: one per touch, none without one, a beat while answers write and Deep Think steps; X-Ray counts only played haptics |
+| a9933961 | Calm neutral panels (colour only on symbol and bar), Liquid Glass on floating pieces only (HIG Materials); plain-words search card; reranker default form first, fast form in the background on Maximum (`RerankerFastForm`); device audit fixes: real Mac battery, `chipIsAtLeast` by generation, answer quality the same on every device (was tier-dependent: Deep Think 85-95%, 75-250 candidates), live window for the overflow retry, eligible-device copy per Apple 2026-11-05 |
+
+Not verified: anything on a device (haptics felt, glass seen, the fast-form swap's timing, answer time on an A17 Pro or A18 with 250 candidates). `RerankerFormTests` ran on the Simulator's CPU only; the macOS test target fails to resolve the app module (pre-existing). Next measurement: `phone_evidence.py` for `reranker.load` (`form`) and `reranker.fastForm` after he opens the app.
+
 ## Status
 
 | What | Result |
@@ -48,7 +58,7 @@ the iOS 27 Simulator. Open: the colour and icon pickers (job B skipped them); th
 | Unit suite | 1,751 overnight on 2026-11-14 with one failure fixed; since then only single classes run, all green |
 | Five Simulator checks | done (`FiveChecksSimulatorTests`, `FiveChecksUITests`); four rows closed in Notion; the lease row (40049a74d54f814eadbace9c62d87ef9) is a line on the owner's checklist |
 | Release text | audited against every commit since v5.7.0 by an Antigravity job (288 then, 307 now); gaps fixed. Store text not pushed |
-| Devices | both run 641c7aa9 (installed 2026-11-16 about 10:00) |
+| Devices | both run a9933961 (installed 2026-11-16 13:12) |
 | Roadmap | v5.8: about 96 In Progress; most close from the device pass |
 
 ## Done on 2026-11-14 afternoon and evening (all committed)
