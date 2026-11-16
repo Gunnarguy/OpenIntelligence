@@ -240,8 +240,13 @@ extension SettingsView {
     // `Section` footers for copy that was previously loose `Text` inside tinted panels.
     var settingsList: some View {
         List {
-            Section {
-                heroSummaryRow
+            if trimmedSearch.isEmpty {
+                Section {
+                    statusPanelRow
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
             }
 
             ForEach(SettingsGroup.allCases) { group in
@@ -292,10 +297,12 @@ extension SettingsView {
                             .settingsIndexRowInsets()
                         }
                     } header: {
-                        // A footnote-sized header (2026-11-15): the List's default header is near title size on
+                        // Set like a card's `SectionHeader` (2026-11-15): small, uppercase and tracked, so the list's
+                        // groups read the way the Settings pages' cards do. The List's own header is near title size on
                         // iOS 27 and read louder than the rows under it.
-                        Text(group.title)
-                            .font(.footnote.weight(.medium))
+                        Text(group.title.uppercased())
+                            .font(.caption.weight(.semibold))
+                            .tracking(0.8)
                             .textCase(nil)
                             .foregroundStyle(DSColors.secondaryText)
                     }
@@ -429,61 +436,59 @@ extension SettingsView {
         return budget > 0 ? "\(budget.formatted()) tokens" : "Unavailable"
     }
 
-    /// Compact identity row at the top of the index.
-    ///
-    /// The full `heroCard` is a ~500pt tall centred panel — a reasonable opening for a
-    /// single long scroll, and far too much for the first row of a navigation index,
-    /// where it pushed the first real section most of a screen down. Settings.app makes
-    /// the same trade: the Apple Account card is a compact row, not a hero. The status
-    /// text and both pills survive, laid out horizontally. At accessibility text sizes the
-    /// icon goes above the text, and the two pills stack whenever they do not fit side by side
-    /// (5.7): at the largest size each had about 130 points, and "PCC" and "Available" broke in
-    /// the middle of the word.
-    ///
-    /// The pills became one quiet line of secondary text (2026-11-15, the owner asked for the page to look premium and
-    /// without colour), so the row reads like the Apple Account row: icon, name, status.
-    private var heroSummaryRow: some View {
-        let rowLayout =
-            dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.sm))
-            : AnyLayout(HStackLayout(spacing: DSSpacing.md))
-        return rowLayout {
-            Image(systemName: "brain.head.profile")
-                .font(.title3)
-                // Decorative and drawn in a 40-point circle, so it stops growing at the largest standard size.
-                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                .foregroundStyle(DSColors.accent)
-                .frame(width: 40, height: 40)
-                .background(DSColors.accent.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("OpenIntelligence")
-                    .font(.headline)
-                    .foregroundStyle(DSColors.primaryText)
-                    // One word, so at the largest accessibility size it shrank to fit instead of hyphenating as
-                    // "OpenIntelli-gence" (seen in the iOS 27 Simulator, 2026-11-15).
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+    /// The top of the index: the dark lit panel the Settings pages open with (2026-11-15), stating the live state in four
+    /// blocks. It replaced an icon, a name and two grey lines; the owner asked for the list to look premium and to
+    /// belong with the pages he approved ("those look phenomenal"). Every figure is one this view already reads: the
+    /// model's name from `onDeviceModelName`, the answer mode from `settings`, the plan from `entitlementStore` and the
+    /// libraries from `containerService`. Hidden while searching, so results start at the top.
+    private var statusPanelRow: some View {
+        let modelName = onDeviceModelName
+        let modelReady = deviceCapabilities.supportsFoundationModels
+        // "AFM 3 Core Advanced" doesn't fit a quarter of a phone's width at 12 points: the family ("AFM 3") goes in
+        // the caption and the rest is the figure. A name of another shape is shown whole. Where the model isn't
+        // available the block says Unavailable and the reason is the line under the panel, the same words
+        // (`statusText`) the row showed before, so the panel never states a reason it doesn't know.
+        let modelWords = modelName?.split(separator: " ").map(String.init) ?? []
+        let splitsFamily = modelWords.count > 2 && modelWords[0] == "AFM"
+        let modelFigure =
+            splitsFamily ? modelWords.dropFirst(2).joined(separator: " ") : (modelName ?? (modelReady ? "Ready" : "Unavailable"))
+        let modelCaption = splitsFamily ? modelWords.prefix(2).joined(separator: " ") + ", on device" : "on device"
+        let libraries = SettingsStatusPanel.used(containerService.countedLibraryCount, of: entitlementStore.libraryLimit)
+        let mode = settings.ragQualityMode.canonical
+        // "Ready" only once the person has allowed it; available but not yet allowed reads "available", as the pill did.
+        let pccAvailable = deviceCapabilities.supportsPrivateCloudCompute && settings.applePCCConsent != .denied
+        let pccAllowed = pccAvailable && settings.applePCCConsent == .allowed
+        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            SettingsStatusPanel(
+                symbol: "brain.head.profile",
+                title: "OpenIntelligence",
+                badge: pccAllowed ? "PCC ready" : (pccAvailable ? "PCC available" : "On device"),
+                badgeColor: pccAvailable ? .cyan : Color.white.opacity(0.7),
+                blocks: [
+                    .init(
+                        symbol: "apple.intelligence", name: "Model", color: .blue, figure: modelFigure,
+                        share: modelReady ? nil : 0, caption: modelReady ? modelCaption : "see below"),
+                    .init(
+                        symbol: "sparkles", name: "Mode", color: .purple, figure: mode.displayName,
+                        share: mode == .standard ? 1.0 / 3 : (mode == .deepThink ? 2.0 / 3 : 1), caption: "answers"),
+                    .init(
+                        symbol: "creditcard", name: "Plan", color: .orange,
+                        figure: entitlementStore.effectiveTier.displayName, share: nil,
+                        caption: entitlementStore.effectiveTier == .free ? "upgrade any time" : "active"),
+                    .init(
+                        symbol: "books.vertical", name: "Libraries", color: .green, figure: libraries.figure,
+                        share: libraries.share, caption: libraries.caption),
+                ]
+            )
+            if !modelReady {
                 Text(statusText)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(routeSummary)
-                    .font(.footnote)
-                    .foregroundStyle(DSColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, DSSpacing.xs)
             }
         }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// What the two status pills said, as one line: "On-device first", and "PCC available" where it is.
-    private var routeSummary: String {
-        if deviceCapabilities.supportsPrivateCloudCompute, settings.applePCCConsent != .denied {
-            return "On-device first · PCC available"
-        }
-        return "On-device first"
+        .padding(.vertical, DSSpacing.xs)
     }
 
     private var trimmedSearch: String {
@@ -508,27 +513,25 @@ extension SettingsView {
     }
 
     // Rows sized like Settings.app's (2026-11-15, the owner: "clean it up, it doesnt need colorizing or anything but
-    // it does need to look premium"). Every icon is the accent in one weight and one column width, where each entry
-    // had its own tint, and the subtitle is a footnote held close under the title, so a row is about a system row's
-    // height instead of a tall rounded card. The subtitle still wraps rather than truncating, at every text size.
+    // it does need to look premium and not have such large pill like page taps"). Each icon sits in a small rounded
+    // graphite tile with a white glyph, the dark of the status panel above, where Settings.app gives each tile its own
+    // colour. Title in the body size of the Settings pages (`.subheadline`, medium), subtitle a caption close under it,
+    // so a row is about a system row's height. The subtitle still wraps rather than truncating, at every text size.
     @ViewBuilder
     private func settingsRow(_ entry: SettingsEntry) -> some View {
-        Label {
+        HStack(spacing: DSSpacing.md) {
+            SettingsIconTile(symbol: entry.icon)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.title)
-                    .font(.body)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(DSColors.primaryText)
                 Text(entry.subtitle)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        } icon: {
-            Image(systemName: entry.icon)
-                .font(.body)
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(DSColors.accent)
         }
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(entry.title)
         .accessibilityHint(entry.subtitle)
     }
@@ -629,13 +632,36 @@ extension SettingsView {
 
 }
 
+/// A Settings row's icon: a white glyph in a small graphite tile with a faint lit edge, drawn like the status panel's
+/// background (2026-11-15). The tile grows with the text size up to the largest standard size and stops there.
+private struct SettingsIconTile: View {
+    let symbol: String
+    @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = 28
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: DSCorners.control - 3, style: .continuous)
+        Image(systemName: symbol)
+            .scaledFont(size: 14, weight: .semibold, relativeTo: .subheadline)
+            .symbolRenderingMode(.monochrome)
+            .foregroundStyle(.white)
+            .frame(width: min(side, 40), height: min(side, 40))
+            .background(
+                shape.fill(
+                    LinearGradient(
+                        colors: [Color(white: 0.26), Color(white: 0.09)], startPoint: .top, endPoint: .bottom))
+            )
+            .overlay(shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
+            .accessibilityHidden(true)
+    }
+}
+
 extension View {
     /// Less padding above and below a Settings index row on iPhone and iPad (2026-11-15), so a row is close to a
     /// Settings.app row's height; the side insets stay the system's. A Mac list row is already that compact.
     @ViewBuilder
     fileprivate func settingsIndexRowInsets() -> some View {
         #if os(iOS)
-            listRowInsets(.vertical, 7)
+            listRowInsets(.vertical, 6)
         #else
             self
         #endif

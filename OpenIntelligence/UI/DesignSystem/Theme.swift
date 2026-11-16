@@ -220,7 +220,22 @@ public enum DSColors {
 /// the user's text-size setting. Because this is the design system, it was the single
 /// largest source of non-scaling type in the app. The replacements land within ~1pt of
 /// the old sizes at the default setting and scale from there.
+///
+/// The one type scale for Settings and the Database tab (5.8, 2026-11-15, the owner: "Ubiquity and uniformity all
+/// across"). The reference is what he approved: `SettingsStatusPanel` and the Settings pages built from `SurfaceCard`.
+/// - Page section title: `.headline` (`title`).
+/// - Card title: `SectionHeader`, inside a `SurfaceCard` (one corner radius, `DSCorners.card`, one padding, one
+///   spacing between cards, `DSSpacing.lg`). No hand-made rounded rectangle with its own padding.
+/// - Body: `.subheadline` (`body`). Secondary text and meta: `.caption` in `DSColors.secondaryText`.
+/// - A figure that is the point of its block goes in a `SettingsStatusPanel` block; inline, `figure` at most
+///   (`.title3`, semibold, monospaced digits). No `.largeTitle`, no `.title` for numbers, no fixed size above 20 points
+///   except the decorative glyphs inside the panels. Every font is a text style or `scaledFont`, so it follows Dynamic
+///   Type.
+/// - Status and figures at the top of a page: a `SettingsStatusPanel`.
+/// - Root tab titles are inline on all five tabs, as every pushed page is, so a tab opens on its content.
 public enum DSTypography {
+    /// A figure shown inline in a card: the largest a number gets outside a status panel.
+    public static var figure: Font { .title3.weight(.semibold).monospacedDigit() }
     public static var title: Font { .headline }
     public static var body: Font { .subheadline }
     public static var caption: Font { .caption }

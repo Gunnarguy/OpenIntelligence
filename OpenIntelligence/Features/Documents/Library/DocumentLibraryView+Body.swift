@@ -535,9 +535,9 @@ extension DocumentLibraryView {
             .animation(DSAnimations.fastEase, value: isDropTargeted)
             .navigationTitle("Documents")
             #if os(iOS)
-            // Inline at accessibility text sizes (5.7): there the large title wrapped to "Docu-" and "ments" and took a
-            // fifth of the screen above the header, which carries the same name.
-            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+            // Inline, as every root tab is (5.8, see `DSTypography`). It was large except at accessibility text sizes,
+            // where the large title wrapped to "Docu-" and "ments" (5.7); the header below carries the same name.
+            .navigationBarTitleDisplayMode(.inline)
             .ignoresSafeArea(.keyboard, edges: .bottom)
             #endif
             .onAppear {

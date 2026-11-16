@@ -53,14 +53,7 @@ struct DocumentPreviewSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     // Metadata header
-                    VStack(alignment: .leading, spacing: DSSpacing.md) {
-                        HStack {
-                            Image(systemName: "doc.text.fill")
-                                .foregroundStyle(Color.accentColor)
-                            Text("Document Metadata")
-                                .font(.headline)
-                            Spacer()
-                        }
+                    DatabaseCard(icon: "doc.text.fill", title: "Document Metadata") {
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                             MetadataCard(label: "Document ID", value: documentId.uuidString, isMonospace: true)
@@ -69,18 +62,9 @@ struct DocumentPreviewSheet: View {
                             MetadataCard(label: "Avg Word Length", value: wordCount > 0 ? String(format: "%.1f", Double(characterCount) / Double(wordCount)) : "—")
                         }
                     }
-                    .padding(DSSpacing.lg)
-                    .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                     // Content preview
-                    VStack(alignment: .leading, spacing: DSSpacing.md) {
-                        HStack {
-                            Image(systemName: "text.alignleft")
-                                .foregroundStyle(Color.accentColor)
-                            Text("Indexed Content")
-                                .font(.headline)
-                            Spacer()
-
+                    DatabaseCard(icon: "text.alignleft", title: "Indexed Content") {
                             if !fullContent.isEmpty {
                                 ShareLink(item: fullContent) {
                                     Label("Share Full", systemImage: "square.and.arrow.up")
@@ -103,8 +87,7 @@ struct DocumentPreviewSheet: View {
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                             }
-                        }
-
+                    } content: {
                         if isLoading {
                             ProgressView("Loading content...")
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -120,8 +103,8 @@ struct DocumentPreviewSheet: View {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundStyle(.orange)
                                     Text("Showing first \(Self.displayLimit.formatted()) of \(fullContentCharacterCount.formatted()) characters. Use Share to export full content.")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                                        .font(.caption)
+                                        .foregroundStyle(DSColors.secondaryText)
                                 }
                                 .padding(.horizontal, DSSpacing.sm)
                                 .padding(.vertical, DSSpacing.xs)
@@ -133,26 +116,17 @@ struct DocumentPreviewSheet: View {
                                 .textSelection(.enabled)
                                 .padding(DSSpacing.lg)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
+                                .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
                                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                                 )
                         }
                     }
-                    .padding(DSSpacing.lg)
-                    .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                     // Analysis — uses pre-computed stats (NOT computed in view body)
                     if let stats = analysisStats {
-                        VStack(alignment: .leading, spacing: DSSpacing.md) {
-                            HStack {
-                                Image(systemName: "chart.bar.fill")
-                                    .foregroundStyle(Color.accentColor)
-                                Text("Quick Analysis")
-                                    .font(.headline)
-                                Spacer()
-                            }
+                        DatabaseCard(icon: "chart.bar.fill", title: "Quick Analysis") {
 
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                                 AnalysisCard(label: "Lines", value: "\(stats.lines)", icon: "list.number", color: .accentColor)
@@ -172,8 +146,6 @@ struct DocumentPreviewSheet: View {
                                 CharacterBreakdownRow(label: "Punctuation", count: stats.punctuationCount, total: stats.totalChars, color: .accentColor)
                             }
                         }
-                        .padding(DSSpacing.lg)
-                        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                     }
                 }
                 .padding(DSSpacing.lg)
@@ -257,17 +229,17 @@ private struct MetadataCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(DSColors.secondaryText)
             Text(value)
-                .font(isMonospace ? .system(.caption2, design: .monospaced) : .caption)
+                .font(isMonospace ? .system(.caption, design: .monospaced) : .subheadline.monospacedDigit())
                 .fontWeight(.medium)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DSSpacing.sm)
-        .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
+        .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 }
 
@@ -284,14 +256,16 @@ private struct AnalysisCard: View {
                 .foregroundStyle(color)
                 .font(.caption)
             Text(value)
-                .font(.headline)
+                .font(DSTypography.figure)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(DSColors.secondaryText)
         }
         .padding(DSSpacing.sm)
         .frame(maxWidth: .infinity)
-        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
+        .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 }
 

@@ -30,33 +30,37 @@ struct LibraryIntelligenceCard: View {
     /// Settings' Technical Details: the card says "chunks" and "corpus" with it on and "passages" without.
     var showsTechnicalDetails: Bool = false
 
+    // A `SurfaceCard` whose title is set as `SectionHeader` sets one (2026-11-15), with the library's own colour on its
+    // icon, which `SectionHeader` would draw in the accent.
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
+        SurfaceCard {
             // Header with library info
-            HStack(spacing: DSSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
                 Image(systemName: container.icon)
+                    .scaledFont(size: 16, weight: .semibold)
                     .foregroundStyle(Color(hex: container.colorHex) ?? .accentColor)
-                    .font(.title3)
+                    .frame(width: 20)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(container.name)
-                        .font(.headline)
+                    Text(container.name.uppercased())
+                        .font(.footnote.weight(.semibold))
+                        .tracking(0.8)
 
                     HStack(spacing: DSSpacing.xs) {
                         if container.autoAdaptDimension {
                             Label("Auto", systemImage: "wand.and.stars")
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(Color.accentColor)
                         } else {
                             Label("Manual", systemImage: "slider.horizontal.3")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
 
                         if let lastTune = container.lastSelfTuneAt {
                             Text("• Updated \(lastTune, style: .relative) ago")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
@@ -80,8 +84,8 @@ struct LibraryIntelligenceCard: View {
                             showsTechnicalDetails
                                 ? "Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks"
                                 : "Measured from \(report.corpus.analysedChunkCount) of its \(report.corpus.chunkCount) passages")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(DSColors.secondaryText)
                     }
 
                     // The library analysis's plan is shown and never applied: each import sets its own from a
@@ -92,8 +96,8 @@ struct LibraryIntelligenceCard: View {
                             ? "Suggested by the library analysis; each import sets its own plan"
                             : "What the analysis suggests. Each document gets its own when it's added."
                     )
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                     IntelligenceMetricRow(
@@ -120,16 +124,16 @@ struct LibraryIntelligenceCard: View {
                     if !report.chunking.rationales.isEmpty {
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             Text(showsTechnicalDetails ? "Rationale:" : "Why:")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(DSColors.secondaryText)
 
                             ForEach(report.chunking.rationales.prefix(3), id: \.self) { reason in
                                 HStack(alignment: .top, spacing: DSSpacing.xs) {
                                     Text("•")
                                         .foregroundStyle(Color.accentColor)
                                     Text(reason)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                                        .font(.caption)
+                                        .foregroundStyle(DSColors.secondaryText)
                                 }
                             }
                         }
@@ -142,17 +146,17 @@ struct LibraryIntelligenceCard: View {
                         .scaleEffect(0.7)
                     Text(showsTechnicalDetails ? "Analyzing corpus…" : "Analyzing…")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
             } else if container.autoAdaptDimension {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     Text("Not analyzed yet in this session.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
 
                     Text("Analyzing a library means opening it and reading up to 4,000 of its passages, so it runs when you ask rather than for all libraries at once.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let onAnalyze {
@@ -202,7 +206,7 @@ struct LibraryIntelligenceCard: View {
                 } else {
                     Text(showsTechnicalDetails ? "Using default chunking settings" : "Using the standard passage length")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
             }
 
@@ -213,7 +217,7 @@ struct LibraryIntelligenceCard: View {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(showsTechnicalDetails ? "Corpus Signals" : "What's in It")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
 
                     HStack(spacing: DSSpacing.lg) {
                         CorpusSignalBadge(
@@ -240,12 +244,7 @@ struct LibraryIntelligenceCard: View {
                 }
             }
         }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .stroke(container.autoAdaptDimension ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -262,11 +261,11 @@ struct IntelligenceMetricRow: View {
                 .foregroundStyle(color)
                 .frame(width: 20)
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(DSColors.secondaryText)
             Spacer()
             Text(value)
-                .font(.caption.weight(.medium))
+                .font(.subheadline.weight(.medium))
         }
     }
 }
@@ -279,11 +278,11 @@ struct CorpusSignalBadge: View {
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
             Text(label)
-                .font(.caption2)
+                .font(.caption)
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(DSColors.secondaryText)
     }
 }
 
@@ -301,10 +300,10 @@ struct IntelligenceExplanationRow: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.caption.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                 Text(description)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
             }
         }
     }

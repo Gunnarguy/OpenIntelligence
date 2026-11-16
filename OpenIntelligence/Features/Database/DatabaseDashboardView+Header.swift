@@ -68,42 +68,19 @@ extension DatabaseDashboardView {
     }
     // MARK: - Header
 
+    /// The top of the tab: the dark lit panel the Settings pages open with (2026-11-15), where a 56-point icon, a
+    /// `.title2` name and a row of figures sat in a card of their own. Under it the scope chips, then the sections.
     var headerSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            HStack(spacing: DSSpacing.md) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(
-                            colors: [DSColors.accent, DSColors.accent.opacity(0.85)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 56, height: 56)
+            statusPanel
 
-                    Image(systemName: "cylinder.split.1x2.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                }
-
-                VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    Text(settings.showTechnicalDetails ? "SQLite FTS5" : "Keyword Index")
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Text(settings.showTechnicalDetails ? "Full-Text Search Engine" : "Finds the exact words of a question in your documents")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                if let stats = stats {
-                    DatabaseStatusBadge(
-                        status: stats.indexStatus,
-                        color: stats.totalDocuments > 0 ? .green : .orange
-                    )
-                }
-            }
+            Text(
+                settings.showTechnicalDetails
+                    ? "SQLite FTS5 full-text search engine" : "Finds the exact words of a question in your documents"
+            )
+            .font(.caption)
+            .foregroundStyle(DSColors.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
 
             // Scope control.
             //
@@ -119,24 +96,47 @@ extension DatabaseDashboardView {
             // carries `containerStats`, so scoping needs no new query and no change to
             // `SQLiteFullTextService`, which is a hard-boundary file.
             scopePicker
-
-            // Quick stats row, scoped to the selection above.
-            if let stats = stats {
-                HStack(spacing: DSSpacing.lg) {
-                    QuickStat(value: "\(scopedDocumentCount(stats))", label: "Docs", icon: "doc.fill", color: .accentColor)
-                    QuickStat(value: formatLargeNumber(scopedWordCount(stats)), label: "Words", icon: "textformat", color: .accentColor)
-                    // Size, terms and every other file-level figure are properties of the
-                    // SQLite file itself and cannot be attributed to one library, so they
-                    // stay whole-database and say so rather than silently implying scope.
-                    QuickStat(value: formatBytes(stats.databaseSizeBytes), label: "Size (all)", icon: "externaldrive.fill", color: .accentColor)
-                    if let indexInfo = indexInfo {
-                        QuickStat(value: formatLargeNumber(indexInfo.uniqueTerms), label: "Terms (all)", icon: "list.bullet", color: .accentColor)
-                    }
-                }
-            }
         }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+    }
+
+    /// Documents and words for the scope chosen below the panel; size and terms for the whole file, and the captions
+    /// say so. Size, terms and every other file-level figure are properties of the SQLite file itself and cannot be
+    /// attributed to one library, so they stay whole-database rather than silently implying scope. The bars are the
+    /// scope's share of every library's documents and words.
+    private var statusPanel: some View {
+        let scoped = scopedContainerId != nil
+        let documents = stats.map { scopedDocumentCount($0) }
+        let words = stats.map { scopedWordCount($0) }
+        let documentShare = stats.map { Double(scopedDocumentCount($0)) / Double(max(1, $0.totalDocuments)) }
+        let wordShare = stats.map { Double(scopedWordCount($0)) / Double(max(1, $0.totalWords)) }
+        let active = (stats?.totalDocuments ?? 0) > 0
+        return SettingsStatusPanel(
+            symbol: "cylinder.split.1x2",
+            title: settings.showTechnicalDetails ? "SQLite FTS5" : "Keyword Index",
+            badge: stats?.indexStatus ?? "Loading",
+            badgeColor: stats == nil ? Color.white.opacity(0.7) : (active ? .green : .orange),
+            blocks: [
+                .init(
+                    symbol: "doc.text", name: "Documents", color: .blue,
+                    figure: documents.map { $0.formatted() } ?? "…", share: scoped ? documentShare : nil,
+                    caption: scoped ? "in \(scopeLabel)" : "all libraries"),
+                .init(
+                    symbol: "textformat", name: "Words", color: .purple,
+                    figure: words.map { formatLargeNumber($0) } ?? "…", share: scoped ? wordShare : nil,
+                    caption: scoped ? "in \(scopeLabel)" : "all libraries"),
+                .init(
+                    symbol: "internaldrive", name: "Size", color: .green,
+                    figure: stats.map { formatBytes($0.databaseSizeBytes) } ?? "…", share: nil,
+                    caption: "on disk, all"),
+                .init(
+                    symbol: "list.bullet", name: "Terms", color: .orange,
+                    // "…" while the second load runs (it sets `deepDiagnostics` after the index info), "—" if it ended
+                    // without a figure, so the block never looks as if it is loading for good.
+                    figure: indexInfo.map { formatLargeNumber($0.uniqueTerms) } ?? (deepDiagnostics == nil ? "…" : "—"),
+                    share: nil,
+                    caption: "unique, all"),
+            ]
+        )
     }
 
     /// Library scope for the per-library figures on this screen.
@@ -297,36 +297,14 @@ extension DatabaseDashboardView {
         scope: DatabaseScope,
         tint: Color
     ) -> some View {
-        let isSelected = databaseScope == scope
-
-        Button {
+        DatabaseChip(label: label, icon: icon, tint: tint, isSelected: databaseScope == scope) {
             Tour.used(.databaseScope)
             guard databaseScope != scope else { return }
             DSHaptics.light()
             withAnimation(DSAnimations.snappySpring) {
                 databaseScope = scope
             }
-        } label: {
-            HStack(spacing: DSSpacing.xs) {
-                Image(systemName: icon)
-                    .scaledFont(size: 11, weight: .medium)
-                Text(label)
-                    .font(.subheadline)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .lineLimit(1)
-            }
-            .foregroundStyle(isSelected ? tint : .secondary)
-            .padding(.horizontal, DSSpacing.md)
-            .padding(.vertical, DSSpacing.sm)
-            .background(
-                Capsule().fill(tint.opacity(isSelected ? 0.16 : 0.06))
-            )
-            .overlay(
-                Capsule().strokeBorder(tint.opacity(isSelected ? 0.5 : 0.0), lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .tour(.databaseScope, in: Tour.database, when: scope == .allLibraries)
     }
 
@@ -335,37 +313,27 @@ extension DatabaseDashboardView {
         selectedSection.isTechnical && !settings.showTechnicalDetails ? .overview : selectedSection
     }
 
+    /// The sections, as chips like the scope row's (2026-11-15). A segmented control was the other choice; with six
+    /// sections, eight with Technical Details on, its segments would have been too narrow for their names on a phone.
     var sectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DSSpacing.md) {
+            HStack(spacing: DSSpacing.sm) {
                 ForEach(DatabaseSection.allCases.filter { settings.showTechnicalDetails || !$0.isTechnical }) { section in
-                    Button {
+                    DatabaseChip(
+                        label: section.label, icon: section.icon, tint: DSColors.accent,
+                        isSelected: shownSection == section
+                    ) {
                         Tour.used(.databaseSections)
                         withAnimation(DSAnimations.snappySpring) {
                             selectedSection = section
                         }
-                    } label: {
-                        HStack(spacing: DSSpacing.xs) {
-                            Image(systemName: section.icon)
-                            Text(section.label)
-                        }
-                        .font(.subheadline)
-                        .fontWeight(shownSection == section ? .semibold : .regular)
-                        .padding(.horizontal, DSSpacing.lg)
-                        .padding(.vertical, DSSpacing.sm)
-                        .background(
-                            shownSection == section
-                                ? Color.accentColor.opacity(0.15)
-                                : DSColors.surface,
-                            in: Capsule()
-                        )
-                        .foregroundStyle(shownSection == section ? Color.accentColor : .secondary)
                     }
-                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("database.section.\(section.rawValue)")
                     .tour(.databaseSections, in: Tour.database, when: section == DatabaseSection.allCases.dropFirst().first)
                 }
             }
-            .padding(.horizontal, DSSpacing.xs)
+            .padding(.horizontal, DSSpacing.xxs)
+            .padding(.vertical, DSSpacing.xxs)
         }
     }
 

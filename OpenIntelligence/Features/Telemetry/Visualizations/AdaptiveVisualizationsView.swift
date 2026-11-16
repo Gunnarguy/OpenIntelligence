@@ -263,7 +263,8 @@ struct AdaptiveVisualizationsView: View {
         }
         .background(DSColors.background)
         .navigationTitle("Knowledge Atlas")
-        .navigationBarTitleDisplayMode(.large)
+        // Inline, as every root tab is (5.8, see `DSTypography`).
+        .navigationBarTitleDisplayMode(.inline)
         #if os(iOS)
         .fullScreenCover(isPresented: $show3DFullscreen) {
             Fullscreen3DAtlasView()

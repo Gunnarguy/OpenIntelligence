@@ -14,78 +14,72 @@ extension DatabaseDashboardView {
     var maintenanceSection: some View {
         VStack(spacing: DSSpacing.lg) {
             // Integrity check
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                HStack {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundStyle(.green)
-                    Text("Integrity Check")
-                        .font(.headline)
-                    Spacer()
-                    Button("Run Check") {
-                        Tour.used(.runCheck)
-                        Task {
-                            integrityResults = await SQLiteFullTextService.shared.runIntegrityCheck()
-                        }
+            DatabaseCard(icon: "checkmark.shield.fill", title: "Integrity Check") {
+                Button("Run Check") {
+                    Tour.used(.runCheck)
+                    Task {
+                        integrityResults = await SQLiteFullTextService.shared.runIntegrityCheck()
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tour(.runCheck, in: Tour.database)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tour(.runCheck, in: Tour.database)
+            } content: {
 
                 if !integrityResults.isEmpty {
                     ForEach(integrityResults, id: \.self) { result in
                         HStack {
-                            Image(systemName: result.lowercased().contains("ok") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(result.lowercased().contains("ok") ? .green : .red)
+                            Image(
+                                systemName: result.lowercased().contains("ok")
+                                    ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                            )
+                            .foregroundStyle(result.lowercased().contains("ok") ? .green : .red)
                             Text(result)
-                                .font(.caption)
+                                .font(.subheadline)
                         }
                     }
                 } else {
                     Text("Run integrity check to verify database health")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
             }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Optimize database
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                HStack {
-                    Image(systemName: "bolt.circle.fill")
-                        .foregroundStyle(.orange)
-                    Text("Optimize Database")
-                        .font(.headline)
-                    Spacer()
-                    Button {
-                        Task {
-                            isOptimizing = true
-                            let result = await SQLiteFullTextService.shared.optimize()
-                            if result.success {
-                                lastOptimizeResult = "Freed \(formatBytes(result.freedBytes)) in \(String(format: "%.1f", result.elapsedMs))ms"
-                            } else {
-                                lastOptimizeResult = "Optimization failed"
-                            }
-                            isOptimizing = false
-                            await loadAllData() // Refresh stats
-                        }
-                    } label: {
-                        if isOptimizing {
-                            ProgressView()
-                                .controlSize(.small)
+            DatabaseCard(icon: "bolt.circle.fill", title: "Optimize Database") {
+                Button {
+                    Task {
+                        isOptimizing = true
+                        let result = await SQLiteFullTextService.shared.optimize()
+                        if result.success {
+                            lastOptimizeResult =
+                                "Freed \(formatBytes(result.freedBytes)) in \(String(format: "%.1f", result.elapsedMs))ms"
                         } else {
-                            Text("Optimize")
+                            lastOptimizeResult = "Optimization failed"
                         }
+                        isOptimizing = false
+                        await loadAllData()  // Refresh stats
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(isOptimizing)
+                } label: {
+                    if isOptimizing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Optimize")
+                    }
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isOptimizing)
+            } content: {
 
-                Text(settings.showTechnicalDetails ? "Runs VACUUM and FTS5 optimize to reclaim space and merge the index" : "Compacts the index and frees the space it no longer uses")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    settings.showTechnicalDetails
+                        ? "Runs VACUUM and FTS5 optimize to reclaim space and merge the index"
+                        : "Compacts the index and frees the space it no longer uses"
+                )
+                .font(.caption)
+                .foregroundStyle(DSColors.secondaryText)
 
                 if let result = lastOptimizeResult {
                     Label(result, systemImage: "checkmark.circle.fill")
@@ -93,57 +87,53 @@ extension DatabaseDashboardView {
                         .foregroundStyle(.green)
                 }
             }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Rebuild index
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                HStack {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .foregroundStyle(.red)
-                    Text("Rebuild Index")
-                        .font(.headline)
-                    Spacer()
-
-                    if !rebuildLogs.isEmpty {
-                        Button {
-                            withAnimation(DSAnimations.snappySpring) {
-                                showRebuildLog.toggle()
-                            }
-                        } label: {
-                            HStack(spacing: DSSpacing.xs) {
-                                Image(systemName: showRebuildLog ? "chevron.up" : "chevron.down")
-                                Text("Log")
-                            }
-                            .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-
+            DatabaseCard(icon: "arrow.triangle.2.circlepath", title: "Rebuild Index") {
+                if !rebuildLogs.isEmpty {
                     Button {
-                        Task {
-                            await performDetailedRebuild()
+                        withAnimation(DSAnimations.snappySpring) {
+                            showRebuildLog.toggle()
                         }
                     } label: {
-                        if isRebuildingIndex {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Rebuild")
+                        HStack(spacing: DSSpacing.xs) {
+                            Image(systemName: showRebuildLog ? "chevron.up" : "chevron.down")
+                            Text("Log")
                         }
+                        .font(.caption)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(isRebuildingIndex)
                 }
+
+                Button {
+                    Task {
+                        await performDetailedRebuild()
+                    }
+                } label: {
+                    if isRebuildingIndex {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Rebuild")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .controlSize(.small)
+                .disabled(isRebuildingIndex)
+            } content: {
 
                 // `SQLiteFullTextService.rebuildIndex` runs FTS5's rebuild on the whole-document table only, not on the
                 // passage table that answers questions; "Completely rebuilds the FTS5 index" said otherwise (2026-10-20).
-                Text(settings.showTechnicalDetails ? "⚠️ Rebuilds the documents FTS5 table from its stored text; the chunks table is not rebuilt." : "⚠️ Builds the whole-document word index again from its stored text. The index that answers questions by passage isn't touched.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                Text(
+                    settings.showTechnicalDetails
+                        ? "⚠️ Rebuilds the documents FTS5 table from its stored text; the chunks table is not rebuilt."
+                        : "⚠️ Builds the whole-document word index again from its stored text. The index that answers questions by passage isn't touched."
+                )
+                .font(.caption)
+                .foregroundStyle(DSColors.readable(.orange))
+                .fixedSize(horizontal: false, vertical: true)
 
                 // Live rebuild log
                 if showRebuildLog && !rebuildLogs.isEmpty {
@@ -162,26 +152,19 @@ extension DatabaseDashboardView {
                     .padding(.top, DSSpacing.xs)
                 }
             }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Database info
             if let diag = deepDiagnostics {
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                        Text("Database Info")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "info.circle.fill", title: "Database Info") {
 
                     VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         if settings.showTechnicalDetails {
                             DatabaseInfoRow(label: "Journal Mode", value: diag.journalMode.uppercased())
                             DatabaseInfoRow(label: "Auto Vacuum", value: diag.autoVacuum)
                         }
-                        DatabaseInfoRow(label: settings.showTechnicalDetails ? "Integrity" : "Index Check", value: diag.integrityCheckResult)
+                        DatabaseInfoRow(
+                            label: settings.showTechnicalDetails ? "Integrity" : "Index Check",
+                            value: diag.integrityCheckResult)
                         if settings.showTechnicalDetails {
                             DatabaseInfoRow(label: "Page Count", value: "\(diag.pageCount)")
                             DatabaseInfoRow(label: "Free Pages", value: "\(diag.freePageCount)")
@@ -189,14 +172,14 @@ extension DatabaseDashboardView {
 
                         if diag.freePageCount > 0 {
                             let wastedBytes = Int64(diag.freePageCount * diag.pageSize)
-                            Text("💡 \(formatBytes(wastedBytes)) could be reclaimed with Optimize")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
+                            Label(
+                                "\(formatBytes(wastedBytes)) could be reclaimed with Optimize", systemImage: "lightbulb"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(DSColors.readable(.orange))
                         }
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
         }
     }
@@ -209,11 +192,14 @@ extension DatabaseDashboardView {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField(settings.showTechnicalDetails ? "Search FTS5 index..." : "Search for words in your documents…", text: $searchQuery)
-                    .textFieldStyle(.plain)
-                    .onSubmit {
-                        Task { await performSearch() }
-                    }
+                TextField(
+                    settings.showTechnicalDetails ? "Search FTS5 index..." : "Search for words in your documents…",
+                    text: $searchQuery
+                )
+                .textFieldStyle(.plain)
+                .onSubmit {
+                    Task { await performSearch() }
+                }
 
                 if isSearching {
                     ProgressView()
@@ -229,19 +215,17 @@ extension DatabaseDashboardView {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(DSSpacing.lg)
+            .font(.subheadline)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.sm + 2)
             .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Search tips
             if searchResults.isEmpty && searchQuery.isEmpty {
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "lightbulb.fill")
-                            .foregroundStyle(Color.accentColor)
-                        Text(settings.showTechnicalDetails ? "FTS5 Query Syntax" : "Ways to Search")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(
+                    icon: "lightbulb.fill",
+                    title: settings.showTechnicalDetails ? "FTS5 Query Syntax" : "Ways to Search"
+                ) {
 
                     VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         SearchTip(syntax: "word1 word2", description: "Match documents containing both words (AND)")
@@ -254,13 +238,14 @@ extension DatabaseDashboardView {
                         SearchTip(syntax: "word + word2", description: "word2 must follow word (adjacent)")
                     }
 
-                    Text(settings.showTechnicalDetails ? "Queries are case-insensitive. BM25 ranking is used for relevance scoring." : "Capital letters don't matter, and the best matches come first.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, DSSpacing.xs)
+                    Text(
+                        settings.showTechnicalDetails
+                            ? "Queries are case-insensitive. BM25 ranking is used for relevance scoring."
+                            : "Capital letters don't matter, and the best matches come first."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
 
             // Search performance metrics
@@ -294,18 +279,17 @@ extension DatabaseDashboardView {
 
             // Search results
             if !searchResults.isEmpty {
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Text("Results")
-                            .font(.headline)
-                        Spacer()
-                        Text("\(searchResults.count) matches")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
+                DatabaseCard(icon: "list.bullet", title: "Results") {
+                    Text("\(searchResults.count) matches")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(DSColors.secondaryText)
+                } content: {
                     ForEach(searchResults, id: \.documentId) { result in
                         SearchResultRow(result: result, documentName: documentName(for: result.documentId))
+                        if result.documentId != searchResults.last?.documentId {
+                            Divider()
+                        }
                     }
                 }
             }
@@ -313,23 +297,27 @@ extension DatabaseDashboardView {
     }
 
     var emptyDatabaseState: some View {
-        VStack(spacing: DSSpacing.lg) {
-            Image(systemName: "cylinder")
-                .scaledFont(size: 64)
-                .foregroundStyle(.secondary.opacity(0.4))
+        SurfaceCard {
+            VStack(spacing: DSSpacing.sm) {
+                Image(systemName: "cylinder")
+                    .font(.title2)
+                    .foregroundStyle(DSColors.secondaryText)
 
-            Text(settings.showTechnicalDetails ? "Database Empty" : "No Documents Yet")
-                .font(.title2)
+                Text(settings.showTechnicalDetails ? "Database Empty" : "No Documents Yet")
+                    .font(.headline)
 
-            Text(settings.showTechnicalDetails ? "Add documents to populate the SQLite FTS5 full-text search index" : "Add documents and their words show up here.")
+                Text(
+                    settings.showTechnicalDetails
+                        ? "Add documents to populate the SQLite FTS5 full-text search index"
+                        : "Add documents and their words show up here."
+                )
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, DSSpacing.xxl)
+            }
+            .padding(.vertical, DSSpacing.lg)
+            .frame(maxWidth: .infinity)
         }
-        .padding(DSSpacing.xxl)
-        .frame(maxWidth: .infinity)
-        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helpers
@@ -375,10 +363,15 @@ extension DatabaseDashboardView {
     }
 
     func compressionColor(_ ratio: Double) -> Color {
-        if ratio < 0.3 { return .green }
-        else if ratio < 0.6 { return .accentColor }
-        else if ratio < 0.9 { return .orange }
-        else { return .red }
+        if ratio < 0.3 {
+            return .green
+        } else if ratio < 0.6 {
+            return .accentColor
+        } else if ratio < 0.9 {
+            return .orange
+        } else {
+            return .red
+        }
     }
 
     func containerName(for containerId: UUID) -> String {
@@ -430,7 +423,7 @@ extension DatabaseDashboardView {
                                     .font(.caption.monospaced())
                                     .foregroundStyle(.primary)
                                 Text(entry.timestamp, style: .time)
-                                    .scaledFont(size: 9)
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
 
@@ -442,7 +435,8 @@ extension DatabaseDashboardView {
                 .padding(.horizontal, DSSpacing.sm)
             }
             .frame(maxHeight: 200)
-            .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
+            .background(
+                Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
         .padding(.top, DSSpacing.sm)
     }
@@ -515,8 +509,12 @@ extension DatabaseDashboardView {
         let postStats = await service.getStatistics()
         let docMatch = preStats.totalDocuments == postStats.totalDocuments
         let wordMatch = preStats.totalWords == postStats.totalWords
-        addLog("  Documents: \(postStats.totalDocuments) \(docMatch ? "✓" : "⚠️ changed")", type: docMatch ? .success : .warning)
-        addLog("  Words: \(formatLargeNumber(postStats.totalWords)) \(wordMatch ? "✓" : "⚠️ changed")", type: wordMatch ? .success : .warning)
+        addLog(
+            "  Documents: \(postStats.totalDocuments) \(docMatch ? "✓" : "⚠️ changed")",
+            type: docMatch ? .success : .warning)
+        addLog(
+            "  Words: \(formatLargeNumber(postStats.totalWords)) \(wordMatch ? "✓" : "⚠️ changed")",
+            type: wordMatch ? .success : .warning)
         await Task.yield()
 
         // Step 7: Final summary

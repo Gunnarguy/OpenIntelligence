@@ -15,14 +15,7 @@ extension DatabaseDashboardView {
         VStack(spacing: DSSpacing.lg) {
             if let indexInfo = indexInfo {
                 // Term statistics
-                VStack(alignment: .leading, spacing: DSSpacing.lg) {
-                    HStack {
-                        Image(systemName: "text.book.closed.fill")
-                            .foregroundStyle(DSColors.accent)
-                        Text("Vocabulary Statistics")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "text.book.closed.fill", title: "Vocabulary Statistics") {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                         IndexStatCard(
@@ -54,18 +47,9 @@ extension DatabaseDashboardView {
                         )
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // Tokenizer info
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "scissors")
-                            .foregroundStyle(DSColors.accent)
-                        Text("Tokenizer Configuration")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "scissors", title: "Tokenizer Configuration") {
 
                     VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         TokenizerInfoRow(label: "Tokenizer", value: "porter unicode61")
@@ -74,18 +58,9 @@ extension DatabaseDashboardView {
                         TokenizerInfoRow(label: "Ranking", value: "BM25 (built-in)")
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // FTS5 features
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(DSColors.accent)
-                        Text("FTS5 Capabilities")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "sparkles", title: "FTS5 Capabilities") {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
                         FeatureBadge(name: "MATCH Queries", enabled: true)
@@ -98,8 +73,6 @@ extension DatabaseDashboardView {
                         FeatureBadge(name: "Column Filters", enabled: true)
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             } else {
                 ProgressView("Loading index info...")
                     .padding(DSSpacing.xxl)
@@ -112,18 +85,12 @@ extension DatabaseDashboardView {
     var vocabularySection: some View {
         VStack(spacing: DSSpacing.lg) {
             // Top terms
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                HStack {
-                    Image(systemName: "textformat.abc")
-                        .foregroundStyle(DSColors.accent)
-                    Text("Top 100 Terms by Frequency")
-                        .font(.headline)
-                    Spacer()
+            DatabaseCard(icon: "textformat.abc", title: "Top 100 Terms by Frequency") {
                     Text("\(topTerms.count) terms")
                         .font(.caption)
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+                        .foregroundStyle(DSColors.secondaryText)
+            } content: {
 
                 if topTerms.isEmpty {
                     Text("No vocabulary data yet. Add documents to populate.")
@@ -177,18 +144,9 @@ extension DatabaseDashboardView {
                     }
                 }
             }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Term distribution histogram
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                HStack {
-                    Image(systemName: "chart.bar.fill")
-                        .foregroundStyle(DSColors.accent)
-                    Text("Term Frequency Distribution")
-                        .font(.headline)
-                    Spacer()
-                }
+            DatabaseCard(icon: "chart.bar.fill", title: "Term Frequency Distribution") {
 
                 if !termDistribution.isEmpty {
                     Chart(termDistribution, id: \.bucket) { dist in
@@ -207,8 +165,6 @@ extension DatabaseDashboardView {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 
@@ -219,14 +175,7 @@ extension DatabaseDashboardView {
             // Deep diagnostics header
             if let diag = deepDiagnostics {
                 // Database file info
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "internaldrive.fill")
-                            .foregroundStyle(DSColors.accent)
-                        Text("Storage Details")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "internaldrive.fill", title: "Storage Details") {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                         DiagnosticCard(label: "Database", value: formatBytes(diag.databaseSizeBytes), icon: "cylinder.fill", color: .accentColor)
@@ -235,18 +184,9 @@ extension DatabaseDashboardView {
                         DiagnosticCard(label: "Total", value: formatBytes(diag.databaseSizeBytes + diag.walSizeBytes + diag.shmSizeBytes), icon: "externaldrive.fill", color: .accentColor)
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // Page statistics
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "square.grid.3x3.fill")
-                            .foregroundStyle(DSColors.accent)
-                        Text("Page Statistics")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "square.grid.3x3.fill", title: "Page Statistics") {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                         MiniStatCard(label: "Page Size", value: "\(diag.pageSize) B")
@@ -257,18 +197,9 @@ extension DatabaseDashboardView {
                         MiniStatCard(label: "MMap", value: formatBytes(diag.mMapSize))
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // SQLite settings
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "gearshape.2.fill")
-                            .foregroundStyle(.secondary)
-                        Text("SQLite Configuration")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "gearshape.2.fill", title: "SQLite Configuration") {
 
                     ForEach(Array(diag.pragmaSettings.keys.sorted()), id: \.self) { key in
                         HStack {
@@ -295,18 +226,9 @@ extension DatabaseDashboardView {
                             .textSelection(.enabled)
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // Table stats
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "tablecells.fill")
-                            .foregroundStyle(DSColors.accent)
-                        Text("Table Statistics")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "tablecells.fill", title: "Table Statistics") {
 
                     ForEach(diag.tableStats) { table in
                         HStack {
@@ -322,8 +244,6 @@ extension DatabaseDashboardView {
                         }
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             } else {
                 ProgressView("Loading diagnostics...")
                     .padding(DSSpacing.xxl)
@@ -331,14 +251,7 @@ extension DatabaseDashboardView {
 
             // Search performance test
             if let metrics = searchMetrics {
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    HStack {
-                        Image(systemName: "speedometer")
-                            .foregroundStyle(.green)
-                        Text("Last Search Performance")
-                            .font(.headline)
-                        Spacer()
-                    }
+                DatabaseCard(icon: "speedometer", title: "Last Search Performance") {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                         DiagnosticCard(label: "Latency", value: String(format: "%.2f ms", metrics.queryLatencyMs), icon: "clock.fill", color: .accentColor)
@@ -347,8 +260,6 @@ extension DatabaseDashboardView {
                         DiagnosticCard(label: "Index Hits", value: "\(metrics.indexHits)", icon: "target", color: .accentColor)
                     }
                 }
-                .padding(DSSpacing.lg)
-                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
         }
     }

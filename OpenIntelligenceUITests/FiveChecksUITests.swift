@@ -128,7 +128,9 @@ final class FiveChecksUITests: XCTestCase {
         }
         chip.tap()
         sleep(2)
-        note("library-\(name)", "chip: label=\(chip.label) value=\(String(describing: chip.value)) selected=\(chip.isSelected)")
+        note(
+            "library-\(name)",
+            "chip: label=\(chip.label) value=\(String(describing: chip.value)) selected=\(chip.isSelected)")
     }
 
     // MARK: - Screens, for a look at them (no assertions about content beyond being reachable)
@@ -149,22 +151,69 @@ final class FiveChecksUITests: XCTestCase {
         row.tap()
         sleep(2)
         keep(app, "look-watched-sheet")
-        XCTAssertTrue(app.staticTexts["Watched Folder"].firstMatch.waitForExistence(timeout: 5), "the sheet did not open")
+        XCTAssertTrue(
+            app.staticTexts["Watched Folder"].firstMatch.waitForExistence(timeout: 5), "the sheet did not open")
     }
 
     /// The Database tab, screen by screen as it scrolls, and the Settings list, for a look at their type.
     @MainActor
     func testShotsOfTheDatabaseTab() {
-        let app = launch()
+        shootTheDatabaseTab(technical: false)
+    }
+
+    /// The same with Technical Details on, which adds the Index and Performance sections (2026-11-15).
+    @MainActor
+    func testShotsOfTheDatabaseTabTechnical() {
+        shootTheDatabaseTab(technical: true)
+    }
+
+    @MainActor
+    private func shootTheDatabaseTab(technical: Bool) {
+        let app = launch(["-showTechnicalDetails", technical ? "YES" : "NO"])
+        let prefix = technical ? "database-tech" : "database"
         let tab = app.buttons["Database"].firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 20), "no Database tab")
         tab.tap()
         sleep(3)
         clearTheScreen(app)
-        for index in 0..<6 {
-            keep(app, String(format: "database-%02d", index))
+        for index in 0..<4 {
+            keep(app, String(format: "%@-%02d", prefix, index))
             app.swipeUp(velocity: .slow)
             sleep(1)
+        }
+        // Every inner section, its top and one screen down (2026-11-15). The chips carry identifiers
+        // `database.section.<rawValue>`; ones past the screen's edge are reached by swiping the chip row.
+        let sections =
+            technical
+            ? ["index", "performance"] : ["intelligence", "documents", "vocabulary", "maintenance", "search"]
+        for section in sections {
+            for _ in 0..<5 { app.swipeDown(velocity: .fast) }
+            sleep(1)
+            let chip = app.buttons["database.section.\(section)"].firstMatch
+            guard chip.waitForExistence(timeout: 3) else {
+                note(
+                    "database-missing-\(section)",
+                    "no chip for \(section) (Index and Performance need Technical Details)")
+                continue
+            }
+            var tries = 0
+            while !chip.isHittable, tries < 4 {
+                // A drag along the chip row, at the chip's height, from near the right edge to near the left.
+                let y = chip.frame.midY / app.frame.height
+                let row = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: y))
+                row.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: y)))
+                tries += 1
+            }
+            guard chip.isHittable else {
+                note("database-missing-\(section)", "chip for \(section) not hittable")
+                continue
+            }
+            chip.tap()
+            sleep(2)
+            keep(app, "\(prefix)-\(section)")
+            app.swipeUp(velocity: .slow)
+            sleep(1)
+            keep(app, "\(prefix)-\(section)-2")
         }
     }
 
@@ -322,7 +371,9 @@ final class FiveChecksUITests: XCTestCase {
         let location = chatApp.staticTexts["Processing Location"].firstMatch
         for _ in 0..<8 where !location.exists || !location.isHittable {
             chatApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
-                .press(forDuration: 0.05, thenDragTo: chatApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+                .press(
+                    forDuration: 0.05, thenDragTo: chatApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                )
             sleep(1)
         }
         keep(chatApp, "check5-metrics-panel-location")

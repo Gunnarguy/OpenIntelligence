@@ -17,53 +17,30 @@ extension DatabaseDashboardView {
                 ProgressView("Loading database statistics...")
                     .padding(DSSpacing.xxl)
             } else if let stats = stats {
-                // Main metrics grid
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: DSSpacing.md) {
-                    // Scoped alongside the headline row. Leaving these reading whole-store
-                    // totals underneath a scoped header would have moved the confusion
-                    // down the page rather than fixed it.
-                    DatabaseMetricCard(
-                        icon: "doc.text.fill",
-                        title: "Documents",
-                        value: "\(scopedDocumentCount(stats))",
-                        subtitle: scopeSubtitle,
-                        color: .accentColor,
-                        trend: nil
-                    )
-
-                    DatabaseMetricCard(
-                        icon: "character.cursor.ibeam",
-                        title: "Characters",
-                        value: formatLargeNumber(scopedCharacterCount(stats)),
-                        subtitle: scopeSubtitle,
-                        color: .accentColor,
-                        trend: nil
-                    )
-
-                    DatabaseMetricCard(
-                        icon: "text.word.spacing",
-                        title: "Words",
-                        value: formatLargeNumber(scopedWordCount(stats)),
-                        subtitle: scopeSubtitle,
-                        color: .accentColor,
-                        trend: nil
-                    )
-
-                    DatabaseMetricCard(
-                        icon: "internaldrive.fill",
-                        title: "Database Size",
-                        value: formatBytes(stats.databaseSizeBytes),
-                        subtitle: "On disk",
-                        color: .accentColor,
-                        trend: nil
-                    )
+                // The scope's figures as wells in one card (2026-11-15), as Vocabulary Statistics shows its own. They
+                // were four cards with `.title` numbers under a panel that states three of them already. Scoped
+                // alongside the panel: leaving these reading whole-store totals underneath a scoped header would
+                // have moved the confusion down the page rather than fixed it.
+                DatabaseCard(icon: "chart.bar.doc.horizontal", title: "Contents", caption: scopeSubtitle) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
+                        FigureTile(
+                            title: "Documents", value: "\(scopedDocumentCount(stats))", icon: "doc.text.fill",
+                            color: .accentColor)
+                        FigureTile(
+                            title: "Characters", value: formatLargeNumber(scopedCharacterCount(stats)),
+                            icon: "character.cursor.ibeam", color: .accentColor)
+                        FigureTile(
+                            title: "Words", value: formatLargeNumber(scopedWordCount(stats)), icon: "text.word.spacing",
+                            color: .accentColor)
+                        FigureTile(
+                            title: "Size on disk, all", value: formatBytes(stats.databaseSizeBytes),
+                            icon: "internaldrive.fill", color: .accentColor)
+                    }
                 }
 
                 // Quick stats row: storage internals, with Technical Details on.
                 if settings.showTechnicalDetails, let diag = deepDiagnostics {
+                    SurfaceCard {
                     HStack(spacing: DSSpacing.sm) {
                         QuickStat(
                             value: "\(diag.pageCount)",
@@ -90,8 +67,7 @@ extension DatabaseDashboardView {
                             color: .accentColor
                         )
                     }
-                    .padding(DSSpacing.lg)
-                    .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                    }
                 }
 
                 // Performance card
@@ -113,19 +89,14 @@ extension DatabaseDashboardView {
     }
 
     private func databaseHealthCard(_ diag: SQLiteFullTextService.DeepDiagnostics) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            HStack {
-                Image(systemName: diag.integrityCheckResult.lowercased().contains("ok") ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(diag.integrityCheckResult.lowercased().contains("ok") ? .green : .red)
-                Text("Database Health")
-                    .font(.headline)
-                Spacer()
-                Text(diag.integrityCheckResult.lowercased().contains("ok") ? "Healthy" : "Issues Detected")
-                    .font(.caption)
-                    .foregroundStyle(diag.integrityCheckResult.lowercased().contains("ok") ? .green : .red)
-            }
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
+        let healthy = diag.integrityCheckResult.lowercased().contains("ok")
+        return DatabaseCard(icon: healthy ? "checkmark.seal.fill" : "exclamationmark.triangle.fill", title: "Database Health") {
+            Text(healthy ? "Healthy" : "Issues Detected")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DSColors.readable(healthy ? .green : .red))
+        } content: {
+            // One row of equal chips: the row takes its tallest label's height and each chip fills it (2026-11-15).
+            HStack(spacing: DSSpacing.sm) {
                 HealthIndicator(
                     label: settings.showTechnicalDetails ? "Integrity" : "Index Check",
                     status: diag.integrityCheckResult.lowercased().contains("ok") ? .good : .bad
@@ -139,15 +110,15 @@ extension DatabaseDashboardView {
                     status: diag.walSizeBytes < 10_000_000 ? .good : (diag.walSizeBytes < 100_000_000 ? .warning : .bad)
                 )
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             if diag.freePageCount > 0 || diag.walSizeBytes > 10_000_000 {
-                Text("💡 Consider running Optimize in the Maintenance tab to reclaim space")
-                    .font(.caption2)
+                Label("Consider running Optimize in the Maintenance tab to reclaim space", systemImage: "lightbulb")
+                    .font(.caption)
                     .foregroundStyle(DSColors.readable(.orange))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     /// How keyword search works. Through 5.6 this card was "Performance Advantage", with "100X", "10X" and
@@ -155,15 +126,7 @@ extension DatabaseDashboardView {
     /// anywhere in the repository (checked 2026-10-20: BenchmarkRuns/LEDGER.md, Docs, the audits), so they
     /// are gone and the card says what the index does.
     private var performanceCard: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            HStack {
-                Image(systemName: "bolt.fill")
-                    .foregroundStyle(DSColors.accent)
-                Text(settings.showTechnicalDetails ? "Keyword Index" : "How Keyword Search Works")
-                    .font(.headline)
-                Spacer()
-            }
-
+        DatabaseCard(icon: "bolt.fill", title: settings.showTechnicalDetails ? "Keyword Index" : "How Keyword Search Works") {
             if settings.showTechnicalDetails {
                 IndexFactRow(
                     title: "Lookup", detail: "SQLite FTS5, an inverted index of each word (tokenizer porter unicode61)")
@@ -174,57 +137,43 @@ extension DatabaseDashboardView {
                     "The app keeps an index of the words in your documents, so a search looks words up instead of reading every passage, and the best matches come first."
                 )
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func containerBreakdownCard(_ stats: SQLiteFullTextService.FTS5Statistics) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            HStack {
-                Image(systemName: "square.stack.3d.up.fill")
-                    .foregroundStyle(DSColors.accent)
-                Text("Libraries")
-                    .font(.headline)
-                Spacer()
-                Text("\(stats.containerStats.count) \(stats.containerStats.count == 1 ? "library" : "libraries")")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-
+        DatabaseCard(icon: "square.stack.3d.up.fill", title: "Libraries") {
+            Text("\(stats.containerStats.count) \(stats.containerStats.count == 1 ? "library" : "libraries")")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(DSColors.secondaryText)
+        } content: {
             ForEach(stats.containerStats) { container in
                 HStack {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(containerName(for: container.containerId))
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                            .font(.subheadline.weight(.medium))
                         Text("\(container.documentCount) docs • \(formatLargeNumber(container.totalWords)) words")
                             .font(.caption)
                             .monospacedDigit()
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
 
                     Spacer()
 
-                    Text(formatLargeNumber(container.totalCharacters))
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                    Text("\(formatLargeNumber(container.totalCharacters)) chars")
+                        .font(.caption.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
-                .padding(.vertical, DSSpacing.xs)
 
                 if container.id != stats.containerStats.last?.id {
                     Divider()
                 }
             }
         }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Documents Section
@@ -232,18 +181,21 @@ extension DatabaseDashboardView {
     var documentsSection: some View {
         VStack(spacing: DSSpacing.lg) {
             if documentStats.isEmpty {
+                SurfaceCard {
                 VStack(spacing: DSSpacing.md) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .scaledFont(size: 48)
-                        .imageScale(.large)
-                        .foregroundStyle(.secondary)
+                        .font(.title2)
+                        .foregroundStyle(DSColors.secondaryText)
                     Text(settings.showTechnicalDetails ? "No Documents Indexed" : "No Documents Yet")
                         .font(.headline)
                     Text(settings.showTechnicalDetails ? "Add documents to populate the FTS5 index" : "Documents you add are listed here with their words and characters.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .multilineTextAlignment(.center)
                 }
-                .padding(DSSpacing.xxl)
+                .padding(.vertical, DSSpacing.lg)
+                .frame(maxWidth: .infinity)
+                }
             } else {
                 // Document list header.
                 //
@@ -252,20 +204,12 @@ extension DatabaseDashboardView {
                 // the scope control said, so choosing All Libraries silently showed one library's
                 // documents under a heading that claimed nothing. The rows follow the scope now,
                 // and the heading says which scope produced them.
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("Indexed Documents")
-                            .font(.headline)
-                        Text(scopeLabel)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Text("\(documentStats.count) total • Tap to preview")
+                DatabaseCard(icon: "doc.text.fill", title: "Indexed Documents", caption: scopeLabel) {
+                    Text("\(documentStats.count) total")
                         .font(.caption)
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+                        .foregroundStyle(DSColors.secondaryText)
+                } content: {
 
                 // Summary computed from `documentStats`, which is the very list below it.
                 //
@@ -276,7 +220,7 @@ extension DatabaseDashboardView {
                 // word count of *every* library by the document count of *one*, so with
                 // six libraries it reported a number that described nothing. Deriving all
                 // three from the displayed rows makes the summary true by construction.
-                HStack(spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.sm) {
                     MiniStatCard(label: "Words", value: formatLargeNumber(listedWordCount))
                     MiniStatCard(label: "Characters", value: formatLargeNumber(listedCharacterCount))
                     MiniStatCard(
@@ -285,8 +229,12 @@ extension DatabaseDashboardView {
                     )
                 }
 
-                // Document list
-                LazyVStack(spacing: DSSpacing.sm) {
+                Text("Tap a document to preview it")
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+
+                // Document list: rows in the card, divided as a list's are.
+                LazyVStack(spacing: 0) {
                     ForEach(documentStats) { doc in
                         Button {
                             selectedDocument = doc
@@ -294,7 +242,11 @@ extension DatabaseDashboardView {
                             DocumentStatRow(doc: doc, documentName: documentName(for: doc.documentId))
                         }
                         .buttonStyle(.plain)
+                        if doc.id != documentStats.last?.id {
+                            Divider()
+                        }
                     }
+                }
                 }
             }
         }
@@ -304,17 +256,13 @@ extension DatabaseDashboardView {
 
     var intelligenceSection: some View {
         VStack(spacing: DSSpacing.lg) {
-            // Header
-            HStack {
-                Image(systemName: "wand.and.stars")
-                    .foregroundStyle(DSColors.accent)
-                    .font(.title2)
-                Text(settings.showTechnicalDetails ? "Auto Intelligence Adaptations" : "How Each Library Is Tuned")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            // The page's section title, at `.headline` on the page (2026-11-15); it was a card of its own.
+            Label(
+                settings.showTechnicalDetails ? "Auto Intelligence Adaptations" : "How Each Library Is Tuned",
+                systemImage: "wand.and.stars"
+            )
+            .font(.headline)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Per-library intelligence cards
             ForEach(containerService.containers) { container in
@@ -328,14 +276,10 @@ extension DatabaseDashboardView {
             }
 
             // Explanation card
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                HStack {
-                    Image(systemName: "lightbulb.fill")
-                        .foregroundStyle(DSColors.accent)
-                    Text(settings.showTechnicalDetails ? "How Auto Intelligence Works" : "What the App Adjusts")
-                        .font(.subheadline.weight(.semibold))
-                }
-
+            DatabaseCard(
+                icon: "lightbulb.fill",
+                title: settings.showTechnicalDetails ? "How Auto Intelligence Works" : "What the App Adjusts"
+            ) {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     // Each line says what the code does (2026-10-20): the analysis measures vocabulary richness,
                     // technical density, code, math and structured passages (`analyzeLibrary`); each import sets
@@ -368,11 +312,8 @@ extension DatabaseDashboardView {
 
                 Text(settings.showTechnicalDetails ? "Each library is analyzed on its own documents" : "Each library is looked at on its own")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, DSSpacing.xs)
+                    .foregroundStyle(DSColors.secondaryText)
             }
-            .padding(DSSpacing.lg)
-            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 

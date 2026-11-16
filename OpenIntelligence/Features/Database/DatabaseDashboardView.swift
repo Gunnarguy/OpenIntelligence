@@ -169,6 +169,9 @@ struct DatabaseDashboardView: View {
                     }
                 }
                 .padding(DSSpacing.lg)
+                // The Settings pages' column (5.8, 2026-11-15), so on a Mac or an iPad the cards keep a phone's width.
+                .frame(maxWidth: SettingsView.detailColumnWidth)
+                .frame(maxWidth: .infinity)
             }
             .background(DSColors.background.ignoresSafeArea())
 
@@ -183,7 +186,8 @@ struct DatabaseDashboardView: View {
         }
         .navigationTitle("Database")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
+        // Inline, as every root tab is (5.8, see `DSTypography`): the panel opens the page, not a 34-point title.
+        .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
             await loadAllData()
