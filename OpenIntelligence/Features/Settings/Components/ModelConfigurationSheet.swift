@@ -57,32 +57,29 @@ struct ModelConfigurationSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Current Model Info
-                currentModelSection
-
-                // Presets
-                presetsSection
-
-                // Adaptive profiles
-                adaptiveProfilesSection
-
-                // A reasoning profile written by the owner
-                customReasoningSection
-
-                // Core Parameters
-                coreParametersSection
-
-                // Advanced Parameters
-                advancedParametersSection
-
-                // System Prompt
-                systemPromptSection
-
-                // Reset
-                resetSection
+            // Cards on the page like every other Settings page (2026-11-16). This was a stock `Form` with large grey
+            // section headers, a lock emoji for the privacy badge, a "123" glyph beside Max Tokens and a presets row
+            // cut off at the right edge. Every control, value and stored key is the one it was, and Cancel and Apply
+            // still stage the values until Apply.
+            ScrollView {
+                VStack(spacing: DSSpacing.lg) {
+                    currentModelSection
+                    presetsSection
+                    adaptiveProfilesSection
+                    customReasoningSection
+                    coreParametersSection
+                    samplingSection
+                    contextSection
+                    penaltiesSection
+                    systemPromptSection
+                    resetSection
+                }
+                .padding(DSSpacing.lg)
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity)
             }
-            .macGroupedForm()
+            .scrollBounceBehavior(.basedOnSize)
+            .background(DSColors.background.ignoresSafeArea())
             .navigationTitle("Model Parameters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -111,73 +108,102 @@ struct ModelConfigurationSheet: View {
 
     // MARK: - Sections
 
+    /// One card: a `SectionHeader`, the controls, and the footnote that was the `Form` section's footer.
+    private func parameterCard<Content: View>(
+        icon: String, title: String, footer: String? = nil, @ViewBuilder content: () -> Content
+    ) -> some View {
+        SurfaceCard {
+            SectionHeader(icon: icon, title: title)
+            content()
+            if let footer {
+                Text(footer)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// A slider's name, its value on the right, and the line under it, in the size every Settings page uses.
+    private func valueHeader(_ name: String, icon: String, value: String) -> some View {
+        HStack {
+            Label(name, systemImage: icon)
+                .font(.subheadline.weight(.medium))
+            Spacer()
+            Text(value)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(DSColors.secondaryText)
+        }
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(DSColors.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     @ViewBuilder
     private var currentModelSection: some View {
-        Section {
+        parameterCard(icon: "cpu", title: "Active Model") {
             HStack(spacing: DSSpacing.md) {
                 Image(systemName: settings.selectedModel.iconName)
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(DSColors.accent)
-                    .frame(width: 40, height: 40)
-                    .background(Color.accentColor.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(settings.selectedModel.displayName)
-                        .font(.headline)
-
+                        .font(.subheadline.weight(.medium))
                     Text(settings.executionPathDescription)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
 
-                // Privacy badge
-                VStack(spacing: DSSpacing.xxs) {
-                    Text(settings.privacyBadge.emoji)
-                        .font(.title3)
-                    Text(settings.mayTransmitData ? "Cloud" : "Local")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                // Where it runs, as a symbol and a word (`privacyBadge.emoji` was a lock or cloud emoji).
+                Label(settings.mayTransmitData ? "Cloud" : "Local", systemImage: settings.mayTransmitData ? "cloud" : "lock")
+                    .chipStyle(tint: settings.mayTransmitData ? .accentColor : .green)
             }
-            .padding(.vertical, DSSpacing.xs)
-        } header: {
-            Text("Active Model")
         }
     }
 
     @ViewBuilder
     private var presetsSection: some View {
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: DSSpacing.md) {
-                    ForEach(InferencePreset.allCases) { preset in
-                        PresetCard(
-                            preset: preset,
-                            isSelected: selectedPreset == preset
-                        ) {
-                            applyPreset(preset)
-                        }
+        parameterCard(
+            icon: "square.grid.2x2", title: "Quick Presets",
+            footer: "Presets adjust multiple parameters for common use cases. You can fine-tune individual values below."
+        ) {
+            // A grid that wraps, so no preset sits past the card's edge (it was a sideways scroll, cut off).
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: DSSpacing.sm)], spacing: DSSpacing.sm) {
+                ForEach(InferencePreset.allCases) { preset in
+                    PresetCard(
+                        preset: preset,
+                        isSelected: selectedPreset == preset
+                    ) {
+                        applyPreset(preset)
                     }
                 }
-                .padding(.horizontal, DSSpacing.xs)
             }
-            .listRowInsets(EdgeInsets(top: DSSpacing.md, leading: 0, bottom: DSSpacing.md, trailing: 0))
-        } header: {
-            Text("Quick Presets")
-        } footer: {
-            Text("Presets adjust multiple parameters for common use cases. You can fine-tune individual values below.")
         }
     }
 
     @ViewBuilder
     private var adaptiveProfilesSection: some View {
-        Section {
+        parameterCard(
+            icon: "wand.and.stars", title: "Adaptive Profiles",
+            footer: adaptiveProfiles
+                ? "Temperature and length are chosen per question and override the values below. Deep Think and Maximum use the temperature but keep their own per-step lengths. Your saved settings are not changed, and turning this off restores them immediately."
+                : "Off. Every question uses the values below. Turn this on to let the app pick a temperature and length from what the question is asking for, so a value lookup answers the same way twice and an open comparison gets room to work."
+        ) {
             Toggle(isOn: $adaptiveProfiles) {
-                Label("Adapt to the question", systemImage: "wand.and.stars")
+                Text("Adapt to the question")
+                    .font(.subheadline.weight(.medium))
             }
+            .tint(.accentColor)
             if adaptiveProfiles {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     profileRow("Looking up a value, or a calculation", "0.10", "400")
@@ -186,58 +212,49 @@ struct ModelConfigurationSheet: View {
                     profileRow("Summarizing", "0.40", "1000")
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, DSSpacing.xxs)
+                .foregroundStyle(DSColors.secondaryText)
             }
-        } header: {
-            Text("Adaptive Profiles")
-        } footer: {
-            Text(
-                adaptiveProfiles
-                    ? "Temperature and length are chosen per question and override the values below. Deep Think and Maximum use the temperature but keep their own per-step lengths. Your saved settings are not changed, and turning this off restores them immediately."
-                    : "Off. Every question uses the values below. Turn this on to let the app pick a temperature and length from what the question is asking for, so a value lookup answers the same way twice and an open comparison gets room to work."
-            )
         }
     }
 
     @ViewBuilder
     private var customReasoningSection: some View {
-        Section {
+        // Says where it does and does not apply, because a setting that silently does nothing
+        // in the mode someone happens to be using is the failure the penalty sliders already
+        // demonstrated on this same screen.
+        // Two different things are called reasoning and conflating them produced a footer
+        // saying this app does not reason on device, which is the opposite of what it does.
+        // Deep Think and Maximum run their own multi-session reasoning and four of those call
+        // sites pass `forceOnDevice: true`. What is PCC-only is Apple's *model-internal*
+        // reasoning setting, which is the thing this field writes.
+        parameterCard(
+            icon: "brain", title: "Your Own Reasoning Profile",
+            footer: "Apple's model has a reasoning setting with three fixed levels, or a description you "
+                + "write yourself. Write one here and it replaces the level: for example, "
+                + "\"work backwards from the conclusion and say which step is weakest\", or "
+                + "\"check every number against the source before using it\".\n\n"
+                + "This is separate from the app's own reasoning. Deep Think and Maximum think "
+                + "across many steps on this device, and that is unaffected by what you write here. "
+                + "What this changes is how hard Apple's model works inside a single answer, which "
+                + "Apple only allows on Private Cloud Compute, so it applies to answers written "
+                + "there and not to ones written on the device."
+        ) {
             TextField(
                 "How should it think through a problem?",
                 text: $customReasoningProfile,
                 axis: .vertical
             )
+            .textFieldStyle(.roundedBorder)
             .lineLimit(3...8)
-            .font(.callout)
+            .font(.subheadline)
 
             if !customReasoningProfile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button("Clear", role: .destructive) {
                     customReasoningProfile = ""
                 }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
             }
-        } header: {
-            Text("Your Own Reasoning Profile")
-        } footer: {
-            // Says where it does and does not apply, because a setting that silently does nothing
-            // in the mode someone happens to be using is the failure the penalty sliders already
-            // demonstrated on this same screen.
-            // Two different things are called reasoning and conflating them produced a footer
-            // saying this app does not reason on device, which is the opposite of what it does.
-            // Deep Think and Maximum run their own multi-session reasoning and four of those call
-            // sites pass `forceOnDevice: true`. What is PCC-only is Apple's *model-internal*
-            // reasoning setting, which is the thing this field writes.
-            Text(
-                "Apple's model has a reasoning setting with three fixed levels, or a description you "
-                    + "write yourself. Write one here and it replaces the level: for example, "
-                    + "\"work backwards from the conclusion and say which step is weakest\", or "
-                    + "\"check every number against the source before using it\".\n\n"
-                    + "This is separate from the app's own reasoning. Deep Think and Maximum think "
-                    + "across many steps on this device, and that is unaffected by what you write here. "
-                    + "What this changes is how hard Apple's model works inside a single answer, which "
-                    + "Apple only allows on Private Cloud Compute, so it applies to answers written "
-                    + "there and not to ones written on the device."
-            )
         }
     }
 
@@ -252,16 +269,13 @@ struct ModelConfigurationSheet: View {
 
     @ViewBuilder
     private var coreParametersSection: some View {
-        Section {
+        parameterCard(
+            icon: "slider.horizontal.3", title: "Core Parameters",
+            footer: "Both reach Apple Intelligence directly, on this device and on Private Cloud Compute."
+        ) {
             // Temperature
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack {
-                    Label("Temperature", systemImage: "thermometer")
-                    Spacer()
-                    Text(String(format: "%.2f", temperature))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+                valueHeader("Temperature", icon: "thermometer", value: String(format: "%.2f", temperature))
 
                 Slider(value: $temperature, in: 0...2, step: 0.05) {
                     Text("Temperature")
@@ -275,27 +289,20 @@ struct ModelConfigurationSheet: View {
                 // one that was not, so it stayed live and adjustable while doing nothing.
                 // Dimmed rather than hidden: it is a Core Parameter, and a control that
                 // vanishes is harder to understand than one that explains itself.
-                Text(
+                note(
                     samplingStrategy == .greedy
                         ? "No effect on Predictable sampling, which always takes the most likely next word. Choose Balanced or Adaptive below to use this."
                         : "Lower = more focused, higher = more creative"
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-            .padding(.vertical, DSSpacing.xs)
             .opacity(samplingStrategy == .greedy ? 0.55 : 1)
             .animation(DSAnimations.fastEase, value: samplingStrategy)
 
+            Divider()
+
             // Max Tokens
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack {
-                    Label("Max Tokens", systemImage: "textformat.123")
-                    Spacer()
-                    Text("\(maxTokens)")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+                valueHeader("Max Tokens", icon: "text.alignleft", value: "\(maxTokens)")
 
                 Slider(
                     value: Binding(
@@ -306,24 +313,22 @@ struct ModelConfigurationSheet: View {
                     Text("Max Tokens")
                 }
 
-                Text("Maximum response length in tokens (~4 chars each)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                note("Maximum response length in tokens (~4 chars each)")
             }
-            .padding(.vertical, DSSpacing.xs)
-
-        } header: {
-            Text("Core Parameters")
-        } footer: {
-            Text("Both reach Apple Intelligence directly, on this device and on Private Cloud Compute.")
         }
+    }
 
-        // Sampling used to be inferred rather than chosen: `LLMService` took top-K
-        // whenever it was in (0,100), and every chat query passed a hardcoded 40, so the
-        // Top-P slider below was read, threaded through `InferenceConfig`, and discarded.
-        // `greedy` was unreachable for the same reason. The three modes are alternatives
-        // in Apple's API, so they are a picker rather than three independent sliders.
-        Section {
+    // Sampling used to be inferred rather than chosen: `LLMService` took top-K
+    // whenever it was in (0,100), and every chat query passed a hardcoded 40, so the
+    // Top-P slider below was read, threaded through `InferenceConfig`, and discarded.
+    // `greedy` was unreachable for the same reason. The three modes are alternatives
+    // in Apple's API, so they are a picker rather than three independent sliders.
+    @ViewBuilder
+    private var samplingSection: some View {
+        parameterCard(
+            icon: "dice", title: "Sampling",
+            footer: "How the model chooses each next word. Apple's API takes one strategy at a time, so picking one replaces the other two."
+        ) {
             Picker("Strategy", selection: $samplingStrategy) {
                 ForEach(SamplingStrategy.allCases) { strategy in
                     Text(strategy.displayName).tag(strategy)
@@ -334,94 +339,70 @@ struct ModelConfigurationSheet: View {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(samplingStrategy.technicalName)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(samplingStrategy.explanation)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(DSColors.secondaryText)
+                note(samplingStrategy.explanation)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if samplingStrategy == .topK {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                    HStack {
-                        Label("Top-K", systemImage: "list.number")
-                        Spacer()
-                        Text("\(topK)").monospacedDigit().foregroundStyle(.secondary)
-                    }
+                    valueHeader("Top-K", icon: "list.number", value: "\(topK)")
                     Slider(
                         value: Binding(get: { Double(topK) }, set: { topK = Int($0) }),
                         in: 1...100,
                         step: 1
                     ) { Text("Top-K") }
-                    Text("Choose from the \(topK) most likely next words.")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                    note("Choose from the \(topK) most likely next words.")
                 }
-                .padding(.vertical, DSSpacing.xs)
             }
 
             if samplingStrategy == .topP {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                    HStack {
-                        Label("Top-P (Nucleus)", systemImage: "chart.bar")
-                        Spacer()
-                        Text(String(format: "%.2f", topP)).monospacedDigit().foregroundStyle(.secondary)
-                    }
+                    valueHeader("Top-P (Nucleus)", icon: "chart.bar", value: String(format: "%.2f", topP))
                     Slider(value: $topP, in: 0.05...0.99, step: 0.05) { Text("Top-P") }
-                    Text("Probability mass to sample from. Lower is more focused.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    note("Probability mass to sample from. Lower is more focused.")
                 }
-                .padding(.vertical, DSSpacing.xs)
             }
 
             // Apple accepts a seed on both random modes and the app never sent one, so
             // the same question could not reproduce the same answer. Greedy is already
             // deterministic, so the control is meaningless there and is hidden.
             if samplingStrategy != .greedy {
+                Divider()
                 Toggle(isOn: $useFixedSeed) {
                     Label("Reproducible answers", systemImage: "lock.rotation")
+                        .font(.subheadline.weight(.medium))
                 }
+                .tint(.accentColor)
                 if useFixedSeed {
                     Stepper(value: $seedValue, in: 0...9999) {
                         HStack {
                             Text("Seed")
+                                .font(.subheadline)
                             Spacer()
-                            Text("\(seedValue)").monospacedDigit().foregroundStyle(.secondary)
+                            Text("\(seedValue)")
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
-                Text(
+                note(
                     useFixedSeed
                         ? "The same question against the same library returns the same answer."
                         : "Answers vary slightly between runs."
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-        } header: {
-            Text("Sampling")
-        } footer: {
-            Text(
-                "How the model chooses each next word. Apple's API takes one strategy at a time, so picking one replaces the other two."
-            )
         }
     }
 
     @ViewBuilder
-    private var advancedParametersSection: some View {
-        Section {
-            // Context Length
+    private var contextSection: some View {
+        parameterCard(
+            icon: "text.alignleft", title: "Context",
+            footer: "How much conversation the model is given to work with."
+        ) {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack {
-                    Label("Context Length", systemImage: "text.alignleft")
-                    Spacer()
-                    Text("\(contextLength)")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+                valueHeader("Context Length", icon: "text.alignleft", value: "\(contextLength)")
 
                 Picker("Context Length", selection: $contextLength) {
                     Text("1K").tag(1024)
@@ -441,133 +422,101 @@ struct ModelConfigurationSheet: View {
                 // free — the context budget is what the packing stage fills, so setting
                 // 32K on a 4K device builds a prompt the model then rejects. That is the
                 // shape of the "4521 tokens against a 4096 window" report.
-                Text("How much conversation and document context to pack into each request.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                note("How much conversation and document context to pack into each request.")
                 Text(contextGuidance)
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(contextLength > onDeviceContextWindow ? DSColors.readable(.orange) : Color.secondary)
+                    .foregroundStyle(contextLength > onDeviceContextWindow ? DSColors.readable(.orange) : DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, DSSpacing.xs)
-
-        } header: {
-            Text("Context")
-        } footer: {
-            Text("How much conversation the model is given to work with.")
         }
+    }
 
-        // The three sliders below are split into their own section on purpose.
-        //
-        // They do not affect Apple Intelligence, and the previous single-section
-        // footer ("These parameters affect token sampling behavior") said they did.
-        // `GenerationOptions` in the iOS 27 SDK exposes exactly `sampling`/
-        // `samplingMode`, `temperature`, `maximumResponseTokens` and `toolCallingMode`
-        // — the string "penalty" does not occur anywhere in the FoundationModels
-        // interface. So on-device and Private Cloud Compute answers ignore all three.
-        //
-        // They are NOT deleted, because their only consumer,
-        // `LocalOpenAIServerLLMService`, is scaffolding for the roadmap row "Bring-
-        // your-own local model on Mac (third-party model host)", which targets v5.0.
-        // Zero call sites is what an open roadmap row means; deleting the controls
-        // would delete a planned feature's UI. `repetitionPenalty` reaches nothing at
-        // all even there, and is marked as such rather than removed.
-        Section {
+    // The three sliders below are split into their own card on purpose.
+    //
+    // They do not affect Apple Intelligence, and the previous single-section
+    // footer ("These parameters affect token sampling behavior") said they did.
+    // `GenerationOptions` in the iOS 27 SDK exposes exactly `sampling`/
+    // `samplingMode`, `temperature`, `maximumResponseTokens` and `toolCallingMode`
+    // — the string "penalty" does not occur anywhere in the FoundationModels
+    // interface. So on-device and Private Cloud Compute answers ignore all three.
+    //
+    // They are NOT deleted, because their only consumer,
+    // `LocalOpenAIServerLLMService`, is scaffolding for the roadmap row "Bring-
+    // your-own local model on Mac (third-party model host)", which targets v5.0.
+    // Zero call sites is what an open roadmap row means; deleting the controls
+    // would delete a planned feature's UI. `repetitionPenalty` reaches nothing at
+    // all even there, and is marked as such rather than removed.
+    //
+    // The previous footer said these "affect token sampling behavior", which is false
+    // for every model this app can currently run. Saying so plainly costs one sentence
+    // and is cheaper than the controls.
+    @ViewBuilder
+    private var penaltiesSection: some View {
+        parameterCard(
+            icon: "repeat", title: "Advanced Parameters",
+            footer: "Apple Intelligence ignores all three. Apple's generation API takes a sampling "
+                + "mode, a temperature and a response length, and has no penalty setting of any "
+                + "kind, so these change nothing on this device or on Private Cloud Compute. "
+                + "They are here for a local model host on Mac, which is not built yet."
+        ) {
             // Frequency Penalty
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack {
-                    Label("Frequency Penalty", systemImage: "repeat")
-                    Spacer()
-                    Text(String(format: "%.2f", frequencyPenalty))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-
+                valueHeader("Frequency Penalty", icon: "repeat", value: String(format: "%.2f", frequencyPenalty))
                 Slider(value: $frequencyPenalty, in: 0...2, step: 0.1) {
                     Text("Frequency Penalty")
                 }
-
-                Text("Penalize frequently used tokens (reduces repetition)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                note("Penalize frequently used tokens (reduces repetition)")
             }
-            .padding(.vertical, DSSpacing.xs)
+
+            Divider()
 
             // Presence Penalty
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack {
-                    Label("Presence Penalty", systemImage: "plus.circle")
-                    Spacer()
-                    Text(String(format: "%.2f", presencePenalty))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-
+                valueHeader("Presence Penalty", icon: "plus.circle", value: String(format: "%.2f", presencePenalty))
                 Slider(value: $presencePenalty, in: 0...2, step: 0.1) {
                     Text("Presence Penalty")
                 }
-
-                Text("Penalize any token that appeared before (encourages new topics)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                note("Penalize any token that appeared before (encourages new topics)")
             }
-            .padding(.vertical, DSSpacing.xs)
+
+            Divider()
 
             // Repetition Penalty
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack {
-                    Label("Repetition Penalty", systemImage: "arrow.2.circlepath")
-                    Spacer()
-                    Text(String(format: "%.2f", repetitionPenalty))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-
+                valueHeader(
+                    "Repetition Penalty", icon: "arrow.2.circlepath", value: String(format: "%.2f", repetitionPenalty))
                 Slider(value: $repetitionPenalty, in: 1...2, step: 0.05) {
                     Text("Repetition Penalty")
                 }
-
-                // Marked rather than removed, per the section comment above: unlike the other
+                // Marked rather than removed, per the comment above: unlike the other
                 // two, this one is not read even by `LocalOpenAIServerLLMService`, so it would
                 // still do nothing on the day the local model host ships.
-                Text(
+                note(
                     "Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host."
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-            .padding(.vertical, DSSpacing.xs)
-        } header: {
-            Text("Advanced Parameters")
-        } footer: {
-            // The previous text here said these "affect token sampling behavior", which is false
-            // for every model this app can currently run. That sentence is the reason the screen
-            // reads as confusing: three sliders that move, save, and change nothing. The comment
-            // above this section already described this footer as the defect and as fixed; it was
-            // not. Saying so plainly costs one sentence and is cheaper than the controls.
-            Text(
-                "Apple Intelligence ignores all three. Apple's generation API takes a sampling "
-                    + "mode, a temperature and a response length, and has no penalty setting of any "
-                    + "kind, so these change nothing on this device or on Private Cloud Compute. "
-                    + "They are here for a local model host on Mac, which is not built yet."
-            )
         }
     }
 
     @ViewBuilder
     private var systemPromptSection: some View {
-        Section {
+        parameterCard(
+            icon: "text.quote", title: "Behavior", footer: "Define the model's personality and response style"
+        ) {
             Button {
                 showSystemPromptEditor = true
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("System Prompt")
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                        Text(systemPrompt.isEmpty ? "Default assistant behavior" : systemPrompt.prefix(50) + "...")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(DSColors.primaryText)
+                        // One line, cut by the system where it has to be; it added "..." to every prompt, even
+                        // one shorter than the 50 characters it kept.
+                        Text(systemPrompt.isEmpty ? "Default assistant behavior" : systemPrompt)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DSColors.secondaryText)
                             .lineLimit(1)
                     }
 
@@ -577,24 +526,22 @@ struct ModelConfigurationSheet: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-        } header: {
-            Text("Behavior")
-        } footer: {
-            Text("Define the model's personality and response style")
         }
     }
 
     @ViewBuilder
     private var resetSection: some View {
-        Section {
-            Button(role: .destructive) {
-                resetToDefaults()
-            } label: {
-                Label("Reset to Defaults", systemImage: "arrow.counterclockwise")
-            }
+        Button(role: .destructive) {
+            resetToDefaults()
+        } label: {
+            Label("Reset to Defaults", systemImage: "arrow.counterclockwise")
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.bordered)
     }
 
     // MARK: - Actions
@@ -767,12 +714,12 @@ private struct PresetCard: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(width: 100)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, DSSpacing.md)
             .padding(.horizontal, DSSpacing.sm)
             .background(
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(isSelected ? preset.color.opacity(0.15) : DSColors.surface)
+                    .fill(isSelected ? preset.color.opacity(0.15) : DSColors.surfaceElevated)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)

@@ -80,18 +80,10 @@ extension SettingsView {
     /// entity linking) and put Standard-only steps under Deep Think and Maximum; the trace is in the card's header.
     @ViewBuilder
     var retrievalCard: some View {
-        let mode = settings.ragQualityMode.canonical
-        // The same nesting as Device & Performance's Compute Profile: a page card, a section with its header and badge,
-        // and the card on its own surface inside it (5.8).
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            // Maximum's daily use on a free plan rides in the badge, so the How Much tiles stay the same six in every
-            // mode (5.8). Any paid plan, Lifetime included, has no limit and shows the mode alone.
-            SettingsSectionHeader(
-                icon: "sparkles.rectangle.stack", title: "Intelligence Mode",
-                badge: mode == .maximum && !entitlementStore.hasUnlimitedMaximumMode
-                    ? "Maximum · \(entitlementStore.maximumModeRemainingUses) of \(QuotaPolicy.freeMaximumModeDailyLimit) left"
-                    : mode.displayName,
-                badgeColor: IntelligenceModeCard.color(for: mode))
+        // One card on the page (2026-11-16): it was a page card holding a grey section holding this card, three
+        // surfaces deep, under a header that repeated the page's title. The panel at the card's top names the mode,
+        // and Maximum's daily use on a free plan, which rode in that header's badge, is a line under the card's content.
+        SurfaceCard {
             IntelligenceModeCard(
                 mode: settings.ragQualityMode.canonical,
                 windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true),
@@ -117,22 +109,24 @@ extension SettingsView {
                     }
                 }
             )
-            .padding(DSSpacing.sm)
-            .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+
+            // The callout keeps two lines in every mode, so the free plan's count is a line of its own.
+            if settings.ragQualityMode.canonical == .maximum, !entitlementStore.hasUnlimitedMaximumMode {
+                Text("Maximum: \(entitlementStore.maximumModeRemainingUses) of \(QuotaPolicy.freeMaximumModeDailyLimit) runs left today on the free plan.")
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if settings.selectedModel == .onDeviceAnalysis {
-                Text("Quotes only answers in Standard. Deep Think and Maximum need Apple's model to reason, so they run when you choose it under Apple Intelligence.")
+                // Quotes only is set by the app, not chosen: it is the model when Apple's isn't available here
+                // (`SettingsStore` at launch). The line said to choose Apple's model on a page that has no chooser.
+                Text("Quotes only, used while Apple's model isn't available on this device, answers in Standard. Deep Think and Maximum need Apple's model to reason.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DSSpacing.md)
-        .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     /// What a mode does, in plain words, each a claim about code (traced 2026-11-10). Standard searches again only when

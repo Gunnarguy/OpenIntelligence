@@ -217,7 +217,7 @@ final class FiveChecksUITests: XCTestCase {
         }
     }
 
-    /// Every Settings page, top and one screen down, for a look at them side by side.
+    /// Every Settings page, top and then a screen at a time to its end, for a look at them side by side.
     @MainActor
     func testShotsOfEverySettingsPage() {
         let app = launch()
@@ -228,9 +228,9 @@ final class FiveChecksUITests: XCTestCase {
         clearTheScreen(app)
         keep(app, "settings-00-list")
         let pages = [
-            "How This Works", "Intelligence Mode", "Apple Intelligence", "Private Cloud Compute", "Libraries & iCloud",
-            "Device & Performance", "Appearance", "Notifications", "Plan & Usage", "Siri & Shortcuts", "Advanced",
-            "About",
+            "How This Works", "Plain English", "Intelligence Mode", "Model & Privacy", "Libraries & iCloud",
+            "Device & Performance", "General", "Plan & Usage", "Siri & Shortcuts", "Advanced",
+            "Developer & Diagnostics", "About", "Version History",
         ]
         for (index, page) in pages.enumerated() {
             let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", page)).firstMatch
@@ -250,6 +250,14 @@ final class FiveChecksUITests: XCTestCase {
             app.swipeUp(velocity: .slow)
             sleep(1)
             keep(app, name + "-2")
+            // Down to the end of a long page, stopping when a swipe no longer changes it (2026-11-16).
+            for depth in 3...8 {
+                let before = app.debugDescription
+                app.swipeUp(velocity: .slow)
+                sleep(1)
+                if app.debugDescription == before { break }
+                keep(app, name + "-\(depth)")
+            }
             let back = app.navigationBars.buttons.firstMatch
             if back.exists { back.tap() } else { settings.tap() }
             sleep(1)

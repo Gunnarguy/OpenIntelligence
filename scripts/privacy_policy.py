@@ -38,7 +38,7 @@ SECTIONS = [
     ("What can leave your device, and when", [
         "**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context, the "
         "passages chosen as evidence with their document names and page numbers, and the app's instructions to the model. "
-        "Only when you allow it, under Settings, Private Cloud Compute, \"When to allow it\" (Never use, Ask when needed, "
+        "Only when you allow it, under Settings, Model & Privacy, \"When to allow it\" (Never use, Ask when needed, "
         "or Allow without asking, which versions before 5.7 call \"Allow for Deep Think and Maximum\"). When it asks, Show Details on the prompt says why and how much would be sent. With Private Cloud Compute "
         "chosen in the model picker, answers are written there whenever it can be reached, and Deep Think's and Maximum's "
         "reasoning steps can go there too, each behind the same permission. With Hybrid (Automatic), an answer goes there "
@@ -81,7 +81,7 @@ SECTIONS = [
         "- **Backups:** your device's iCloud backup may include the app's data if backups are on.",
     ]),
     ("Your controls", [
-        "- Settings, Private Cloud Compute: Never use, Ask when needed, or Allow without asking.",
+        "- Settings, Model & Privacy: Never use, Ask when needed, or Allow without asking.",
         "- Each library: Local Only or iCloud Sync, in the library's settings.",
         "- Settings: Spotlight Indexing on or off.",
         "- Delete documents, libraries and conversations in the app, or remove the app.",

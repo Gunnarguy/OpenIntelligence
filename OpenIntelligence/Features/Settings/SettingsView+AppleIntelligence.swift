@@ -61,32 +61,16 @@ extension SettingsView {
     var appleIntelligenceFeaturesCard: some View {
         let badgeColor: Color = activeAIFeatureCount == totalAIFeatureCount ? .green : .orange
 
-        VStack(spacing: 0) {
-            // Header
-            HStack(spacing: DSSpacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "apple.intelligence")
-                        .scaledFont(size: 15, weight: .semibold)
-                        .foregroundStyle(Color.accentColor)
-                }
-                // The page's title and the model card above already say "Apple Intelligence" (5.7 UI cleanup).
-                Text(settings.showTechnicalDetails ? "Apple Intelligence" : "Features")
-                    .font(.headline)
-                Spacer()
-                Text(settings.showTechnicalDetails ? "\(activeAIFeatureCount)/\(totalAIFeatureCount)" : "\(activeAIFeatureCount) of \(totalAIFeatureCount) on")
+        // A `SurfaceCard` on Model & Privacy (2026-11-16). With Technical Details on its title was "Apple
+        // Intelligence", the same as the model card's above it.
+        SurfaceCard {
+            HStack(alignment: .firstTextBaseline) {
+                SectionHeader(icon: "apple.intelligence", title: "Apple Intelligence features")
+                Text("\(activeAIFeatureCount) of \(totalAIFeatureCount) on")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(DSColors.readable(badgeColor))
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(badgeColor.opacity(0.15))
-                    .clipShape(Capsule())
+                    .fixedSize()
             }
-            .padding(DSSpacing.lg)
-
-            Divider().padding(.horizontal, DSSpacing.lg)
 
             VStack(spacing: DSSpacing.xxs) {
                 // Toggleable features
@@ -158,20 +142,20 @@ extension SettingsView {
                     subtitle: settings.showTechnicalDetails ? "Multilingual document analysis" : "Searches across languages when a library has a translation language set"
                 )
 
-                Divider().padding(.horizontal, DSSpacing.lg)
+                Divider()
 
                 // Smart Reply count stepper
                 HStack(spacing: DSSpacing.md) {
                     Image(systemName: "number.circle.fill")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(Color.accentColor)
-                        .frame(width: 16)
+                        .frame(width: 20)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Smart Reply Count")
-                            .font(.caption.weight(.medium))
+                            .font(.subheadline.weight(.medium))
                         Text("Suggestions per response")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                     Spacer()
                     Stepper(value: $settings.smartReplyCount, in: 1...5) {
@@ -181,10 +165,9 @@ extension SettingsView {
                     }
                     .fixedSize()
                 }
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.vertical, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xxs)
 
-                Divider().padding(.horizontal, DSSpacing.lg)
+                Divider()
 
                 // Same as the three above: `enableScreenAwareness` and
                 // `enableADM3Visuals` had no consumers, while the App Intents and the
@@ -220,179 +203,98 @@ extension SettingsView {
                     subtitle: settings.showTechnicalDetails ? "Builds domain vocabulary during ingestion" : "Learns the special terms in your documents as they're added"
                 )
             }
-            .padding(.vertical, DSSpacing.xs)
         }
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
      }
 
+    /// The Siri & Shortcuts page (2026-11-16): the panel, the phrases to say, one Open in Shortcuts button, then every
+    /// action folded. It was two cards: this one, with the phrase count in a pill and again in the panel, and a
+    /// Shortcuts card whose two-column table of every action repeated phrases above it (Add a File, Save a Web Page).
     var siriIntegrationCard: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: DSSpacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "siri")
-                        .scaledFont(size: 15, weight: .semibold)
-                        .foregroundStyle(Color.accentColor)
-                }
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text("Siri Voice Shortcuts")
-                        .font(.headline)
-                    Text("Speak directly to Siri without any manual setup")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(RAGAppShortcutsProvider.appShortcuts.count) shortcuts")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(DSColors.readable(.green))
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(Color.green.opacity(0.15))
-                    .clipShape(Capsule())
+        let actionCount = Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count }
+        return SurfaceCard {
+            // What Siri and Shortcuts can do, counted from the same lists the rows below are drawn from (5.8).
+            SettingsStatusPanel(
+                symbol: "siri", title: "Works without setup", badge: "No setup", badgeColor: .green,
+                blocks: [
+                    .init(
+                        symbol: "waveform", name: "Voice phrases", color: .purple,
+                        figure: "\(RAGAppShortcutsProvider.appShortcuts.count)", share: nil, caption: "say them to Siri"),
+                    .init(
+                        symbol: "square.2.layers.3d", name: "Actions", color: .blue,
+                        figure: "\(actionCount)", share: nil, caption: "in Shortcuts"),
+                    .init(
+                        symbol: "checkmark.shield", name: "Checked", color: .green, figure: "Yes", share: nil,
+                        caption: "same as chat"),
+                ]
+            )
+
+            SectionHeader(icon: "waveform", title: "Say to Siri")
+
+            VStack(spacing: DSSpacing.sm) {
+                #if os(iOS)
+                    // Apple's own tip view: it shows the phrase Siri has registered for the
+                    // action, in the person's language, so it cannot drift from the provider.
+                    SiriTipView(intent: QueryDocumentsIntent())
+                #endif
+                // One row per App Shortcut, with the first phrase it registers
+                // (RAGAppShortcutsProvider). Keep the two in step.
+                shortcutCommandRow(symbol: "questionmark.bubble", title: "Ask My Documents", phrase: "Ask OpenIntelligence a question")
+                shortcutCommandRow(symbol: "list.bullet", title: "List Documents", phrase: "List my documents in OpenIntelligence")
+                shortcutCommandRow(symbol: "arrow.down.circle", title: "Import Status", phrase: "Is OpenIntelligence still importing")
+                shortcutCommandRow(symbol: "doc.text.magnifyingglass", title: "Ask About a Document", phrase: "Ask OpenIntelligence about [Document Name]")
+                shortcutCommandRow(symbol: "text.alignleft", title: "Summarize a Document", phrase: "Summarize [Document Name] in OpenIntelligence")
+                shortcutCommandRow(symbol: "square.split.2x1", title: "Compare Two Documents", phrase: "Compare documents in OpenIntelligence")
+                shortcutCommandRow(symbol: "books.vertical", title: "Ask a Library", phrase: "Ask [Library Name] in OpenIntelligence")
+                shortcutCommandRow(symbol: "plus.circle", title: "Add a File", phrase: "Add this document to OpenIntelligence")
+                shortcutCommandRow(symbol: "safari", title: "Save a Web Page", phrase: "Save this page to OpenIntelligence")
+                shortcutCommandRow(symbol: "text.magnifyingglass", title: "Find Passages", phrase: "Find passages in OpenIntelligence")
             }
-            .padding(DSSpacing.lg)
 
-            Divider().padding(.horizontal, DSSpacing.lg)
+            #if os(iOS)
+                // Opens the Shortcuts app on this app's actions: the page's one button.
+                ShortcutsLink()
+                #if DEBUG
+                    .simultaneousGesture(
+                        TapGesture().onEnded { VerificationJournal.record("settings.shortcutsLink") })
+                #endif
+                    .shortcutsLinkStyle(.automaticOutline)
+                    .frame(maxWidth: .infinity)
+            #endif
 
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                // What Siri and Shortcuts can do, counted from the same lists the rows below are drawn from (5.8).
-                SettingsStatusPanel(
-                    symbol: "siri", title: "Siri & Shortcuts", badge: "No setup", badgeColor: .green,
-                    blocks: [
-                        .init(
-                            symbol: "waveform", name: "Voice phrases", color: .purple,
-                            figure: "\(RAGAppShortcutsProvider.appShortcuts.count)", share: nil, caption: "say them to Siri"),
-                        .init(
-                            symbol: "square.2.layers.3d", name: "Actions", color: .blue,
-                            figure: "\(Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count })", share: nil,
-                            caption: "in Shortcuts"),
-                        .init(
-                            symbol: "checkmark.shield", name: "Checked", color: .green, figure: "Yes", share: nil,
-                            caption: "same as chat"),
-                    ]
-                )
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.top, DSSpacing.md)
-
-                Text("Instant Voice Phrases")
-                    .font(.subheadline.weight(.medium))
-                    .padding(.horizontal, DSSpacing.lg)
-
-                VStack(spacing: DSSpacing.sm) {
-                    #if os(iOS)
-                        // Apple's own tip view: it shows the phrase Siri has registered for the
-                        // action, in the person's language, so it cannot drift from the provider.
-                        SiriTipView(intent: QueryDocumentsIntent())
-                    #endif
-                    // One row per App Shortcut, with the first phrase it registers
-                    // (RAGAppShortcutsProvider). Keep the two in step.
-                    shortcutCommandRow(symbol: "questionmark.bubble", title: "Ask My Documents", phrase: "Ask OpenIntelligence a question")
-                    shortcutCommandRow(symbol: "list.bullet", title: "List Documents", phrase: "List my documents in OpenIntelligence")
-                    shortcutCommandRow(symbol: "arrow.down.circle", title: "Import Status", phrase: "Is OpenIntelligence still importing")
-                    shortcutCommandRow(symbol: "doc.text.magnifyingglass", title: "Ask About a Document", phrase: "Ask OpenIntelligence about [Document Name]")
-                    shortcutCommandRow(symbol: "text.alignleft", title: "Summarize a Document", phrase: "Summarize [Document Name] in OpenIntelligence")
-                    shortcutCommandRow(symbol: "square.split.2x1", title: "Compare Two Documents", phrase: "Compare documents in OpenIntelligence")
-                    shortcutCommandRow(symbol: "books.vertical", title: "Ask a Library", phrase: "Ask [Library Name] in OpenIntelligence")
-                    shortcutCommandRow(symbol: "plus.circle", title: "Add a File", phrase: "Add this document to OpenIntelligence")
-                    shortcutCommandRow(symbol: "safari", title: "Save a Web Page", phrase: "Save this page to OpenIntelligence")
-                    shortcutCommandRow(symbol: "text.magnifyingglass", title: "Find Passages", phrase: "Find passages in OpenIntelligence")
-                }
-
-                Divider().padding(.horizontal, DSSpacing.lg)
-
-                Text(settings.showTechnicalDetails ? "Trust & Hallucination Prevention" : "Answers Are Checked")
-                    .font(.subheadline.weight(.medium))
-                    .padding(.horizontal, DSSpacing.lg)
-
-                HStack(alignment: .top, spacing: DSSpacing.md) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.title2)
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Text(settings.showTechnicalDetails ? "Strict Verification Gates" : "The same checks as the chat")
-                            .font(.subheadline.weight(.semibold))
-                        // The actions ask through `RAGService.query`, the chat's own path and checks. "Needs Verification"
-                        // is what `SourceOnlyAnswerService` puts in front of a drafted answer when its check abstains,
-                        // with the reason; through 5.6 this said Siri returned a "dialog instead of hallucinating",
-                        // which is not what happens (2026-10-20).
-                        Text(
-                            settings.showTechnicalDetails
-                                ? "Siri and Shortcuts ask through RAGService.query, the chat's own pipeline and verification gates. When the source-only check abstains, the answer is prefixed with \"[Needs Verification]\" and its reason (SourceOnlyAnswerService)."
-                                : "An answer from Siri or Shortcuts is checked against your documents the same way as one in the chat. When the last check can't back it, the answer starts with \"Needs Verification\" and says why.")
-                            .font(.caption)
-                            .foregroundStyle(DSColors.secondaryText)
-                            .fixedSize(horizontal: false, vertical: false)
-                    }
-                }
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.bottom, DSSpacing.lg)
-            }
-        }
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-    }
-
-    var shortcutsAutomationCard: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: DSSpacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "square.2.layers.3d")
-                        .scaledFont(size: 15, weight: .semibold)
-                        .foregroundStyle(Color.accentColor)
-                }
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text("Shortcuts App Integration")
-                        .font(.headline)
-                    Text("Custom automations & drag-and-drop actions")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count }) Actions Available")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(Color.accentColor.opacity(0.15))
-                    .clipShape(Capsule())
-            }
-            .padding(DSSpacing.lg)
-
-            Divider().padding(.horizontal, DSSpacing.lg)
-
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
-                Text("App Actions in Shortcuts Library")
-                    .font(.subheadline.weight(.medium))
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.top, DSSpacing.md)
-
+            // Every action, folded: the phrases above are the ones people use, and this list is for building a
+            // shortcut. It was a table open on the page, 27 rows long.
+            FoldedDetails(title: "All \(actionCount) actions in Shortcuts") {
                 VStack(alignment: .leading, spacing: DSSpacing.md) {
                     ForEach(Self.shortcutActionGroups, id: \.title) { group in
                         shortcutsActionGroup(title: group.title, actions: group.actions)
                     }
-                    #if os(iOS)
-                        // Opens the Shortcuts app on this app's actions.
-                        ShortcutsLink()
-                        #if DEBUG
-                            .simultaneousGesture(
-                                TapGesture().onEnded { VerificationJournal.record("settings.shortcutsLink") })
-                        #endif
-                            .shortcutsLinkStyle(.automaticOutline)
-                            .frame(maxWidth: .infinity)
-                    #endif
                 }
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.bottom, DSSpacing.lg)
+            }
+
+            Divider()
+
+            HStack(alignment: .top, spacing: DSSpacing.md) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.title3)
+                    .foregroundStyle(.green)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    Text(settings.showTechnicalDetails ? "Strict Verification Gates" : "The same checks as the chat")
+                        .font(.subheadline.weight(.medium))
+                    // The actions ask through `RAGService.query`, the chat's own path and checks. "Needs Verification"
+                    // is what `SourceOnlyAnswerService` puts in front of a drafted answer when its check abstains,
+                    // with the reason; through 5.6 this said Siri returned a "dialog instead of hallucinating",
+                    // which is not what happens (2026-10-20).
+                    Text(
+                        settings.showTechnicalDetails
+                            ? "Siri and Shortcuts ask through RAGService.query, the chat's own pipeline and verification gates. When the source-only check abstains, the answer is prefixed with \"[Needs Verification]\" and its reason (SourceOnlyAnswerService)."
+                            : "An answer from Siri or Shortcuts is checked against your documents the same way as one in the chat. When the last check can't back it, the answer starts with \"Needs Verification\" and says why.")
+                        .font(.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     /// Every action the app gives Shortcuts, by the name Shortcuts shows, with what it does. The
@@ -461,26 +363,28 @@ extension SettingsView {
 
     private func shortcutsActionGroup(title: String, actions: [String: String]) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Text(title)
-                .font(.caption.bold())
-                .foregroundStyle(Color.accentColor)
+            Text(title.uppercased())
+                .font(.caption.weight(.semibold))
+                .tracking(0.8)
+                .foregroundStyle(DSColors.secondaryText)
             
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 ForEach(actions.keys.sorted(), id: \.self) { key in
-                    HStack(alignment: .top) {
+                    // Name over description (2026-11-16): a fixed 170-point name column left the descriptions a
+                    // narrow strip on an iPhone.
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(key)
-                            .font(.caption.bold())
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(DSColors.primaryText)
-                            .frame(width: 170, alignment: .leading)
                         Text(actions[key] ?? "")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(DSColors.secondaryText)
-                            .fixedSize(horizontal: false, vertical: false)
-                        Spacer()
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
                 }
             }
-            .padding(.leading, DSSpacing.sm)
         }
     }
 
@@ -522,7 +426,6 @@ extension SettingsView {
             }
             .accessibilityLabel("Copy the phrase for \(title)")
         }
-        .padding(.horizontal, DSSpacing.lg)
     }
 
     /// A toggleable Apple Intelligence feature row.
@@ -536,15 +439,16 @@ extension SettingsView {
     ) -> some View {
         HStack(spacing: DSSpacing.md) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(color)
-                .frame(width: 16)
+                .frame(width: 20)
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.caption.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                 Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             // The title is the switch's name for VoiceOver; `labelsHidden()` keeps it off the screen (5.7).
@@ -555,8 +459,7 @@ extension SettingsView {
                     DSHaptics.selection()
                 }
         }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
     }
 
     /// An info-only (always active) Apple Intelligence feature row.
@@ -569,27 +472,25 @@ extension SettingsView {
     ) -> some View {
         HStack(spacing: DSSpacing.md) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(color)
-                .frame(width: 16)
+                .frame(width: 20)
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.caption.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                 Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            Text("Always On")
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(DSColors.readable(.green))
-                .padding(.horizontal, DSSpacing.sm)
-                .padding(.vertical, DSSpacing.xxs)
-                .background(Color.green.opacity(0.12))
-                .clipShape(Capsule())
+            // Plain text, not a pill (2026-11-16): eight green capsules read as controls that did nothing.
+            Text("Always on")
+                .font(.caption)
+                .foregroundStyle(DSColors.secondaryText)
+                .fixedSize()
         }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
     }
 
 }

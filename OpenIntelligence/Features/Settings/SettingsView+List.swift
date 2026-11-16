@@ -46,7 +46,7 @@ extension SettingsView {
         switch id {
         case .howItWorks: .howItWorks
         case .glossary: .glossary
-        case .privateCloudCompute: .privateCloud
+        case .modelPrivacy: .privateCloud
         case .siriShortcuts: .siri
         default: nil
         }
@@ -54,9 +54,9 @@ extension SettingsView {
 
     private enum SettingsEntryID: String {
         case howItWorks, glossary
-        case intelligenceMode, appleIntelligence, privateCloudCompute
+        case intelligenceMode, modelPrivacy
         case librariesSync
-        case devicePerformance, appearance, notifications
+        case devicePerformance, general
         case plan, siriShortcuts
         case advanced, developer, about, versionHistory
     }
@@ -123,22 +123,19 @@ extension SettingsView {
                     "standard", "deep think", "maximum", "quality", "reasoning", "verification", "gates", "agentic",
                 ]
             ),
+            // Apple Intelligence and Private Cloud Compute, one page since 2026-11-16, with the answer route that was
+            // only in the chat's model pill. The keywords are both pages' plus the route's names.
             .init(
-                id: .appleIntelligence, group: .intelligence,
-                title: "Apple Intelligence",
-                subtitle: "On-device features and the active model",
-                icon: "apple.logo",
+                id: .modelPrivacy, group: .intelligence,
+                title: "Model & Privacy",
+                subtitle: "Apple's model, where answers are written, and Private Cloud Compute",
+                icon: "apple.intelligence",
                 keywords: [
-                    "smart replies", "content tagging", "spotlight", "writing tools", "speech", "translation", "model",
-                    "foundation models",
+                    "apple intelligence", "smart replies", "content tagging", "spotlight", "writing tools", "speech",
+                    "translation", "model", "foundation models", "languages", "language", "pcc", "private cloud compute",
+                    "cloud", "privacy", "consent", "permission", "routing", "route", "on-device", "on device", "hybrid",
+                    "context window", "quota", "background maintenance",
                 ]
-            ),
-            .init(
-                id: .privateCloudCompute, group: .intelligence,
-                title: "Private Cloud Compute",
-                subtitle: "When a question may leave this device",
-                icon: "cloud",
-                keywords: ["pcc", "cloud", "privacy", "consent", "routing", "context window", "quota"]
             ),
             .init(
                 id: .librariesSync, group: .library,
@@ -153,28 +150,21 @@ extension SettingsView {
                 subtitle: "Your chip, memory and Compute Profile",
                 icon: "cpu",
                 keywords: [
-                    "chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "context window",
-                    "batch", "languages",
+                    "chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "compute profile",
+                    "batch",
                 ]
             ),
+            // Appearance and Notifications, one page since 2026-11-16 (three rows and one row before).
             .init(
-                id: .appearance, group: .device,
-                title: "Appearance",
-                subtitle: "Accent colour and the hardware HUD",
-                icon: "paintbrush",
+                id: .general, group: .device,
+                title: "General",
+                subtitle: "Accent colour, Technical Details, the hardware HUD and notifications",
+                icon: "gearshape",
                 keywords: [
-                    "accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray",
-                    "xray", "glow", "haptics", "technical", "technical details", "console", "stats", "simple",
-                ]
-            ),
-            .init(
-                id: .notifications, group: .device,
-                title: "Notifications",
-                subtitle: "When an import or a long answer finishes",
-                icon: "bell.badge",
-                keywords: [
-                    "notifications", "notify", "alert", "banner", "finished", "import", "deep think", "maximum",
-                    "background",
+                    "appearance", "accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud",
+                    "x-ray", "xray", "glow", "haptics", "technical", "technical details", "technical version",
+                    "console", "stats", "simple", "menu bar", "notifications", "notify", "alert", "banner", "finished",
+                    "import", "background",
                 ]
             ),
             .init(
@@ -216,10 +206,11 @@ extension SettingsView {
             .init(
                 id: .about, group: .system,
                 title: "About",
-                subtitle: "Version, device, and what's new",
+                subtitle: "Version, privacy policy and links",
                 icon: "info.circle",
                 keywords: [
-                    "about", "version", "release notes", "what's new", "support", "feedback", "privacy policy", "terms",
+                    "about", "version", "privacy policy", "terms", "crash", "crash report", "github", "source",
+                    "roadmap", "app store",
                 ]
             ),
             .init(
@@ -321,7 +312,9 @@ extension SettingsView {
                 }
             }
 
-            if trimmedSearch.isEmpty {
+            // Also shown for a search that names it (2026-11-16): feedback, the review and sharing are only here
+            // now, About having dropped its copies, and the card is not an entry the search can find.
+            if trimmedSearch.isEmpty || supportCardMatchesSearch {
                 Section {
                     supportCard
                         .listRowInsets(EdgeInsets())
@@ -339,7 +332,9 @@ extension SettingsView {
             ModelConfigurationSheet()
         }
         .overlay {
-            if !trimmedSearch.isEmpty, SettingsGroup.allCases.allSatisfy({ visibleEntries(in: $0).isEmpty }) {
+            if !trimmedSearch.isEmpty, !supportCardMatchesSearch,
+                SettingsGroup.allCases.allSatisfy({ visibleEntries(in: $0).isEmpty })
+            {
                 ContentUnavailableView.search(text: trimmedSearch)
             }
         }
@@ -535,6 +530,14 @@ extension SettingsView {
         .padding(.vertical, DSSpacing.xs)
     }
 
+    /// Whether the search names something on the Support & Feedback card.
+    private var supportCardMatchesSearch: Bool {
+        let query = trimmedSearch.lowercased()
+        guard !query.isEmpty else { return false }
+        return ["support", "feedback", "email", "contact", "rate", "rating", "review", "share", "recommend"]
+            .contains { $0.contains(query) }
+    }
+
     private var trimmedSearch: String {
         settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -600,30 +603,20 @@ extension SettingsView {
                         }
                     #endif
             }
-        case .appleIntelligence:
-            detailScroll {
-                modelSelectionCard
-                appleIntelligenceFeaturesCard
-            }
-        case .privateCloudCompute:
-            detailScroll { privateCloudComputeCard }
+        case .modelPrivacy:
+            detailScroll { modelAndPrivacyPage }
         case .librariesSync:
             detailScroll { sharedWorkspaceCard }
         case .devicePerformance:
             detailScroll { contextWindowCard }
-        case .appearance:
-            detailScroll { appearanceCard }
-        case .notifications:
-            detailScroll { CompletionNotificationSettingsCard() }
+        case .general:
+            detailScroll { generalPage }
         case .plan:
             // Unreachable, like `.advanced` below: the Plan & Usage row presents the plans screen directly
             // (2026-11-15), and the screen opens with the usage panel this page showed.
             EmptyView()
         case .siriShortcuts:
-            detailScroll {
-                siriIntegrationCard
-                shortcutsAutomationCard
-            }
+            detailScroll { siriIntegrationCard }
         case .advanced:
             // Unreachable: the Advanced row presents `ModelConfigurationSheet` directly
             // rather than pushing a screen. Kept so the switch stays exhaustive over

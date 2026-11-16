@@ -89,9 +89,7 @@ struct LiveSystemMonitorWrapper: View {
             }
             // The tip that pointed at live stats in the metrics bar is gone (5.8 review): that panel shows none.
         }
-        .padding(DSSpacing.md)
-        .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+        // No surface of its own (2026-11-16): Device & Performance puts it in a `SurfaceCard`.
     }
 
     // MARK: - Helper Views

@@ -119,6 +119,9 @@ final class SettingsStore: ObservableObject {
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
         static let showSiliconHUD = "showSiliconHUD" // Bool - Show hardware activity overlay
         static let showTechnicalDetails = "showTechnicalDetails" // Bool - The chat's console, stats bar and badges
+        /// Plain English's own "Always show the technical version" until 2026-11-16, removed at launch
+        /// (`removeGlossaryTechnicalDetail`); Technical Details keeps its own value.
+        static let legacyGlossaryTechnicalDetail = "glossary.showsTechnicalDetail"
         static let hudGlowIntensity = "hudGlowIntensity" // Double 0.0-1.0 - HUD glow brightness
         static let hudShowMetrics = "hudShowMetrics" // Bool - Show real-time metrics in legend
         static let hudShowTaptic = "hudShowTaptic" // Bool - Show Taptic Engine on HUD
@@ -617,6 +620,7 @@ final class SettingsStore: ObservableObject {
             defaults.object(forKey: Keys.showTechnicalDetails) == nil
             ? defaults.object(forKey: Keys.temperature) != nil
             : defaults.bool(forKey: Keys.showTechnicalDetails)
+        Self.removeGlossaryTechnicalDetail(from: defaults)
         hudGlowIntensity = defaults.object(forKey: Keys.hudGlowIntensity) as? Double ?? 0.6
         hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
         hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true
@@ -905,6 +909,14 @@ final class SettingsStore: ObservableObject {
                 self?.applySettingsDebounced()
             }
             .store(in: &cancellables)
+    }
+
+    /// Removes Plain English's old technical switch (2026-11-16). There were two technical switches stored apart; there
+    /// is one now, Technical Details, and it keeps its own value. The old value is not carried over: opening any one
+    /// definition's technical fold saved it as `true` for every definition, so a stored `true` can't be told apart from a
+    /// fold opened once, and carrying it over would turn on the chat's console, stats bar and badges (review, 2026-11-16).
+    static func removeGlossaryTechnicalDetail(from defaults: UserDefaults) {
+        defaults.removeObject(forKey: Keys.legacyGlossaryTechnicalDetail)
     }
 
     // MARK: - Persistence

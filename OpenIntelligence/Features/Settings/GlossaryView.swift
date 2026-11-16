@@ -19,6 +19,7 @@ import SwiftUI
 
 struct GlossaryView: View {
     @State private var query = ""
+    /// Technical Details, read only: the switch is on the General page (2026-11-16).
     @AppStorage(GlossaryPreference.technicalDetailKey) private var showsTechnical = false
 
     /// Which term's sheet is open, if any. `.sheet(item:)` rather than `NavigationLink(value:)`.
@@ -104,28 +105,25 @@ struct GlossaryView: View {
         }
     }
 
-    /// Says what the screen is and puts the register switch at the top.
+    /// Says what the screen is, and whether the technical version shows.
     ///
-    /// The toggle is here rather than only inside each definition because a user who wants
-    /// the technical register wants it before reading the first term, not after expanding
-    /// one and discovering the setting exists.
+    /// This held a switch of its own, "Always show the technical version", stored apart from Technical Details: two
+    /// technical switches in Settings (2026-11-16 review). The one switch is Technical Details on the General page;
+    /// this line says which way it is set and where it is.
     private var intro: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Every word this app puts on screen, explained twice. Plain first, and the mechanism underneath if you want it.")
-                .font(.callout)
+                .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Toggle(isOn: $showsTechnical) {
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text("Always show the technical version")
-                        .font(.subheadline.weight(.medium))
-                    Text("Applies to every definition in the app, including the ones you tap from other screens")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .tint(DSColors.accent)
+            Label(
+                showsTechnical
+                    ? "Technical Details is on, so every definition opens with its technical version."
+                    : "Turn on Technical Details in General to open every definition's technical version.",
+                systemImage: "chevron.left.forwardslash.chevron.right"
+            )
+            .font(.caption)
+            .foregroundStyle(DSColors.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(DSSpacing.lg)
     }

@@ -18,111 +18,64 @@ import AppKit
 #endif
 
 extension SettingsView {
-    // MARK: - Appearance Card
+    // MARK: - General
 
-    // MARK: - Appearance Card (continued)
+    /// The General page (2026-11-16): Appearance and Notifications, which were two pages of three rows and one row.
+    /// Each card is a `SurfaceCard` with a `SectionHeader`, its rows the same size; every setting keeps its key.
+    @ViewBuilder
+    var generalPage: some View {
+        appearanceCard
+        CompletionNotificationSettingsCard()
+    }
 
     @ViewBuilder
     var appearanceCard: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack(spacing: DSSpacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "paintpalette.fill")
-                        .scaledFont(size: 14)
-                        .foregroundStyle(Color.accentColor)
-                }
+        SurfaceCard {
+            SectionHeader(icon: "paintpalette", title: "Appearance")
 
-                Text("Appearance")
-                    .font(.headline)
-
-                Spacer()
-            }
-            .padding(.horizontal, DSSpacing.lg)
-            .padding(.top, DSSpacing.lg)
-            .padding(.bottom, DSSpacing.sm)
+            AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
 
             Divider()
-                .padding(.horizontal, DSSpacing.lg)
 
-            // Accent Color Row
-            VStack(spacing: 0) {
-                AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.vertical, DSSpacing.md)
+            // The one technical switch (2026-11-16). Plain English had its own, stored apart
+            // (`glossary.showsTechnicalDetail`), which `SettingsStore` removes; this one keeps its value.
+            generalToggleRow(
+                title: "Technical Details",
+                subtitle: "In the chat: the live stats, each step as it runs, and the answer mode, reasoning and confidence under an answer. In Settings: the techniques behind each mode. In Plain English: the technical version of every word.",
+                isOn: $settings.showTechnicalDetails
+            )
+            .onChange(of: settings.showTechnicalDetails) { _, _ in
+                Tour.used(.technicalDetails)
+                DSHaptics.toggle()
+            }
+            .tour(.technicalDetails, in: Tour.settings)
 
-                Divider()
-                    .padding(.horizontal, DSSpacing.lg)
+            Divider()
 
-                // The chat's technical view (5.7)
-                HStack {
-                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("Technical Details")
-                            .font(.subheadline.weight(.medium))
-                        Text("In the chat: the live stats, each step as it runs, and the answer mode, reasoning and confidence under an answer. In Settings: the techniques behind each mode.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            // Was "Real-time model routing and token telemetry"; the X-Ray shows neither (5.7).
+            generalToggleRow(
+                title: "Telemetry HUD",
+                subtitle: "A floating map of the chip: this app's CPU use, the work it sends to the Neural Engine and GPU, and free memory",
+                isOn: $settings.showSiliconHUD
+            )
+            .onChange(of: settings.showSiliconHUD) { _, _ in
+                Tour.used(.xray)
+                DSHaptics.toggle()
+            }
+            .tour(.xray, in: Tour.settings)
 
-                    Spacer()
-
-                    Toggle("Technical Details", isOn: $settings.showTechnicalDetails)
-                        .labelsHidden()
-                        .tint(.accentColor)
-                        .onChange(of: settings.showTechnicalDetails) { _, _ in
-                            Tour.used(.technicalDetails)
-                            DSHaptics.toggle()
-                        }
-                        .tour(.technicalDetails, in: Tour.settings)
-                }
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.vertical, DSSpacing.md)
-
-                Divider()
-                    .padding(.horizontal, DSSpacing.lg)
-
-                // Silicon HUD Toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("Telemetry HUD")
-                            .font(.subheadline.weight(.medium))
-                        // Was "Real-time model routing and token telemetry"; the X-Ray shows neither (5.7).
-                        Text("A floating map of the chip: this app's CPU use, the work it sends to the Neural Engine and GPU, and free memory")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Toggle("Telemetry HUD", isOn: $settings.showSiliconHUD)
-                        .labelsHidden()
-                        .tint(.accentColor)
-                        .onChange(of: settings.showSiliconHUD) { _, _ in
-                            Tour.used(.xray)
-                            DSHaptics.toggle()
-                        }
-                        .tour(.xray, in: Tour.settings)
-                }
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.vertical, DSSpacing.md)
-
-                // HUD Customization (only show when HUD is enabled)
-                if settings.showSiliconHUD {
-                    Divider()
-                        .padding(.horizontal, DSSpacing.lg)
-
+            // HUD Customization (only show when HUD is enabled)
+            if settings.showSiliconHUD {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     // Glow Intensity Slider
-                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         HStack {
                             Text("Glow Intensity")
-                                .font(.caption.weight(.medium))
+                                .font(.subheadline)
                             Spacer()
                             Text("\(Int(settings.hudGlowIntensity * 100))%")
                                 .font(.caption.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         Slider(value: $settings.hudGlowIntensity, in: 0.1...1.0, step: 0.1)
                             .tint(.accentColor)
@@ -133,110 +86,61 @@ extension SettingsView {
                                 DSHaptics.tick()
                             }
                     }
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.vertical, DSSpacing.sm)
 
-                    Divider()
-                        .padding(.horizontal, DSSpacing.lg)
+                    // Was "Show ops count and latency"; with it on the legend shows each chip's activity and free
+                    // memory, and with it off "idle" (`HardwareTelemetryState.componentActivities`) (5.7).
+                    generalToggleRow(
+                        title: "Live Metrics", subtitle: "Show each chip's activity and free memory in the legend",
+                        isOn: $settings.hudShowMetrics
+                    )
+                    .onChange(of: settings.hudShowMetrics) { _, _ in DSHaptics.toggle() }
 
-                    // Show Metrics Toggle
-                    HStack {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            Text("Live Metrics")
-                                .font(.caption.weight(.medium))
-                            // Was "Show ops count and latency"; with it on the legend shows each chip's activity and free
-                            // memory, and with it off "idle" (`HardwareTelemetryState.componentActivities`) (5.7).
-                            Text("Show each chip's activity and free memory in the legend")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Toggle("Live Metrics", isOn: $settings.hudShowMetrics)
-                            .labelsHidden()
-                            .tint(.accentColor)
-                            .onChange(of: settings.hudShowMetrics) { _, _ in
-                                DSHaptics.toggle()
-                            }
-                    }
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.vertical, DSSpacing.sm)
-
-                    Divider()
-                        .padding(.horizontal, DSSpacing.lg)
-
-                    // Show Taptic Engine Toggle
-                    HStack {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            Text("Taptic Engine")
-                                .font(.caption.weight(.medium))
-                            Text("Show haptic motor activity on HUD")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Toggle("Taptic Engine", isOn: $settings.hudShowTaptic)
-                            .labelsHidden()
-                            .tint(.accentColor)
-                            .onChange(of: settings.hudShowTaptic) { _, _ in
-                                DSHaptics.toggle()
-                            }
-                    }
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.vertical, DSSpacing.sm)
-
-                    Divider()
-                        .padding(.horizontal, DSSpacing.lg)
+                    generalToggleRow(
+                        title: "Taptic Engine", subtitle: "Show haptic motor activity on HUD",
+                        isOn: $settings.hudShowTaptic
+                    )
+                    .onChange(of: settings.hudShowTaptic) { _, _ in DSHaptics.toggle() }
 
                     // X-Ray labels (5.8): the chip's name and "Taptic Engine" in the outlines' corners.
-                    HStack {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            Text("Labels")
-                                .font(.caption.weight(.medium))
-                            Text("Name what is working on the X-Ray")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Toggle("Labels", isOn: $settings.hudShowLabels)
-                            .labelsHidden()
-                            .tint(.accentColor)
-                            .onChange(of: settings.hudShowLabels) { _, _ in
-                                DSHaptics.toggle()
-                            }
-                    }
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.vertical, DSSpacing.sm)
+                    generalToggleRow(
+                        title: "Labels", subtitle: "Name what is working on the X-Ray", isOn: $settings.hudShowLabels
+                    )
+                    .onChange(of: settings.hudShowLabels) { _, _ in DSHaptics.toggle() }
                 }
-
-                #if os(macOS)
-                    Divider()
-                        .padding(.horizontal, DSSpacing.lg)
-
-                    // The menu bar item (5.7), on until it is turned off here.
-                    HStack {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            Text("Menu Bar")
-                                .font(.subheadline.weight(.medium))
-                            Text("Ask, add documents or search from the menu bar")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Toggle("Menu Bar", isOn: $showsMenuBarItem)
-                            .labelsHidden()
-                            .tint(.accentColor)
-                            .tour(.menuBar, in: Tour.settings)
-                            .onChange(of: showsMenuBarItem) { _, _ in Tour.used(.menuBar) }
-                    }
-                    .padding(.horizontal, DSSpacing.lg)
-                    .padding(.vertical, DSSpacing.md)
-                #endif
+                .padding(.leading, DSSpacing.lg)
             }
+
+            #if os(macOS)
+                Divider()
+
+                // The menu bar item (5.7), on until it is turned off here.
+                generalToggleRow(
+                    title: "Menu Bar", subtitle: "Ask, add documents or search from the menu bar",
+                    isOn: $showsMenuBarItem
+                )
+                .tour(.menuBar, in: Tour.settings)
+                .onChange(of: showsMenuBarItem) { _, _ in Tour.used(.menuBar) }
+            #endif
         }
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+    }
+
+    /// One row of the General page: name, a line under it, and the switch.
+    private func generalToggleRow(title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
+        HStack(alignment: .center, spacing: DSSpacing.md) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: DSSpacing.sm)
+            // The title is the switch's name for VoiceOver; `labelsHidden()` keeps it off the screen (5.7).
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .tint(.accentColor)
+        }
     }
 
     // `developerCard` and `aboutCard` were removed with the Settings restructure.

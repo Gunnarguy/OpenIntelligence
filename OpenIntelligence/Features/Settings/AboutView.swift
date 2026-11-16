@@ -49,6 +49,16 @@ struct AboutView: View {
     /// gets from live system APIs rather than from its own chip table.
     private let deviceService = DeviceCapabilityService.shared
 
+    /// The system's name for the version line: "iOS 27.0.0", "iPadOS ...", "macOS ...".
+    private var systemName: String {
+        #if os(macOS)
+            return "macOS"
+        #else
+            if ProcessInfo.processInfo.isiOSAppOnMac { return "macOS" }
+            return deviceService.isIPad ? "iPadOS" : "iOS"
+        #endif
+    }
+
     /// Human-readable name for the active embedding provider
     private var embeddingDisplayName: String {
         switch settings.defaultEmbeddingProvider {
@@ -94,101 +104,18 @@ struct AboutView: View {
                             .font(.caption)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
+                            Text("On \(deviceService.modelName ?? deviceService.chipDisplayName), \(systemName) \(deviceCapabilities.iOSVersion)")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, DSSpacing.xxs)
                     }
 
-                    SurfaceCard {
-                        SectionHeader(icon: "sparkles.rectangle.stack", title: "Latest Update")
-                        // Rendered from `WhatsNewStore.releases`, the same source as the
-                        // sheet shown after an update. These three highlights used to be
-                        // hardcoded here and had gone stale: they described an older
-                        // release ("Quality modes are easier to scan") while the app was
-                        // on 4.8. Two places holding release copy is two places to drift,
-                        // and this one already had. It also gives the update sheet a
-                        // permanent home, so dismissing it does not lose the content.
-                        // Three highlights, not the whole release.
-                        //
-                        // This rendered every item in the release, which for 5.0 is
-                        // nineteen — the same content Version History already shows in
-                        // full, one screen away. Two surfaces printing the same changelog
-                        // at the same length is not two views of it, it is the same wall
-                        // twice. About is now the teaser and Version History the record.
-                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                            if let release = WhatsNewStore().releaseForCurrentVersion() {
-                                ForEach(release.items.prefix(3)) { item in
-                                    releaseHighlight(
-                                        icon: item.symbol,
-                                        tint: .accentColor,
-                                        title: item.title,
-                                        detail: item.detail
-                                    )
-                                }
-
-                                if release.items.count > 3 {
-                                    NavigationLink {
-                                        VersionHistoryView()
-                                    } label: {
-                                        HStack(spacing: DSSpacing.xs) {
-                                            Text("See all \(release.items.count) changes in \(release.version)")
-                                                .font(.footnote.weight(.medium))
-                                                .monospacedDigit()
-                                            Image(systemName: "arrow.forward")
-                                                .scaledFont(size: 10, weight: .semibold)
-                                        }
-                                        .foregroundStyle(DSColors.accent)
-                                        .padding(.top, DSSpacing.xxs)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            } else {
-                                Text(
-                                    "Release notes for this version aren't available in the app. The App Store listing has the full list."
-                                )
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    // Your Device
-                    SurfaceCard {
-                        SectionHeader(icon: "cpu", title: "Your Device")
-                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                            // Read the chip from DeviceCapabilityService, not from
-                            // `deviceCapabilities.deviceChip`.
-                            //
-                            // `RAGService.detectDeviceChip()` switches on the iPhone
-                            // identifier family and stops at "iPhone17" (the iPhone 16
-                            // line), so every iPhone 17 and newer fell to `default:
-                            // return .older` — whose rawValue is the literal string
-                            // "A12 or Older", with performanceRating "Limited". Those
-                            // two strings were rendered right here, so the newest iPhone
-                            // Apple sells reported itself as a 2018 chip, directly above
-                            // an "Apple Intelligence ✓" row that reads the live
-                            // availability API and was therefore correct.
-                            //
-                            // DeviceCapabilityService keys iPhones off the major version
-                            // number and Macs off the CPU brand string, so it already
-                            // resolves A19/A20 and M5 and does not need a new table for
-                            // hardware that has not shipped yet.
-                            if let model = deviceService.modelName {
-                                LabeledContent("Model", value: model)
-                            }
-                            LabeledContent("Device Chip", value: deviceService.chipDisplayName)
-                            LabeledContent("iOS Version", value: deviceCapabilities.iOSVersion)
-                                .monospacedDigit()
-                            // Apple's own figure where it published one (ten chips); the row is left out elsewhere
-                            // rather than filled with an estimate (5.8). "AI Tier" was the app's internal ceiling class.
-                            if let tops = deviceService.npuTopsDescription {
-                                LabeledContent("Neural Engine", value: tops)
-                                    .monospacedDigit()
-                            }
-                            LabeledContent("Memory", value: deviceService.memoryDescription)
-                                .monospacedDigit()
-                        }
-                        .font(.subheadline)
-                    }
+                    // "Latest Update" and "Your Device" were cards here until 2026-11-16. The first showed three items of
+                    // the release Version History shows whole, one row away in Settings; the second the model, chip,
+                    // Neural Engine figure and memory that Device & Performance shows with their sources. The system
+                    // version, which only that card showed, is a line in the card above.
 
                     // AI Capabilities
                     SurfaceCard {
@@ -242,39 +169,14 @@ struct AboutView: View {
                         .font(.subheadline)
                     }
 
-                    SurfaceCard {
-                        SectionHeader(
-                            icon: "bubble.left.and.exclamationmark.bubble.right.fill", title: "Feature Requests")
-                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                            externalLinkRow(
-                                title: "Send a Feature Request",
-                                subtitle: "Email feature ideas and product requests directly from the app",
-                                icon: "sparkles.rectangle.stack.fill",
-                                tint: .accentColor
-                            ) {
-                                openFeatureRequestEmail()
-                            }
-                        }
-                    }
-
-                    // Contact & Support
-                    SurfaceCard {
-                        SectionHeader(icon: "envelope.fill", title: "Contact & Support")
-                        VStack(alignment: .leading, spacing: DSSpacing.md) {
-                            Text("Need help or have feedback? Get in touch:")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            externalLinkRow(
-                                title: OpenIntelligenceLinks.feedbackEmailAddress,
-                                subtitle: "Feature ideas, bugs, and product feedback land in the product inbox",
-                                icon: "envelope.fill",
-                                tint: .accentColor
-                            ) {
-                                openEmail()
-                            }
-                            // The newest crash report, when there is one (`CrashReports`, 5.7).
-                            if let crashReport = CrashReports.all().first {
+                    // Feedback, feature requests and the App Store review are the Support & Feedback card at the end of the
+                    // Settings list (2026-11-16): the feedback address was offered three times between the two, and the
+                    // review link twice. A crash report and the links only About has stay here.
+                    if let crashReport = CrashReports.all().first {
+                        SurfaceCard {
+                            SectionHeader(icon: "exclamationmark.triangle", title: "Last Crash Report")
+                            VStack(alignment: .leading, spacing: DSSpacing.md) {
+                                // The newest crash report, when there is one (`CrashReports`, 5.7).
                                 externalLinkRow(
                                     title: "Email the Last Crash Report",
                                     subtitle: "A summary of where the app stopped, sent from your mail app",
@@ -294,6 +196,12 @@ struct AboutView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
+                        }
+                    }
+
+                    SurfaceCard {
+                        SectionHeader(icon: "link", title: "Privacy and Links")
+                        VStack(alignment: .leading, spacing: DSSpacing.md) {
                             externalLinkRow(
                                 title: "Privacy Policy",
                                 subtitle: "What stays on your device, and what can leave it",
@@ -317,14 +225,6 @@ struct AboutView: View {
                                 tint: .secondary
                             ) {
                                 openURL(OpenIntelligenceLinks.notionRoadmapURL)
-                            }
-                            externalLinkRow(
-                                title: "Write an App Store Review",
-                                subtitle: "Open the App Store review form directly when you want to leave feedback",
-                                icon: "star.bubble.fill",
-                                tint: .accentColor
-                            ) {
-                                openURL(OpenIntelligenceLinks.writeReviewURL)
                             }
                             externalLinkRow(
                                 title: "App Store Listing",
@@ -432,13 +332,6 @@ struct AboutView: View {
         .frame(minHeight: DSSpacing.tapTarget)
     }
 
-    private func openEmail() {
-        openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "About Screen"))
-    }
-
-    private func openFeatureRequestEmail() {
-        openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "About Screen Feature Request"))
-    }
 }
 
 #Preview {

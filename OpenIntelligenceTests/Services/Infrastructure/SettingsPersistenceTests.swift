@@ -111,4 +111,23 @@ final class SettingsPersistenceTests: XCTestCase {
         ranBefore.set(false, forKey: "showTechnicalDetails")
         XCTAssertFalse(SettingsStore(defaults: ranBefore, ragService: RAGService()).showTechnicalDetails)
     }
+
+    /// Plain English's own technical switch is removed at launch and Technical Details keeps its own value (2026-11-16):
+    /// a stored `true` in the old key was also what opening one definition's fold saved, so it turns nothing on.
+    func testPlainEnglishsOldTechnicalSwitchIsRemovedAndTechnicalDetailsKeepsItsValue() throws {
+        let legacy = "glossary.showsTechnicalDetail"
+        for technicalDetails in [false, true] {
+            for old in [false, true] {
+                let suite = "SettingsPersistenceTests.\(UUID().uuidString)"
+                let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+                defer { defaults.removePersistentDomain(forName: suite) }
+                defaults.set(technicalDetails, forKey: "showTechnicalDetails")
+                defaults.set(old, forKey: legacy)
+                XCTAssertEqual(
+                    SettingsStore(defaults: defaults, ragService: RAGService()).showTechnicalDetails, technicalDetails,
+                    "Technical Details \(technicalDetails), old switch \(old)")
+                XCTAssertNil(defaults.object(forKey: legacy), "the old key is still there")
+            }
+        }
+    }
 }

@@ -55,9 +55,6 @@ struct ActiveDeviceCard: View {
                 }
             }
         }
-        .padding(DSSpacing.md)
-        .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .onReceive(NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)) { _ in
             thermalState = ProcessInfo.processInfo.thermalState
         }
@@ -66,18 +63,10 @@ struct ActiveDeviceCard: View {
     // MARK: Header
 
     private var header: some View {
-        // The shared section header, its badge Apple Intelligence's live state (5.8), then the model.
-        let (text, ready) = Self.intelligenceState()
-        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            SettingsSectionHeader(
-                icon: device.isMac ? "laptopcomputer" : (device.isIPad ? "ipad" : "iphone"), title: "Active Device",
-                badge: text, badgeColor: ready ? .accentColor : .secondary)
-            Text(device.modelName ?? device.formFactor.deviceNoun)
-                .scaledFont(size: 12, weight: .bold, design: .monospaced)
-                .lineLimit(1)
-                .minimumScaleFactor(SettingsStatusPanel.floorScale(for: 12))
-                .accessibilityLabel("Model: \(device.modelName ?? device.formFactor.deviceNoun)")
-        }
+        // The shared section header (5.8); the model and Apple Intelligence's live state are the panel's title line
+        // under it (2026-11-16).
+        SettingsSectionHeader(
+            icon: device.isMac ? "laptopcomputer" : (device.isIPad ? "ipad" : "iphone"), title: "Active Device")
     }
 
     /// Apple Intelligence as the model reports it now (`SystemLanguageModel.default.availability`), not the device's
@@ -108,6 +97,7 @@ struct ActiveDeviceCard: View {
         let icon: String
         let value: String
         let source: String
+        let color: Color
     }
 
     private var tileList: [Tile] {
@@ -130,30 +120,36 @@ struct ActiveDeviceCard: View {
         let intel = device.chipName.contains("Intel")
         let workingSet = device.metalSnapshot.recommendedWorkingSetMB > 0 ? device.metalSnapshot.workingSetDescription : "Unavailable"
         return [
-            Tile(id: "Chip", icon: "cpu", value: device.chipDisplayName, source: chipSource),
-            Tile(id: "Memory", icon: "memorychip", value: device.memoryDescription, source: hostSource),
-            Tile(id: "CPU", icon: "square.grid.2x2", value: cpuValue, source: cpuSource),
+            Tile(id: "Chip", icon: "cpu", value: device.chipDisplayName, source: chipSource, color: .blue),
+            Tile(id: "Memory", icon: "memorychip", value: device.memoryDescription, source: hostSource, color: .green),
+            Tile(id: "CPU", icon: "square.grid.2x2", value: cpuValue, source: cpuSource, color: .orange),
             Tile(
                 id: "Neural Engine", icon: "brain", value: intel ? "None" : (tops ?? "No figure"),
-                source: intel ? "Intel chip" : (tops == nil ? "Apple publishes none" : "Apple's figure")),
+                source: intel ? "Intel chip" : (tops == nil ? "Apple publishes none" : "Apple's figure"), color: .purple),
             Tile(
                 id: "GPU budget", icon: "square.stack.3d.up", value: workingSet,
-                source: isSimulator ? "the Mac's GPU" : "Metal's working set"),
+                source: isSimulator ? "the Mac's GPU" : "Metal's working set", color: .cyan),
             // Thermals moved to the Live System Monitor below (5.8): this card is what the hardware is, that one what
             // it is doing.
             Tile(
                 id: "GPU family", icon: "square.grid.3x3",
                 value: device.metalSnapshot.highestAppleFamily.map { "Apple \($0)" } ?? "None",
-                source: isSimulator ? "the Mac's GPU" : (device.metalSnapshot.highestAppleFamily == nil ? "no Apple GPU family" : "Metal reports")),
+                source: isSimulator ? "the Mac's GPU" : (device.metalSnapshot.highestAppleFamily == nil ? "no Apple GPU family" : "Metal reports"),
+                color: .teal),
         ]
     }
 
+    /// The figures in the dark panel Compute Profile and Intelligence Mode open with (2026-11-16); they were grey tiles,
+    /// a second status style on one page. Each block's caption names the value's source, as the tile's did.
     private var tiles: some View {
-        LazyVGrid(columns: SpecTile.columns, spacing: DSSpacing.xs) {
-            ForEach(tileList) { tile in
-                SpecTile(name: tile.id, value: tile.value, icon: tile.icon, caption: tile.source)
+        let (state, ready) = Self.intelligenceState()
+        let name = device.modelName ?? device.formFactor.deviceNoun
+        return SettingsStatusPanel(
+            symbol: "cpu", title: name, badge: state, badgeColor: ready ? .cyan : Color.white.opacity(0.7),
+            blocks: tileList.map { tile in
+                .init(symbol: tile.icon, name: tile.id, color: tile.color, figure: tile.value, share: nil, caption: tile.source)
             }
-        }
+        )
     }
 
     private var internals: some View {

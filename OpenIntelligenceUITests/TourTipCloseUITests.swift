@@ -61,7 +61,7 @@ final class TourTipCloseUITests: XCTestCase {
         XCTAssertTrue(missed.isEmpty, "Settings tips still up after one tap of the X (HUD \(hud ? "on" : "off")): \(missed)")
     }
 
-    /// "See the work" in Settings, Appearance, the tip the owner had to tap several times on 2026-11-04.
+    /// "See the work" in Settings, General (Appearance until 2026-11-16), the tip the owner had to tap several times on 2026-11-04.
     @MainActor
     private func closeTheAppearanceTipOnOneTap(hud: Bool) throws {
         let app = launch(hud: hud, only: "technicalDetails")
@@ -70,11 +70,11 @@ final class TourTipCloseUITests: XCTestCase {
         settingsTab.tap()
         var missed: [String] = []
 
-        let appearance = app.staticTexts["Appearance"].firstMatch
+        let appearance = app.staticTexts["General"].firstMatch
         for _ in 0..<8 where !appearance.isHittable { app.swipeUp(velocity: .slow) }
         guard appearance.isHittable else {
             print("TIPTEST-TREE-BEGIN\n\(app.debugDescription)\nTIPTEST-TREE-END")
-            throw XCTSkip("no Appearance row on screen")
+            throw XCTSkip("no General row on screen")
         }
         appearance.tap()
         if !closesOnOneTap("See the work", in: app) { missed.append("See the work") }

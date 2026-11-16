@@ -20,76 +20,65 @@ import AppKit
 extension SettingsView {
     // MARK: - Context Window Card
 
+    /// The Device & Performance page: each section its own card on the page (2026-11-16). They sat in one page card
+    /// with rules between them, each on a grey surface of its own, so the page read as cards inside a card.
     @ViewBuilder
     var contextWindowCard: some View {
         let deviceService = DeviceCapabilityService.shared
 
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            // What this device is and reports, each value with its source; with Technical Details on, a fold of what
-            // the app sets for it (5.8). Replaced the tier badge, the TOPS and cooling line, the Deep Think and Thermal
-            // pills and the Hardware Envelope (`ActiveDeviceCard`).
+        // What this device is and reports, each value with its source; with Technical Details on, a fold of what
+        // the app sets for it (5.8). Replaced the tier badge, the TOPS and cooling line, the Deep Think and Thermal
+        // pills and the Hardware Envelope (`ActiveDeviceCard`).
+        SurfaceCard {
             ActiveDeviceCard(showsInternals: settings.showTechnicalDetails)
-
-            Divider()
-
-            // Context Window moved to the Intelligence Mode page (5.8): how much each answer can read is a fact about
-            // the answer modes, and it sat here between the device and the compute profile.
-
-            // Silicon-Native RAG Engine: vDSP, Metal shaders and batch sizes, with Technical Details on (5.7).
-            if settings.showTechnicalDetails {
-                siliconNativeRAGSection(deviceService: deviceService)
-
-                Divider()
-            }
-
-            // GPU Acceleration Controls
-            gpuAccelerationSection(deviceService: deviceService)
-
-            Divider()
-
-            // Live System Monitor: thermal state, memory, cores and the pipeline's own adjustments, with Technical
-            // Details on (5.7).
-            if settings.showTechnicalDetails {
-                LiveSystemMonitorWrapper()
-
-                Divider()
-            }
-
-            // Language Support
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack(spacing: DSSpacing.sm) {
-                    Image(systemName: "globe")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                    Text("Language Support")
-                        .font(.subheadline.weight(.medium))
-                }
-
-                // The languages this device's model reports (`SystemLanguageModel.supportedLanguages`, iOS and macOS 26),
-                // named in the person's own language. Through the first 5.7 builds this was a list of 19 typed in by
-                // hand as "verified Apple Intelligence languages as of iOS 26.0+", which nothing checked against the
-                // device, with "Apple routes automatically" under it, which no code here does (2026-10-20).
-                if let languages = modelLanguageNames, !languages.isEmpty {
-                    Text(settings.showTechnicalDetails ? "SystemLanguageModel.supportedLanguages on this device:" : "Apple's model on this device answers in:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(languages.joined(separator: ", "))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("Apple's model hasn't said which languages it answers in on this device.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(DSSpacing.md)
-            .background(DSColors.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+
+        // Context Window moved to the Intelligence Mode page (5.8), and Language Support to Model & Privacy
+        // (2026-11-16): which languages Apple's model answers in is a fact about the model.
+
+        // Silicon-Native RAG Engine: vDSP, Metal shaders and batch sizes, with Technical Details on (5.7).
+        if settings.showTechnicalDetails {
+            SurfaceCard {
+                siliconNativeRAGSection(deviceService: deviceService)
+            }
+        }
+
+        SurfaceCard {
+            gpuAccelerationSection(deviceService: deviceService)
+        }
+
+        // Live System Monitor: thermal state, memory, cores and the pipeline's own adjustments, with Technical
+        // Details on (5.7).
+        if settings.showTechnicalDetails {
+            SurfaceCard {
+                LiveSystemMonitorWrapper()
+            }
+        }
+    }
+
+    /// The languages Apple's model answers in on this device, for Model & Privacy (moved from Device & Performance,
+    /// 2026-11-16).
+    var languageSupportSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SectionHeader(icon: "globe", title: "Languages")
+
+            // The languages this device's model reports (`SystemLanguageModel.supportedLanguages`, iOS and macOS 26),
+            // named in the person's own language. Through the first 5.7 builds this was a list of 19 typed in by
+            // hand as "verified Apple Intelligence languages as of iOS 26.0+", which nothing checked against the
+            // device, with "Apple routes automatically" under it, which no code here does (2026-10-20).
+            if let languages = modelLanguageNames, !languages.isEmpty {
+                Text(settings.showTechnicalDetails ? "SystemLanguageModel.supportedLanguages on this device:" : "Apple's model on this device answers in:")
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                Text(languages.joined(separator: ", "))
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Apple's model hasn't said which languages it answers in on this device.")
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+            }
+        }
     }
 
     @ViewBuilder
@@ -159,9 +148,6 @@ extension SettingsView {
             // "Vector Batch" and "Embed Batch" pills removed (5.8): nothing reads either value. The CPU's one-pass
             // threshold is in the text above.
         }
-        .padding(DSSpacing.md)
-        .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
@@ -230,9 +216,6 @@ extension SettingsView {
                 // One line (5.8): the background rule now sits in its job's row on the card, and "Same in every profile"
                 // says what the setting does not cover; three paragraphs here repeated both (the owner, 2026-11-10).
             }
-            .padding(DSSpacing.sm)
-            .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             .animation(DSAnimations.fastEase, value: gpuProfile)
 
             // Everything under the card is folded into one row (5.8): it repeated the card in a second layout and
@@ -265,9 +248,6 @@ extension SettingsView {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(DSSpacing.md)
-            .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // The live policy, read from the same properties the execution paths consult, so it shows the
             // device's ceiling, a background import and the Simulator's CPU-only Core ML as they are (5.7: behind
@@ -342,9 +322,6 @@ extension SettingsView {
             // An import runs the same rules in Balanced, Performance and Maximum while the app is open, so the
             // warning singled out a profile that imports no differently.
         }
-        .padding(DSSpacing.md)
-        .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .onAppear {
             gpuProfile = DeviceCapabilityService.shared.gpuExecutionProfile
         }

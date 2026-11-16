@@ -130,18 +130,18 @@ final class AccessibilityAuditTests: XCTestCase {
             return true
         }
 
-        XCTAssertTrue(open("Apple Intelligence"), "the Apple Intelligence row was not found")
+        XCTAssertTrue(open("Model & Privacy"), "the Model & Privacy row was not found")
         // Its feature switches show only where Apple Intelligence can run; every one shown must have a name.
         _ = app.switches.firstMatch.waitForExistence(timeout: 5)
-        try audit("Apple Intelligence")
-        print("APPLE INTELLIGENCE CONTROLS: \(names(on: "Apple Intelligence"))")
+        try audit("Model & Privacy")
+        print("MODEL & PRIVACY CONTROLS: \(names(on: "Model & Privacy"))")
         app.navigationBars.buttons.firstMatch.tap()
 
         // Last, because the X-Ray's window floats over the screen once it is on, and a tap under it reaches it.
-        XCTAssertTrue(open("Appearance"), "the Appearance row was not found")
+        XCTAssertTrue(open("General"), "the General row was not found")
         let hud = app.switches["Telemetry HUD"]
-        XCTAssertTrue(hud.waitForExistence(timeout: 5), "the X-Ray's switch has no name: \(names(on: "Appearance"))")
-        try audit("Appearance")
+        XCTAssertTrue(hud.waitForExistence(timeout: 5), "the X-Ray's switch has no name: \(names(on: "General"))")
+        try audit("General")
         /// Sets the X-Ray's switch to `on` by tapping only when it is not already there, and reads it back: a tap
         /// toggles, so a blind tap leaves it the wrong way round whenever it started out on (2026-10-17).
         func setHUD(_ on: Bool) {
@@ -157,7 +157,7 @@ final class AccessibilityAuditTests: XCTestCase {
             XCTAssertTrue(app.sliders["Glow Intensity"].waitForExistence(timeout: 5), "the glow slider has no name")
             XCTAssertTrue(app.switches["Live Metrics"].exists, "the Live Metrics switch has no name")
             XCTAssertTrue(app.switches["Taptic Engine"].exists, "the Taptic Engine switch has no name")
-            print("APPEARANCE CONTROLS: \(names(on: "Appearance"))")
+            print("GENERAL CONTROLS: \(names(on: "General"))")
             // Off again, as a new install has it: the setting is saved, and the other tests start from it.
             setHUD(false)
             XCTAssertEqual(hud.value as? String, "0", "the X-Ray's switch did not turn off")

@@ -414,7 +414,7 @@ extension ContainerSettingsSheet {
                 // the owner's Mac), sent every Deep Think and Maximum answer, and left out the permission.
                 // "Each time" came out on 2026-11-16: with Allow chosen in Settings an answer goes without asking
                 // (`effectiveFallbackDescription`, `.allowed`).
-                Text("With Hybrid in the model picker, an answer goes to Apple's Private Cloud Compute when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document. With Private Cloud Compute chosen there, every answer does. Only with your permission (Settings, Private Cloud Compute).")
+                Text("With Hybrid in the model picker, an answer goes to Apple's Private Cloud Compute when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document. With Private Cloud Compute chosen there, every answer does. Only with your permission (Settings, Model & Privacy).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -527,7 +527,7 @@ extension ContainerSettingsSheet {
             case .denied:
                 return "Private Cloud Compute is set to Never use in Settings, so every answer is written on this device."
             case .notDetermined:
-                return "The app asks you before an answer goes to Private Cloud Compute (Settings, Private Cloud Compute: Ask when needed)."
+                return "The app asks you before an answer goes to Private Cloud Compute (Settings, Model & Privacy: Ask when needed)."
             case .allowed where self.settings.fmPreference.canonical == .privateCloudCompute:
                 return "Private Cloud Compute is chosen in the model picker and allowed without asking, so every answer is written there."
             case .allowed:

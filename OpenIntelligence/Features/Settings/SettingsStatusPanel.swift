@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-/// A dark panel with a title line and up to four lit blocks, drawn the way `ComputeProfileCard`'s chip is.
+/// A dark panel with a title line and lit blocks, four to a row or three to a row for more, drawn the way `ComputeProfileCard`'s chip is.
 /// Every figure is the caller's: the panel draws what it is given and computes nothing.
 struct SettingsStatusPanel: View {
     struct Block: Identifiable {
@@ -58,9 +58,18 @@ struct SettingsStatusPanel: View {
             }
             .foregroundStyle(Color.white.opacity(0.85))
 
-            HStack(spacing: DSSpacing.xs) {
-                ForEach(blocks) { block in
-                    blockView(block)
+            // Up to four blocks in a row; more go three to a row (Active Device's six, 2026-11-16).
+            if blocks.count > 4 {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xs), count: 3), spacing: DSSpacing.xs) {
+                    ForEach(blocks) { block in
+                        blockView(block)
+                    }
+                }
+            } else {
+                HStack(spacing: DSSpacing.xs) {
+                    ForEach(blocks) { block in
+                        blockView(block)
+                    }
                 }
             }
         }

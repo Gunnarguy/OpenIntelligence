@@ -439,6 +439,12 @@ privacy policy"). Settings, About opens it with a Privacy Policy row. From
 website, and `PlanUpgradeSheet.showingPrivacy` is still declared and never set to true. The Plans screen keeps the
 website link. Nothing about plans, prices or limits changed.
 
+*2026-11-16:* Settings' Apple Intelligence and Private Cloud Compute pages became one page, Model & Privacy, so the two
+places the text names the "When to allow it" setting say "Settings, Model & Privacy" (`PrivacyPolicyView` and the
+source text in `scripts/privacy_policy.py`, edited by hand in both). The script was not run, because it also writes the
+Gunzino repository's two copies of the page: until it is run there, the website still says "Settings, Private Cloud
+Compute". Nothing else in the policy changed. `[evidence_level: code_verified, confidence: high]`
+
 Each statement in the text was checked against the code on 2026-10-15:
 
 - No advertising or tracking code: no `AdSupport`, `AppTrackingTransparency`, `SKAdNetwork` or `AdAttributionKit`

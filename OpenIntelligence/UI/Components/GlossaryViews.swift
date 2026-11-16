@@ -26,7 +26,10 @@ import SwiftUI
 
 /// Whether the technical register is expanded, shared by every definition in the app.
 enum GlossaryPreference {
-    static let technicalDetailKey = "glossary.showsTechnicalDetail"
+    /// Technical Details on the General page (`SettingsStore.Keys.showTechnicalDetails`), read here and never written
+    /// (2026-11-16): `SettingsStore` owns the value, so a write from here would be overwritten by its next save. Plain
+    /// English had a switch of its own under "glossary.showsTechnicalDetail" until then; `SettingsStore` removes it.
+    static let technicalDetailKey = "showTechnicalDetails"
 }
 
 // MARK: - Term detail
@@ -39,6 +42,8 @@ struct GlossaryTermDetail: View {
     let termID: GlossaryTermID
 
     @AppStorage(GlossaryPreference.technicalDetailKey) private var showsTechnical = false
+    /// Opened or closed here, for this definition only; until it is touched it follows Technical Details.
+    @State private var technicalOpen: Bool?
 
     private var term: GlossaryTerm { termID.definition }
 
@@ -88,15 +93,16 @@ struct GlossaryTermDetail: View {
         }
     }
 
-    /// The technical register, collapsed by default and remembered once opened.
+    /// The technical register: open for every definition when Technical Details is on, closed otherwise.
     ///
-    /// A `DisclosureGroup` bound to `AppStorage` rather than to local state on purpose:
-    /// opening it here opens it for every other definition in the app too. Someone who
-    /// wants the mechanism wants it everywhere, and having to expand it once per term
-    /// would read as friction aimed at them specifically.
+    /// Until 2026-11-16 opening it here wrote a setting of its own and opened it for every definition. That setting
+    /// was a second technical switch beside Technical Details; there is one now, on the General page, and opening
+    /// the fold here affects this definition only.
     private var technicalCard: some View {
         SurfaceCard {
-            DisclosureGroup(isExpanded: $showsTechnical) {
+            DisclosureGroup(
+                isExpanded: Binding(get: { technicalOpen ?? showsTechnical }, set: { technicalOpen = $0 })
+            ) {
                 Text(term.technical)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -114,7 +120,7 @@ struct GlossaryTermDetail: View {
                         Text("THE TECHNICAL VERSION")
                             .font(.footnote.weight(.semibold))
                             .tracking(0.8)
-                        Text(showsTechnical ? "Shown for every term" : "Names, models and numbers")
+                        Text(showsTechnical ? "Shown for every word: Technical Details is on" : "Names, models and numbers")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -122,7 +128,7 @@ struct GlossaryTermDetail: View {
                 }
             }
             .tint(DSColors.accent)
-            .accessibilityHint("Shows the technical definition for this and every other term")
+            .accessibilityHint("Shows the technical definition for this term")
         }
     }
 

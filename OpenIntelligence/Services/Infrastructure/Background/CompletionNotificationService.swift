@@ -181,66 +181,45 @@ struct CompletionNotificationSettingsCard: View {
     @State private var revertingSwitch = false
 
     var body: some View {
-        // Built like the Apple Intelligence card in Settings: the same header, and a row with the
-        // same icon column, type sizes and switch as that card's rows.
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color.red.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "bell.badge.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.red)
-                }
-                Text("Notifications")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding()
+        // A `SurfaceCard` with a `SectionHeader`, its row like General's other rows (2026-11-16): this card is on the
+        // General page with Appearance, and drew a header and row sizes of its own.
+        SurfaceCard {
+            SectionHeader(icon: "bell.badge", title: "Notifications")
 
-            Divider().padding(.horizontal)
-
-            VStack(spacing: 2) {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                        .frame(width: 16)
-                    VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.md) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Notify Me When It Finishes")
-                            .font(.caption.weight(.medium))
+                            .font(.subheadline.weight(.medium))
                         Text(
                             "An import, or an answer that took more than "
                                 + "\(Int(CompletionNotificationPolicy.minimumAnswerDuration)) seconds, "
                                 + "while OpenIntelligence is not in front"
                         )
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer()
+                    Spacer(minLength: DSSpacing.sm)
                     // The label is hidden on screen and is what VoiceOver reads for the switch.
                     Toggle("Notify Me When It Finishes", isOn: $isEnabled)
                         .labelsHidden()
                         .tint(.accentColor)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
 
                 if deniedBySystem {
                     noteRow(
                         icon: "exclamationmark.triangle.fill",
-                        color: .orange,
+                        color: DSColors.readable(.orange),
                         text: "Notifications for OpenIntelligence are turned off in the system's Settings. "
                             + "Turn them on there, then turn this on.")
                 }
 
                 noteRow(
                     icon: "lock.fill",
-                    color: .secondary,
+                    color: DSColors.secondaryText,
                     text: "A notification never shows your question or a file name")
             }
-            .padding(.vertical, 4)
             .onChange(of: isEnabled) { _, newValue in
                 // The card turns the switch back off when the system says no. That is not a tap.
                 if revertingSwitch {
@@ -261,8 +240,6 @@ struct CompletionNotificationSettingsCard: View {
                 }
             }
         }
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .task {
             if isEnabled, await CompletionNotificationService.shared.isDeniedBySystem() {
                 revertingSwitch = true
@@ -272,19 +249,17 @@ struct CompletionNotificationSettingsCard: View {
         }
     }
 
-    /// A line of small print in the card's row grid: the icon column, then the text.
+    /// A line of small print under the row: an icon, then the text.
     private func noteRow(icon: String, color: Color, text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2)
-                .foregroundColor(color)
-                .frame(width: 16)
+                .font(.caption)
+                .foregroundStyle(color)
             Text(text)
-                .font(.caption2)
-                .foregroundColor(color)
+                .font(.caption)
+                .foregroundStyle(color)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
     }
 }

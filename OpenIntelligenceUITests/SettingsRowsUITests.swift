@@ -12,7 +12,7 @@ import XCTest
 
 final class SettingsRowsUITests: XCTestCase {
     private static let rows = [
-        "How This Works", "Plain English", "Intelligence Mode", "Apple Intelligence", "Private Cloud Compute",
+        "How This Works", "Plain English", "Intelligence Mode", "Model & Privacy",
         "Libraries & iCloud", "Device & Performance",
     ]
 
