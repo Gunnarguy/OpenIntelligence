@@ -534,8 +534,15 @@ public enum DSHaptics {
         #endif
     }()
 
+    /// Plays the haptic and counts it on the X-Ray's Taptic Engine. iOS plays none for an app that is not
+    /// active, so those are skipped and not counted: the count is what the person felt (5.8).
+    /// Two haptics inside 60 ms land as one blur, so the second is dropped: a toast that appears with a button's
+    /// own haptic, or a value change right after the tap that made it, plays once (5.8).
     private static func perform(_ style: String, _ action: () -> Void) {
-        guard isHapticCapable else { return }
+        guard isHapticCapable, UIApplication.shared.applicationState == .active else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastPlayed) >= 0.06 else { return }
+        lastPlayed = now
         action()
         reportToTelemetry(style: style)
     }
@@ -546,7 +553,24 @@ public enum DSHaptics {
             HardwareTelemetryState.shared.reportHaptic(style: style)
         }
     }
+    private static var lastPlayed = Date.distantPast
+    private static var lastBeat = Date.distantPast
     #endif
+
+    /// The pulse of work in progress: a feather tap at most every `gap` seconds, for streamed text and the
+    /// steps of Deep Think and Maximum (5.8). Callers can call it as often as they like.
+    public static func beat(every gap: TimeInterval = 0.35) {
+        #if canImport(UIKit)
+        let now = Date()
+        guard now.timeIntervalSince(lastBeat) >= gap else { return }
+        lastBeat = now
+        perform("beat") {
+            let gen = UIImpactFeedbackGenerator(style: .soft)
+            gen.prepare()
+            gen.impactOccurred(intensity: 0.45)
+        }
+        #endif
+    }
 
     // MARK: - Selection Feedback
 

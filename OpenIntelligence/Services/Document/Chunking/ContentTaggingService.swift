@@ -198,7 +198,6 @@ import NaturalLanguage
                     text: truncatedText
                 )
                 let elapsed = Date().timeIntervalSince(startTime)
-                DSHaptics.soft()
 
                 Log.info(
                     "[ContentTagging] Generated \(tags.displayTags.count) tags in \(String(format: "%.2f", elapsed))s for \(documentName ?? "document"): \(tags.displayTags.joined(separator: ", "))",

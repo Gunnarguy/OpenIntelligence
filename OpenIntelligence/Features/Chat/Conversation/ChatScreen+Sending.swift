@@ -74,7 +74,6 @@ extension ChatScreen {
                         ),
                         duration: 2.0
                     )
-                    DSHaptics.success()
 
                     // Reset processing state so sendMessage can start fresh
                     isProcessing = false
@@ -92,7 +91,6 @@ extension ChatScreen {
                         ),
                         duration: 3.0
                     )
-                    DSHaptics.warning()
 
                     // Still send the query (might work with existing docs)
                     sendMessage(query)
@@ -161,7 +159,6 @@ extension ChatScreen {
                         ),
                         duration: 2.0
                     )
-                    DSHaptics.success()
                 } else if successCount > 0 {
                     toastManager.show(
                         ToastItem(
@@ -171,7 +168,6 @@ extension ChatScreen {
                         ),
                         duration: 3.0
                     )
-                    DSHaptics.warning()
                 } else {
                     toastManager.show(
                         ToastItem(
@@ -181,7 +177,6 @@ extension ChatScreen {
                         ),
                         duration: 3.0
                     )
-                    DSHaptics.warning()
                 }
             }
         }
@@ -395,7 +390,6 @@ extension ChatScreen {
                     self.generatingElapsedFinal = nil
                     self.continuedQueryCoordinator.markEmbedding()
                     // UnifiedMetricsBar, or the answer's bubble with details off, shows the stage - no toast needed
-                    DSHaptics.processingPulse()  // Feel the pipeline starting
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
 
@@ -411,7 +405,7 @@ extension ChatScreen {
                     }
                     self.continuedQueryCoordinator.markSearching()
                     // UnifiedMetricsBar, or the answer's bubble with details off, shows the stage - no toast needed
-                    DSHaptics.processingPulse()  // Feel the search starting
+                    DSHaptics.processingPulse()  // Feel the search start
                 }
 
                 let config = InferenceConfig(

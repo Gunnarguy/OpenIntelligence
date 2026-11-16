@@ -48,9 +48,8 @@ final class ContainerService: ObservableObject {
         let wasChanged = activeContainerId != id
         activeContainerId = id
         UserDefaults.standard.set(id.uuidString, forKey: "activeContainerId")
-        // Haptic feedback when switching containers
+        // No haptic here: rebuilds, Siri and imports switch libraries too. The pickers play it on a tap (5.8).
         if wasChanged {
-            DSHaptics.selection()
             // Which library opened, for the event log (5.8): the Chat tab went blank on the owner's iPhone while he
             // switched libraries and a rebuild switched them too (2026-11-03).
             VerificationJournal.record("library.setActive", ["library": String(id.uuidString.prefix(8))])

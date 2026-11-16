@@ -36,63 +36,126 @@ struct RerankerSetupCard: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: status.justFinished)
     }
 
+    /// Drawn as the app's lit status panel (5.8, 2026-11-16, the owner: "I don't like how this looks"): the thin material
+    /// let the tab's chips show through, the icon floated at mid-height, and the step line ran out of room ("longer than
+    /// usual..."). Now a dark panel with the accent edge, a graphite icon tile at the title, the seconds as a figure, and
+    /// one bar per step, each named, so nothing has to be cut.
     private func card(ready: Bool) -> some View {
-        HStack(alignment: .center, spacing: DSSpacing.md) {
-            Image(systemName: ready ? "checkmark.circle.fill" : "sparkle.magnifyingglass")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(ready ? DSColors.success : DSColors.accent)
-                .symbolEffect(.pulse, isActive: !ready && !reduceMotion)
-                .frame(width: DSSpacing.xl)
-
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        let shape = RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+        let tint = ready ? DSColors.success : DSColors.accent
+        return VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(alignment: .center, spacing: DSSpacing.sm) {
+                iconTile(ready: ready, tint: tint)
                 Text(ready ? "Search is ready" : "Getting search ready")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(DSTypography.title)
+                    .foregroundStyle(.white)
+                Spacer(minLength: DSSpacing.xs)
                 if !ready {
-                    Text(Self.explanation)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    // The step being prepared and the seconds so far, under a bar that fills by step (2026-11-13): the
-                    // bar alone ran to 95% on an estimate and sat there until "Search is ready".
-                    TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                            ProgressView(
-                                value: RerankerSetupStatus.progress(
-                                    step: status.step, stepStartedAt: status.stepStartedAt, startedAt: status.startedAt,
-                                    now: context.date)
-                            )
-                            .tint(DSColors.accent)
-                            .animation(reduceMotion ? nil : .linear(duration: 0.5), value: context.date)
-                            Text(RerankerSetupStatus.stepLine(step: status.step, startedAt: status.startedAt, now: context.date))
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text("\(Int(max(0, context.date.timeIntervalSince(status.startedAt ?? context.date)))) s")
+                            .font(DSTypography.figure)
+                            .foregroundStyle(tint)
+                            .contentTransition(.numericText())
                     }
-                    .padding(.top, DSSpacing.xs)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            if !ready {
+                Text(Self.explanation)
+                    .font(DSTypography.caption)
+                    .foregroundStyle(Color.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+                TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                    let overall = RerankerSetupStatus.progress(
+                        step: status.step, stepStartedAt: status.stepStartedAt, startedAt: status.startedAt,
+                        now: context.date)
+                    let seconds = max(0, context.date.timeIntervalSince(status.startedAt ?? context.date))
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        HStack(spacing: DSSpacing.xs) {
+                            stepBar("Short passages", fill: min(1, max(0, overall * 2)), current: status.step <= 1)
+                            stepBar("Long passages", fill: min(1, max(0, overall * 2 - 1)), current: status.step == 2)
+                        }
+                        if seconds > RerankerSetupStatus.expectedSeconds + 10 {
+                            Text("Taking longer than usual on this device.")
+                                .font(DSTypography.meta)
+                                .foregroundStyle(Color.white.opacity(0.6))
+                        }
+                    }
+                    .animation(reduceMotion ? nil : .linear(duration: 0.5), value: overall)
+                }
+                .padding(.top, DSSpacing.xxs)
+            }
         }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.md)
+        .padding(DSSpacing.md)
         .frame(maxWidth: 440)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                .stroke(DSColors.border, lineWidth: 1)
+        .background(
+            ZStack {
+                shape.fill(Color(white: 0.07))
+                Canvas { context, size in
+                    var path = Path()
+                    stride(from: 0, through: size.height, by: 9).forEach { y in
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                    context.stroke(path, with: .color(Color.white.opacity(0.035)), lineWidth: 0.5)
+                }
+                .clipShape(shape)
+            }
         )
-        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 6)
+        .overlay(
+            shape.strokeBorder(
+                LinearGradient(colors: [tint, tint.opacity(0.35)], startPoint: .leading, endPoint: .trailing),
+                lineWidth: 1.2)
+        )
+        .shadow(color: tint.opacity(0.22), radius: 12, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.25), radius: 14, x: 0, y: 6)
         .padding(.horizontal, DSSpacing.lg)
-        .accessibilityElement(children: .combine)
+        .environment(\.colorScheme, .dark)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             ready
                 ? "Search is ready"
                 : "Getting search ready. \(Self.explanation)"
         )
+        .accessibilityValue(
+            ready ? "" : RerankerSetupStatus.stepLine(step: status.step, startedAt: status.startedAt, now: .now)
+        )
         .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    /// The Settings rows' graphite tile, tinted at its edge by the card's colour.
+    private func iconTile(ready: Bool, tint: Color) -> some View {
+        let tile = RoundedRectangle(cornerRadius: DSCorners.control - 3, style: .continuous)
+        return Image(systemName: ready ? "checkmark" : "sparkle.magnifyingglass")
+            .scaledFont(size: 14, weight: .semibold, relativeTo: .subheadline)
+            .foregroundStyle(ready ? tint : .white)
+            .symbolEffect(.pulse, isActive: !ready && !reduceMotion)
+            .frame(width: 28, height: 28)
+            .background(
+                tile.fill(
+                    LinearGradient(colors: [Color(white: 0.26), Color(white: 0.09)], startPoint: .top, endPoint: .bottom))
+            )
+            .overlay(tile.strokeBorder(tint.opacity(0.5), lineWidth: 0.5))
+    }
+
+    /// One step's bar with its name under it: full when done, filling while it runs, empty before it starts.
+    private func stepBar(_ name: String, fill: Double, current: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.12))
+                    Capsule()
+                        .fill(DSColors.accent)
+                        .frame(width: proxy.size.width * fill)
+                        .shadow(color: DSColors.accent.opacity(current ? 0.6 : 0), radius: 4)
+                }
+            }
+            .frame(height: 5)
+            Text(name)
+                .font(DSTypography.meta)
+                .foregroundStyle(Color.white.opacity(fill >= 1 || current ? 0.8 : 0.45))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

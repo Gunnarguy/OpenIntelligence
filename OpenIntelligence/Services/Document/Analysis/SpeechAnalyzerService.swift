@@ -134,7 +134,6 @@ final class SpeechAnalyzerService: ObservableObject {
             HardwareTelemetryState.shared.sustain(.ragOrchestration, active: false)
         }
 
-        DSHaptics.processingPulse()
         HardwareTelemetryState.shared.sustain(.ragOrchestration, active: true, intensity: 0.8)
         Log.info("[SpeechAnalyzer] Starting analysis: \(url.lastPathComponent) (\(Int(duration))s)", category: .retrieval)
 
@@ -247,7 +246,6 @@ final class SpeechAnalyzerService: ObservableObject {
                 "speech.transcribe",
                 ["engine": "SpeechAnalyzer", "words": "0", "language": String(language.prefix { $0 != "-" && $0 != "_" })])
         } else {
-            DSHaptics.success()
             VerificationJournal.record(
                 "speech.transcribe", .ok,
                 ["engine": "SpeechAnalyzer", "words": "\(fullText.split(separator: " ").count)",

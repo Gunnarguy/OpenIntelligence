@@ -354,7 +354,7 @@ struct IntelligenceModeCard: View {
                 let isSelected = step == mode
                 Button {
                     guard step != mode else { return }
-                    DSHaptics.light()
+                    DSHaptics.selection()
                     onSelect(step)
                 } label: {
                     VStack(spacing: DSSpacing.xxs) {
@@ -384,7 +384,6 @@ struct IntelligenceModeCard: View {
                 .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
         }
-        .sensoryFeedback(.selection, trigger: mode)
     }
 
     // MARK: What this step adds

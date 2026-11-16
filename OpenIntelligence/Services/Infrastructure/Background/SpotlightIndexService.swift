@@ -93,7 +93,6 @@ final class SpotlightIndexService {
                 Log.error("[Spotlight] Failed to index container '\(container.name)': \(error.localizedDescription)", category: .initialization)
             } else {
                 Log.debug("[Spotlight] Indexed container '\(container.name)'", category: .initialization)
-                Task { @MainActor in DSHaptics.soft() }
             }
         }
     }

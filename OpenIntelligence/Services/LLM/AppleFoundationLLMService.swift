@@ -742,9 +742,6 @@ import os
                     if firstTokenTime == nil {
                         firstTokenTime = Date().timeIntervalSince(startTime)
 
-                        // Haptic: first token arrived
-                        await MainActor.run { DSHaptics.generationStarted() }
-
                         if let ttft = firstTokenTime {
                             Log.info(
                                 "[FM] First token in \(String(format: "%.2f", ttft))s (\(actualExecutionLocation))",
@@ -792,11 +789,6 @@ import os
                         let perTokenMs = now.timeIntervalSince(lastTokenTimestamp) * 1000 / Double(newTokens)
                         lastTokenTimestamp = now
                         HardwareTelemetryReporter.reportLLMTokens(count: newTokens, tokenLatencyMs: perTokenMs)
-                    }
-
-                    // Subtle haptic tick
-                    if snapshotCount % 8 == 0 {
-                        await MainActor.run { DSHaptics.generationTick() }
                     }
                 }
             } catch let error as LanguageModelSession.GenerationError {
@@ -889,9 +881,6 @@ import os
 
             // Stop Neural Engine activity indicator
             HardwareTelemetryReporter.sustain(.llmInference, active: false)
-
-            // Haptic: generation complete
-            await MainActor.run { DSHaptics.generationComplete() }
 
             // Handle generation errors with user-friendly messages
             if guardrailViolation {

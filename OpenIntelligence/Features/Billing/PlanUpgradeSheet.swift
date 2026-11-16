@@ -123,7 +123,7 @@ struct PlanUpgradeSheet: View {
                 Text(alertMessage)
             }
         }
-        .sensoryFeedback(.success, trigger: completedPurchases)
+        .onChange(of: completedPurchases) { _, _ in DSHaptics.success() }
         .task { await AppStoreRatingService.refreshIfStale() }
         .onAppear {
             TelemetryCenter.emitBillingEvent(

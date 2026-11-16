@@ -122,7 +122,7 @@ unchanged, each with its `PlanUpgradeEntryPoint`. On a Mac the Settings pages st
 Store privacy label: Data Not Collected" sits directly under the "Your plan" panel as one caption, not in the footer;
 the store rating stays in the footer. A purchase that returns a transaction (`BillingService.purchase` is nil for
 pending and cancelled), and a restore that leaves a paid `effectiveTier`, add one to `completedPurchases`, which
-drives `.sensoryFeedback(.success, trigger:)` on the sheet: one haptic, with the panel's figures changing at the
+drives `DSHaptics.success()` from `.onChange` on the sheet (it was `.sensoryFeedback(.success, trigger:)` until 2026-11-16, moved so the X-Ray's Taptic Engine counts it): one haptic, with the panel's figures changing at the
 same moment. `EntitlementStore` is read, not changed. `[evidence_level: code_verified, confidence: exact,
 evidence_source: PlanUpgradeSheet.swift; order and privacy line measured in iOS 27 Simulator screenshots; the haptic
 was not felt, since the Simulator plays none and no purchase was made]`

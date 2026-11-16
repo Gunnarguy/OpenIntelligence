@@ -389,7 +389,7 @@ struct ComputeProfileCard: View {
                 let isSelected = step == profile
                 Button {
                     guard step != profile else { return }
-                    DSHaptics.light()
+                    DSHaptics.selection()
                     onSelect(step)
                 } label: {
                     VStack(spacing: DSSpacing.xxs) {
@@ -420,7 +420,6 @@ struct ComputeProfileCard: View {
                 .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
         }
-        .sensoryFeedback(.selection, trigger: profile)
     }
 
     // MARK: What this step adds

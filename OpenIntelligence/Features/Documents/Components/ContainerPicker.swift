@@ -111,6 +111,7 @@ struct ContainerPickerStrip: View {
                     // than as a feeling. Switching libraries is the specific complaint,
                     // and until now nothing on this path was timed at all.
                     NavigationTiming.begin("library")
+                    if containerService.activeContainerId != container.id { DSHaptics.selection() }
                     withAnimation(DSAnimations.snappySpring) {
                         containerService.setActive(container.id)
                     }

@@ -125,7 +125,6 @@ final class TranslationService: ObservableObject {
             HardwareTelemetryState.shared.sustain(.queryProcessing, active: false)
         }
 
-        DSHaptics.processingPulse()
         HardwareTelemetryState.shared.sustain(.queryProcessing, active: true, intensity: 0.7)
 
         var translatedText = text
@@ -173,7 +172,6 @@ final class TranslationService: ObservableObject {
             HardwareTelemetryState.shared.sustain(.queryProcessing, active: false)
         }
 
-        DSHaptics.processingPulse()
         HardwareTelemetryState.shared.sustain(.queryProcessing, active: true, intensity: 0.8)
 
         // Determine source language from first substantial chunk
@@ -228,7 +226,6 @@ final class TranslationService: ObservableObject {
             results.append(contentsOf: batchResults)
         }
 
-        DSHaptics.success()
         Log.info("[Translation] Batch translated \(results.count) chunks from \(effectiveSource.languageCode?.identifier ?? "?") to \(targetLanguage.languageCode?.identifier ?? "en")", category: .ingestion)
 
         return results

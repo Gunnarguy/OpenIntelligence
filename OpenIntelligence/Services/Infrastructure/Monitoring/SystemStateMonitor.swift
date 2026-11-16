@@ -330,8 +330,8 @@ final class SystemStateMonitor: ObservableObject {
             thermalObserver, batteryLevelObserver, batteryStateObserver, lowPowerObserver, memoryObserver,
             reducedResourceObserver,
         ]
-            .compactMap { $0 }
-            .forEach { NotificationCenter.default.removeObserver($0) }
+        .compactMap { $0 }
+        .forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     // MARK: - Public API
@@ -466,7 +466,8 @@ final class SystemStateMonitor: ObservableObject {
         // `physicalMemory` should never be zero, but 0/0 is NaN and a NaN here reaches
         // `memoryUsagePercent`, which converts with `Int(...)` and traps. Guarding at the source
         // costs one branch and means no consumer has to know.
-        let memoryRatio = totalMemory > 0
+        let memoryRatio =
+            totalMemory > 0
             ? 1.0 - (Double(availableMemory) / Double(totalMemory))
             : 0.0
 
@@ -565,9 +566,11 @@ final class SystemStateMonitor: ObservableObject {
             // A change only, not each sample (5.8).
             VerificationJournal.record(
                 "system.state",
-                ["thermal": "\(newState.thermalState.rawValue)", "lowPower": "\(newState.isLowPowerModeEnabled)",
+                [
+                    "thermal": "\(newState.thermalState.rawValue)", "lowPower": "\(newState.isLowPowerModeEnabled)",
                     "reducedUsage": "\(newState.systemPrefersReducedResourceUsage)",
-                    "memoryPressure": "\(newState.memoryPressure)"])
+                    "memoryPressure": "\(newState.memoryPressure)",
+                ])
         }
         currentState = newState
         SystemResourceAdvice.set(prefersReducedUsage: newState.systemPrefersReducedResourceUsage)
@@ -587,12 +590,7 @@ final class SystemStateMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                let oldThermal = self?.currentState.thermalState
                 self?.updateState()
-                // Haptic feedback for thermal state changes
-                if let newThermal = self?.currentState.thermalState, oldThermal != newThermal {
-                    self?.triggerThermalHaptic(for: newThermal)
-                }
             }
         }
 
@@ -604,16 +602,7 @@ final class SystemStateMonitor: ObservableObject {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    let oldLevel = self?.currentState.batteryLevel ?? 0
                     self?.updateState()
-                    // Haptic for battery milestones (every 10%)
-                    if let newLevel = self?.currentState.batteryLevel {
-                        let oldTens = Int(oldLevel * 10)
-                        let newTens = Int(newLevel * 10)
-                        if oldTens != newTens && newLevel >= 0 {
-                            DSHaptics.tick()
-                        }
-                    }
                 }
             }
 
@@ -624,16 +613,7 @@ final class SystemStateMonitor: ObservableObject {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    let oldCharging = self?.currentState.isCharging ?? false
                     self?.updateState()
-                    // Haptic for charger connect/disconnect
-                    if let newCharging = self?.currentState.isCharging, oldCharging != newCharging {
-                        if newCharging {
-                            DSHaptics.success()  // Connected
-                        } else {
-                            DSHaptics.soft()  // Disconnected
-                        }
-                    }
                 }
             }
         #endif
@@ -645,12 +625,7 @@ final class SystemStateMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                let wasLPM = self?.currentState.isLowPowerModeEnabled ?? false
                 self?.updateState()
-                // Haptic for low power mode toggle
-                if let isLPM = self?.currentState.isLowPowerModeEnabled, wasLPM != isLPM {
-                    DSHaptics.toggle()
-                }
             }
         }
 
@@ -680,27 +655,9 @@ final class SystemStateMonitor: ObservableObject {
                 Task { @MainActor [weak self] in
                     VerificationJournal.record("system.memoryWarning")
                     self?.updateState()
-                    // Distinct warning haptic for memory pressure
-                    DSHaptics.warning()
                 }
             }
         #endif
-    }
-
-    /// Haptic feedback based on thermal state
-    private func triggerThermalHaptic(for state: ProcessInfo.ThermalState) {
-        switch state {
-        case .nominal:
-            DSHaptics.soft()  // Cooling down - gentle
-        case .fair:
-            DSHaptics.thermalPulse(intensity: 0.4)  // Getting warm
-        case .serious:
-            DSHaptics.thermalPulse(intensity: 0.7)  // Hot
-        case .critical:
-            DSHaptics.warning()  // Critical warning
-        @unknown default:
-            break
-        }
     }
 
     private func startPeriodicCapture() {

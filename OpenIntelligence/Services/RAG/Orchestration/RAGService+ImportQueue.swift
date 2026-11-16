@@ -606,7 +606,7 @@ extension RAGService {
         // Haptic feedback for stage transitions
         let oldStage = ingestionItems[index].stage
         if oldStage != stage {
-            triggerIngestionHaptic(for: stage)
+            triggerIngestionHaptic(for: stage, item: id)
             // Each stage a file reaches, with its type and the time since it started (5.8). No file name.
             VerificationJournal.record(
                 "import.stage",
@@ -691,30 +691,18 @@ extension RAGService {
         syncIngestionLiveActivity()
     }
 
-    /// Haptic feedback based on ingestion stage
+    /// One haptic per file, not one per stage of every file (5.8): a tick as each file goes in, the ingested
+    /// haptic when the last file in the queue finishes, and a warning when one fails.
     @MainActor
-    private func triggerIngestionHaptic(for stage: IngestionStage) {
+    private func triggerIngestionHaptic(for stage: IngestionStage, item id: UUID) {
         switch stage {
-        case .loading, .extracting:
-            DSHaptics.soft()  // Just starting
-        case .transcribing:
-            DSHaptics.processingPulse()  // Audio/video processing
-        case .chunking, .analyzing, .adapting:
-            DSHaptics.tick()  // Processing ticks
-        case .embedding:
-            DSHaptics.processingPulse()  // Neural processing
-        case .indexing:
-            DSHaptics.tick()
-        case .storing:
-            DSHaptics.soft()
         case .complete:
-            DSHaptics.documentIngested()  // Success!
-        case .cancelled:
-            break
+            let othersInFlight = ingestionItems.contains { $0.id != id && !$0.stage.isTerminal && $0.stage != .paused }
+            if othersInFlight { DSHaptics.tick() } else { DSHaptics.documentIngested() }
         case .failed:
-            DSHaptics.warning()  // Something went wrong
-        case .reindexing, .queued, .paused:
-            break  // No haptic for these
+            DSHaptics.warning()
+        default:
+            break
         }
     }
 

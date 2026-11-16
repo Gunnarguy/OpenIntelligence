@@ -397,6 +397,7 @@ struct CompactChatHeader: View {
                 badgeStyle: .count
             ) {
                 Tour.used(.libraryPills)
+                if containerService.activeContainerId != container.id { DSHaptics.selection() }
                 withAnimation(DSAnimations.snappySpring) {
                     containerService.setActive(container.id)
                 }

@@ -155,6 +155,13 @@ extension ChatScreen {
             withAnimation(.linear(duration: 0.04)) {
                 streamingText.append(nextChunk)
             }
+            // The answer is felt as it writes: a beat at each new line, and at a sentence's end at most every
+            // 0.9 s, so a long paragraph still has a pulse without a buzz per chunk (5.8).
+            if nextChunk.contains("\n") {
+                DSHaptics.beat()
+            } else if nextChunk.contains(". ") {
+                DSHaptics.beat(every: 0.9)
+            }
 
             // Update speed history for the sparkline
             updateSpeedHistory()

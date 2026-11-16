@@ -518,3 +518,7 @@ point predates this change, since the notes carried the same labels. When the pe
 the model picker the final step keeps the notes-only prompt. `[evidence_level: code_verified, confidence: high, not
 run on a device, evidence_source: RAGService+Agentic.swift:245-290, ModelExecutionPlanner.swift:77-85,
 RAGService+Generation.swift:1214-1217]`
+
+## The model service plays no haptics (added 2026-11-16, for 5.8)
+
+`AppleFoundationLLMService` played a haptic at the first token, every 8 streamed snapshots and at completion of every model call, on device and on Private Cloud Compute alike, Deep Think's working calls included. It plays none now; the chat screen plays them from what it shows. Routing and consent are unchanged. `[evidence_level: build_verified, confidence: high, evidence_source: AppleFoundationLLMService.swift]`

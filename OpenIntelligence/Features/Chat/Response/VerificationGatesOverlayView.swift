@@ -226,13 +226,13 @@ struct GateRowView: View {
                     .transition(.blurReplace)
             }
         }
-        .sensoryFeedback(trigger: gate.status) { oldValue, newValue in
+        // Each check is felt as it lands: a tick when it passes, an error when it fails (5.8).
+        .onChange(of: gate.status) { oldValue, newValue in
             if newValue == .passed && oldValue != .passed {
-                return .success
+                DSHaptics.tick()
             } else if isFailed(newValue) && !isFailed(oldValue) {
-                return .error
+                DSHaptics.error()
             }
-            return nil
         }
     }
     

@@ -435,6 +435,10 @@ extension ChatScreen {
             {
                 continuedQueryCoordinator.markStep()
             }
+            // Each working step of Deep Think and Maximum is felt as it happens (5.8).
+            if isProcessing, let latest = events.last, latest.id != thinkingEvents.last?.id {
+                DSHaptics.beat()
+            }
             thinkingEvents = events
         }
         .onChange(of: isCheckingFinishedAnswer) { _, checking in

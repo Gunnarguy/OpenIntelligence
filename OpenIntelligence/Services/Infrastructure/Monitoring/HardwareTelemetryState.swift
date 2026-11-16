@@ -617,34 +617,6 @@ final class HardwareTelemetryState {
         Log.verbose("[HardwareTelemetry] Haptic pulse: \(style)", category: .telemetry)
     }
 
-    /// Report keyboard typing activity (visualizes system keyboard haptics)
-    /// Called on each character typed - doesn't generate new haptics, just visualizes
-    /// iOS keyboard already fires Taptic Engine - we just show it in the HUD
-    func reportKeyboardTap() {
-        // Very brief pulse - keyboard haptics are tiny and rapid
-        decayTimers[.haptic]?.cancel()
-        if hapticFirstOp == nil { hapticFirstOp = Date() }
-        hapticFireCount += 1
-        rebuildComponentActivities()
-
-        // Keyboard haptics: visible but lighter than explicit haptics
-        withAnimation(.linear(duration: 0.01)) {
-            hapticIntensity = 0.8
-            isActive = true
-        }
-
-        // Brief hold then fade - visible per-keystroke flash
-        decayTimers[.haptic] = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(100))
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    self?.hapticIntensity = 0.0
-                }
-            }
-        }
-    }
-
     // MARK: - Private Counter Helpers
 
     /// Increment the operation counter and set firstOp timestamp for a component
