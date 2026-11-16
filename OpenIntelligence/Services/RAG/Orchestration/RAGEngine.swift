@@ -84,6 +84,28 @@ actor RAGEngine {
     /// Waits for the reranker's load (`RerankerWarmup` calls this a few seconds after launch, which is what starts it).
     func prepareReranker() async {
         await setupTask?.value
+        await retryRerankerIfItFailed()
+    }
+
+    /// How many times this launch has tried to load the reranker.
+    private var rerankerLoadAttempts = 1
+
+    /// Loads the reranker again when the last load left it missing, up to three tries a launch (5.8, 2026-11-16).
+    ///
+    /// On the owner's iPhone at 21:42 UTC both functions failed after 75 s (journal `reranker.load`, `functions` empty),
+    /// and `isSetupComplete` stayed set, so every search for the rest of that launch ranked with the heuristic fallback
+    /// instead of the cross-encoder, silently. Now the next search, or the warm-up, waits for one more load.
+    private func retryRerankerIfItFailed() async {
+        #if canImport(CoreML)
+            guard rerankerModels.count < 2, rerankerLoadAttempts < 3,
+                OpenIntelligenceResourceBundle.url(forResource: "ReRankerModel", withExtension: "mlmodelc") != nil
+            else { return }
+            rerankerLoadAttempts += 1
+            isSetupComplete = false
+            VerificationJournal.record("reranker.retry", .info, ["attempt": "\(rerankerLoadAttempts)"])
+            setupTask = Task { [weak self] in await self?.setupReRanker() }
+            await setupTask?.value
+        #endif
     }
 
     private func setupReRanker() async {
@@ -115,24 +137,25 @@ actor RAGEngine {
                 // next launch (`RerankerModelLocation`, 5.8).
                 let location = RerankerModelLocation.loadURL(for: bundledURL)
                 let url = location.url
-                // Maximum runs the `.fastPrediction` form, but compiling it took 70 to 128 s on the owner's iPhone 16
-                // Pro Max against 20.8 to 59.7 s for the default form (journal `reranker.load`, 2026-11-09 to 16). So the
-                // default form loads first and search is ready on it; the fast form is prepared afterwards in the
-                // background and swapped in (`prepareFastForm`), and from then on, for this build and model, loads
-                // directly from Core ML's cache (5.8, 2026-11-16).
+                // Maximum runs the `.fastPrediction` form. The default form loads first and search is ready on it; the fast
+                // form is prepared afterwards in the background and swapped in (`prepareFastForm`), and from then on, for
+                // this install and model, loads directly from Core ML's cache (5.8, 2026-11-16). On the owner's iPhone 16
+                // Pro Max the default form's first load took 76 to 83 s that afternoon, about as long as the fast form's
+                // 70 to 128 s earlier, so this keeps a second compile out of the wait but does not shorten the first.
                 let maximum = DeviceCapabilityService.maximumProfileSelected
                 var fast = maximum && RerankerFastForm.isPrepared(for: url)
-                var loaded = Self.loadRerankerFunctions(at: url, fast: fast) { step in
+                var result = Self.loadRerankerFunctionsReporting(at: url, fast: fast) { step in
                     Task { @MainActor in RerankerSetupStatus.shared.setStep(step) }
                 }
-                if fast && loaded.count < 2 {
+                if fast && result.loaded.count < 2 {
                     // The recorded fast form did not load; search runs on the default form and the record is dropped.
                     RerankerFastForm.forget()
                     fast = false
-                    loaded = Self.loadRerankerFunctions(at: url, fast: false) { step in
+                    result = Self.loadRerankerFunctionsReporting(at: url, fast: false) { step in
                         Task { @MainActor in RerankerSetupStatus.shared.setStep(step) }
                     }
                 }
+                let loaded = result.loaded
                 self.rerankerModels = loaded
                 let loadSeconds = Date().timeIntervalSince(loadStart)
                 Log.info(
@@ -146,6 +169,8 @@ actor RAGEngine {
                     ["functions": loaded.map { "len\($0.length)" }.joined(separator: ","),
                         "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
                         "form": fast ? "fastPrediction" : "default",
+                        "errors": result.errors.joined(separator: "; "),
+                        "attempt": "\(rerankerLoadAttempts)",
                         "fastPrediction": "\(fast)",
                         "fixedPath": "\(location.fixedPath)"])
                 if maximum && !fast && loaded.count == 2 {
@@ -175,6 +200,15 @@ actor RAGEngine {
         nonisolated static func loadRerankerFunctions(
             at url: URL, fast: Bool, onStep: ((Int) -> Void)? = nil
         ) -> [(length: Int, model: MLModel)] {
+            loadRerankerFunctionsReporting(at: url, fast: fast, onStep: onStep).loaded
+        }
+
+        /// As `loadRerankerFunctions`, with each failed function's error as domain, code and description, for the
+        /// journal (no paths: the description is cut at the first slash).
+        nonisolated static func loadRerankerFunctionsReporting(
+            at url: URL, fast: Bool, onStep: ((Int) -> Void)? = nil
+        ) -> (loaded: [(length: Int, model: MLModel)], errors: [String]) {
+            var errors: [String] = []
             var loaded: [(length: Int, model: MLModel)] = []
             for (index, length) in [256, 512].enumerated() {
                 onStep?(index + 1)
@@ -187,13 +221,16 @@ actor RAGEngine {
                     }
                     loaded.append((length, try MLModel(contentsOf: url, configuration: config)))
                 } catch {
+                    let ns = error as NSError
+                    let text = ns.localizedDescription.split(separator: "/").first.map(String.init) ?? ""
+                    errors.append("len\(length): \(ns.domain) \(ns.code) \(text.prefix(120))")
                     Log.error(
                         "[RAGEngine] Failed to load ReRanker function len\(length) "
                             + "(\(fast ? "fastPrediction" : "default") form): \(error)",
                         category: .retrieval)
                 }
             }
-            return loaded
+            return (loaded, errors)
         }
 
         /// Prepares the `.fastPrediction` form of both functions at low priority, off this actor so searches keep
@@ -475,6 +512,7 @@ actor RAGEngine {
         // launch pays the load once, which is the right trade: a consistent ranking is worth more
         // than a fast arbitrary one in an app whose claim is grounded, attributable answers.
         await setupTask?.value
+        await retryRerankerIfItFailed()
 
         #if canImport(CoreML)
             if !rerankerModels.isEmpty, let tokenizer = rerankerTokenizer {

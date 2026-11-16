@@ -24,7 +24,17 @@ struct RerankerSetupCard: View {
     /// install or update, then loads it from its cache in about a second. The duration moved to the counter and the
     /// bars, which show it live; the two facts the owner fixed on 2026-11-10 stay: once after each update, and a question
     /// asked now starts as soon as this is done.
-    static let explanation = "Setting up the model that puts the best passages first, once after each update. Ask now and it starts when done."
+    ///
+    /// Plainer again the same day (the owner: "its still preeeeetty ambiguous to people who dont know what that even
+    /// means"): it says what the model does for an answer, that this device does it once after each update, roughly
+    /// how long (75 to 83 s measured on an iPhone 16 Pro Max on 2026-11-16, 25 to 58 s earlier), and what asking now
+    /// does. The device's own noun, so a Mac says Mac.
+    static var explanation: String {
+        // No version number: the card shows after every update, not only the one that brought the model.
+        "Search uses a model that picks the best passages from your documents for each answer. "
+            + "Your \(DeviceCapabilityService.shared.formFactor.deviceNoun) sets it up once after each update, which "
+            + "takes a minute or two. You can ask now; the answer starts when it's ready."
+    }
 
     @ObservedObject private var status = RerankerSetupStatus.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
