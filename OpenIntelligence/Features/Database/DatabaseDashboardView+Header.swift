@@ -119,11 +119,11 @@ extension DatabaseDashboardView {
                 .init(
                     symbol: "doc.text", name: "Documents", color: .blue,
                     figure: documents.map { $0.formatted() } ?? "…", share: scoped ? documentShare : nil,
-                    caption: scoped ? "in \(scopeLabel)" : "all libraries"),
+                    caption: scoped ? "this library" : "all libraries"),
                 .init(
                     symbol: "textformat", name: "Words", color: .purple,
                     figure: words.map { formatLargeNumber($0) } ?? "…", share: scoped ? wordShare : nil,
-                    caption: scoped ? "in \(scopeLabel)" : "all libraries"),
+                    caption: scoped ? "this library" : "all libraries"),
                 .init(
                     symbol: "internaldrive", name: "On disk", color: .green,
                     figure: stats.map { formatBytes($0.databaseSizeBytes) } ?? "…", share: nil,

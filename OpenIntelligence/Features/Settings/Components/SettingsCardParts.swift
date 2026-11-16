@@ -69,15 +69,12 @@ struct SpecTile: View {
         // one line, shrinking further and ending in "..." ("Reranked per s...").
         let small = SettingsStatusPanel.minimumTextSize
         return VStack(alignment: .leading, spacing: 1) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Image(systemName: marker ?? icon)
-                    .scaledFont(size: small, weight: .bold)
-                    .foregroundStyle(accent)
-                Text(name)
-                    .scaledFont(size: small, weight: .medium)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            // The symbol is part of the text, so a name that wraps continues under it rather than indented
+            // ("Reads / per step", 2026-11-16).
+            Text("\(Text(Image(systemName: marker ?? icon)).foregroundStyle(accent).fontWeight(.bold)) \(name)")
+                .foregroundStyle(.secondary)
+                .scaledFont(size: small, weight: .medium)
+                .fixedSize(horizontal: false, vertical: true)
             Text(value)
                 .scaledFont(size: 12, weight: .bold, design: .rounded)
                 .foregroundStyle(valueColor)
