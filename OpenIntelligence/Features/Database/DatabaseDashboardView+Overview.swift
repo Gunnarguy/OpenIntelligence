@@ -129,36 +129,46 @@ extension DatabaseDashboardView {
         }
     }
 
+    /// The Maintenance section's findings in one row, with the way there (2026-11-16). It judged the keyword file alone
+    /// ("Index Check", "Unused Space", "Write Log") and suggested Optimize for any unused space at all; it now reads the
+    /// same checks as Maintenance, including whether each library can be searched by meaning.
     private func databaseHealthCard(_ diag: SQLiteFullTextService.DeepDiagnostics) -> some View {
-        let healthy = diag.integrityCheckResult.lowercased().contains("ok")
-        return DatabaseCard(icon: healthy ? "checkmark.seal.fill" : "exclamationmark.triangle.fill", title: "Database Health") {
-            Text(healthy ? "Healthy" : "Issues Detected")
+        let keywordOK = keywordIndexProblem == nil
+        let meaningOK = maintenanceLibraries.allSatisfy { !ragService.librariesNeedingIndexRebuild.contains($0.id) }
+        let reclaimOK = !reclaimIsWorthIt(reclaimableBytes)
+        let healthy = keywordOK && meaningOK && reclaimOK
+        return DatabaseCard(
+            icon: healthy ? "checkmark.seal.fill" : "exclamationmark.triangle.fill", title: "Health", caption: scopeSubtitle
+        ) {
+            Text(healthy ? "Healthy" : "Needs attention")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DSColors.readable(healthy ? .green : .red))
+                .foregroundStyle(DSColors.readable(healthy ? .green : .orange))
         } content: {
             // One row of equal chips: the row takes its tallest label's height and each chip fills it (2026-11-15).
             HStack(spacing: DSSpacing.sm) {
-                HealthIndicator(
-                    label: settings.showTechnicalDetails ? "Integrity" : "Index Check",
-                    status: diag.integrityCheckResult.lowercased().contains("ok") ? .good : .bad
-                )
-                HealthIndicator(
-                    label: settings.showTechnicalDetails ? "Free Pages" : "Unused Space",
-                    status: diag.freePageCount == 0 ? .good : (diag.freePageCount < 100 ? .warning : .bad)
-                )
-                HealthIndicator(
-                    label: settings.showTechnicalDetails ? "WAL Size" : "Write Log",
-                    status: diag.walSizeBytes < 10_000_000 ? .good : (diag.walSizeBytes < 100_000_000 ? .warning : .bad)
-                )
+                HealthIndicator(label: "Search by meaning", status: meaningOK ? .good : .warning)
+                HealthIndicator(label: "Keyword index", status: keywordOK ? .good : .warning)
+                if settings.showTechnicalDetails {
+                    HealthIndicator(
+                        label: "WAL Size",
+                        status: diag.walSizeBytes < 10_000_000 ? .good : (diag.walSizeBytes < 100_000_000 ? .warning : .bad))
+                } else {
+                    HealthIndicator(label: "Unused space", status: reclaimOK ? .good : .warning)
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
 
-            if diag.freePageCount > 0 || diag.walSizeBytes > 10_000_000 {
-                Label("Consider running Optimize in the Maintenance tab to reclaim space", systemImage: "lightbulb")
+            Button {
+                withAnimation(DSAnimations.snappySpring) { selectedSection = .maintenance }
+            } label: {
+                Label(
+                    healthy ? "Details in Maintenance" : "See what to run in Maintenance",
+                    systemImage: "wrench.and.screwdriver")
                     .font(.caption)
-                    .foregroundStyle(DSColors.readable(.orange))
-                    .fixedSize(horizontal: false, vertical: true)
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("database.openMaintenance")
         }
     }
 

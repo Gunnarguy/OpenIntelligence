@@ -56,10 +56,15 @@ struct DatabaseDashboardView: View {
     @State var isOptimizing = false
     @State var isRebuildingIndex = false
     @State var lastOptimizeResult: String?
+    @State var lastKeywordRebuildResult: String?
     @State var selectedDocument: SQLiteFullTextService.DocumentStat?
     @State private var documentPreview: String?
     @State var rebuildLogs: [RebuildLogEntry] = []
     @State var showRebuildLog = false
+    // Maintenance (2026-11-16): a check shows it is running, and the two rebuilds ask first, naming what they cover.
+    @State var isCheckingIntegrity = false
+    @State var confirmsKeywordRebuild = false
+    @State var meaningRebuildToConfirm: KnowledgeContainer?
 
     @State var containerNameMap: [UUID: String] = [:]
     @State var documentNameMap: [UUID: String] = [:]
@@ -124,6 +129,30 @@ struct DatabaseDashboardView: View {
             }
         }
 
+        /// What a person comes to the section for, shown under the section chips (2026-11-16). The owner asked that every
+        /// inner tab make sense to a person; each sentence says what the section's cards actually show.
+        var purpose: String {
+            switch self {
+            case .overview:
+                return "How much of each library is indexed for keyword search, and whether the indexes are in good shape."
+            case .intelligence:
+                return "How the app has tuned each library's passages and search style to its kind of documents."
+            case .documents:
+                return "The words and characters indexed for each document. Tap one to read the text the app searches."
+            case .vocabulary:
+                return
+                    "The words that occur most across all your libraries. Broken or strange words here can mean a scan was read badly."
+            case .index:
+                return "How the keyword index is built: its tokenizer, ranking and term counts."
+            case .performance:
+                return "The keyword index file: its size, pages, settings, and the timing of the last search."
+            case .maintenance:
+                return "The health of both search indexes, and the repairs to run when a check finds a problem."
+            case .search:
+                return "Find which documents contain every word you type."
+            }
+        }
+
         var icon: String {
             switch self {
             case .overview: return "chart.bar.doc.horizontal"
@@ -145,8 +174,15 @@ struct DatabaseDashboardView: View {
                     // Header
                     headerSection
 
-                    // Section picker
+                    // Section picker, and what the chosen section is for
                     sectionPicker
+                    Text(shownSection.purpose)
+                        .font(DSTypography.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, -DSSpacing.sm)
+                        .accessibilityIdentifier("database.sectionPurpose")
 
                     // Content based on selection
                     switch shownSection {

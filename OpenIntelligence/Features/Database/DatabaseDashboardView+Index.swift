@@ -85,8 +85,14 @@ extension DatabaseDashboardView {
     var vocabularySection: some View {
         VStack(spacing: DSSpacing.lg) {
             // Top terms
-            DatabaseCard(icon: "textformat.abc", title: "Top 100 Terms by Frequency") {
-                    Text("\(topTerms.count) terms")
+            // Plain names unless Technical Details is on (2026-11-16). The list is the whole keyword file's
+            // (`getTopTerms` reads FTS5's vocabulary table, which has no per-library form), so the caption says so.
+            DatabaseCard(
+                icon: "textformat.abc",
+                title: settings.showTechnicalDetails ? "Top 100 Terms by Frequency" : "Most Common Words",
+                caption: "All libraries"
+            ) {
+                    Text("\(topTerms.count) \(settings.showTechnicalDetails ? "terms" : "words")")
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundStyle(DSColors.secondaryText)
@@ -106,21 +112,29 @@ extension DatabaseDashboardView {
                         )
                         .foregroundStyle(DSColors.accent.gradient)
                     }
-                    .chartXAxisLabel("Total Occurrences")
+                    .chartXAxisLabel(settings.showTechnicalDetails ? "Total Occurrences" : "Times used")
                     .frame(height: 400)
+
+                    // The index keeps each word stemmed (tokenizer porter unicode61), so the list shows stems.
+                    Text(
+                        "Words are shown as the index keeps them, shortened to their stem, so \"running\" and \"runs\" both count as \"run\"."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
 
                     Divider()
 
                     // Full term list
                     LazyVStack(spacing: DSSpacing.xs) {
                         HStack {
-                            Text("Term")
+                            Text(settings.showTechnicalDetails ? "Term" : "Word")
                                 .font(.caption.weight(.semibold))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Text("Docs")
                                 .font(.caption.weight(.semibold))
                                 .frame(width: 60)
-                            Text("Total")
+                            Text(settings.showTechnicalDetails ? "Total" : "Times")
                                 .font(.caption.weight(.semibold))
                                 .frame(width: 60)
                         }
@@ -145,7 +159,8 @@ extension DatabaseDashboardView {
                 }
             }
 
-            // Term distribution histogram
+            // Term distribution histogram: a property of the index, with Technical Details on (2026-11-16).
+            if settings.showTechnicalDetails {
             DatabaseCard(icon: "chart.bar.fill", title: "Term Frequency Distribution") {
 
                 if !termDistribution.isEmpty {
@@ -164,6 +179,7 @@ extension DatabaseDashboardView {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
             }
         }
     }

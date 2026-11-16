@@ -367,3 +367,55 @@ struct FigureTile: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// One finding in the Maintenance section's Health card (2026-11-16): a tick or a warning, what was checked, and what the
+/// check found in words.
+struct MaintenanceFinding: View {
+    let ok: Bool
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(ok ? Color.green : Color.orange)
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Whether a Maintenance repair is the next step (2026-11-16): orange with a lightbulb when a check found a reason, a
+/// quiet secondary line saying why it isn't needed otherwise. The words are the label's colour on a pale tint, as the
+/// app's chips are (`DSColors`' contrast rule).
+struct MaintenanceRecommendation: View {
+    let recommended: Bool
+    let text: String
+
+    var body: some View {
+        Label {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(recommended ? DSColors.primaryText : DSColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: recommended ? "lightbulb.fill" : "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(recommended ? Color.orange : DSColors.secondaryText)
+        }
+        .padding(DSSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            (recommended ? Color.orange.opacity(0.12) : DSColors.background),
+            in: RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
+    }
+}

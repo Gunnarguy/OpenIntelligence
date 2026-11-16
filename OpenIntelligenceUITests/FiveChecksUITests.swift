@@ -183,9 +183,10 @@ final class FiveChecksUITests: XCTestCase {
         }
         // Every inner section, its top and one screen down (2026-11-15). The chips carry identifiers
         // `database.section.<rawValue>`; ones past the screen's edge are reached by swiping the chip row.
-        let sections =
-            technical
-            ? ["index", "performance"] : ["intelligence", "documents", "vocabulary", "maintenance", "search"]
+        // Every section in both runs (2026-11-16), since Technical Details changes the words on each, not only which
+        // sections are listed.
+        let customerSections = ["intelligence", "documents", "vocabulary", "maintenance", "search"]
+        let sections = technical ? customerSections + ["index", "performance"] : customerSections
         for section in sections {
             for _ in 0..<5 { app.swipeDown(velocity: .fast) }
             sleep(1)
@@ -462,7 +463,10 @@ final class FiveChecksUITests: XCTestCase {
             }
         }
         // The mode picker and the library chips above the field.
-        let mode = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Standard' OR label BEGINSWITH 'Deep Think' OR label BEGINSWITH 'Maximum'")).firstMatch
+        let mode = app.buttons.matching(
+            NSPredicate(
+                format: "label BEGINSWITH 'Standard' OR label BEGINSWITH 'Deep Think' OR label BEGINSWITH 'Maximum'")
+        ).firstMatch
         if mode.exists, mode.isHittable {
             mode.tap()
             sleep(2)
