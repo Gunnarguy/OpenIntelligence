@@ -132,6 +132,26 @@ nonisolated enum AppleDeviceCatalog {
 
     static func neuralEngineTOPS(forChip chip: String) -> Double? { neuralEngineFigure(forChip: chip)?.value }
 
+    /// The Neural Engine's cores as Apple's spec pages state them, read 2026-11-16: "16-core" for the A17 Pro, A18,
+    /// A18 Pro (MacBook Neo), A19, A19 Pro (iPhone 17, iPhone Air) and every M1 to M5 chip short of Ultra (MacBook Air,
+    /// iPad Pro, iPad Air, Mac mini M5 Pro, MacBook Pro M5 Pro and Max); "32-core" for the Ultra chips (Mac Studio M5
+    /// Ultra; M1, M2 and M3 Ultra); "Dual 16-core" for the M6 (MacBook Pro, iMac) and the A20 Pro in the iPhone 18 Pro
+    /// and iPhone Duo, while the A20 Pro iPad mini has it only with 512 GB of storage ("16-core" otherwise). Every
+    /// Apple Intelligence chip has a Neural Engine Apple describes this way, unlike TOPS, which Apple gives for few
+    /// (`neuralEngineFigure`). Nil for a chip name this build cannot place. For the A20 Pro iPad mini, `iPadMiniStorageGB` is
+    /// its storage, which decides between the two.
+    static func neuralEngineCores(forChip chip: String, iPadMiniStorageGB: Int? = nil) -> String? {
+        if chip.contains("Ultra") { return "32 cores" }
+        if chip == "M6" { return "2 × 16 cores" }
+        if chip.hasPrefix("A20 Pro") {
+            guard let storage = iPadMiniStorageGB else { return "2 × 16 cores" }
+            return storage >= 400 ? "2 × 16 cores" : "16 cores"
+        }
+        let known = ["A17 Pro", "A18", "A18 Pro", "A19", "A19 Pro", "M1", "M2", "M3", "M4", "M5"]
+        if known.contains(where: { chip == $0 || chip.hasPrefix($0 + " ") }) { return "16 cores" }
+        return nil
+    }
+
     /// "38" or "15.8": the figure as a number.
     static func topsDescription(_ tops: Double) -> String {
         tops == tops.rounded() ? String(Int(tops)) : String(format: "%.1f", tops)

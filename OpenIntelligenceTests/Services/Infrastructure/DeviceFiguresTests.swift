@@ -58,4 +58,17 @@ final class DeviceFiguresTests: XCTestCase {
         let (_, _, formFactor) = DeviceCapabilityService.detectiPadCapabilityFull(identifier: "iPad20,1")
         XCTAssertEqual(formFactor, .iPadAir)
     }
+
+    func testNeuralEngineCoresFollowApplesSpecPages() {
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "A18 Pro"), "16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "A17 Pro"), "16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "A19"), "16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "M3 Pro"), "16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "M5 Ultra"), "32 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "M6"), "2 × 16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "A20 Pro"), "2 × 16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "A20 Pro", iPadMiniStorageGB: 512), "2 × 16 cores")
+        XCTAssertEqual(AppleDeviceCatalog.neuralEngineCores(forChip: "A20 Pro", iPadMiniStorageGB: 128), "16 cores")
+        XCTAssertNil(AppleDeviceCatalog.neuralEngineCores(forChip: "Chip not identified"))
+    }
 }

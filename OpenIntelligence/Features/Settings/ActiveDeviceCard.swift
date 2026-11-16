@@ -117,15 +117,26 @@ struct ActiveDeviceCard: View {
             : clusters.map { "\($0.cores)" }.joined(separator: " + ") + " cores"
         let cpuSource = isSimulator ? hostSource : (clusters.isEmpty ? hostSource : clusters.map(\.name).joined(separator: " + "))
         let tops = device.npuTopsDescription
+        let neuralCores = AppleDeviceCatalog.neuralEngineCores(
+            forChip: device.chipDisplayName,
+            iPadMiniStorageGB: device.formFactor == .iPadMini ? Self.storageGB() : nil)
         let intel = device.chipName.contains("Intel")
         let workingSet = device.metalSnapshot.recommendedWorkingSetMB > 0 ? device.metalSnapshot.workingSetDescription : "Unavailable"
         return [
             Tile(id: "Chip", icon: "cpu", value: device.chipDisplayName, source: chipSource, color: .blue),
             Tile(id: "Memory", icon: "memorychip", value: device.memoryDescription, source: hostSource, color: .green),
             Tile(id: "CPU", icon: "square.grid.2x2", value: cpuValue, source: cpuSource, color: .orange),
+            // The core count Apple's spec pages give for every Apple Intelligence chip, and TOPS beside it only where
+            // Apple published that figure (5.8, 2026-11-16: the tile said "No figure" on the owner's A18 Pro).
             Tile(
-                id: "Neural Engine", icon: "brain", value: intel ? "None" : (tops ?? "No figure"),
-                source: intel ? "Intel chip" : (tops == nil ? "Apple publishes none" : "Apple's figure"), color: .purple),
+                id: "Neural Engine", icon: "brain",
+                value: intel ? "None" : (neuralCores ?? tops ?? "Not listed"),
+                source: intel
+                    ? "Intel chip"
+                    : (neuralCores != nil
+                        ? (tops.map { "\($0), Apple's figure" } ?? "Apple's specs")
+                        : (tops == nil ? "Apple's specs list none" : "Apple's figure")),
+                color: .purple),
             Tile(
                 id: "GPU budget", icon: "square.stack.3d.up", value: workingSet,
                 source: isSimulator ? "the Mac's GPU" : "Metal's working set", color: .cyan),
@@ -141,6 +152,14 @@ struct ActiveDeviceCard: View {
 
     /// The figures in the dark panel Compute Profile and Intelligence Mode open with (2026-11-16); they were grey tiles,
     /// a second status style on one page. Each block's caption names the value's source, as the tile's did.
+    /// The device's storage in gigabytes, from the system volume's total capacity, for the A20 Pro iPad mini's Neural
+    /// Engine (dual on the 512 GB model).
+    static func storageGB() -> Int? {
+        let url = URL(fileURLWithPath: NSHomeDirectory())
+        guard let bytes = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey]).volumeTotalCapacity else { return nil }
+        return bytes / 1_000_000_000
+    }
+
     private var tiles: some View {
         let (state, ready) = Self.intelligenceState()
         let name = device.modelName ?? device.formFactor.deviceNoun
