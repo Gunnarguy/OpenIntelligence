@@ -68,7 +68,7 @@ struct InsightCard: View {
                     Text(insight.subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
@@ -147,10 +147,12 @@ struct RecommendedViewCard: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
 
+                // Whole, never cut off with "..." (5.8 premium pass).
                 Text(view.reason)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Relevance bar
                 GeometryReader { geo in
@@ -192,12 +194,12 @@ struct StatTile: View {
                 .font(.title3)
                 .foregroundStyle(color)
 
+            // An inline figure (`DSTypography.figure`, 5.8 premium pass).
             Text(value)
-                .font(.headline)
-                .fontWeight(.bold)
+                .font(DSTypography.figure)
 
             Text(label)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -205,6 +207,7 @@ struct StatTile: View {
         .background(
             RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
     }
 }
@@ -218,16 +221,17 @@ struct AtlasStatPill: View {
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
+            // Apple's minimum text size, where these were 8 to 10 points (5.8 premium pass).
             Image(systemName: icon)
-                .scaledFont(size: 9)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(color)
 
             Text(value)
-                .scaledFont(size: 10, weight: .bold, design: .rounded)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold, design: .rounded)
                 .foregroundStyle(.white)
 
             Text(label)
-                .scaledFont(size: 8)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(.white.opacity(0.6))
         }
         .padding(.horizontal, DSSpacing.sm)
@@ -253,7 +257,7 @@ struct AtlasToggleChip: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
-                    .scaledFont(size: 10)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 Text(label)
                     .font(.caption2)
             }
@@ -280,16 +284,16 @@ struct CompactInsightCard: View {
                         .foregroundStyle(insight.color)
 
                     Text(insight.title)
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Text(insight.subtitle)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .multilineTextAlignment(.leading)
 
                 if let metric = insight.metrics.first {
@@ -306,13 +310,11 @@ struct CompactInsightCard: View {
             }
             .frame(width: 160)
             .padding(DSSpacing.md)
+            // The app's card, without the colored edge only this card had (5.8 premium pass).
             .background(
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                            .stroke(insight.color.opacity(0.3), lineWidth: 1)
-                    )
+                    .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
             )
         }
         .buttonStyle(.plain)

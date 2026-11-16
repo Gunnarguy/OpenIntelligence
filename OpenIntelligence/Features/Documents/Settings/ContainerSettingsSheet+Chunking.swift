@@ -13,7 +13,7 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var chunkingSection: some View {
-        Section(header: Text("Chunking: split by structure")) {
+        Section(header: Text("Splitting into passages")) {
             // Corrected 2026-11-08 (claim audit): import splits with `SemanticChunker.chunkText`, at headings, tables,
             // sentence ends and ten English transition phrases. The embedding-boundary path (`chunkTextAsync`,
             // `detectEmbeddingBoundaries`) has no caller outside tests, so "embedding-based boundary detection" and
@@ -26,7 +26,7 @@ extension ContainerSettingsSheet {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Auto Intelligence")
                     Text("Picks a splitting style from the start of each file you add. Chunks stay at most 260 words.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -34,20 +34,22 @@ extension ContainerSettingsSheet {
             if autoAdaptDimension {
                 if let lastSelfTuneSummary {
                     Label("Last tuned: \(lastSelfTuneSummary)", systemImage: "checkmark.circle.fill")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.green)
                 } else {
                     Label("Picks a style from each file you add. It never rebuilds the library on its own.", systemImage: "wand.and.stars")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(Color.accentColor)
                 }
             } else {
                 Label("Manual mode: You control all chunking settings below", systemImage: "slider.horizontal.3")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if autoAdaptDimension {
+            // The library's analysis, the tuning notes and the acceleration card are for Technical Details (5.8 premium
+            // pass): they name chunk counts, vDSP and a matrix batch size, and a person can change none of them here.
+            if autoAdaptDimension, settings.showTechnicalDetails {
                 // Live Corpus Intelligence Panel
                 if let report = activeIntelligenceReport {
                     corpusIntelligenceCard(report: report)
@@ -66,7 +68,7 @@ extension ContainerSettingsSheet {
 
                 // Silicon-Native optimization info
                 siliconNativeChunkingInfo
-            } else {
+            } else if !autoAdaptDimension {
                 // Says plainly that this section is optional and that the default is already
                 // per-file-type, because the failure mode here is a user changing it, getting
                 // worse retrieval, and concluding the app is bad.
@@ -84,14 +86,14 @@ extension ContainerSettingsSheet {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "wrench.and.screwdriver")
-                            .font(.caption2)
+                            .font(.caption)
                         Text("ADVANCED. YOU DO NOT NEED TO CHANGE THIS")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption.weight(.semibold))
                     }
                     .foregroundStyle(.orange)
 
                     Text("Left alone, the app already picks a chunk size from the kind of file you imported: smaller for code, larger for reports and transcripts, and it skips prose based splitting on source files entirely. Setting a value here replaces that with one size for every file type in this library, which usually makes results worse rather than better. Changing it offers to re-chunk and re-index every document in the library.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -114,7 +116,7 @@ extension ContainerSettingsSheet {
                     .pickerStyle(.segmented)
 
                     Text(chunkingStrategyDescription)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, DSSpacing.xs)
@@ -145,7 +147,7 @@ extension ContainerSettingsSheet {
                     .accessibilityValue("\(targetWordWindow) words")
 
                     Text("Smaller = more precise matches, larger = more context per chunk. \(SemanticChunker.ChunkingConfig.maxTargetSize) words is the most the embedding model can take with room for its prefix.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, DSSpacing.xs)
@@ -173,7 +175,7 @@ extension ContainerSettingsSheet {
                     .accessibilityValue("\(overlapWords) words")
 
                     Text("How many words to repeat between chunks. More overlap = better context continuity, but more storage.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, DSSpacing.xs)

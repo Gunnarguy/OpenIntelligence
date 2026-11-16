@@ -17,15 +17,15 @@ extension UnifiedMetricsBar {
     private func microMetric(icon: String, value: String, label: String) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 8, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 .foregroundStyle(DSColors.secondaryText)
             Text(value)
-                .scaledFont(size: 10, weight: .medium, design: .monospaced)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium, design: .monospaced)
                 .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
             if !label.isEmpty {
                 Text(label)
-                    .scaledFont(size: 8)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                     .foregroundStyle(DSColors.secondaryText.opacity(0.7))
             }
         }
@@ -183,7 +183,7 @@ extension UnifiedMetricsBar {
                     // Chunk stats
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "square.stack.3d.up.fill")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.teal)
                         Text("\(totalStoredChunks) chunks")
                             .scaledFont(size: 11, weight: .medium)
@@ -197,9 +197,9 @@ extension UnifiedMetricsBar {
                     if embeddingDim > 0 {
                         HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "cube.fill")
-                                .scaledFont(size: 9)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             Text("\(embeddingDim)-dim")
-                                .scaledFont(size: 10, weight: .medium, design: .monospaced)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium, design: .monospaced)
                                 .monospacedDigit()
                         }
                         .foregroundStyle(DSColors.secondaryText)
@@ -208,9 +208,11 @@ extension UnifiedMetricsBar {
                     if !vectorDBKind.isEmpty {
                         HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "cylinder.fill")
-                                .scaledFont(size: 9)
-                            Text(vectorDBKind)
-                                .scaledFont(size: 10, weight: .medium)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                            // The raw value read "persistentJSON"; vectors are kept on disk and memory-mapped
+                            // (`BNNSVectorDatabase`), so the store is named for what it is (5.8 premium pass).
+                            Text(vectorDBKind == VectorDBKind.persistentJSON.rawValue ? "on disk" : vectorDBKind)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                         }
                         .foregroundStyle(DSColors.secondaryText)
                     }
@@ -218,9 +220,11 @@ extension UnifiedMetricsBar {
                     if chunkingTargetWords > 0 {
                         HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "text.justify.left")
-                                .scaledFont(size: 9)
-                            Text("~\(chunkingTargetWords)w/chunk")
-                                .scaledFont(size: 10, weight: .medium)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                            // Import caps the target at `maxTargetSize` (260 words, `DocumentProcessor+Import`), so a
+                            // stored 300 or 350 read as a target no import uses (5.8 premium pass).
+                            Text("~\(min(chunkingTargetWords, SemanticChunker.ChunkingConfig.maxTargetSize))w/chunk")
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .monospacedDigit()
                         }
                         .foregroundStyle(DSColors.secondaryText)
@@ -248,7 +252,7 @@ extension UnifiedMetricsBar {
                 Spacer()
 
                 Text("chunk selection funnel")
-                    .scaledFont(size: 9)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                     .foregroundStyle(.tertiary)
             }
 
@@ -315,10 +319,10 @@ extension UnifiedMetricsBar {
                 if droppedCount > 0 {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "xmark.circle")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.red.opacity(0.6))
                         Text("\(droppedCount) dropped (low similarity)")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .monospacedDigit()
                             .foregroundStyle(.red.opacity(0.6))
                     }
@@ -328,10 +332,10 @@ extension UnifiedMetricsBar {
                 if uniqueDocCount > 0 {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "doc.on.doc.fill")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                         Text("from \(uniqueDocCount) unique documents")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText)
                     }
@@ -354,12 +358,12 @@ extension UnifiedMetricsBar {
     ) -> some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .scaledFont(size: 10, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 .foregroundStyle(color)
                 .frame(width: 14)
 
             Text(label)
-                .scaledFont(size: 10, weight: isHighlighted ? .semibold : .regular)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: isHighlighted ? .semibold : .regular)
                 .foregroundStyle(isHighlighted ? DSColors.primaryText : DSColors.secondaryText)
                 .frame(width: 90, alignment: .leading)
 
@@ -393,7 +397,7 @@ extension UnifiedMetricsBar {
                 Spacer()
 
                 Text("\(baseWindowTokens) window")
-                    .scaledFont(size: 9, weight: .medium, design: .monospaced)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium, design: .monospaced)
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
             }
@@ -426,7 +430,7 @@ extension UnifiedMetricsBar {
     ) -> some View {
         HStack {
             Text(label)
-                .scaledFont(size: 10, weight: isResult || isHighlighted ? .semibold : .regular)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: isResult || isHighlighted ? .semibold : .regular)
                 .foregroundStyle(isResult || isHighlighted ? DSColors.primaryText : DSColors.secondaryText)
 
             Spacer()
@@ -455,9 +459,9 @@ extension UnifiedMetricsBar {
                 if lenientRetrieval {
                     HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "hand.thumbsup.fill")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         Text("Lenient")
-                            .scaledFont(size: 9, weight: .medium)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     }
                     .foregroundStyle(.orange)
                     .padding(.horizontal, DSSpacing.xs)
@@ -476,7 +480,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(similarityColor(topSimilarity))
                         Text("Top Match")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                     .frame(maxWidth: .infinity)
@@ -488,7 +492,7 @@ extension UnifiedMetricsBar {
                                 .monospacedDigit()
                                 .foregroundStyle(similarityColor(secondSimilarity))
                             Text("2nd Best")
-                                .scaledFont(size: 9)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
                         .frame(maxWidth: .infinity)
@@ -501,7 +505,7 @@ extension UnifiedMetricsBar {
                                 .monospacedDigit()
                                 .foregroundStyle(similarityColor(avgTop5Similarity))
                             Text("Avg Top 5")
-                                .scaledFont(size: 9)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
                         .frame(maxWidth: .infinity)
@@ -512,16 +516,16 @@ extension UnifiedMetricsBar {
                 if dynamicMinThreshold > 0 {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "line.horizontal.3.decrease")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                         Text("Dynamic threshold: \(String(format: "%.1f%%", dynamicMinThreshold * 100))")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText)
 
                         if acceptanceOverride {
                             Text("• Override active")
-                                .scaledFont(size: 10, weight: .medium)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .foregroundStyle(.orange)
                         }
                     }
@@ -557,7 +561,7 @@ extension UnifiedMetricsBar {
                 let totalTime = embeddingElapsed + searchElapsed + max(generationElapsed, elapsedTime)
                 if totalTime > 0 {
                     Text(String(format: "%.1fs total", totalTime))
-                        .scaledFont(size: 9, weight: .medium, design: .monospaced)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium, design: .monospaced)
                         .monospacedDigit()
                         .foregroundStyle(.tertiary)
                 }
@@ -597,7 +601,7 @@ extension UnifiedMetricsBar {
                         HStack(spacing: DSSpacing.xs) {
                             Circle().fill(Color.blue).frame(width: 8, height: 8)
                             Text("Embed: \(formatDuration(embeddingElapsed))")
-                                .scaledFont(size: 10, weight: .medium)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .monospacedDigit()
                                 .foregroundStyle(DSColors.secondaryText)
                         }
@@ -607,7 +611,7 @@ extension UnifiedMetricsBar {
                         HStack(spacing: DSSpacing.xs) {
                             Circle().fill(Color.purple).frame(width: 8, height: 8)
                             Text("Search: \(formatDuration(searchElapsed))")
-                                .scaledFont(size: 10, weight: .medium)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .monospacedDigit()
                                 .foregroundStyle(DSColors.secondaryText)
                         }
@@ -618,7 +622,7 @@ extension UnifiedMetricsBar {
                         HStack(spacing: DSSpacing.xs) {
                             Circle().fill(Color.green).frame(width: 8, height: 8)
                             Text("Generate: \(formatDuration(genTime))")
-                                .scaledFont(size: 10, weight: .medium)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .monospacedDigit()
                                 .foregroundStyle(DSColors.secondaryText)
                         }
@@ -629,10 +633,10 @@ extension UnifiedMetricsBar {
                 if let ttft = ttft, ttft > 0 {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "bolt.fill")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.yellow)
                         Text("Time to first token: \(formatDuration(ttft))")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText)
                     }

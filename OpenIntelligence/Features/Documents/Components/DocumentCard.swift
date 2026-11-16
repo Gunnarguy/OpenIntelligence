@@ -59,24 +59,26 @@ struct ModernDocumentCard: View {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 // The name and its figures grow with the text size, and the figures in the readable gray go onto
                 // further lines when they do not fit across (5.7): gray on this card measured 3.38 to 1.
+                // The whole name, on as many lines as it needs (5.8 premium pass); one line cut long names off
+                // with "...".
                 Text(document.filename)
-                    .scaledFont(size: 16, weight: .bold)
+                    .font(DSTypography.title)
                     .foregroundStyle(.primary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 WrappingRowLayout(spacing: DSSpacing.md, lineSpacing: DSSpacing.xs) {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "cube.box.fill")
                         Text("\(document.totalChunks)")
                     }
-                    .scaledFont(size: 11, weight: .medium)
+                    .font(DSTypography.caption)
                     .foregroundStyle(DSColors.secondaryText)
 
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "clock")
                         Text(document.addedAt, style: .relative)
                     }
-                    .scaledFont(size: 11, weight: .medium)
+                    .font(DSTypography.caption)
                     .foregroundStyle(DSColors.secondaryText)
                     
                     if isSharedICloudDocument {
@@ -84,7 +86,7 @@ struct ModernDocumentCard: View {
                             Image(systemName: "icloud.fill")
                             Text("Synced")
                         }
-                        .scaledFont(size: 11, weight: .bold)
+                        .font(DSTypography.caption.weight(.semibold))
                         .foregroundStyle(DSColors.readable(.accentColor))
                     }
                 }
@@ -104,17 +106,13 @@ struct ModernDocumentCard: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(DSSpacing.md)
-        // The regular material, a little more opaque than the thin one it replaces, so gray text on the card reads at
-        // 4.5 to 1 over the library's background (5.7).
+        // The app's card, as `SurfaceCard` draws it (5.8 premium pass): `DSColors.surface`, one corner radius, its
+        // light shadow. It was the regular material with an edge and a heavier shadow, a style of its own.
         .background(
             RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .fill(.regularMaterial)
+                .fill(DSColors.surface)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .contextMenu {
             // A link that opens this document in OpenIntelligence on any of the person's devices that has it, and the
             // App Store page where the app isn't installed (5.7). The web form, so Notes, Mail and Messages show it as a
@@ -241,8 +239,10 @@ struct ContentTagsRow: View {
         // do not fit across (5.7).
         WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
             ForEach(Array(tags.enumerated()), id: \.offset) { index, tag in
+                // The chip style, 11 points at the default text size; it was 9 (5.8 premium pass: no text under
+                // Apple's minimum).
                 Text(tag)
-                    .scaledFont(size: 9, weight: .bold)
+                    .font(DSTypography.chip)
                     .foregroundStyle(DSColors.primaryText)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -258,7 +258,7 @@ struct ContentTagsRow: View {
 
             if hasMoreTags {
                 Image(systemName: "ellipsis")
-                    .scaledFont(size: 8, weight: .bold)
+                    .font(DSTypography.chip)
                     .foregroundStyle(DSColors.secondaryText)
                     .padding(.leading, DSSpacing.xxs)
                     .accessibilityLabel("More tags")

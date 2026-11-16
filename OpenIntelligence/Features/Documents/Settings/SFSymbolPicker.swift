@@ -261,6 +261,7 @@ struct SFSymbolPicker: View {
                 }
             }
         }
+        .macSheetFrame(width: 520, height: 640)
     }
 
     @ViewBuilder

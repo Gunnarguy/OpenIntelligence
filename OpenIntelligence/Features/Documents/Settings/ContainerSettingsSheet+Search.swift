@@ -70,7 +70,7 @@ extension ContainerSettingsSheet {
                 Text(
                     "Automatic picks Technical Manual when more than half of the library's files are code (HTML, JSON and XML count), or when two or more are spreadsheets and they make up at least two-thirds of it. Every other library gets Balanced. It's on \(retrievalConfig.summary == "Custom" ? "custom values" : retrievalConfig.summary) now."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             } else if retrievalConfig.style == nil {
                 Label("Custom: set in Advanced Controls", systemImage: "slider.horizontal.3")
@@ -86,7 +86,7 @@ extension ContainerSettingsSheet {
             Text(
                 "Search has been benchmarked only with Balanced, which Automatic uses for PDF and text libraries. The other styles, and values changed in Advanced Controls, change how search ranks passages and haven't been benchmarked."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
 
             DisclosureGroup("Advanced Controls") {
@@ -135,7 +135,7 @@ extension ContainerSettingsSheet {
                         .foregroundStyle(.secondary)
                     if let values = presetValues(style) {
                         Text(values)
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -252,13 +252,13 @@ extension ContainerSettingsSheet {
             Text(
                 "The score a passage needs to be used in a Standard answer. Scores are relative: the app ranks the passages it finds for a question against each other, so a passage can score high when nothing matches well. When a question's best passages mostly score lower, or it asks for a single fact, the app lowers the minimum for that question so it can still answer. Find Passages in Shortcuts uses this minimum too."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
             if settings.showTechnicalDetails {
                 Text(
                     "In a Standard answer it is compared with the re-ranker's score: the cross-encoder's scores for a question are rescaled to 10 to 90, then lowered for tables of contents, question banks and bibliographies. A step-by-step question uses a minimum of at least 25%. Find Passages compares it with the hybrid search's score, before re-ranking, and never lowers it. Deep Think and Maximum set their own minimum for each research step."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
@@ -280,7 +280,7 @@ extension ContainerSettingsSheet {
                 ? "A Standard answer is written only when at least \(retrievalConfig.minConfidentChunks) of its passages score at or over the minimum. Otherwise you get the closest passages and how many made it."
                 : "At 1, the app answers from its best passages. Set 2 or more to answer only when that many score at or over the minimum."
         )
-        .font(.caption2)
+        .font(.caption)
         .foregroundStyle(.secondary)
 
         // Exact words and meaning
@@ -296,9 +296,9 @@ extension ContainerSettingsSheet {
             Slider(value: meaningWeight, in: 0.35...0.75) {
                 Text("Exact Words and Meaning")
             } minimumValueLabel: {
-                Text("Words").font(.caption2)
+                Text("Words").font(.caption)
             } maximumValueLabel: {
-                Text("Meaning").font(.caption2)
+                Text("Meaning").font(.caption)
             }
             .accessibilityValue("\(Int((retrievalConfig.vectorWeight * 100).rounded())) percent meaning")
             // The slider reaches 75%, but `QueryProfile.adjustedHybridWeights` keeps each weight between 35% and 65%, so
@@ -306,13 +306,13 @@ extension ContainerSettingsSheet {
             Text(
                 "Toward Words favors passages that use your exact terms. Toward Meaning favors passages that say the same thing in other words. Over 65% meaning searches the same as 65%: the search keeps each side between 35% and 65%. Used in every mode."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
             if settings.showTechnicalDetails {
                 Text(
                     "The vector and BM25 weights of the hybrid search. Each question shifts them by up to 10 points by its kind, then each is kept between 35% and 65%."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
@@ -331,21 +331,21 @@ extension ContainerSettingsSheet {
             Slider(value: chosenSetting(\.mmrLambda), in: 0.30...0.95) {
                 Text("Variety")
             } minimumValueLabel: {
-                Text("Varied").font(.caption2)
+                Text("Varied").font(.caption)
             } maximumValueLabel: {
-                Text("Closest").font(.caption2)
+                Text("Closest").font(.caption)
             }
             .accessibilityValue(String(format: "%.2f", retrievalConfig.mmrLambda))
             Text(
                 "Toward Varied, an answer draws on passages that say different things. Toward Closest, it keeps the closest passages even when they repeat each other. Used in every mode."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
             if settings.showTechnicalDetails {
                 Text(
                     "Maximal Marginal Relevance λ. Step-by-step questions use at least 0.85 in Standard, so the steps stay together."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
@@ -382,7 +382,7 @@ extension ContainerSettingsSheet {
             Text(
                 "You can still change any setting below. If the embedding model changes, Save asks before rebuilding this library's vectors."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
         }
     }
@@ -466,7 +466,7 @@ extension ContainerSettingsSheet {
             Text(
                 "Granite replaced MiniLM in 5.8: on 246 research-paper questions on a Mac it put the answer's passage in the top 5 for 39.0% against 37.0%. Core AI Sentence is retired."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
 
             if !providerAlerts.isEmpty {
@@ -523,26 +523,26 @@ extension ContainerSettingsSheet {
             HStack(spacing: DSSpacing.md) {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "cpu")
-                        .font(.caption2)
+                        .font(.caption)
                     Text("\(dimension) dimensions")
-                        .font(.caption2.weight(.medium))
+                        .font(.caption.weight(.medium))
                 }
                 .foregroundStyle(Color.accentColor)
 
                 if libraryProviderId == "apple_fm_embed" {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "cloud")
-                            .font(.caption2)
+                            .font(.caption)
                         Text("Cloud")
-                            .font(.caption2.weight(.medium))
+                            .font(.caption.weight(.medium))
                     }
                     .foregroundStyle(.orange)
                 } else {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "iphone")
-                            .font(.caption2)
+                            .font(.caption)
                         Text("On-Device")
-                            .font(.caption2.weight(.medium))
+                            .font(.caption.weight(.medium))
                     }
                     .foregroundStyle(.green)
                 }
@@ -600,7 +600,7 @@ extension ContainerSettingsSheet {
                     Text(
                         "Chunking locked on \(directive.strategy.capitalized) • \(directive.targetWordWindow)w / \(directive.overlapWords) overlap from the last run."
                     )
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 }
             }
@@ -617,14 +617,14 @@ extension ContainerSettingsSheet {
                     Text("Last tuned \(summary).")
                 }
             }
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(Color.accentColor)
             .padding(.top, DSSpacing.xs)
         } else {
             Text(
                 "Leave this off to keep manual control—recommendations still show up, but nothing will re-index or re-chunk without you pressing the button."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.top, DSSpacing.xs)
         }
@@ -649,9 +649,9 @@ extension ContainerSettingsSheet {
                         ForEach(selectedOption.metrics) { metric in
                             HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: metric.icon)
-                                    .font(.caption2)
+                                    .font(.caption)
                                 Text(metric.text)
-                                    .font(.caption2)
+                                    .font(.caption)
                             }
                             .foregroundStyle(.secondary)
                         }

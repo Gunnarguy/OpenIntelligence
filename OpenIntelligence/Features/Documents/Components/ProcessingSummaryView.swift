@@ -18,11 +18,13 @@ struct ProcessingSummaryView: View {
                     // Success header
                     VStack(spacing: DSSpacing.md) {
                         Image(systemName: "checkmark.circle.fill")
-                            .scaledFont(size: 60)
+                            .scaledFont(size: 44)
                             .foregroundStyle(.green)
 
-                        Text("Document Processed!")
-                            .font(.title2)
+                        // One type scale (5.8 premium pass): the sheet's title at `.title3`, the glyph at the empty
+                        // state's 44 points. It was a 60-point glyph over "Document Processed!" at `.title2`.
+                        Text("Document Imported")
+                            .font(.title3.weight(.semibold))
 
                         Text(summary.filename)
                             .font(.headline)
@@ -116,10 +118,21 @@ struct ProcessingSummaryView: View {
                 }
             }
         }
+        .macSheetFrame()
     }
 }
 
 extension View {
+    /// On a Mac, a sheet's size: wide enough to read in and no narrower than its content (5.8 premium pass). A Mac
+    /// sheet with no size is laid out at its content's narrowest width. No change on iPhone and iPad.
+    @ViewBuilder func macSheetFrame(width: CGFloat = 560, height: CGFloat = 620) -> some View {
+        #if os(macOS)
+            frame(minWidth: width, idealWidth: width + 80, maxWidth: 900, minHeight: height * 0.8, idealHeight: height)
+        #else
+            self
+        #endif
+    }
+
     /// On a Mac, the grouped form System Settings uses. A `Form` with no style is laid out there in two columns,
     /// which does not scroll, cuts long text to one line and leaves an empty column at the left: Library Settings
     /// could not be scrolled on the Mac (the owner's screenshot, 2026-11-14). iPhone and iPad are unchanged.

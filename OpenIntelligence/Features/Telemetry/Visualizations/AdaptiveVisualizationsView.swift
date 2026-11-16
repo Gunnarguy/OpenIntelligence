@@ -481,7 +481,7 @@ struct AdaptiveVisualizationsView: View {
                     } label: {
                         HStack(spacing: DSSpacing.xs) {
                             Image(systemName: method.icon)
-                                .scaledFont(size: 10)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             Text(method.rawValue)
                                 .font(.caption2)
                                 .fontWeight(.medium)
@@ -564,7 +564,7 @@ struct AdaptiveVisualizationsView: View {
                 } label: {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: atlasBackground.icon)
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         Text(atlasBackground.rawValue)
                             .font(.caption2)
                     }
@@ -653,9 +653,11 @@ struct AdaptiveVisualizationsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    // The page's largest text at `.title3` (5.8 premium pass: one type scale; it was `.title2`).
                     Text(activeContainer?.name ?? "Library")
-                        .font(.title2)
+                        .font(.title3)
                         .fontWeight(.bold)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let profile = engine.currentProfile {
                         HStack(spacing: DSSpacing.sm) {
@@ -667,23 +669,21 @@ struct AdaptiveVisualizationsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }
+
+                    // Under the name, one line (5.8 premium pass); as a column at the trailing edge it squeezed
+                    // "No queries yet" onto three lines. "7 minutes ago", not a clock that ticks every second (5.8).
+                    if !engine.isAnalyzing, let lastAnalyzed = engine.lastAnalyzed {
+                        Text("Updated \(lastAnalyzed.formatted(.relative(presentation: .named)))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 if engine.isAnalyzing {
                     ProgressView()
                         .controlSize(.small)
-                } else if let lastAnalyzed = engine.lastAnalyzed {
-                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
-                        Text("Updated")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        // "7 minutes ago", not a clock that ticks every second (5.8).
-                        Text(lastAnalyzed.formatted(.relative(presentation: .named)))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
 
@@ -693,9 +693,11 @@ struct AdaptiveVisualizationsView: View {
             }
         }
         .padding(DSSpacing.lg)
+        // The app's card (`SurfaceCard`'s fill, corner and shadow), not a material of its own (5.8 premium pass).
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
     }
 
@@ -778,7 +780,7 @@ struct AdaptiveVisualizationsView: View {
     private var noInsightsCard: some View {
         HStack(spacing: DSSpacing.md) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
+                .font(.title3)
                 .foregroundStyle(.green)
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
@@ -870,9 +872,9 @@ struct AdaptiveVisualizationsView: View {
         }
         .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
         .transition(.asymmetric(
             insertion: .scale(scale: 0.95).combined(with: .opacity),
@@ -940,7 +942,7 @@ struct AdaptiveVisualizationsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, DSSpacing.xxl)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
         )
     }
@@ -948,14 +950,14 @@ struct AdaptiveVisualizationsView: View {
     private var emptyStateCard: some View {
         VStack(spacing: DSSpacing.lg) {
             Image(systemName: "books.vertical.circle")
-                .scaledFont(size: 60)
+                .scaledFont(size: 44)
                 .imageScale(.large)
                 .foregroundStyle(.secondary)
 
             Text("Add documents to visualize")
                 .font(.headline)
 
-            Text("Import files to see your knowledge atlas come alive")
+            Text("Add files to see their passages mapped by topic")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -963,7 +965,7 @@ struct AdaptiveVisualizationsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, DSSpacing.xxl)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
         )
     }

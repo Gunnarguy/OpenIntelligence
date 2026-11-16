@@ -35,7 +35,7 @@ extension ContainerSettingsSheet {
                         Text("Library Deep Dive")
                             .font(.subheadline.weight(.semibold))
                         Text("Library-scoped diagnostics")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -109,11 +109,11 @@ extension ContainerSettingsSheet {
                 let sortedLangs = signals.languageHypotheses.sorted { $0.value > $1.value }.prefix(3)
                 HStack(spacing: DSSpacing.sm) {
                     Text("Languages:")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     ForEach(Array(sortedLangs), id: \.key) { lang, conf in
                         Text("\(lang.rawValue) \(String(format: "%.0f%%", conf * 100))")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(Color.accentColor)
                     }
                 }
@@ -128,9 +128,9 @@ extension ContainerSettingsSheet {
     private func corpusBadge(text: String, icon: String, color: Color) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 9)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
             Text(text)
-                .font(.caption2.weight(.medium))
+                .font(.caption.weight(.medium))
         }
         .foregroundStyle(color)
         .padding(.horizontal, DSSpacing.xs)
@@ -165,11 +165,11 @@ extension ContainerSettingsSheet {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                        .font(.caption2)
+                        .font(.caption)
                     Text("~\(bytesPerVector) bytes/vector")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption.monospacedDigit())
                     Text("(Float32 estimate)")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -225,7 +225,7 @@ extension ContainerSettingsSheet {
 
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Size Distribution (largest → smallest)")
-                .scaledFont(size: 9)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(.secondary)
 
             HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
@@ -237,7 +237,7 @@ extension ContainerSettingsSheet {
                 }
                 if sortedBySize.count > 10 {
                     Text("...")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -262,9 +262,9 @@ extension ContainerSettingsSheet {
                     ForEach(containerTopTerms.prefix(12)) { term in
                         HStack(spacing: DSSpacing.xxs) {
                             Text(term.term)
-                                .font(.caption2.weight(.medium))
+                                .font(.caption.weight(.medium))
                             Text("×\(term.totalOccurrences)")
-                                .scaledFont(size: 9)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, DSSpacing.sm)
@@ -277,7 +277,7 @@ extension ContainerSettingsSheet {
                 // Vocabulary summary
                 HStack(spacing: DSSpacing.md) {
                     Label("Loaded \(containerTopTerms.count) frequent terms", systemImage: "text.book.closed")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -315,9 +315,9 @@ extension ContainerSettingsSheet {
 
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "info.circle.fill")
-                    .font(.caption2)
+                    .font(.caption)
                 Text("Mode: \(modeDescription)")
-                    .font(.caption2)
+                    .font(.caption)
             }
             .foregroundStyle(Color.accentColor)
         }
@@ -330,14 +330,14 @@ extension ContainerSettingsSheet {
     private func nerdStatCell(label: String, value: String, icon: String) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 14)
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(value)
                     .font(.caption.weight(.semibold).monospacedDigit())
                 Text(label)
-                    .scaledFont(size: 9)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -403,98 +403,108 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var privateCloudComputeSection: some View {
         let deviceCapabilities = RAGService.checkDeviceCapabilities()
-        Section(header: Text("Private Cloud Compute (PCC) Status")) {
+        // What a person needs: where this library's answers are written, and why. The platform, entitlement and
+        // permission rows are for Technical Details, the entitlement one for Debug builds only (5.8 premium pass); the
+        // owner's screenshot showed "Developer Entitlement" and "iCloud Execution Consent" to customers, and the
+        // platform row said "iOS" on the Mac.
+        Section(header: Text("Private Cloud Compute")) {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 // Corrected 2026-10-15: "Deep Think/Maximum and large contexts (>4K tokens) dynamically scale to
                 // Apple's Private Cloud Compute enclaves" named a fixed window (the device reports its own; 8,192 on
                 // the owner's Mac), sent every Deep Think and Maximum answer, and left out the permission.
-                Text("With Hybrid in the model picker, an answer goes to Apple's Private Cloud Compute when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document. With Private Cloud Compute chosen there, every answer does. Each time only with your permission (Settings, Private Cloud Compute).")
+                // "Each time" came out on 2026-11-16: with Allow chosen in Settings an answer goes without asking
+                // (`effectiveFallbackDescription`, `.allowed`).
+                Text("With Hybrid in the model picker, an answer goes to Apple's Private Cloud Compute when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document. With Private Cloud Compute chosen there, every answer does. Only with your permission (Settings, Private Cloud Compute).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.bottom, DSSpacing.xs)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                // 1. Hardware/OS Support
-                HStack {
-                    Label("Platform Support", systemImage: "iphone")
+                let canUseNativePCC: Bool = {
+                    #if targetEnvironment(simulator)
+                    return false
+                    #else
+                    if deviceCapabilities.supportsPrivateCloudCompute {
+                        return EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
+                    }
+                    return false
+                    #endif
+                }()
+
+                // On-Device in the model picker or Never use in Settings keeps every answer here; otherwise one can go
+                // to Private Cloud Compute, asked first unless Settings allows it (`effectiveFallbackDescription`).
+                let mayLeave =
+                    canUseNativePCC && self.settings.applePCCConsent != .denied
+                    && self.settings.fmPreference.canonical != .core3B
+                HStack(alignment: .firstTextBaseline) {
+                    Label("Answers", systemImage: "arrow.triangle.branch")
                         .font(.subheadline)
                     Spacer()
-                    if deviceCapabilities.supportsPrivateCloudCompute {
-                        Text("iOS 27+ Available")
+                    Text(mayLeave ? "This device or Private Cloud Compute" : "This device")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(mayLeave ? Color.accentColor : .green)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(effectiveFallbackDescription(capabilities: deviceCapabilities))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if settings.showTechnicalDetails {
+                    Divider()
+                        .padding(.vertical, DSSpacing.xs)
+
+                    HStack {
+                        Label("Operating system", systemImage: "iphone")
+                            .font(.subheadline)
+                        Spacer()
+                        Text(deviceCapabilities.supportsPrivateCloudCompute ? "Supported" : Self.pccSystemRequirement)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.green)
-                    } else {
-                        Text("iOS 26 Fallback Only")
+                            .foregroundStyle(deviceCapabilities.supportsPrivateCloudCompute ? .green : .orange)
+                    }
+
+                    #if DEBUG
+                    HStack {
+                        Label("Entitlement", systemImage: "signature")
+                            .font(.subheadline)
+                        Spacer()
+                        #if targetEnvironment(simulator)
+                        Text("Not checked in the Simulator")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.orange)
-                    }
-                }
-
-                // 2. Entitlement Status
-                HStack {
-                    Label("Developer Entitlement", systemImage: "signature")
-                        .font(.subheadline)
-                    Spacer()
-                    #if targetEnvironment(simulator)
-                    Text("Simulator (Bypassed)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
-                    #else
-                    let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
-                    Text(hasEntitlement ? "Verified Shipped" : "Missing / Not Signed")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(hasEntitlement ? .green : .red)
-                    #endif
-                }
-
-                // 3. User Preferences Policy
-                HStack {
-                    Label("iCloud Execution Consent", systemImage: "cloud.fill")
-                        .font(.subheadline)
-                    Spacer()
-                    Text(self.settings.applePCCConsent == .allowed ? "Allowed" : (self.settings.applePCCConsent == .denied ? "Denied" : "Not Determined"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(self.settings.applePCCConsent == .allowed ? .green : .orange)
-                }
-
-                // 4. Effective Routing Fallback
-                Divider()
-                    .padding(.vertical, DSSpacing.xs)
-
-                HStack {
-                    Label("Effective RAG Fallback", systemImage: "arrow.triangle.branch")
-                        .font(.subheadline)
-                    Spacer()
-                    let canUseNativePCC: Bool = {
-                        #if targetEnvironment(simulator)
-                        return false
                         #else
-                        if deviceCapabilities.supportsPrivateCloudCompute {
-                            return EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
-                        }
-                        return false
+                        let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
+                        Text(hasEntitlement ? "Signed in" : "Missing")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(hasEntitlement ? .green : .red)
                         #endif
-                    }()
-                    
-                    if canUseNativePCC && self.settings.applePCCConsent == .allowed {
-                        Text("Native PCC (Apple Intelligence)")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.accentColor)
-                    } else {
-                        Text("On-Device (Apple Intelligence)")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.green)
+                    }
+                    #endif
+
+                    HStack {
+                        Label("Permission", systemImage: "hand.raised")
+                            .font(.subheadline)
+                        Spacer()
+                        Text(self.settings.applePCCConsent == .allowed ? "Allowed" : (self.settings.applePCCConsent == .denied ? "Never use" : "Ask when needed"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(self.settings.applePCCConsent == .allowed ? .green : .orange)
                     }
                 }
-                
-                Text(effectiveFallbackDescription(capabilities: deviceCapabilities))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, DSSpacing.xxs)
             }
             .padding(.vertical, DSSpacing.xs)
         }
     }
-    
+
+    /// The system Private Cloud Compute needs, named for the platform the app runs on; the row said "iOS" on the Mac.
+    private static var pccSystemRequirement: String {
+        #if os(macOS)
+        return "Needs macOS 27"
+        #else
+        return "Needs iOS 27"
+        #endif
+    }
+
     private func effectiveFallbackDescription(capabilities: DeviceCapabilities) -> String {
         // Corrected 2026-10-15, each line checked against the code: the Simulator does not run Apple's model at
         // all (`AppleFoundationLLMService` is unavailable there, so questions come back as excerpts); the
@@ -503,6 +513,9 @@ extension ContainerSettingsSheet {
         #if targetEnvironment(simulator)
         return "The Simulator can't use Apple's model or Private Cloud Compute, so questions here come back as excerpts from your documents."
         #else
+        if capabilities.supportsPrivateCloudCompute, self.settings.fmPreference.canonical == .core3B {
+            return "On-Device is chosen in the model picker, so every answer is written on this device."
+        }
         if capabilities.supportsPrivateCloudCompute {
             let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
             if !hasEntitlement {
@@ -535,7 +548,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("v4.5.0")
-                    .font(.caption2.weight(.medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }
             

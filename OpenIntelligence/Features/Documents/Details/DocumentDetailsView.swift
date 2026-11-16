@@ -15,6 +15,10 @@ struct DocumentDetailsView: View {
     let highlightedChunk: RetrievedChunk?
     /// The file shown in Quick Look while it is open (5.7).
     @State private var quickLookURL: URL?
+    /// Settings, Appearance, Technical Details. Read from the stored setting, not `SettingsStore`, because this view
+    /// is also pushed from citation sheets that may not carry the store in their environment. `SettingsStore` writes
+    /// every setting at launch, so the stored value is the one Settings shows.
+    @AppStorage("showTechnicalDetails") private var showTechnicalDetails = false
     
     init(document: Document, embeddingProviderId: String?, highlightedChunk: RetrievedChunk? = nil) {
         self.document = document
@@ -30,7 +34,8 @@ struct DocumentDetailsView: View {
         case "nl_embedding", nil:
             return "NLEmbedding"
         case "coreml_sentence_embedding":
-            return "CoreML Sentence"
+            // The name Library Settings gives it (5.8 premium pass).
+            return "Neural Engine (Granite)"
         case "coreai_sentence_embedding":
             return "CoreAI Sentence"
         case "apple_fm_embed":
@@ -77,19 +82,26 @@ struct DocumentDetailsView: View {
                     contentTagsCard(tags: tags)
                 }
 
-                vectorStorageCard
-
+                // What the document holds and how it was read, then, with Technical Details on, its vectors, timings
+                // and identifiers (5.8 premium pass): they were shown to everyone, and three lines were wrong.
                 if let metadata = document.processingMetadata {
                     contentAnalysisCard(metadata)
                     chunkingStrategyCard(metadata)
-                    performanceMetricsCard(metadata)
 
                     if metadata.ocrPagesCount ?? 0 > 0 {
                         ocrDetailsCard(metadata)
                     }
                 }
 
-                technicalDetailsCard
+                if showTechnicalDetails {
+                    vectorStorageCard
+
+                    if let metadata = document.processingMetadata {
+                        performanceMetricsCard(metadata)
+                    }
+
+                    technicalDetailsCard
+                }
             }
             .padding(.vertical, DSSpacing.lg)
             .padding(.horizontal, DSSpacing.lg)
@@ -326,7 +338,7 @@ struct DocumentDetailsView: View {
 
     @ViewBuilder
     private func chunkingStrategyCard(_ metadata: ProcessingMetadata) -> some View {
-        DocumentDetailCardView(icon: "scissors", title: "Chunking Strategy", caption: "Semantic boundary detection") {
+        DocumentDetailCardView(icon: "scissors", title: "Passages", caption: "How the document was split") {
             VStack(spacing: DSSpacing.sm) {
                 ChunkMetricRow(
                     icon: "cube.box",
@@ -356,8 +368,11 @@ struct DocumentDetailsView: View {
                     Image(systemName: "bolt.horizontal.fill")
                         .foregroundStyle(Color.accentColor)
                         .font(.caption)
-                    Text("Semantic boundaries detected via embedding similarity • vDSP accelerated")
-                        .font(.caption2)
+                    // Was "Semantic boundaries detected via embedding similarity • vDSP accelerated": import splits with
+                    // `SemanticChunker.chunkText`, whose embedding-boundary path has no caller outside tests (the
+                    // 2026-11-08 claim audit of Library Settings found the same).
+                    Text("Split at section headings, tables and sentence ends")
+                        .font(.caption)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -366,8 +381,10 @@ struct DocumentDetailsView: View {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(Color.accentColor)
                         .font(.caption)
-                    Text("280-400 word target with ~17% overlap for optimal retrieval")
-                        .font(.caption2)
+                    // Was "280-400 word target with ~17% overlap": `ChunkingConfig.maxTargetSize` caps the target at 260
+                    // words, `safeMaxSize` a passage at 310, and `maxOverlap` the overlap at 50.
+                    Text("Passages aim for 260 words or fewer, with up to 50 words of overlap")
+                        .font(.caption)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -394,7 +411,7 @@ struct DocumentDetailsView: View {
                     iconColor: .accentColor,
                     label: "Semantic Chunking",
                     time: metadata.chunkingTimeSeconds,
-                    detail: "\(document.totalChunks) chunks via embeddings"
+                    detail: "\(document.totalChunks) chunks"
                 )
 
                 PerformanceRow(
@@ -421,7 +438,7 @@ struct DocumentDetailsView: View {
                         .foregroundStyle(.secondary)
                         .font(.caption)
                     Text("Accelerate vDSP • Device-optimized batch sizes")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -460,7 +477,7 @@ struct DocumentDetailsView: View {
                             .foregroundStyle(Color.accentColor)
                             .font(.caption)
                         Text("OCR was used for scanned pages or images without embedded text")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -478,7 +495,9 @@ struct DocumentDetailsView: View {
                 TechnicalRow(label: "Document ID", value: document.id.uuidString.prefix(8) + "...")
                 TechnicalRow(label: "Added", value: document.addedAt.formatted(date: .abbreviated, time: .standard))
                 TechnicalRow(label: "File Type", value: document.contentType.rawValue)
-                TechnicalRow(label: "Vector Storage", value: "Persistent JSON")
+                // Was "Persistent JSON": vectors are stored on disk and memory-mapped for search (`BNNSVectorDatabase`;
+                // About's card was corrected the same way on 2026-11-15).
+                TechnicalRow(label: "Vector Storage", value: "On disk, memory-mapped")
                 TechnicalRow(label: "Search", value: "Hybrid (Cosine + BM25 → RRF)")
                 TechnicalRow(label: "Embedding", value: embeddingProviderDisplayName)
             }
@@ -632,7 +651,7 @@ private struct DocumentDetailCardView<Content: View>: View {
                             .accessibilityLabel(title)
                         if let caption, !caption.isEmpty {
                             Text(caption)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
                     }
@@ -673,7 +692,7 @@ private struct QuickStatView: View {
                 Text(value)
                     .font(.title3)
                 Text(label)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
             }
         }
@@ -702,7 +721,7 @@ private struct VectorMetricRow: View {
                     .font(.headline)
                     .foregroundStyle(valueColor)
                 Text(detail)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
             }
             Spacer()
@@ -730,7 +749,7 @@ private struct ContentMetricRow: View {
                 Text(value)
                     .font(.headline)
                 Text(detail)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
             }
             Spacer()
@@ -762,7 +781,7 @@ private struct ChunkMetricRow: View {
             Spacer()
 
             Text(badge)
-                .font(.caption2)
+                .font(.caption)
                 .padding(.horizontal, DSSpacing.sm)
                 .padding(.vertical, DSSpacing.xxs)
                 .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
@@ -796,7 +815,7 @@ private struct PerformanceRow: View {
                     .monospacedDigit()
                     .foregroundStyle(.primary)
                 Text(detail)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
             }
             Spacer()
@@ -841,7 +860,7 @@ private struct ContentTagPill: View {
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "tag.fill")
-                .scaledFont(size: 10)
+                .scaledFont(size: 12)
                 .foregroundStyle(DSColors.readable(tagTextColor))
             Text(tag)
                 .scaledFont(size: 12, weight: .medium)

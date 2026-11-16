@@ -405,10 +405,11 @@ struct ComputeProfileCard: View {
                             .frame(height: 6 + CGFloat(index) * 4)
                             .shadow(color: isSelected ? Self.color(for: step).opacity(0.6) : .clear, radius: 6)
                         Text(step.displayName)
-                            .scaledFont(size: 10, weight: isSelected ? .bold : .medium)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: isSelected ? .bold : .medium)
                             .foregroundStyle(isSelected ? Self.color(for: step) : .secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            // Never below Apple's minimum text size (5.8 premium pass); it could shrink to 7 points.
+                            .minimumScaleFactor(SettingsStatusPanel.floorScale(for: SettingsStatusPanel.minimumTextSize))
                     }
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
@@ -477,12 +478,13 @@ struct ComputeProfileCard: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .scaledFont(size: 11, weight: .semibold)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    // Whole, on two lines when it needs them, never cut off or shrunk (5.8 premium pass).
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .scaledFont(size: 11)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
+                    .lineLimit(3, reservesSpace: true)
             }
             Spacer(minLength: 0)
         }
@@ -521,7 +523,7 @@ struct ComputeProfileCard: View {
                 Text(showsChips ? chip.shortName : "").frame(width: 36)
             }
         }
-        .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
         .foregroundStyle(.secondary)
         .padding(.top, 2)
     }
@@ -545,14 +547,16 @@ struct ComputeProfileCard: View {
                         Text(row.name)
                             .scaledFont(size: 12, weight: .semibold)
                             .foregroundStyle(row.chips.isEmpty ? Color.secondary : Color.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            // Two lines and one size, as Intelligence Mode's rows (5.8 premium pass): one line cut
+                            // "Large searches (1,000 passages or more)" off.
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         Image(systemName: "chevron.down")
-                            .scaledFont(size: 8, weight: .bold)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                             .foregroundStyle(.tertiary)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                         Image(systemName: "bolt.fill")
-                            .scaledFont(size: 9, weight: .bold)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                             .foregroundStyle(Self.color(for: profile))
                             .opacity(deeper ? 1 : 0)
                             .accessibilityLabel(deeper ? "Runs deeper in \(profile.displayName)" : "")
@@ -570,7 +574,7 @@ struct ComputeProfileCard: View {
             if isOpen {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Label(row.engine, systemImage: "gearshape.2")
-                        .scaledFont(size: 10, weight: .semibold, design: .monospaced)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                         .foregroundStyle(
                             Self.color(for: profile) == .secondary ? Color.primary : Self.color(for: profile))
                     Text(row.detail)
@@ -587,7 +591,7 @@ struct ComputeProfileCard: View {
                                     : ListFormatter.localizedString(
                                         byJoining: Chip.allCases.filter { before.chips.contains($0) }.map(\.name)))
                         )
-                        .scaledFont(size: 10, weight: .medium)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                         .foregroundStyle(.tertiary)
                     }
                 }
@@ -675,10 +679,10 @@ struct ComputeProfileCard: View {
             } label: {
                 HStack {
                     Text("SAME IN EVERY PROFILE")
-                        .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .scaledFont(size: 8, weight: .bold)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                         .rotationEffect(.degrees(showsFixed ? 180 : 0))
                 }
                 .foregroundStyle(.secondary)
@@ -709,7 +713,7 @@ struct ComputeProfileCard: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(name).scaledFont(size: 11, weight: .semibold)
                 Text(detail)
-                    .scaledFont(size: 10)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

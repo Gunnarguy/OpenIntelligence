@@ -298,6 +298,173 @@ final class FiveChecksUITests: XCTestCase {
         }
     }
 
+    // MARK: - The rest of the app, screen by screen (5.8 premium pass, 2026-11-16)
+
+    /// Screenshots `prefix-00`, `prefix-01` and on, swiping up until the screen stops changing or `limit` is reached.
+    /// "Changing" is read from the element tree, which holds every element's frame: the status bar clock changes the
+    /// pixels of a screen that did not move.
+    @MainActor
+    private func shootToTheEnd(_ app: XCUIApplication, _ prefix: String, limit: Int = 8) {
+        var previous = ""
+        for index in 0..<limit {
+            let tree = app.debugDescription.components(separatedBy: "\n")
+                .filter { $0.range(of: #"\b\d{1,2}:\d{2}\b"#, options: .regularExpression) == nil }
+                .joined(separator: "\n")
+            if tree == previous { break }
+            previous = tree
+            keep(app, String(format: "%@-%02d", prefix, index))
+            app.swipeUp(velocity: .slow)
+            sleep(1)
+        }
+    }
+
+    @MainActor
+    private func openTab(_ name: String, in app: XCUIApplication) {
+        let tab = app.buttons[name].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20), "no \(name) tab")
+        tab.tap()
+        sleep(3)
+        clearTheScreen(app)
+    }
+
+    /// Taps the first button whose label is one of `labels`; false when none is on screen.
+    @MainActor
+    @discardableResult
+    private func tapButton(_ labels: [String], in app: XCUIApplication, timeout: TimeInterval = 5) -> Bool {
+        let button = app.buttons.matching(NSPredicate(format: "label IN %@", labels)).firstMatch
+        guard button.waitForExistence(timeout: timeout), button.isHittable else { return false }
+        button.tap()
+        sleep(2)
+        return true
+    }
+
+    /// The Documents tab, then the Library Settings sheet to its end, with the color and symbol pickers.
+    @MainActor
+    func testShotsOfTheDocumentsTabAndLibrarySettings() {
+        let app = launch()
+        openTab("Documents", in: app)
+        shootToTheEnd(app, "documents", limit: 4)
+        for _ in 0..<5 { app.swipeDown(velocity: .fast) }
+        guard tapButton(["Library Settings"], in: app) else {
+            note("documents-missing-settings", "no Library Settings button")
+            return
+        }
+        shootToTheEnd(app, "library-settings", limit: 12)
+        // Open the sheet again at its top; swiping back up to it can pull the sheet closed.
+        tapButton(["Cancel"], in: app)
+        guard tapButton(["Library Settings"], in: app) else { return }
+        let color = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Color'")).firstMatch
+        if color.exists, color.isHittable {
+            color.tap()
+            sleep(2)
+            shootToTheEnd(app, "color-picker", limit: 3)
+            if !tapButton(["Done", "Cancel"], in: app) { app.swipeDown(velocity: .fast) }
+        } else {
+            note("library-settings-missing-color", "no Color button at the top of Library Settings")
+        }
+        let symbol = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Icon' OR label CONTAINS[c] 'Symbol'"))
+            .firstMatch
+        if symbol.exists, symbol.isHittable {
+            symbol.tap()
+            sleep(2)
+            shootToTheEnd(app, "symbol-picker", limit: 3)
+            if !tapButton(["Done", "Cancel"], in: app) { app.swipeDown(velocity: .fast) }
+        } else {
+            note("library-settings-missing-symbol", "no Icon button at the top of Library Settings")
+        }
+    }
+
+    /// The sheets the Documents tab opens: Semantic Search, a document's details.
+    @MainActor
+    func testShotsOfTheDocumentsSheets() {
+        let app = launch()
+        openTab("Documents", in: app)
+        if tapButton(["Semantic Search"], in: app) {
+            keep(app, "semantic-search-00")
+            let field = app.searchFields.firstMatch.exists ? app.searchFields.firstMatch : app.textFields.firstMatch
+            if field.waitForExistence(timeout: 3) {
+                field.tap()
+                field.typeText("library\n")
+                sleep(6)
+                shootToTheEnd(app, "semantic-search-results", limit: 3)
+            }
+            tapButton(["Done"], in: app)
+        } else {
+            note("documents-missing-search", "no Semantic Search button")
+        }
+        // The first document card, in the guide library, which always has documents.
+        let guide = app.buttons["OpenIntelligence Guide"].firstMatch
+        if guide.waitForExistence(timeout: 5), guide.isHittable {
+            guide.tap()
+            sleep(2)
+        }
+        let card = app.buttons["documentCard"].firstMatch
+        if card.waitForExistence(timeout: 5), card.isHittable {
+            keep(app, "documents-guide")
+            card.tap()
+            sleep(3)
+            shootToTheEnd(app, "document-details", limit: 8)
+            let back = app.navigationBars.buttons.firstMatch
+            if back.exists { back.tap() }
+            sleep(1)
+        } else {
+            note("documents-missing-card", "no document card found")
+        }
+        // Back to the library the other tests start in.
+        let general = app.buttons["General"].firstMatch
+        if general.waitForExistence(timeout: 5), general.isHittable { general.tap() }
+        sleep(1)
+    }
+
+    /// The Atlas tab and what its panels show.
+    @MainActor
+    func testShotsOfTheAtlasTab() {
+        let app = launch()
+        openTab("Atlas", in: app)
+        sleep(4)
+        shootToTheEnd(app, "atlas", limit: 4)
+    }
+
+    /// The chat's chrome around the bubbles: the empty state, the toolbar's menus and sheets.
+    @MainActor
+    func testShotsOfTheChatChrome() {
+        let app = launch()
+        openChat(app)
+        keep(app, "chat-00")
+        let menu = app.buttons.matching(NSPredicate(format: "label IN {'More', 'ellipsis.circle'}")).firstMatch
+        if menu.exists, menu.isHittable {
+            menu.tap()
+            sleep(1)
+            keep(app, "chat-menu")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+            sleep(1)
+        }
+        // Every toolbar button in turn, a screenshot of what it opens.
+        let toolbar = app.navigationBars.buttons.allElementsBoundByIndex.map(\.label)
+        note("chat-toolbar", toolbar.joined(separator: " | "))
+        for (index, label) in toolbar.enumerated() where !label.isEmpty && label != "More" {
+            let button = app.navigationBars.buttons[label].firstMatch
+            guard button.exists, button.isHittable else { continue }
+            button.tap()
+            sleep(2)
+            keep(app, String(format: "chat-toolbar-%02d", index))
+            if !tapButton(["Done", "Close", "Cancel"], in: app, timeout: 1) {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+                sleep(1)
+            }
+        }
+        // The mode picker and the library chips above the field.
+        let mode = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Standard' OR label BEGINSWITH 'Deep Think' OR label BEGINSWITH 'Maximum'")).firstMatch
+        if mode.exists, mode.isHittable {
+            mode.tap()
+            sleep(2)
+            keep(app, "chat-mode")
+            if !tapButton(["Done", "Close"], in: app, timeout: 1) {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+            }
+        }
+    }
+
     // MARK: - 3
 
     @MainActor

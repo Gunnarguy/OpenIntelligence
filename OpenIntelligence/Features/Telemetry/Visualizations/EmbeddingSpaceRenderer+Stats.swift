@@ -25,10 +25,10 @@ extension EmbeddingSpaceRenderer {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: icon)
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(color)
                     Text(label)
-                        .scaledFont(size: 9, weight: .medium)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                         .foregroundStyle(.secondary)
                 }
                 Text(value)
@@ -100,14 +100,14 @@ extension EmbeddingSpaceRenderer {
         var body: some View {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Vector Space Health")
-                    .scaledFont(size: 10, weight: .semibold)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: DSSpacing.md) {
                     // Coverage meter
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Coverage")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
@@ -120,13 +120,13 @@ extension EmbeddingSpaceRenderer {
                         }
                         .frame(height: 6)
                         Text(String(format: "%.1f%%", coverage * 100))
-                            .scaledFont(size: 9, design: .monospaced)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, design: .monospaced)
                     }
 
                     // Density meter
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Density")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
@@ -139,7 +139,7 @@ extension EmbeddingSpaceRenderer {
                         }
                         .frame(height: 6)
                         Text(String(format: "%.1f%%", (1 - sparsity) * 100))
-                            .scaledFont(size: 9, design: .monospaced)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, design: .monospaced)
                     }
                 }
             }
@@ -308,10 +308,10 @@ extension EmbeddingSpaceRenderer {
 
                 if let keyword = keywordTag {
                     Text("·")
-                        .scaledFont(size: 9, weight: .medium)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                         .foregroundStyle(.secondary)
                     Text(keyword)
-                        .scaledFont(size: 10, weight: .medium, design: .rounded)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium, design: .rounded)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

@@ -117,6 +117,7 @@ struct OpenedFilesSheet: View {
             }
         }
         .quickLookPreview($previewing, in: files)
+        .macSheetFrame(width: 520, height: 480)
         #if DEBUG
             .onAppear { VerificationJournal.record("openedFiles.shown", ["files": "\(files.count)"]) }
         #endif

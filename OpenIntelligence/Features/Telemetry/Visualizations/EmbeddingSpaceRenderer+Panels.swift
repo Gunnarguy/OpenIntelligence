@@ -370,10 +370,10 @@ extension EmbeddingSpaceRenderer {
                     .frame(width: 14)
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(label)
-                        .scaledFont(size: 9)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(.secondary)
                     Text(value)
-                        .scaledFont(size: 10, weight: .medium, design: .monospaced)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium, design: .monospaced)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -394,7 +394,7 @@ extension EmbeddingSpaceRenderer {
         var body: some View {
             VStack(spacing: DSSpacing.xxs) {
                 Text(label)
-                    .scaledFont(size: 9, weight: .bold)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                     .foregroundStyle(DSColors.readable(color))
 
                 GeometryReader { geo in
@@ -414,7 +414,7 @@ extension EmbeddingSpaceRenderer {
                 }
 
                 Text(String(format: "%.2f", range.upperBound - range.lowerBound))
-                    .scaledFont(size: 8, design: .monospaced)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, design: .monospaced)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)

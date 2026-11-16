@@ -8,6 +8,7 @@ struct SemanticSearchView: View {
     var initialQuery: String = ""
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var settings: SettingsStore
     @State private var query: String = ""
     @State private var results: [RetrievedChunk] = []
     @State private var isSearching = false
@@ -34,12 +35,15 @@ struct SemanticSearchView: View {
                     performSearch()
                 }
                 .navigationTitle("Semantic Search")
+                // Inline, as every other sheet and page (5.8 premium pass).
+                .iOSNavigationBarInline()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Done") { dismiss() }
                     }
                 }
         }
+        .macSheetFrame(width: 600, height: 720)
     }
 
     private var content: some View {
@@ -59,8 +63,7 @@ struct SemanticSearchView: View {
 
     private var querySection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Label("Search Query", systemImage: "magnifyingglass")
-                .font(.headline)
+            SectionHeader(icon: "magnifyingglass", title: "Search")
             TextField("Ask about your documents", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .focused($isQueryFocused)
@@ -85,13 +88,16 @@ struct SemanticSearchView: View {
 
     private var tuningSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Text("Tuning")
-                .font(.headline)
+            SectionHeader(icon: "slider.horizontal.3", title: "Tuning")
             Stepper(value: $topK, in: 1 ... 12, step: 1) {
                 Text("Top results: \(Int(topK))")
+                    .font(DSTypography.body)
                     .monospacedDigit()
             }
-            Toggle("Apply minimum similarity", isOn: $enforceThreshold)
+            Toggle(isOn: $enforceThreshold) {
+                Text("Apply minimum similarity")
+                    .font(DSTypography.body)
+            }
             if enforceThreshold {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Slider(value: $minSimilarity, in: 0.2 ... 0.8, step: 0.05)
@@ -107,8 +113,8 @@ struct SemanticSearchView: View {
 
     private var statusSection: some View {
         Group {
-            // Show active embedding provider
-            if let container = containerService.activeContainer {
+            // The library's embedding model, with Technical Details on (5.8 premium pass): a person can't change it here.
+            if settings.showTechnicalDetails, let container = containerService.activeContainer {
                 // A Core AI library is MiniLM too (5.7). It fell to the last branch and read "NLEmbedding (512D)",
                 // the label of a different model with a different vector size, on every Mac with macOS 27, where
                 // Core AI is the default. The Core ML badge read "ANE": Core ML picks the chip, and runs on the CPU
@@ -126,7 +132,7 @@ struct SemanticSearchView: View {
                     Spacer()
                     if isMiniLM {
                         Text(isCoreAI ? "Core AI" : "Core ML")
-                            .font(.caption2)
+                            .font(DSTypography.chip)
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, DSSpacing.xs)
                             .padding(.vertical, DSSpacing.xxs)
@@ -166,7 +172,7 @@ struct SemanticSearchView: View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             if !results.isEmpty {
                 Text("Results")
-                    .font(.title3)
+                    .font(DSTypography.title)
                 LazyVStack(spacing: DSSpacing.md) {
                     ForEach(Array(results.enumerated()), id: \.element.chunk.id) { index, chunk in
                         SemanticResultCard(
@@ -182,7 +188,7 @@ struct SemanticSearchView: View {
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
             .fill(DSColors.surface)
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
     }
 
     private var scopedDocuments: [Document] {
@@ -262,7 +268,8 @@ private struct SemanticResultCard: View {
         .padding(DSSpacing.lg)
         .background(
             RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .fill(DSColors.surfaceElevated)
+                .fill(DSColors.surface)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
     }
 
@@ -292,9 +299,10 @@ private struct SemanticResultCard: View {
                     .foregroundStyle(.secondary)
             }
             Text(chunk.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines))
-                .font(.body)
+                .font(DSTypography.body)
                 .foregroundStyle(.primary)
-                .lineLimit(6)
+                // The whole passage, up to 260 words, never cut off at six lines (5.8 premium pass).
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -325,7 +333,7 @@ private struct StatusBanner: View {
             Image(systemName: icon)
                 .foregroundStyle(color)
             Text(message)
-                .font(.subheadline)
+                .font(DSTypography.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }

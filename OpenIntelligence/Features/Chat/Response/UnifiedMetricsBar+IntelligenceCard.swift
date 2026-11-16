@@ -24,9 +24,9 @@ extension UnifiedMetricsBar {
                 // Silicon badge
                 HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "bolt.horizontal.fill")
-                        .scaledFont(size: 8)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                     Text(DeviceCapabilityService.shared.chipName)
-                        .scaledFont(size: 9, weight: .medium)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 }
                 .foregroundStyle(.cyan)
                 .padding(.horizontal, DSSpacing.xs)
@@ -94,7 +94,7 @@ extension UnifiedMetricsBar {
                 .clipShape(Capsule())
 
                 Text("RRF")
-                    .scaledFont(size: 9, weight: .semibold)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                     .foregroundStyle(.purple)
             }
 
@@ -126,10 +126,10 @@ extension UnifiedMetricsBar {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: icon)
-                    .scaledFont(size: 10, weight: .semibold)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                     .foregroundStyle(color)
                 Text(label)
-                    .scaledFont(size: 9, weight: .medium)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(DSColors.secondaryText)
             }
 
@@ -139,7 +139,7 @@ extension UnifiedMetricsBar {
                 .foregroundStyle(DSColors.primaryText)
 
             Text(detail)
-                .scaledFont(size: 8, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 .foregroundStyle(DSColors.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,9 +152,9 @@ extension UnifiedMetricsBar {
     private func ragFeaturePill(icon: String, label: String) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 8, weight: .semibold)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
             Text(label)
-                .scaledFont(size: 8, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 .monospacedDigit()
         }
         .foregroundStyle(.cyan)
@@ -173,7 +173,7 @@ extension UnifiedMetricsBar {
                     .scaledFont(size: 12, weight: .semibold)
                     .foregroundStyle(color)
                 Text(label)
-                    .scaledFont(size: 10, weight: .medium)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(DSColors.secondaryText)
             }
 
@@ -185,7 +185,7 @@ extension UnifiedMetricsBar {
 
             // Detail - subtle
             Text(detail)
-                .scaledFont(size: 9, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 .monospacedDigit()
                 .foregroundStyle(DSColors.secondaryText)
         }
@@ -199,9 +199,9 @@ extension UnifiedMetricsBar {
     func statusPill(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 9, weight: .semibold)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
             Text(text)
-                .scaledFont(size: 9, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
         }
         .foregroundStyle(color)
         .padding(.horizontal, DSSpacing.sm)
@@ -316,10 +316,10 @@ extension UnifiedMetricsBar {
             if let t = ttft {
                 HStack(spacing: DSSpacing.xxs) {
                     Text("TTFT:")
-                        .scaledFont(size: 10, weight: .medium)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                         .foregroundStyle(DSColors.secondaryText)
                     Text(String(format: "%.2fs", t))
-                        .scaledFont(size: 10, weight: .semibold, design: .monospaced)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                         .monospacedDigit()
                         .foregroundStyle(t < 1.0 ? .green : .blue)
                 }
@@ -507,7 +507,7 @@ extension UnifiedMetricsBar {
                 : DeviceCapabilities.pccRoutingCompiledIn
                     ? "On-device model. With your permission, a large answer or a multi-document Deep Think or Maximum answer can be written on Private Cloud Compute, and every answer when it is picked in the model picker."
                     : "On-device model. Nothing leaves this device in this version.")
-                .scaledFont(size: 10)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(DSColors.secondaryText)
         }
         .padding(DSSpacing.sm)

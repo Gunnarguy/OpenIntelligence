@@ -203,7 +203,7 @@ struct CompactAtlasSceneView: View {
                                 .frame(width: 6, height: 6)
 
                             Text(item.name)
-                                .font(.system(size: 9, weight: .medium))
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .foregroundStyle(.white.opacity(0.6))
                                 .lineLimit(1)
                         }
@@ -225,9 +225,9 @@ struct CompactAtlasSceneView: View {
     private var sceneHintOverlay: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "hand.draw")
-                .font(.system(size: 8))
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
             Text("Drag to rotate • Pinch to zoom")
-                .font(.system(size: 8))
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
         }
         .foregroundStyle(.white.opacity(0.4))
         .padding(DSSpacing.xs)

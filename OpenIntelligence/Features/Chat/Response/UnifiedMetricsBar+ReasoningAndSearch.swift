@@ -35,7 +35,7 @@ extension UnifiedMetricsBar {
                 Spacer()
 
                 Text("single-pass")
-                    .scaledFont(size: 9, weight: .medium)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(.blue)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -99,7 +99,7 @@ extension UnifiedMetricsBar {
                 Spacer()
 
                 Text("multi-session")
-                    .scaledFont(size: 9, weight: .medium)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(.purple)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -117,7 +117,7 @@ extension UnifiedMetricsBar {
                     // The count is the answer's model calls (planning, sessions, synthesis, checks), live and final
                     // (5.8); the progress card's "Session N" counts sessions alone, so the two differ.
                     Text("model calls")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(DSColors.secondaryText)
                 }
 
@@ -128,7 +128,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(liveConfidence >= 0.85 ? .green : .purple)
                         Text("final confidence")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -142,7 +142,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(.purple)
                         Text("total tokens")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -180,7 +180,7 @@ extension UnifiedMetricsBar {
 
                 // Was "unlimited": Maximum stops at 50 sessions, fewer when few passages match (5.7).
                 Text("up to 50")
-                    .scaledFont(size: 9, weight: .medium)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(.orange)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -196,7 +196,7 @@ extension UnifiedMetricsBar {
                         .monospacedDigit()
                         .foregroundStyle(.orange)
                     Text("reasoning sessions")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(DSColors.secondaryText)
                 }
 
@@ -213,7 +213,7 @@ extension UnifiedMetricsBar {
                             .foregroundStyle(DSColors.secondaryText)
                     }
                     Text(liveConfidence >= 0.98 ? "target reached!" : "confidence target")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(liveConfidence >= 0.98 ? .green : DSColors.secondaryText)
                 }
 
@@ -226,7 +226,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(.orange)
                         Text("total tokens")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -253,9 +253,9 @@ extension UnifiedMetricsBar {
     private func techniquePill(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 8)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
             Text(text)
-                .scaledFont(size: 9, weight: .medium)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
         }
         .foregroundStyle(color)
         .padding(.horizontal, DSSpacing.xs)
@@ -287,11 +287,11 @@ extension UnifiedMetricsBar {
                                 .monospacedDigit()
                                 .foregroundStyle(matchScoreColor(Self.displayedMatch(topSimilarity)))
                             Image(systemName: "star.fill")
-                                .scaledFont(size: 10)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 .foregroundStyle(.yellow)
                         }
                         Text("best match")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -304,7 +304,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(matchScoreColor(Self.displayedMatch(secondSimilarity)))
                         Text("2nd best")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -317,7 +317,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(matchScoreColor(Self.displayedMatch(avgTop5Similarity)))
                         Text("avg top 5")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -332,7 +332,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(.teal)
                         Text("diversity")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -369,9 +369,9 @@ extension UnifiedMetricsBar {
                 if hydeEnabled {
                     HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "wand.and.stars")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         Text("HyDE Active")
-                            .scaledFont(size: 9, weight: .medium)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     }
                     .foregroundStyle(.purple)
                     .padding(.horizontal, DSSpacing.xs)
@@ -385,7 +385,7 @@ extension UnifiedMetricsBar {
             if !originalQuery.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("You asked:")
-                        .scaledFont(size: 10, weight: .medium)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                         .foregroundStyle(DSColors.secondaryText)
                     Text(originalQuery)
                         .scaledFont(size: 13, weight: .medium)
@@ -399,10 +399,10 @@ extension UnifiedMetricsBar {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "arrow.right.circle.fill")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.green)
                         Text("Clarified to:")
-                            .scaledFont(size: 10, weight: .medium)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                     Text(rewrittenQuery)
@@ -421,12 +421,12 @@ extension UnifiedMetricsBar {
                 if !extractedKeywords.isEmpty {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Key terms extracted:")
-                            .scaledFont(size: 10, weight: .medium)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                             .foregroundStyle(DSColors.secondaryText)
                         FlowLayout(spacing: DSSpacing.xxs) {
                             ForEach(extractedKeywords.prefix(8), id: \.self) { keyword in
                                 Text(keyword)
-                                    .scaledFont(size: 10, weight: .semibold)
+                                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                                     .padding(.horizontal, DSSpacing.sm)
                                     .padding(.vertical, DSSpacing.xxs)
                                     .background(Color.blue.opacity(0.12))
@@ -447,7 +447,7 @@ extension UnifiedMetricsBar {
                             .monospacedDigit()
                             .foregroundStyle(.purple)
                         Text("query variations")
-                            .scaledFont(size: 9)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -457,7 +457,7 @@ extension UnifiedMetricsBar {
             if !queryIntent.isEmpty {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "lightbulb.fill")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(.yellow)
                     Text("Detected intent: \(queryIntent)")
                         .scaledFont(size: 11, weight: .medium)
@@ -490,7 +490,7 @@ extension UnifiedMetricsBar {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "star.fill")
-                                .scaledFont(size: 10)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 .foregroundStyle(.yellow)
                             Text("Best Match")
                                 .scaledFont(size: 11, weight: .semibold)
@@ -507,7 +507,7 @@ extension UnifiedMetricsBar {
                                 .monospacedDigit()
                                 .foregroundStyle(matchScoreColor(topMatchScore))
                             Text("Database match vs. LLM confidence")
-                                .scaledFont(size: 9)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
                     }
@@ -619,9 +619,9 @@ extension UnifiedMetricsBar {
                 // Retrieval mode badge
                 HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: retrievalMode.icon)
-                        .scaledFont(size: 9)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                     Text(retrievalMode.rawValue)
-                        .scaledFont(size: 9, weight: .semibold)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                 }
                 .foregroundStyle(retrievalMode.color)
                 .padding(.horizontal, DSSpacing.xs)
@@ -642,7 +642,7 @@ extension UnifiedMetricsBar {
                             .scaledFont(size: 12, weight: .semibold)
                     }
                     Text("Finds content with similar meaning, even if different words are used")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -673,7 +673,7 @@ extension UnifiedMetricsBar {
                             .scaledFont(size: 12, weight: .semibold)
                     }
                     Text("Matches exact words and phrases using BM25 scoring algorithm")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -700,10 +700,10 @@ extension UnifiedMetricsBar {
                 if semanticChunksUsed {
                     HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "checkmark.circle.fill")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(.green)
                         Text("Smart chunking preserves topic boundaries")
-                            .scaledFont(size: 10)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -712,10 +712,10 @@ extension UnifiedMetricsBar {
 
                 HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "shuffle")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(.cyan)
                     Text("Diversity: \(diversityDescriptionFull)")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
@@ -742,10 +742,10 @@ extension UnifiedMetricsBar {
                 // Header for advanced features
                 HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "sparkles")
-                        .scaledFont(size: 10, weight: .semibold)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                         .foregroundStyle(.yellow)
                     Text("Advanced RAG")
-                        .scaledFont(size: 10, weight: .semibold)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                         .foregroundStyle(.yellow)
                 }
 
@@ -808,15 +808,15 @@ extension UnifiedMetricsBar {
     ) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 9, weight: .semibold)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
             Text(title)
-                .scaledFont(size: 9, weight: .semibold)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
             if let detail {
                 Text("•")
                     .scaledFont(size: 5)
                     .opacity(0.6)
                 Text(detail)
-                    .scaledFont(size: 8, weight: .medium)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .monospacedDigit()
             }
         }

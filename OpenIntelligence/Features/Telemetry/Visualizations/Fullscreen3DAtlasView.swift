@@ -245,7 +245,7 @@ struct Fullscreen3DAtlasView: View {
             if !docLegendItems.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(showsAllLibraries ? "Libraries" : "Clusters")
-                        .font(.system(size: 9, weight: .semibold))
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                         .foregroundStyle(.white.opacity(0.4))
                         .textCase(.uppercase)
                         .tracking(0.5)
@@ -257,14 +257,14 @@ struct Fullscreen3DAtlasView: View {
                                 .frame(width: 8, height: 8)
 
                             Text(item.name)
-                                .font(.system(size: 10, weight: .medium))
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                                 .foregroundStyle(.white.opacity(0.85))
                                 .lineLimit(1)
 
                             Spacer()
 
                             Text("\(item.count)")
-                                .font(.system(size: 9, weight: .regular, design: .rounded))
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .regular, design: .rounded)
                                 .foregroundStyle(.white.opacity(0.4))
                         }
                     }
@@ -285,7 +285,7 @@ struct Fullscreen3DAtlasView: View {
             if hasContent {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Axes")
-                        .font(.system(size: 9, weight: .semibold))
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                         .foregroundStyle(.white.opacity(0.4))
                         .textCase(.uppercase)
                         .tracking(0.5)
@@ -317,12 +317,12 @@ struct Fullscreen3DAtlasView: View {
             // An axis whose ends do not differ is "Component N" at both ends (5.7): named once.
             if !neg.isEmpty && !pos.isEmpty && neg != pos {
                 Text("\(neg) ↔ \(pos)")
-                    .font(.system(size: 10, weight: .medium))
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(.white.opacity(0.75))
                     .lineLimit(1)
             } else {
                 Text(neg.isEmpty ? pos : neg)
-                    .font(.system(size: 10, weight: .medium))
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                     .foregroundStyle(.white.opacity(0.75))
                     .lineLimit(1)
             }
@@ -332,9 +332,9 @@ struct Fullscreen3DAtlasView: View {
     private var fullscreenHintOverlay: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "hand.draw")
-                .font(.system(size: 9))
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
             Text("Drag to rotate • Pinch to zoom")
-                .font(.system(size: 9))
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
         }
         .foregroundStyle(.white.opacity(0.35))
         .padding(DSSpacing.sm)

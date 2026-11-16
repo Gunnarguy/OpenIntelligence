@@ -57,7 +57,7 @@ struct ChunkingPreview: View {
                                     Image(systemName: "arrow.turn.right.down")
                                         .scaledFont(size: 6)
                                     Text("Section")
-                                        .scaledFont(size: 7)
+                                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                                 }
                                 .foregroundStyle(Color.accentColor)
                             }
@@ -111,9 +111,9 @@ struct ChunkingPreview: View {
     private func featureTag(icon: String, label: String) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .scaledFont(size: 8)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
             Text(label)
-                .scaledFont(size: 9)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
         }
         .foregroundStyle(.secondary)
     }

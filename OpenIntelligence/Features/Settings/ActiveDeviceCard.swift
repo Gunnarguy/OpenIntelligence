@@ -75,7 +75,7 @@ struct ActiveDeviceCard: View {
             Text(device.modelName ?? device.formFactor.deviceNoun)
                 .scaledFont(size: 12, weight: .bold, design: .monospaced)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(SettingsStatusPanel.floorScale(for: 12))
                 .accessibilityLabel("Model: \(device.modelName ?? device.formFactor.deviceNoun)")
         }
     }
@@ -190,7 +190,7 @@ struct ActiveDeviceCard: View {
             Text(
                 "Core ML decides where each layer runs; the app states a preference. Apple offers no way to read Neural Engine use."
             )
-            .scaledFont(size: 9, weight: .regular)
+            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .regular)
             .foregroundStyle(.tertiary)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -199,7 +199,7 @@ struct ActiveDeviceCard: View {
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                 .foregroundStyle(.secondary)
             content()
         }
@@ -212,10 +212,10 @@ struct ActiveDeviceCard: View {
                 .lineLimit(1)
             Spacer(minLength: DSSpacing.xs)
             Text(value)
-                .scaledFont(size: 10, weight: .regular, design: .monospaced)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .regular, design: .monospaced)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
     }

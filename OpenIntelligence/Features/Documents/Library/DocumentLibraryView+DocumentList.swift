@@ -82,6 +82,8 @@ extension DocumentLibraryView {
                     ModernDocumentCard(document: document, ragService: ragService)
                 }
                 .buttonStyle(.plain)
+                // For UI tests that open a document's details (5.8).
+                .accessibilityIdentifier("documentCard")
                 // Each card names its document, so Siri and Apple Intelligence know which
                 // documents are on screen (5.7).
                 .appEntityIdentifier(.document(document.id))
@@ -286,16 +288,17 @@ extension DocumentLibraryView {
                 Text(
                     "OpenIntelligence's own guides, free and outside your plan's limits. Ask this library how the app works. Files you add go to \(containerService.containers.first { !containerService.isGuideLibrary($0.id) }?.name ?? "your library")."
                 )
-                .font(.footnote)
+                .font(DSTypography.body)
                 .foregroundStyle(DSColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "book.closed.fill")
                     .foregroundStyle(DSColors.accent)
             }
-            .padding(DSSpacing.md)
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DSColors.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            // The app's card (5.8 premium pass): `DSColors.surface`, one corner radius, the card padding.
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             .padding(.horizontal, DSSpacing.lg)
         }
 
@@ -332,17 +335,12 @@ extension DocumentLibraryView {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.sm))
             : AnyLayout(HStackLayout(alignment: .center, spacing: DSSpacing.md))
         return layout {
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Text("Documents")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(DSColors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(documentSectionSubtitle)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(DSColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            // The count and the library only (5.8 premium pass): a second "Documents" heading sat under the tab's own
+            // "Documents" title.
+            Text(documentSectionSubtitle)
+                .font(DSTypography.body.weight(.semibold))
+                .foregroundStyle(DSColors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
             if !stacked {
                 Spacer(minLength: DSSpacing.sm)

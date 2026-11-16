@@ -24,16 +24,14 @@ extension ContainerSettingsSheet {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Auto-Tag on Ingestion")
                     Text("Automatically generate content tags when documents are added")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                Text("Translation Language")
-                    .font(.subheadline.weight(.semibold))
-                    .tour(.translation, in: Tour.librarySettings)
-
+                // The picker's own label names it; a heading above it said "Translation Language" a second time (5.8
+                // premium pass). The tour points at the picker now.
                 Picker("Translation Language", selection: $preferredTranslationLanguage) {
                     Text("No override").tag("auto")
                     Text("English").tag("en")
@@ -48,6 +46,7 @@ extension ContainerSettingsSheet {
                     Text("Arabic").tag("ar")
                 }
                 .pickerStyle(.menu)
+                .tour(.translation, in: Tour.librarySettings)
 
                 // `RAGService.translatedTextsForEmbedding` translates each passage before it is embedded (import and
                 // rebuild); `translatedQueryForEmbedding` translates each question before its search. The passage text that
@@ -58,7 +57,7 @@ extension ContainerSettingsSheet {
                 Text(
                     "Passages are translated into this language before they're turned into numbers for search, and so is each question, so a question in one language can find a passage written in another. Answers still quote the original text. When Apple's translation for a language pair isn't available, the original text is used. Changing it means rebuilding this library's vectors; Save asks first."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -78,7 +77,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(DeviceCapabilityService.shared.chipName)
-                    .font(.caption2.weight(.medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -131,14 +130,14 @@ extension ContainerSettingsSheet {
     private func siliconFeatureRow(icon: String, label: String, detail: String) -> some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 16)
             Text(label)
                 .font(.caption.weight(.medium))
             Spacer()
             Text(detail)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -147,11 +146,11 @@ extension ContainerSettingsSheet {
     private func siliconInfoPill(icon: String, label: String, value: String) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
             Text(label)
-                .font(.caption2)
+                .font(.caption)
             Text(value)
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
         }
         .foregroundStyle(Color.accentColor)
         .padding(.horizontal, DSSpacing.sm)
@@ -174,7 +173,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("Analyzed")
-                    .font(.caption2.weight(.medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.green)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -185,7 +184,7 @@ extension ContainerSettingsSheet {
             if report.corpus.isEstimate {
                 // A large library is measured from a sample of its passages.
                 Text("Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -267,7 +266,7 @@ extension ContainerSettingsSheet {
                         .font(.caption.weight(.semibold))
                     Spacer()
                     Text("\(report.chunking.targetWordWindow)w / \(report.chunking.overlapWords)w overlap")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
@@ -293,7 +292,7 @@ extension ContainerSettingsSheet {
                 Text(value)
                     .font(.caption.weight(.semibold).monospacedDigit())
                 Text(label)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -307,9 +306,9 @@ extension ContainerSettingsSheet {
     private func contentBadge(icon: String, label: String, color: Color) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.caption)
             Text(label)
-                .font(.caption2.weight(.medium))
+                .font(.caption.weight(.medium))
         }
         .foregroundStyle(color)
         .padding(.horizontal, DSSpacing.sm)
@@ -338,7 +337,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(report.retrieval.fusionStyle.rawValue.capitalized)
-                    .font(.caption2.weight(.medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -350,7 +349,7 @@ extension ContainerSettingsSheet {
             HStack(spacing: DSSpacing.sm) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Semantic")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     HStack(spacing: DSSpacing.xs) {
                         GeometryReader { geo in
@@ -360,14 +359,14 @@ extension ContainerSettingsSheet {
                         }
                         .frame(height: 6)
                         Text("\(Int(report.retrieval.vectorWeight * 100))%")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(Color.accentColor)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Keyword")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     HStack(spacing: DSSpacing.xs) {
                         GeometryReader { geo in
@@ -377,7 +376,7 @@ extension ContainerSettingsSheet {
                         }
                         .frame(height: 6)
                         Text("\(Int(report.retrieval.lexicalWeight * 100))%")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -387,18 +386,18 @@ extension ContainerSettingsSheet {
             HStack(spacing: DSSpacing.md) {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "arrow.triangle.branch")
-                        .font(.caption2)
+                        .font(.caption)
                     Text("MMR: \(String(format: "%.2f", report.retrieval.mmrLambda))")
-                        .font(.caption2.weight(.medium))
+                        .font(.caption.weight(.medium))
                 }
                 .foregroundStyle(Color.accentColor)
 
                 if report.retrieval.reranker != .none {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "arrow.up.arrow.down")
-                            .font(.caption2)
+                            .font(.caption)
                         Text("Reranker: \(report.retrieval.reranker.rawValue.capitalized)")
-                            .font(.caption2.weight(.medium))
+                            .font(.caption.weight(.medium))
                     }
                     .foregroundStyle(.secondary)
                 }

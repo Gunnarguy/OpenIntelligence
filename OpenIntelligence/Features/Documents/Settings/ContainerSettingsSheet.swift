@@ -206,16 +206,21 @@ struct ContainerSettingsSheet: View {
                         showingPlanSheet = true
                     }
                 )
-                accuracyDefaultsSection
-                intelligenceSection
-                privateCloudComputeSection
+                // What a person can change first, each with what it means; the library's analysis, its embedding model
+                // and its diagnostics only with Technical Details on (Settings, Appearance), as the Settings pages do
+                // (5.8 premium pass). They sat between the everyday settings, with developer rows among them.
+                searchSection
                 chunkingSection
                 aiFeatureOverridesSection
-                searchSection
-                embeddingProviderSection
-                // Vector database section hidden — always uses persistent JSON storage
-                // vectorDatabaseSection
-                libraryNerdStatsSection
+                privateCloudComputeSection
+                if settings.showTechnicalDetails {
+                    intelligenceSection
+                    accuracyDefaultsSection
+                    embeddingProviderSection
+                    // Vector database section hidden — always uses persistent JSON storage
+                    // vectorDatabaseSection
+                    libraryNerdStatsSection
+                }
                 deleteLibrarySection
             }
             .macGroupedForm()
@@ -413,15 +418,10 @@ struct ContainerSettingsSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            // The Local Only line said again what `shortDescription` says just above it (5.8 premium pass).
             if syncMode == .iCloudShared {
                 Text(
                     "Only this library uses iCloud Sync. Local Only libraries in the app stay on-device and do not enter the shared iCloud workspace."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            } else {
-                Text(
-                    "This library remains fully local on this device. It won't be copied into the shared iCloud workspace."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -593,8 +593,10 @@ struct ContainerSettingsSheet: View {
         return option.supportedDimensions.sorted()
     }
 
+    /// Alerts for the model this library has chosen only (5.8 premium pass). The retired Core AI option's build alert
+    /// ("Build Toolchain Issue... Rebuild the application using Xcode 27") showed in every library that doesn't use it.
     var providerAlerts: [ProviderAvailabilityAlert] {
-        embeddingProviderOptions.compactMap { $0.alert }
+        embeddingProviderOptions.filter { $0.id == providerId }.compactMap { $0.alert }
     }
 
     var vectorDBOptions: [VectorDBOptionDescriptor] {
@@ -1055,7 +1057,7 @@ struct SelectableOptionCard: View {
                         .foregroundStyle(secondaryTextColor)
 
                     Text(detail)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(secondaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -1064,10 +1066,10 @@ struct SelectableOptionCard: View {
                             ForEach(metrics) { metric in
                                 HStack(spacing: DSSpacing.xs) {
                                     Image(systemName: metric.icon)
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundStyle(metric.tint)
                                     Text(metric.text)
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundStyle(metric.tint)
                                 }
                             }
@@ -1140,7 +1142,7 @@ struct SelectableOptionCard: View {
 
         var body: some View {
             Text(text.uppercased())
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(color)
                 .padding(.horizontal, DSSpacing.xs)
                 .padding(.vertical, DSSpacing.xxs)
@@ -1185,7 +1187,7 @@ struct SettingHelpCallout: View {
                             .foregroundStyle(accent)
                             .padding(.top, DSSpacing.xxs)
                         Text(bullet)
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -1268,8 +1270,10 @@ struct AutoIntelligencePanel: View {
                     title: "Languages",
                     value: languageDetail,
                     detail: report.corpus.multilingualScore > 0.5
-                        ? "We’re mapping cross-language references automatically."
-                        : "Single-language focus detected, optimizing for nuance."
+                        // Were "We're mapping cross-language references automatically" and "optimizing for nuance":
+                        // nothing here does either. This line reads the analysis's score only (5.8 premium pass).
+                        ? "Passages here are written in more than one language."
+                        : "Passages here are mostly in one language."
                 )
             }
 
@@ -1286,7 +1290,7 @@ struct AutoIntelligencePanel: View {
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                             Text(alert)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -1409,7 +1413,7 @@ private struct InsightLine: View {
 
             if let detail, !detail.isEmpty {
                 Text(detail)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -1437,7 +1441,7 @@ private struct DocumentContextSummary: View {
 
             if documents.count > featuredDocuments.count {
                 Text("+\(documents.count - featuredDocuments.count) more captured in this library")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -1452,7 +1456,7 @@ private struct DocumentProfileRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(profile.name)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
 
@@ -1470,7 +1474,7 @@ private struct DocumentProfileRow: View {
 
             if !profile.preview.isEmpty {
                 Text(profile.preview)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
@@ -1483,7 +1487,7 @@ private struct TopicChip: View {
 
     var body: some View {
         Text(text)
-            .font(.caption2)
+            .font(.caption)
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             .background(
@@ -1545,13 +1549,13 @@ struct ReembedStatusBanner: View {
 
             if !progress.currentFilename.isEmpty {
                 Text(progress.currentFilename)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Text("We’ll refresh embeddings so retrieval quality matches your new configuration.")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(DSSpacing.lg)

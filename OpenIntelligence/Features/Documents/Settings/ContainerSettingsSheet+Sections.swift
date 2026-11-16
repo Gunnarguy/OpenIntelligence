@@ -18,8 +18,8 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var identitySection: some View {
-        Section(header: Text("Library identity")) {
-            Text("Give this workspace a clear name, friendly icon, and color so you always know which knowledge base you're editing.")
+        Section(header: Text("Library")) {
+            Text("The name, icon and color this library shows across the app.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

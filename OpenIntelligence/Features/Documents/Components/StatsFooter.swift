@@ -38,7 +38,7 @@ struct StatsFooter: View {
                     Text("\(totalChunks) Chunks")
                 }
             }
-            .scaledFont(size: 11, weight: .semibold)
+            .font(DSTypography.caption.weight(.semibold))
             .foregroundStyle(DSColors.secondaryText)
 
             // Auto Intelligence status indicator
@@ -59,10 +59,10 @@ struct AutoIntelligenceBadge: View {
         // gray tint when it is off (5.7).
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: isEnabled ? "wand.and.stars" : "slider.horizontal.3")
-                .scaledFont(size: 10, weight: .bold)
             Text(isEnabled ? "Auto Intelligence Active" : "Manual Pipeline Mode")
-                .scaledFont(size: 10, weight: .bold, design: .rounded)
         }
+        // The chip style, 11 points at the default text size; it was 10 (5.8 premium pass).
+        .font(DSTypography.chip)
         .foregroundStyle(isEnabled ? Color.white : DSColors.primaryText)
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.xs)

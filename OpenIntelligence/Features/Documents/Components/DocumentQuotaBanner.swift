@@ -30,11 +30,11 @@ struct DocumentQuotaBanner: View {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Text("Document Quota")
-                        .font(.subheadline.weight(.semibold))
+                        .font(DSTypography.title)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
-                    Text("\(currentCount)/\(limit)")
-                        .font(.caption)
+                    Text("\(currentCount) of \(limit)")
+                        .font(DSTypography.body.monospacedDigit())
                         .foregroundStyle(isAtLimit ? DSColors.readable(.orange) : DSColors.secondaryText)
                 }
 
@@ -51,7 +51,7 @@ struct DocumentQuotaBanner: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSColors.readable(.orange))
                 } else if isNearLimit {
-                    Label("Almost full. Reserve your next tier before you hit the wall.", systemImage: "hourglass")
+                    Label("Almost full: \(remaining) imports left on your \(tierName) plan.", systemImage: "hourglass")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSColors.readable(.orange))
                 } else {
@@ -70,12 +70,12 @@ struct DocumentQuotaBanner: View {
                             .font(.caption)
                             .foregroundStyle(Color.accentColor)
                         Text("Legacy document-pack bonus: +\(bonusDocs) docs")
-                            .font(.caption2.weight(.semibold))
+                            .font(DSTypography.caption.weight(.semibold))
                             .foregroundStyle(DSColors.secondaryText)
                     }
 
                     Text("Your previous document-pack purchases are still applied, but document packs are no longer sold in-app.")
-                        .font(.caption2)
+                        .font(DSTypography.caption)
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
@@ -105,7 +105,7 @@ struct DocumentQuotaBanner: View {
         .background(
             RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 6)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
         .onAppear {
             if isAtLimit {

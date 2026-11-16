@@ -65,29 +65,30 @@ struct SpecTile: View {
         let valueColor: Color = tint ?? (muted ? Color.secondary : Color.primary)
         let fill: Color = tint.map { $0.opacity(0.10) } ?? Color.secondary.opacity(0.07)
         let stroke: Color = (tint ?? Color.clear).opacity(0.5)
+        // No text below Apple's minimum and none cut off (5.8 premium pass): the name and caption were 9 and 8 points on
+        // one line, shrinking further and ending in "..." ("Reranked per s...").
+        let small = SettingsStatusPanel.minimumTextSize
         return VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Image(systemName: marker ?? icon)
-                    .scaledFont(size: 8, weight: .bold)
+                    .scaledFont(size: small, weight: .bold)
                     .foregroundStyle(accent)
                 Text(name)
-                    .scaledFont(size: 9, weight: .medium)
+                    .scaledFont(size: small, weight: .medium)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Text(value)
                 .scaledFont(size: 12, weight: .bold, design: .rounded)
                 .foregroundStyle(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .lineLimit(2)
+                .minimumScaleFactor(SettingsStatusPanel.floorScale(for: 12))
                 .contentTransition(.numericText())
             if let caption {
                 Text(caption)
-                    .scaledFont(size: 8)
+                    .scaledFont(size: small)
                     .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -113,7 +114,7 @@ struct SettingsGroupLabel: View {
     let text: String
     var body: some View {
         Text(text)
-            .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
             .foregroundStyle(.secondary)
     }
 }

@@ -106,6 +106,7 @@ struct ModelConfigurationSheet: View {
                 SystemPromptEditorSheet(prompt: $systemPrompt)
             }
         }
+        .macSheetFrame(width: 600, height: 760)
     }
 
     // MARK: - Sections
@@ -126,7 +127,7 @@ struct ModelConfigurationSheet: View {
                         .font(.headline)
 
                     Text(settings.executionPathDescription)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -137,7 +138,7 @@ struct ModelConfigurationSheet: View {
                     Text(settings.privacyBadge.emoji)
                         .font(.title3)
                     Text(settings.mayTransmitData ? "Cloud" : "Local")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -279,7 +280,7 @@ struct ModelConfigurationSheet: View {
                         ? "No effect on Predictable sampling, which always takes the most likely next word. Choose Balanced or Adaptive below to use this."
                         : "Lower = more focused, higher = more creative"
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -306,7 +307,7 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Maximum response length in tokens (~4 chars each)")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -332,10 +333,10 @@ struct ModelConfigurationSheet: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(samplingStrategy.technicalName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(samplingStrategy.explanation)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -354,7 +355,7 @@ struct ModelConfigurationSheet: View {
                         step: 1
                     ) { Text("Top-K") }
                     Text("Choose from the \(topK) most likely next words.")
-                        .font(.caption2)
+                        .font(.caption)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -370,7 +371,7 @@ struct ModelConfigurationSheet: View {
                     }
                     Slider(value: $topP, in: 0.05...0.99, step: 0.05) { Text("Top-P") }
                     Text("Probability mass to sample from. Lower is more focused.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, DSSpacing.xs)
@@ -397,7 +398,7 @@ struct ModelConfigurationSheet: View {
                         ? "The same question against the same library returns the same answer."
                         : "Answers vary slightly between runs."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
         } header: {
@@ -441,10 +442,10 @@ struct ModelConfigurationSheet: View {
                 // 32K on a 4K device builds a prompt the model then rejects. That is the
                 // shape of the "4521 tokens against a 4096 window" report.
                 Text("How much conversation and document context to pack into each request.")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(contextGuidance)
-                    .font(.caption2)
+                    .font(.caption)
                     .monospacedDigit()
                     .foregroundStyle(contextLength > onDeviceContextWindow ? DSColors.readable(.orange) : Color.secondary)
             }
@@ -487,7 +488,7 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Penalize frequently used tokens (reduces repetition)")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -507,7 +508,7 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Penalize any token that appeared before (encourages new topics)")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -532,7 +533,7 @@ struct ModelConfigurationSheet: View {
                 Text(
                     "Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host."
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -761,10 +762,10 @@ private struct PresetCard: View {
                     .foregroundStyle(.primary)
 
                 Text(preset.description)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(width: 100)
             .padding(.vertical, DSSpacing.md)

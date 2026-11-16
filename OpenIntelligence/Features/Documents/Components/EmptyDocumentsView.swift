@@ -49,11 +49,11 @@ struct EmptyDocumentsView: View {
 
                 VStack(spacing: DSSpacing.xs) {
                     Text("No Documents Yet")
-                        .font(.headline.weight(.bold))
+                        .font(DSTypography.title)
                         .foregroundStyle(.primary)
 
                     Text("Start with files that keep their structure")
-                        .font(.footnote.weight(.medium))
+                        .font(DSTypography.body)
                         .foregroundStyle(DSColors.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, DSSpacing.xl)
@@ -67,7 +67,7 @@ struct EmptyDocumentsView: View {
                             .foregroundStyle(DSColors.readable(.orange))
                         Text("Limit of \(documentLimit) documents reached.")
                     }
-                    .font(.caption2.weight(.bold))
+                    .font(DSTypography.caption.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
                     .padding(.horizontal, DSSpacing.md)
                     .padding(.vertical, DSSpacing.xs)
@@ -111,7 +111,7 @@ struct EmptyDocumentsView: View {
 
                     if let statusMessage, !statusMessage.isEmpty {
                         Text(statusMessage)
-                            .font(.caption2.weight(.medium))
+                            .font(DSTypography.caption)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -127,29 +127,31 @@ struct EmptyDocumentsView: View {
 
                     DocumentFeatureRow(
                         icon: "bolt.ring.closed",
-                        title: "Fast Local Processing",
-                        description: "On-device chunking and local indexing"
+                        // Was "Fast Local Processing": no measurement backs "fast" (5.8 premium pass).
+                        title: "Processed on This Device",
+                        description: "Reading, splitting and indexing run here"
                     )
 
                     DocumentFeatureRow(
                         icon: "lock.shield.fill",
-                        title: "Private & Secure",
-                        description: "Content never leaves your device for processing"
+                        // Was "Content never leaves your device for processing", which an answer sent to Private Cloud
+                        // Compute, with the person's permission, contradicts (5.8 premium pass).
+                        title: "Private by Design",
+                        description: "Import, indexing and search need no network"
                     )
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(DSSpacing.lg)
+                // The app's card (`SurfaceCard`'s fill and shadow), not a material of its own (5.8 premium pass).
                 .background(
                     RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+                        .fill(DSColors.surface)
+                        .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
                 )
                 .padding(.horizontal, DSSpacing.xs)
                 
                 Text("PDFs, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and transcripts import cleanly. Legacy formats and dense scientific tables may need conversion first.")
-                    .font(.caption2.weight(.medium))
+                    .font(DSTypography.caption)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(DSColors.secondaryText)
                     .padding(.horizontal, DSSpacing.xl)
@@ -179,11 +181,11 @@ struct DocumentFeatureRow: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.footnote.weight(.bold))
+                    .font(DSTypography.body.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
 
                 Text(description)
-                    .font(.caption2.weight(.medium))
+                    .font(DSTypography.caption)
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }

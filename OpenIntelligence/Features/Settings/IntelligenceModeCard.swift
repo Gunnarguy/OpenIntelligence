@@ -370,10 +370,11 @@ struct IntelligenceModeCard: View {
                             .frame(height: 6 + CGFloat(index) * 5)
                             .shadow(color: isSelected ? Self.color(for: step).opacity(0.6) : .clear, radius: 6)
                         Text(step.displayName)
-                            .scaledFont(size: 10, weight: isSelected ? .bold : .medium)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: isSelected ? .bold : .medium)
                             .foregroundStyle(isSelected ? Self.color(for: step) : .secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            // Never below Apple's minimum text size (5.8 premium pass); it could shrink to 7 points.
+                            .minimumScaleFactor(SettingsStatusPanel.floorScale(for: SettingsStatusPanel.minimumTextSize))
                     }
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
@@ -411,12 +412,13 @@ struct IntelligenceModeCard: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .scaledFont(size: 11, weight: .semibold)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    // Whole, on two lines when it needs them, never cut off or shrunk (5.8 premium pass).
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .scaledFont(size: 11)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
+                    .lineLimit(3, reservesSpace: true)
             }
             Spacer(minLength: 0)
         }
@@ -451,7 +453,7 @@ struct IntelligenceModeCard: View {
                     .frame(width: 36)
             }
         }
-        .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
         .foregroundStyle(.secondary)
         .padding(.top, 2)
     }
@@ -480,7 +482,7 @@ struct IntelligenceModeCard: View {
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                         Image(systemName: "chevron.down")
-                            .scaledFont(size: 8, weight: .bold)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                             .foregroundStyle(.tertiary)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }
@@ -500,7 +502,7 @@ struct IntelligenceModeCard: View {
             if isOpen {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Label(step.engine, systemImage: "gearshape.2")
-                        .scaledFont(size: 10, weight: .semibold, design: .monospaced)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                         .foregroundStyle(Self.color(for: mode))
                     Text(step.detail)
                         .scaledFont(size: 11)
@@ -710,7 +712,7 @@ struct IntelligenceModeCard: View {
                     SettingsGroupLabel(text: "SAME IN EVERY MODE")
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .scaledFont(size: 8, weight: .bold)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                         .rotationEffect(.degrees(showsShared ? 180 : 0))
                 }
                 .foregroundStyle(.secondary)
@@ -720,7 +722,7 @@ struct IntelligenceModeCard: View {
             if showsShared {
                 ForEach(sharedSteps, id: \.0) { row in sharedRow(row.0, row.1) }
                 Text("SET WHEN YOU IMPORT, NOT BY THE MODE")
-                    .scaledFont(size: 9, weight: .semibold, design: .monospaced)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
                     .foregroundStyle(.secondary)
                     .padding(.top, DSSpacing.xs)
                 ForEach(importSteps, id: \.0) { row in sharedRow(row.0, row.1) }
@@ -733,7 +735,7 @@ struct IntelligenceModeCard: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(name).scaledFont(size: 11, weight: .semibold)
             Text(detail)
-                .scaledFont(size: 10)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

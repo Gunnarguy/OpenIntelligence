@@ -223,18 +223,15 @@ struct FirstQueryPromptView: View {
             }
         }
         .padding(DSSpacing.lg)
+        // The card corner every other card uses, and no tinted edge (5.8 premium pass); the glass stays.
         .background {
             if #available(iOS 26.0, *) {
                 Color.clear
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             } else {
-                RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.surfaceElevated)
             }
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                .strokeBorder(DSColors.accent.opacity(0.1), lineWidth: 1)
         }
     }
 }

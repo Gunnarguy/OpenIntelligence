@@ -171,7 +171,7 @@ struct ChatResponseDetailsView: View {
                     Spacer()
                     Text("Max")
                 }
-                .scaledFont(size: 10)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(DSColors.secondaryText)
             }
 
@@ -198,7 +198,7 @@ struct ChatResponseDetailsView: View {
                 // Drawn inside its segment at a compact size so it stays inside the 24-point bar; the grid under the bar
                 // names each part with its count, in text that grows (5.7).
                 Text(label)
-                    .scaledFont(size: 8, weight: .bold)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                     .dynamicTypeSize(...DynamicTypeSize.large)
                     .foregroundStyle(.white)
                     .opacity(width > 30 ? 1 : 0)
@@ -213,7 +213,7 @@ struct ChatResponseDetailsView: View {
             
             VStack(alignment: .leading, spacing: 0) {
                 Text(label)
-                    .scaledFont(size: 10, weight: .semibold)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                     .foregroundStyle(DSColors.secondaryText)
                 Text("\(value)")
                     .scaledFont(size: 14, weight: .bold, design: .rounded)
@@ -349,7 +349,7 @@ struct ChatResponseDetailsView: View {
                         .monospacedDigit()
                         .foregroundStyle(DSColors.primaryText)
                     Text("total time")
-                        .scaledFont(size: 10)
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
@@ -409,7 +409,7 @@ struct ChatResponseDetailsView: View {
                 .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
             Text(label)
-                .scaledFont(size: 10)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
                 .foregroundStyle(DSColors.secondaryText)
         }
         .frame(maxWidth: .infinity)
@@ -452,7 +452,7 @@ struct ChatResponseDetailsView: View {
                                     HStack(spacing: DSSpacing.xs) {
                                         if let verdict = claim.verificationVerdict {
                                             Text(claimVerificationTitle(verdict))
-                                                .scaledFont(size: 10, weight: .semibold)
+                                                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                                                 .foregroundStyle(DSColors.primaryText)
                                                 .padding(.horizontal, DSSpacing.xs)
                                                 .padding(.vertical, DSSpacing.xxs)
@@ -951,7 +951,7 @@ private struct SourceCard: View {
                         Text(isExpanded ? "Hide excerpt" : "Show excerpt")
                             .scaledFont(size: 12, weight: .medium)
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .scaledFont(size: 10, weight: .semibold)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
                     }
                     .foregroundStyle(DSColors.secondaryText)
                     // 44 points to tap on iPhone and iPad; the audit found the line's own 14 too small (5.7).

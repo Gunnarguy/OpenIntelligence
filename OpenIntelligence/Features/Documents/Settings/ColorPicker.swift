@@ -192,6 +192,7 @@ struct LibraryColorPicker: View {
                 customHex = selectedColorHex
             }
         }
+        .macSheetFrame(width: 480, height: 600)
     }
 
     @ViewBuilder
@@ -382,6 +383,7 @@ struct AccentColorPicker: View {
                 }
             }
         }
+        .macSheetFrame(width: 480, height: 520)
     }
 
     @ViewBuilder

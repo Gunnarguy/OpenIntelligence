@@ -82,6 +82,17 @@ struct ThreadSidebarView: View {
                 }
                 .listStyle(.plain)
                 .background(DSColors.surface)
+                // An empty list said nothing at all (5.8 premium pass).
+                .overlay(alignment: .top) {
+                    if threads.isEmpty {
+                        Text("This library's conversations are listed here. Start one with the button above.")
+                            .font(DSTypography.caption)
+                            .foregroundStyle(DSColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(DSSpacing.lg)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
             .frame(width: 300)
             .background(DSColors.surface.ignoresSafeArea())
