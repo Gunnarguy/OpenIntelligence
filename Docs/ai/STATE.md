@@ -2,7 +2,7 @@
 
 Updated: 2026-11-16
 Branch/worktree: `main`, primary checkout
-Last verified commit: 746085c2
+Last verified commit: 641c7aa9
 
 ## Objective
 
@@ -48,7 +48,7 @@ the iOS 27 Simulator. Open: the colour and icon pickers (job B skipped them); th
 | Unit suite | 1,751 overnight on 2026-11-14 with one failure fixed; since then only single classes run, all green |
 | Five Simulator checks | done (`FiveChecksSimulatorTests`, `FiveChecksUITests`); four rows closed in Notion; the lease row (40049a74d54f814eadbace9c62d87ef9) is a line on the owner's checklist |
 | Release text | audited against every commit since v5.7.0 by an Antigravity job (288 then, 307 now); gaps fixed. Store text not pushed |
-| Devices | being installed with adf95abb (Mac and iPhone) when this was written |
+| Devices | both run 641c7aa9 (installed 2026-11-16 about 10:00) |
 | Roadmap | v5.8: about 96 In Progress; most close from the device pass |
 
 ## Done on 2026-11-14 afternoon and evening (all committed)
@@ -100,8 +100,9 @@ defect; close and move roadmap rows with evidence. Computer-use access to OpenIn
 
 - Search setup after an install took 55 to 99 s (embedding) and 87 to 131 s (reranker) on his iPhone at thermal
   state serious; the earlier "25 to 50 s" was too low.
-- 42 main-thread stalls on the Chat screen during rebuilds (median 301 ms, worst 1,658 ms). Cause not found: they line
-  up with sync log lines, but that code is `nonisolated`. Next: `bash scripts/profile_phone.sh` (Time Profiler, 90 s)
+- 42 main-thread stalls on the Chat screen during rebuilds (median 301 ms, worst 1,658 ms). Likely cause found 2026-11-16
+  (641c7aa9): approachable concurrency ran the sync service's `nonisolated async` work on the main thread; the same
+  thing got build 150 killed in the background (0x8BADF00D). Now `@concurrent`, test-verified; not yet seen on the phone. Next: `bash scripts/profile_phone.sh` (Time Profiler, 90 s)
   while he rebuilds one library, then read the main thread's heaviest frames. Closes no row by itself.
 - Chat's passage chip sums documents' recorded counts (8,574) against the store's (8,225); a tip can point at the
   passage chip after its anchor scrolls; image tables in PDFs; the Spotlight document tap (his phone step decides).
