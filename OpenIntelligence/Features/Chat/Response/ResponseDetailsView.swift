@@ -201,7 +201,8 @@ struct ChatResponseDetailsView: View {
                     .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
                     .dynamicTypeSize(...DynamicTypeSize.large)
                     .foregroundStyle(.white)
-                    .opacity(width > 30 ? 1 : 0)
+                    // Shown where an 11-point bold label fits; it was 8 points with a 30-point threshold (5.8).
+                    .opacity(width > 44 ? 1 : 0)
             )
     }
 

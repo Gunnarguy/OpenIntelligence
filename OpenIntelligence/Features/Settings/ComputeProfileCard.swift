@@ -478,8 +478,7 @@ struct ComputeProfileCard: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .scaledFont(size: 11, weight: .semibold)
-                    // Whole, on two lines when it needs them, never cut off or shrunk (5.8 premium pass).
-                    .lineLimit(2)
+                    // Whole, on as many lines as it needs, never cut off or shrunk (5.8 premium pass).
                     .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .scaledFont(size: 11)
@@ -547,9 +546,8 @@ struct ComputeProfileCard: View {
                         Text(row.name)
                             .scaledFont(size: 12, weight: .semibold)
                             .foregroundStyle(row.chips.isEmpty ? Color.secondary : Color.primary)
-                            // Two lines and one size, as Intelligence Mode's rows (5.8 premium pass): one line cut
-                            // "Large searches (1,000 passages or more)" off.
-                            .lineLimit(2)
+                            // Wraps at one size (5.8 premium pass): one line cut "Large searches (1,000 passages or
+                            // more)" off.
                             .fixedSize(horizontal: false, vertical: true)
                         Image(systemName: "chevron.down")
                             .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)

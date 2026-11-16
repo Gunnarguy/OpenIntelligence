@@ -432,9 +432,11 @@ extension ContainerSettingsSheet {
 
                 // On-Device in the model picker or Never use in Settings keeps every answer here; otherwise one can go
                 // to Private Cloud Compute, asked first unless Settings allows it (`effectiveFallbackDescription`).
+                // Quotes only (`.onDeviceAnalysis`) runs no model, so nothing is written anywhere else.
                 let mayLeave =
                     canUseNativePCC && self.settings.applePCCConsent != .denied
                     && self.settings.fmPreference.canonical != .core3B
+                    && self.settings.selectedModel != .onDeviceAnalysis
                 HStack(alignment: .firstTextBaseline) {
                     Label("Answers", systemImage: "arrow.triangle.branch")
                         .font(.subheadline)
@@ -526,6 +528,8 @@ extension ContainerSettingsSheet {
                 return "Private Cloud Compute is set to Never use in Settings, so every answer is written on this device."
             case .notDetermined:
                 return "The app asks you before an answer goes to Private Cloud Compute (Settings, Private Cloud Compute: Ask when needed)."
+            case .allowed where self.settings.fmPreference.canonical == .privateCloudCompute:
+                return "Private Cloud Compute is chosen in the model picker and allowed without asking, so every answer is written there."
             case .allowed:
                 return "Private Cloud Compute is allowed without asking. With Hybrid, an answer goes there when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document."
             }

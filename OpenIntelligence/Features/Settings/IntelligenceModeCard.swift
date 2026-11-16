@@ -412,8 +412,7 @@ struct IntelligenceModeCard: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .scaledFont(size: 11, weight: .semibold)
-                    // Whole, on two lines when it needs them, never cut off or shrunk (5.8 premium pass).
-                    .lineLimit(2)
+                    // Whole, on as many lines as it needs, never cut off or shrunk (5.8 premium pass).
                     .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .scaledFont(size: 11)

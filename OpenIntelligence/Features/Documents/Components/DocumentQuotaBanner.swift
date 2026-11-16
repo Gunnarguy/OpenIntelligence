@@ -51,7 +51,7 @@ struct DocumentQuotaBanner: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSColors.readable(.orange))
                 } else if isNearLimit {
-                    Label("Almost full: \(remaining) imports left on your \(tierName) plan.", systemImage: "hourglass")
+                    Label("Almost full: \(remaining) \(remaining == 1 ? "import" : "imports") left on your \(tierName) plan.", systemImage: "hourglass")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DSColors.readable(.orange))
                 } else {
