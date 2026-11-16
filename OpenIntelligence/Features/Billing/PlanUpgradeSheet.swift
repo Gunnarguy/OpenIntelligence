@@ -5,22 +5,33 @@ import SwiftUI
     import UIKit
 #endif
 
-/// Full-screen paywall surface that highlights plan tiers, add-ons, and billing controls.
+/// What the person has used of their plan, counted by the presenter (5.8, 2026-11-15). Settings passes it, so the
+/// plans screen opens with the figures the Plan & Usage page showed before that page was folded into it. The sheet
+/// can't count them itself: it is presented from places whose environment holds no `RAGService`.
+struct PlanUsage {
+    let documents: Int
+    let libraries: Int
+    /// Conversations in the open library, where the conversation limit is checked.
+    let chatsInOpenLibrary: Int
+}
+
+/// The plans screen: the person's plan and usage, the three plans with their live prices, the side-by-side table,
+/// and the store's links (5.8, 2026-11-15). The owner found it "too many taps deep" and not clean; it lost its hero,
+/// its banners, a "What you get" list the table repeated, a three-slide carousel and a tip, and follows the type and
+/// card rule on `DSTypography`.
 struct PlanUpgradeSheet: View {
     let entryPoint: PlanUpgradeEntryPoint
+    /// Nil from presenters that can't count usage; the panel then states the plan's limits.
+    var usage: PlanUsage? = nil
 
     @EnvironmentObject private var entitlementStore: EntitlementStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var purchasingProduct: BillingProduct?
     @State private var alertMessage: String?
     @State private var isRefreshingProducts: Bool = false
     @State private var isRestoring = false
     @State private var showingRedeemCode = false
-    @State private var selectedStoryIndex = 0
-    @State private var showingTerms = false
-    @State private var showingPrivacy = false
     /// The storefront's country, for a sale's regular price (5.7).
     @ObservedObject private var storefront = StorefrontTerritory.shared
 
@@ -64,64 +75,27 @@ struct PlanUpgradeSheet: View {
         ),
     ]
 
-    private let storySlides: [PlanStorySlide] = [
-        PlanStorySlide(
-            title: "The same model in every plan",
-            subtitle: "Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent: all of it is free. Pro and Lifetime remove the limits.",
-            icon: "bolt.fill",
-            tint: .accentColor
-        ),
-        PlanStorySlide(
-            title: "Privacy guarantee",
-            subtitle:
-                "Reading, searching and citing happen on your device in every plan. Nothing ever goes to a third-party AI provider.",
-            icon: "lock.shield.fill",
-            tint: .accentColor
-        ),
-        PlanStorySlide(
-            title: "Maximum, every day",
-            subtitle:
-                "Maximum is the highest-effort mode, three runs a day on the free plan. Pro lifts the cap; Lifetime does too, with unlimited documents, for one payment.",
-            icon: "arrow.up.right.circle.fill",
-            tint: .orange
-        ),
-    ]
-
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: DSSpacing.xl) {
-                    heroSection
-                    launchSaleBanner
-                    socialProofBanner
-                    whyUpgradeNowSection
-                    storyCarousel
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
+                    usageSection
 
                     ForEach(planOptions) { option in
                         tierCard(for: option)
                     }
 
                     planComparisonSection
-                    multiDocumentTip
-                    managementControls
-                    complianceFooter
+                    storeLinks
                 }
-                .padding(.horizontal, DSSpacing.lg)
-                .padding(.vertical, DSSpacing.xl)
+                .padding(DSSpacing.lg)
+                // The Settings pages' column, centred, on a Mac and an iPad.
+                .frame(maxWidth: SettingsView.detailColumnWidth)
+                .frame(maxWidth: .infinity)
             }
-            .background(
-                LinearGradient(
-                    colors: [DSColors.background, DSColors.surface.opacity(0.4)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-            )
-            .navigationTitle("Workspace Plans")
-            #if os(iOS)
-            // Inline at accessibility text sizes, where the large title was cut to "Workspace..." (5.7).
-            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
-            #endif
+            .background(DSColors.background.ignoresSafeArea())
+            .navigationTitle("Plans")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -145,12 +119,6 @@ struct PlanUpgradeSheet: View {
             if let alertMessage {
                 Text(alertMessage)
             }
-        }
-        .sheet(isPresented: $showingTerms) {
-            TermsOfServiceView()
-        }
-        .sheet(isPresented: $showingPrivacy) {
-            PrivacyPolicyView()
         }
         .task { await AppStoreRatingService.refreshIfStale() }
         .onAppear {
@@ -179,113 +147,112 @@ struct PlanUpgradeSheet: View {
 // MARK: - Sections
 
 extension PlanUpgradeSheet {
-    fileprivate var heroSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Text(entryPoint.headline)
-                .font(.title2.weight(.semibold))
-            Text(entryPoint.subheadline)
-                .font(.body)
-                .foregroundStyle(DSColors.secondaryText)
-            HStack {
-                // The tier the person has, with a purchase from before 5.5 counted (5.8): `activeTier` is only what the store
-                // sells now, and the sheet said "Free" to the owner, whose Plan & Usage said Lifetime (2026-11-04).
-                Label("Current plan: \(entitlementStore.effectiveTier.displayName)", systemImage: "creditcard")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(Color.accentColor.opacity(0.1))
-                    .clipShape(Capsule())
-                Spacer()
-            }
-        }
-    }
-
-    /// Two things a buyer can check on the product page, and nothing else. The rating line
-    /// appears only once the store count is large enough to mean something; see
-    /// `AppStoreRatingSnapshot.minimumRatingCount`. Until 5.4 this banner said "Upgrade anytime,
-    /// cancel in App Store settings", which is a footer, not proof.
-    fileprivate var socialProofBanner: some View {
-        // The words in the label color and the color in the icons (5.7): gray words on the tint measured 3.34
-        // to 1.
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Label {
-                Text("App Store privacy label: Data Not Collected")
-            } icon: {
-                Image(systemName: "hand.raised.fill")
-                    .foregroundStyle(DSColors.readable(.accentColor))
-            }
-            if let rating = AppStoreRatingService.cached(), rating.isWorthShowing {
-                Label {
-                    Text(rating.line)
-                        .monospacedDigit()
-                } icon: {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(DSColors.readable(.accentColor))
+    /// Why the screen opened, when something asked for it (a limit, Maximum running out, a watched folder), then the
+    /// plan the person has and what they have used of it, in the dark panel the Settings pages open with. Opened from
+    /// Settings it is the panel alone: the reason there was "Manage your workspace plan".
+    fileprivate var usageSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            if entryPoint != .settings {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    Text(entryPoint.headline)
+                        .font(DSTypography.title)
+                    Text(entryPoint.subheadline)
+                        .font(DSTypography.body)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            // The tier the person has, with a purchase from before 5.5 counted (5.8): `activeTier` is only what the
+            // store sells now, and the sheet said "Free" to the owner, whose Plan & Usage said Lifetime (2026-11-04).
+            SettingsStatusPanel(
+                symbol: "creditcard",
+                title: "Your plan",
+                badge: entitlementStore.effectiveTier.displayName,
+                badgeColor: entitlementStore.effectiveTier == .free ? Color.white.opacity(0.7) : .orange,
+                blocks: usageBlocks)
+            if entitlementStore.activeTier == .free, entitlementStore.isLegacyPaidProtected {
+                Text("Previous paid purchases on this Apple ID now unlock Lifetime access on this device.")
+                    .font(DSTypography.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+            }
+            launchSaleLine
         }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(DSColors.primaryText)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-        )
     }
 
-    /// The launch-sale strip, shown only when Lifetime has a confirmed discount.
+    /// The figures are the entitlement store's limits and the presenter's counts, the ones the limits are checked
+    /// against. Without counts each block states its limit.
+    private var usageBlocks: [SettingsStatusPanel.Block] {
+        let documentLimit = entitlementStore.documentLimit
+        let libraryLimit = entitlementStore.libraryLimit
+        let chatLimit = QuotaPolicy.evidenceThreadLimit(for: entitlementStore.effectiveTier)
+        let dailyLimit = QuotaPolicy.freeMaximumModeDailyLimit
+        let maximumLeft = entitlementStore.maximumModeRemainingUses
+        let maximum: SettingsStatusPanel.Block =
+            entitlementStore.hasUnlimitedMaximumMode
+            ? .init(
+                symbol: "bolt.fill", name: "Maximum", color: .orange, figure: "No cap", share: nil,
+                caption: "every day")
+            : .init(
+                symbol: "bolt.fill", name: "Maximum", color: .orange, figure: "\(maximumLeft) of \(dailyLimit)",
+                share: Double(maximumLeft) / Double(max(1, dailyLimit)), caption: "left today")
+        guard let usage else {
+            return [
+                .init(
+                    symbol: "doc.text", name: "Documents", color: .blue, figure: Self.limitText(documentLimit),
+                    share: nil, caption: "allowed"),
+                .init(
+                    symbol: "books.vertical", name: "Libraries", color: .purple, figure: Self.limitText(libraryLimit),
+                    share: nil, caption: "allowed"),
+                .init(
+                    symbol: "bubble.left.and.bubble.right", name: "Chats", color: .green,
+                    figure: Self.limitText(chatLimit), share: nil, caption: "per library"),
+                maximum,
+            ]
+        }
+        let documents = SettingsStatusPanel.used(usage.documents, of: documentLimit)
+        let libraries = SettingsStatusPanel.used(usage.libraries, of: libraryLimit)
+        let chats = SettingsStatusPanel.used(usage.chatsInOpenLibrary, of: chatLimit)
+        return [
+            .init(
+                symbol: "doc.text", name: "Documents", color: .blue, figure: documents.figure,
+                share: documents.share, caption: documents.caption),
+            .init(
+                symbol: "books.vertical", name: "Libraries", color: .purple, figure: libraries.figure,
+                share: libraries.share, caption: libraries.caption),
+            .init(
+                symbol: "bubble.left.and.bubble.right", name: "Chats here", color: .green, figure: chats.figure,
+                share: chats.share, caption: chats.caption),
+            maximum,
+        ]
+    }
+
+    private static func limitText(_ limit: Int) -> String {
+        limit == .max ? "Unlimited" : limit.formatted()
+    }
+
+    /// The launch sale in one caption line, shown only when Lifetime has a confirmed discount; the Lifetime card
+    /// carries the struck-through price and the percentage.
     ///
-    /// Names the plan and its own real percentage rather than a headline figure, so the strip
+    /// Names the plan and its own real percentage rather than a headline figure, so the line
     /// cannot promise more than the card below it delivers. Only Lifetime is ever discounted;
     /// `LaunchSale` explains why the subscriptions are left alone.
     @ViewBuilder
-    fileprivate var launchSaleBanner: some View {
+    fileprivate var launchSaleLine: some View {
         if let offer = saleOffer(for: .lifetimeCohort) {
-            HStack(spacing: DSSpacing.sm) {
+            Label {
+                Text(
+                    "Launch sale: Lifetime is \(offer.percentOff)% off until \(LaunchSale.deadlineText(for: offer.endDate)). One payment, no renewal."
+                )
+                .monospacedDigit()
+                .fixedSize(horizontal: false, vertical: true)
+            } icon: {
                 Image(systemName: "tag.fill")
                     .foregroundStyle(.green)
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text("Launch sale: Lifetime is \(offer.percentOff)% off")
-                        .font(.subheadline.weight(.bold))
-                        .monospacedDigit()
-                    Text("Ends \(LaunchSale.deadlineText(for: offer.endDate)). One payment, no renewal.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, DSSpacing.lg)
-            .padding(.vertical, DSSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(Color.green.opacity(0.10))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .strokeBorder(Color.green.opacity(0.35), lineWidth: 1)
-            )
+            .font(DSTypography.caption)
+            .foregroundStyle(DSColors.primaryText)
             .accessibilityElement(children: .combine)
         }
-    }
-
-    fileprivate var whyUpgradeNowSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Text("What you get")
-                .font(.headline)
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                ForEach(PlanBenefits.highlights) { highlight in
-                    BenefitRow(icon: highlight.icon, text: highlight.text, tint: .accentColor)
-                }
-            }
-        }
-        .padding(DSSpacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .fill(DSColors.surface.opacity(0.6))
-        )
     }
 
     fileprivate func tierCard(for option: PlanTierOption) -> some View {
@@ -305,77 +272,15 @@ extension PlanUpgradeSheet {
         )
     }
 
-    /// As tall as its tallest page plus the page dots (5.7), measured from a hidden copy of the pages behind it. At a
-    /// fixed 170 points the first page's last line ran under the dots at the default text size, and larger text was
-    /// cut.
-    fileprivate var storyCarousel: some View {
-        ZStack {
-            ForEach(storySlides.indices, id: \.self) { index in
-                storySlideView(storySlides[index])
-                    .padding(DSSpacing.lg)
-            }
-        }
-        .padding(.bottom, DSSpacing.xxl)
-        .hidden()
-        .accessibilityHidden(true)
-        .overlay {
-            TabView(selection: $selectedStoryIndex) {
-                ForEach(storySlides.indices, id: \.self) { index in
-                    let slide = storySlides[index]
-                    storySlideView(slide)
-                        .padding(DSSpacing.lg)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .background(
-                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                                .fill(slide.tint.opacity(0.15))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                                .stroke(slide.tint.opacity(0.2), lineWidth: 1)
-                        )
-                        .padding(.bottom, DSSpacing.xxl)
-                        .tag(index)
-                }
-            }
-            #if os(iOS)
-                .tabViewStyle(.page(indexDisplayMode: .always))
-            #endif
-            .accessibilityLabel("Plan value stories")
-        }
-    }
-
-    fileprivate func storySlideView(_ slide: PlanStorySlide) -> some View {
-        HStack(alignment: .top, spacing: DSSpacing.lg) {
-            ZStack {
-                Circle()
-                    .fill(slide.tint.opacity(0.2))
-                    .frame(width: 48, height: 48)
-                Image(systemName: slide.icon)
-                    .foregroundStyle(slide.tint)
-            }
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text(slide.title)
-                    .font(.headline)
-                // The label color on the slide's tint, where gray measured 4.53 to 1 on the orange one (5.7).
-                Text(slide.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(DSColors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
     /// What each plan has of everything a paid plan changes, under the three cards. A label on its own line and
     /// three equal columns below it, so it still reads at the largest text sizes.
     fileprivate var planComparisonSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Text("Free, Pro and Lifetime")
-                .font(.headline)
+        SurfaceCard {
+            SectionHeader(icon: "tablecells", title: "Free, Pro and Lifetime")
             ForEach(PlanBenefits.comparison) { row in
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Label(row.name, systemImage: row.icon)
-                        .font(.subheadline.weight(.semibold))
+                        .font(DSTypography.body.weight(.medium))
                     HStack(alignment: .top, spacing: DSSpacing.sm) {
                         comparisonCell("Free", row.free, isCurrent: entitlementStore.effectiveTier == .free)
                         comparisonCell("Pro", row.pro, isCurrent: entitlementStore.effectiveTier == .pro)
@@ -386,125 +291,113 @@ extension PlanUpgradeSheet {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
                     "\(row.name). Free: \(row.free). Pro: \(row.pro). Lifetime: \(row.lifetime).")
+                if row.id != PlanBenefits.comparison.last?.id {
+                    Divider()
+                }
             }
             Text("Apple Intelligence on your device, Deep Think and Private Cloud Compute are in every plan.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(DSTypography.caption)
+                .foregroundStyle(DSColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(DSSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .fill(DSColors.surface.opacity(0.6))
-        )
     }
 
     private func comparisonCell(_ plan: String, _ value: String, isCurrent: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(isCurrent ? "\(plan) (yours)" : plan)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(DSTypography.caption)
+                .foregroundStyle(DSColors.secondaryText)
             Text(value)
-                .font(.subheadline)
+                .font(DSTypography.body)
                 .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    fileprivate var multiDocumentTip: some View {
-        HStack(alignment: .top, spacing: DSSpacing.md) {
-            Image(systemName: "rectangle.stack.badge.person.crop")
-                .font(.title3)
-                .foregroundStyle(DSColors.accent)
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text("Built for personal research")
-                    .font(.subheadline.weight(.semibold))
-                Text("Spin up as many document chats as you need while keeping each workspace organized.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(DSSpacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-        )
-    }
+    /// Restore, manage, redeem, the renewal terms and the two legal links, as quiet links at the end. App Review needs
+    /// each of them on the purchase screen, so none is gone, only smaller. The privacy label and the store rating, a
+    /// banner near the top until 2026-11-15, are a caption here.
+    fileprivate var storeLinks: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) { storeButtons }
+                .font(DSTypography.body.weight(.medium))
+                .buttonStyle(.borderless)
 
-    fileprivate var managementControls: some View {
-        VStack(spacing: DSSpacing.md) {
-            Button(action: manageSubscriptions) {
-                Label("Manage Subscription", systemImage: "person.crop.circle.badge.checkmark")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            Button(action: restorePurchases) {
-                if isRestoring {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Label("Restore Purchases", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Label("App Store privacy label: Data Not Collected", systemImage: "hand.raised.fill")
+                if let rating = AppStoreRatingService.cached(), rating.isWorthShowing {
+                    Label {
+                        Text(rating.line)
+                            .monospacedDigit()
+                    } icon: {
+                        Image(systemName: "star.fill")
+                    }
                 }
             }
-            .buttonStyle(.bordered)
-            .disabled(isRestoring)
+            .font(DSTypography.caption)
+            .foregroundStyle(DSColors.secondaryText)
 
-            // Apple's own sheet for an offer code made in App Store Connect. Apple's rule is that a
-            // code is redeemed through that sheet and not through a field of the app's own.
-            Button {
-                Tour.used(.redeemCode)
-                showingRedeemCode = true
-            } label: {
-                Label("Redeem a Code", systemImage: "giftcard")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tour(.redeemCode, in: Tour.plans)
-            .redeemCodeSheet(isPresented: $showingRedeemCode) { outcome in
-                // The case only (5.8 journal), never the failure's text.
-                switch outcome {
-                case .redeemed: VerificationJournal.record("plans.redeemCode", .ok, ["result": "redeemed"])
-                case .closed: VerificationJournal.record("plans.redeemCode", .info, ["result": "closed"])
-                case .cancelled: VerificationJournal.record("plans.redeemCode", .cancelled, ["result": "cancelled"])
-                case .failed: VerificationJournal.record("plans.redeemCode", .failed, ["result": "failed"])
-                }
-                if let message = outcome.message { alertMessage = message }
-                guard outcome.readsEntitlementsAgain else { return }
-                // Reads the App Store's current entitlements again; nothing is asked of the person.
-                // After a pause, so the listener that applies the redeemed transaction goes first
-                // and this read cannot overwrite it with an older state.
-                Task {
-                    try? await Task.sleep(for: .seconds(2))
-                    await entitlementStore.reconcileEntitlementsOnLaunch()
-                }
-            }
-        }
-    }
-
-    fileprivate var complianceFooter: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text(
                 "Subscriptions automatically renew at the price and duration selected above unless cancelled at least 24 hours before the end of the current period. Payments are charged to your App Store account. You can manage your subscriptions and turn off auto-renewal in your App Store Account Settings after purchase."
             )
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            .font(DSTypography.meta)
+            .foregroundStyle(DSColors.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: DSSpacing.lg) {
                 Link(
                     "Terms of Use (EULA)",
                     destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
                 )
-                .font(.caption.weight(.semibold))
                 Link("Privacy Policy", destination: URL(string: "https://gunndamental.com/openintelligence/privacy/")!)
-                    .font(.caption.weight(.semibold))
             }
+            .font(DSTypography.caption.weight(.semibold))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DSSpacing.xs)
+    }
+
+    @ViewBuilder
+    private var storeButtons: some View {
+        Button(action: restorePurchases) {
+            if isRestoring {
+                ProgressView()
+            } else {
+                Text("Restore Purchases")
+            }
+        }
+        .disabled(isRestoring)
+
+        Button("Manage Subscription", action: manageSubscriptions)
+
+        // Apple's own sheet for an offer code made in App Store Connect. Apple's rule is that a
+        // code is redeemed through that sheet and not through a field of the app's own.
+        Button("Redeem a Code") {
+            Tour.used(.redeemCode)
+            showingRedeemCode = true
+        }
+        .tour(.redeemCode, in: Tour.plans)
+        .redeemCodeSheet(isPresented: $showingRedeemCode) { outcome in
+            // The case only (5.8 journal), never the failure's text.
+            switch outcome {
+            case .redeemed: VerificationJournal.record("plans.redeemCode", .ok, ["result": "redeemed"])
+            case .closed: VerificationJournal.record("plans.redeemCode", .info, ["result": "closed"])
+            case .cancelled: VerificationJournal.record("plans.redeemCode", .cancelled, ["result": "cancelled"])
+            case .failed: VerificationJournal.record("plans.redeemCode", .failed, ["result": "failed"])
+            }
+            if let message = outcome.message { alertMessage = message }
+            guard outcome.readsEntitlementsAgain else { return }
+            // Reads the App Store's current entitlements again; nothing is asked of the person.
+            // After a pause, so the listener that applies the redeemed transaction goes first
+            // and this read cannot overwrite it with an older state.
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                await entitlementStore.reconcileEntitlementsOnLaunch()
+            }
+        }
     }
 }
+
 
 // MARK: - Actions
 
@@ -811,15 +704,15 @@ private struct PlanTierCard: View {
     let ctaAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.lg) {
-            HStack {
-                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(option.planName)
-                        .font(.headline)
+                        .font(DSTypography.title)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                     Text(option.tagline)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(DSTypography.caption)
+                        .foregroundStyle(DSColors.secondaryText)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 }
                 Spacer()
@@ -827,69 +720,66 @@ private struct PlanTierCard: View {
                 // were written for Monthly and Lifetime and never shown.
                 if let badgeText = option.badgeText {
                     Text(badgeText)
-                        .font(.caption2.weight(.semibold))
                         .lineLimit(1)
                         .fixedSize()
-                        .padding(.horizontal, DSSpacing.sm)
-                        .padding(.vertical, DSSpacing.xs)
-                        .background(option.tint.opacity(0.15))
-                        .clipShape(Capsule())
+                        .chipStyle(tint: DSColors.readable(option.tint))
                         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 }
             }
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                // The billed amount is the largest pricing text on the card (`PlanPriceComparison`), at the
+                // type scale's figure size; everything computed from it sits below, smaller.
                 HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
                     Text(price + (priceSuffix ?? ""))
-                        .font(.title.bold())
-                        .monospacedDigit()
-                        .minimumScaleFactor(0.7)
+                        .font(DSTypography.figure)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
 
                     if let saleOffer {
                         Text(saleOffer.regularDisplayPrice)
-                            .font(.headline)
+                            .font(DSTypography.body)
                             .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .strikethrough(true, color: .secondary)
+                            .foregroundStyle(DSColors.secondaryText)
+                            .strikethrough(true, color: DSColors.secondaryText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
 
                         Text("\(saleOffer.percentOff)% off")
-                            .font(.caption.weight(.bold))
                             .monospacedDigit()
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, DSSpacing.sm)
-                            .padding(.vertical, DSSpacing.xxs)
-                            .background(Capsule().fill(Color.green))
+                            .chipStyle(tint: DSColors.readable(.green))
                             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     }
                 }
 
                 PlanPriceCaptions(saleOffer: saleOffer, dealBadge: dealBadge, lines: comparisons)
+
+                if option.product.kind == .subscription {
+                    Text(
+                        option.product == .proMonthly
+                            ? "1-Month Auto-Renewing Subscription" : "1-Year Auto-Renewing Subscription"
+                    )
+                    .font(DSTypography.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                }
             }
             // Deliberately no accessibility modifiers here. The whole card is a single element
             // (see the bottom of this view), and a label applied inside it would be discarded.
             // The sale is spoken through `accessibilityValueText` instead.
 
-            if option.product.kind == .subscription {
-                Text(
-                    option.product == .proMonthly
-                        ? "1-Month Auto-Renewing Subscription" : "1-Year Auto-Renewing Subscription"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, -DSSpacing.sm)
-            }
-
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 ForEach(option.features, id: \.self) { feature in
-                    Label(feature, systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.footnote.weight(.semibold))
-                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    Label {
+                        Text(feature)
+                    } icon: {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(option.tint)
+                    }
+                    .font(DSTypography.caption)
+                    .foregroundStyle(DSColors.primaryText)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 }
             }
 
@@ -899,11 +789,20 @@ private struct PlanTierCard: View {
                 .disabled(hasAccess || isProcessing)
         }
         .padding(DSSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // A `SurfaceCard`'s surface, drawn here so the featured plan can carry a thin outline in its tint instead of
+        // the glow it had.
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: option.isFeatured ? option.tint.opacity(0.2) : .clear, radius: 20, x: 0, y: 10)
+                .shadow(color: .black.opacity(0.04), radius: DSSpacing.sm, x: 0, y: DSSpacing.xs)
         )
+        .overlay {
+            if option.isFeatured {
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    .strokeBorder(option.tint.opacity(0.6), lineWidth: 1)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(option.planName) plan")
         .accessibilityValue(accessibilityValueText)
@@ -987,12 +886,9 @@ private struct PlanPriceCaptions: View {
         }
         if let dealBadge {
             Text(dealBadge)
-                .font(.caption.weight(.semibold))
                 .monospacedDigit()
                 .lineLimit(1)
-                .padding(.horizontal, DSSpacing.sm)
-                .padding(.vertical, DSSpacing.xxs)
-                .background(Capsule().fill(Color.green.opacity(0.18)))
+                .chipStyle(tint: DSColors.readable(.green))
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
         ForEach(lines, id: \.self) { line in
@@ -1001,30 +897,6 @@ private struct PlanPriceCaptions: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-        }
-    }
-}
-
-private struct PlanStorySlide: Identifiable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let icon: String
-    let tint: Color
-}
-
-private struct BenefitRow: View {
-    let icon: String
-    let text: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: DSSpacing.sm) {
-            Image(systemName: icon)
-                .foregroundStyle(tint)
-                .frame(width: DSSpacing.xl)
-            Text(text)
-                .font(.subheadline)
         }
     }
 }

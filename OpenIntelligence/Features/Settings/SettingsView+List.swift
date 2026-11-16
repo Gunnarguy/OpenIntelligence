@@ -256,13 +256,15 @@ extension SettingsView {
                     Section {
                         ForEach(entries) { entry in
                             Group {
-                                if entry.id == .advanced {
+                                if let opensSheet = sheetAction(for: entry.id) {
                                     // Advanced opens the parameters directly. Pushing a screen
                                     // whose only content was a button that opened this sheet
                                     // made it two taps to reach the one thing behind the row.
+                                    // Plan & Usage opens the plans the same way (2026-11-15): its page
+                                    // held the usage panel and a View Plans button, three taps to a plan.
                                     Button {
                                         DSHaptics.selection()
-                                        showModelConfiguration = true
+                                        opensSheet()
                                     } label: {
                                         HStack {
                                             settingsRow(entry)
@@ -330,6 +332,21 @@ extension SettingsView {
             if !trimmedSearch.isEmpty, SettingsGroup.allCases.allSatisfy({ visibleEntries(in: $0).isEmpty }) {
                 ContentUnavailableView.search(text: trimmedSearch)
             }
+        }
+    }
+
+    /// What a row that opens a sheet instead of pushing a page does when tapped, or nil for a row that pushes.
+    private func sheetAction(for id: SettingsEntryID) -> (() -> Void)? {
+        switch id {
+        case .advanced:
+            return { showModelConfiguration = true }
+        case .plan:
+            return {
+                planEntryPoint = .settings
+                showPlanSheet = true
+            }
+        default:
+            return nil
         }
     }
 
@@ -474,12 +491,26 @@ extension SettingsView {
                     .init(
                         symbol: "creditcard", name: "Plan", color: .orange,
                         figure: entitlementStore.effectiveTier.displayName, share: nil,
-                        caption: entitlementStore.effectiveTier == .free ? "upgrade any time" : "active"),
+                        caption: entitlementStore.effectiveTier == .free ? "tap to upgrade" : "tap for plans"),
                     .init(
                         symbol: "books.vertical", name: "Libraries", color: .green, figure: libraries.figure,
                         share: libraries.share, caption: libraries.caption),
                 ]
             )
+            // The Plan block, the third of four equal blocks, opens the plans screen (2026-11-15), as the Plan & Usage
+            // row does. The other three take no tap, so the row stays inert around it; VoiceOver reads the panel as
+            // one element, so there it is a named action.
+            .overlay {
+                HStack(spacing: 0) {
+                    Color.clear
+                    Color.clear
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { sheetAction(for: .plan)?() }
+                    Color.clear
+                }
+            }
+            .accessibilityAction(named: "Open Plans") { sheetAction(for: .plan)?() }
             if !modelReady {
                 Text(statusText)
                     .font(.caption)
@@ -572,7 +603,9 @@ extension SettingsView {
         case .notifications:
             detailScroll { CompletionNotificationSettingsCard() }
         case .plan:
-            detailScroll { billingCard }
+            // Unreachable, like `.advanced` below: the Plan & Usage row presents the plans screen directly
+            // (2026-11-15), and the screen opens with the usage panel this page showed.
+            EmptyView()
         case .siriShortcuts:
             detailScroll {
                 siriIntegrationCard
@@ -622,10 +655,12 @@ extension SettingsView {
         #if os(macOS)
             // On a Mac a pushed page replaces the list, so the plans sheet attached to the list (`SettingsView.body`)
             // has nothing to present from: View Plans on Plan & Usage did nothing (seen on the owner's Mac,
-            // 2026-11-14). The page presents it itself there. On iPhone and iPad the list stays under the page
-            // and presents it, and a second presenter for the same flag would fight the first.
+            // 2026-11-14). The page presents it itself there; since 2026-11-15 that is the upgrade buttons on
+            // Intelligence Mode and Libraries & iCloud, the Plan & Usage row being on the list. On iPhone and iPad
+            // the list stays under the page and presents it, and a second presenter for the same flag would fight
+            // the first.
             .sheet(isPresented: $showPlanSheet) {
-                PlanUpgradeSheet(entryPoint: planEntryPoint)
+                PlanUpgradeSheet(entryPoint: planEntryPoint, usage: planUsage)
             }
         #endif
     }

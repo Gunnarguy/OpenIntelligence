@@ -112,6 +112,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **The plans screen shows the plan you have.** If your Lifetime came from a purchase before 5.5, the plans screen said Free and offered you plans you already had, while Plan & Usage said Lifetime. It says Lifetime now.
 - **The plans screen says what each plan adds.** "Why upgrade now?" is "What you get" now, with what paying actually changes.
 - **Free, Pro and Lifetime, side by side.** Under the three plans there's now a table of everything a paid plan changes and what each plan has of it: Maximum mode, documents, libraries, conversations in each library and watched folders. Your own plan is marked. The conversation limit (5 on Free, 20 on Pro, unlimited on Lifetime) was always there and wasn't written anywhere.
+- **Plans are one tap from Settings.** The Plan & Usage row opens the plans screen itself, with what you have used at the top, and the Plan block at the top of Settings opens it too. The screen is shorter: your plan and usage, the three plans with their prices, the side-by-side table, then restore, manage, redeem and the legal links. The banners, the "What you get" list, the slides and the tip are gone; the table and the plans said the same things.
 
 ### Ratings
 

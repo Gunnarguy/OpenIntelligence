@@ -85,8 +85,8 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-.sheet(isPresented: $showPlanSheet) {
-            PlanUpgradeSheet(entryPoint: planEntryPoint)
+        .sheet(isPresented: $showPlanSheet) {
+            PlanUpgradeSheet(entryPoint: planEntryPoint, usage: planUsage)
         }
         .onAppear {
             deviceCapabilities = RAGService.checkDeviceCapabilities()

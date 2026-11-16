@@ -256,6 +256,48 @@ final class FiveChecksUITests: XCTestCase {
         }
     }
 
+    /// The plans screen from Settings, one screenshot per screen to its end (2026-11-15). Plan & Usage opened a page
+    /// whose View Plans opened the plans; where that page is still there it is kept and its button tapped.
+    @MainActor
+    func testShotsOfThePlansScreen() {
+        let app = launch()
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 20), "no Settings tab")
+        settings.tap()
+        sleep(2)
+        clearTheScreen(app)
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Plan & Usage'")).firstMatch
+        var tries = 0
+        while !row.isHittable, tries < 6 {
+            app.swipeUp(velocity: .slow)
+            tries += 1
+        }
+        XCTAssertTrue(row.isHittable, "no Plan & Usage row")
+        row.tap()
+        sleep(2)
+        let viewPlans = app.buttons.matching(NSPredicate(format: "label IN {'View Plans', 'Upgrade Plan'}")).firstMatch
+        var taps = 1
+        if viewPlans.exists, viewPlans.isHittable {
+            keep(app, "plans-page")
+            viewPlans.tap()
+            taps += 1
+            sleep(3)
+        }
+        note(
+            "plans-taps",
+            "\(taps + 1) taps from the Settings tab to the plans (tab, row\(taps > 1 ? ", View Plans" : ""))")
+        // Until a swipe no longer moves the page: the same pixels twice is the end.
+        var previous = Data()
+        for index in 0..<10 {
+            let pixels = app.screenshot().pngRepresentation
+            if pixels == previous { break }
+            previous = pixels
+            keep(app, String(format: "plans-%02d", index))
+            app.swipeUp(velocity: .slow)
+            sleep(1)
+        }
+    }
+
     // MARK: - 3
 
     @MainActor

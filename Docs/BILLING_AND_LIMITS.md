@@ -103,6 +103,20 @@ the Terms' plan list and in the App Store description, with watched folders besi
 table for the reason above. `testTheComparisonListsEveryPaidGate` holds the rows to `QuotaPolicy`.
 `[evidence_level: code_verified, confidence: exact, evidence_source: PlanBenefits.swift, QuotaPolicy.swift; not yet built or run]`
 
+**What the screen holds, and how it is reached (2026-11-15).** The Plan & Usage row in Settings, and the Plan block of
+the Settings list's top panel, open the plans screen in one tap; the Plan & Usage page is gone and its usage panel
+(documents, libraries, chats in the open library, Maximum left today) opens the screen, from counts Settings passes
+(`PlanUsage`); opened from anywhere else the panel states the plan's limits. In order: the reason it opened (not from
+Settings), the panel, the launch sale as one caption line when `LaunchSale` confirms one, the three plan cards with
+their live prices, bullets and buy buttons, the "Free, Pro and Lifetime" table, then restore, manage subscription and
+redeem a code as links, the privacy label and store rating, the auto-renewal terms and the EULA and privacy links.
+Removed: the hero, the sale and social-proof banners, the "What you get" list (`PlanBenefits.highlights`), the
+three-slide carousel and the "Built for personal research" tip; the cards and the table said the same. The entry
+points that open the sheet elsewhere (limits, Maximum running out, watched folders, the sale banner, onboarding) are
+unchanged, each with its `PlanUpgradeEntryPoint`. On a Mac the Settings pages still present the sheet themselves
+(`detailScroll`), now for the upgrade buttons on Intelligence Mode and Libraries & iCloud.
+`[evidence_level: measured, iOS 27 Simulator screenshots; build_verified, macOS]`
+
 ### What each plan says against the others (5.5)
 
 Added 2026-09-29, with the prices that take effect on 2026-09-30 and 2026-10-01. Each card compares

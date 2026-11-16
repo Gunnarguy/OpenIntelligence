@@ -7,12 +7,6 @@ import Foundation
 /// is checked against `QuotaPolicy` by `PlanBenefitsTests`, so a changed limit can't leave a stale
 /// bullet behind.
 enum PlanBenefits {
-    struct Highlight: Identifiable {
-        let icon: String
-        let text: String
-        var id: String { text }
-    }
-
     static let pro = [
         "Maximum mode with no daily cap",
         "Up to \(QuotaPolicy.proDocumentLimit.formatted()) documents",
@@ -31,13 +25,8 @@ enum PlanBenefits {
         "Never expires",
     ]
 
-    /// The "What you get" list, shown above the plan cards.
-    static let highlights = [
-        Highlight(icon: "bolt.fill", text: "Maximum mode with no daily cap"),
-        Highlight(icon: "doc.badge.plus", text: "More documents and more libraries"),
-        Highlight(icon: "folder.badge.gearshape", text: "Watched folders that import new files"),
-        Highlight(icon: "creditcard", text: "Pay once with Lifetime"),
-    ]
+    // The "What you get" list that sat above the cards (`highlights`) was removed on 2026-11-15: the cards and the
+    // table under them say all of it.
 
     /// One line of the "Free, Pro and Lifetime" table: a thing a paid plan gates and what each plan has of it.
     struct Comparison: Identifiable {
