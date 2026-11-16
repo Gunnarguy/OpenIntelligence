@@ -189,14 +189,13 @@ extension DocumentLibraryView {
                 Button("Undo") {
                     ragService.undoRemoval(removal.id)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .controlSize(.small)
             }
             .padding(.horizontal, DSSpacing.md)
             .padding(.vertical, DSSpacing.sm)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.red.opacity(0.3), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            // Floats over the library, so Liquid Glass (5.8, 2026-11-16; was `.ultraThinMaterial` with a red edge).
+            .glassEffect(.regular, in: Capsule())
             .padding(.horizontal, DSSpacing.md)
             .padding(.bottom, DSSpacing.md)
             .transition(.move(edge: .bottom).combined(with: .opacity))

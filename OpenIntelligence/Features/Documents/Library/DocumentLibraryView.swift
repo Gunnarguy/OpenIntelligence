@@ -235,13 +235,9 @@ struct DocumentLibraryView: View {
             .frame(minWidth: iconOnly ? DSSpacing.tapTarget : 0, minHeight: iconOnly ? DSSpacing.tapTarget : 0)
             .padding(.horizontal, iconOnly ? 0 : DSSpacing.md)
             .padding(.vertical, iconOnly ? 0 : DSSpacing.sm)
-            .background(.ultraThinMaterial)
             .foregroundStyle(isEnabled ? tint : .secondary)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(isEnabled ? tint.opacity(0.15) : Color.secondary.opacity(0.1), lineWidth: 1)
-            )
+            // The glass alone (5.8, 2026-11-16): `.ultraThinMaterial` and a tinted edge sat under it, a material under
+            // glass.
             .glassEffectHelper(isSelected: false, interactive: isEnabled)
             .opacity(isEnabled ? 1 : 0.6)
         }

@@ -76,7 +76,7 @@ extension ContainerSettingsSheet {
                 Text("Silicon-Native Acceleration")
                     .font(.subheadline.weight(.medium))
                 Spacer()
-                Text(DeviceCapabilityService.shared.chipName)
+                Text(DeviceCapabilityService.shared.chipDisplayName)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.xs)

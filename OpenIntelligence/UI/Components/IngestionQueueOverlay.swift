@@ -529,14 +529,10 @@ struct IngestionQueueOverlay: View {
         // The same width minimized (5.7): 260 points left the title a few letters beside Pause and the panel's two
         // buttons, which are 44 points to tap on iPhone and iPad.
         .frame(maxWidth: overlayMaxWidth, alignment: .leading)
-        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.12), radius: DSSpacing.xl, x: 0, y: DSSpacing.md)
-        .glassCardEffectHelper(cornerRadius: DSCorners.sheet, isSelected: false, interactive: false)
+        // Floats over the tab, so regular Liquid Glass alone (5.8, 2026-11-16). It had `.ultraThinMaterial`, a tinted
+        // edge, a drawn shadow and glass on top of all three.
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
         .animation(DSAnimations.bubbleAppear, value: items.count)
         .animation(DSAnimations.snappySpring, value: isMinimized)
         .onChange(of: isAutomatic, initial: true) { _, automatic in

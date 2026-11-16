@@ -170,7 +170,7 @@ final class QueryRuntimeCoordinator {
                 if !networkAvailable {
                     config.executionContext = .onDeviceOnly
                     config.allowPrivateCloudCompute = false
-                    Log.info("[QueryRuntime] Offline → onDeviceOnly (4096 tokens)", category: .pipeline)
+                    Log.info("[QueryRuntime] Offline → onDeviceOnly (\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)) tokens)", category: .pipeline)
                 } else if isPCCSuppressed {
                     config.executionContext = .onDeviceOnly
                     config.allowPrivateCloudCompute = false

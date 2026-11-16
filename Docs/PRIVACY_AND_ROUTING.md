@@ -522,3 +522,7 @@ RAGService+Generation.swift:1214-1217]`
 ## The model service plays no haptics (added 2026-11-16, for 5.8)
 
 `AppleFoundationLLMService` played a haptic at the first token, every 8 streamed snapshots and at completion of every model call, on device and on Private Cloud Compute alike, Deep Think's working calls included. It plays none now; the chat screen plays them from what it shows. Routing and consent are unchanged. `[evidence_level: build_verified, confidence: high, evidence_source: AppleFoundationLLMService.swift]`
+
+## The overflow retry uses this device's window (added 2026-11-16, for 5.8)
+
+When an on-device answer overflows, the retry's budget is the live on-device window (`FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)`), not a fixed 4,096, with its character caps scaled to it; a 4,096 window gets the same budget as before. Routing and consent are unchanged. Apple Intelligence support now comes from `DeviceCapabilityService`, and the eligible-device copy follows Apple's list of 2026-11-05. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService+QueryPipeline.swift, RAGService+Device.swift]`

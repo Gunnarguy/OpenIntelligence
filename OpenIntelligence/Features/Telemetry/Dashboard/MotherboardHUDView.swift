@@ -236,7 +236,7 @@ nonisolated enum DeviceComponentLayout: Equatable, Sendable {
     /// the CPU brand string, so it resolves hardware this table has never heard of.
     @MainActor
     var chipName: String {
-        DeviceCapabilityService.shared.chipName
+        DeviceCapabilityService.shared.chipDisplayName
     }
 
     // MARK: - Measured positions
@@ -1246,7 +1246,9 @@ private struct SiliconLegend: View {
                             // Int(Double) TRAPS on a non-finite value, and the `>= 0` filter above does
                             // not screen +infinity. ComponentActivity now guarantees finite,
                             // so this is the second line of defence rather than the first.
-                            Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
+                            // The app's own activity on this part, not the hardware's use, which no app can read (the
+                            // Glossary's Neural Engine entry); it printed a percentage until 5.8 (audit 2026-11-16).
+                            Text((activity.percentage.isFinite ? activity.percentage : 0) > 1 ? "busy" : "idle")
                                 .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
                                 .foregroundStyle(.white)
                                 .frame(width: 26 * scale, alignment: .trailing)

@@ -346,7 +346,7 @@ extension GlossaryTermID {
                 icon: "cpu.fill",
                 section: .hardware,
                 plain: "A part of the chip built for machine learning. On an iPhone or iPad the app asks for it, along with the processor and sometimes the graphics chip, when it turns your documents into searchable vectors.",
-                technical: "16 cores on most Apple Intelligence chips, in Apple's specs; M1 Ultra, M2 Ultra and M3 Ultra have 32, and the A20 Pro in the iPhone 18 Pro, 18 Pro Max and Duo (and the 512 GB iPad mini) has two 16-core engines. The app asks Core ML for it through each model's `MLModelConfiguration.computeUnits`, and Core ML makes the final scheduling decision, so this is a stated preference rather than a guarantee that the Neural Engine ran. On a Mac, new libraries embed with Core AI on the GPU, and the Simulator runs Core ML on the CPU.",
+                technical: "16 cores on most Apple Intelligence chips, in Apple's specs; the Ultra chips have 32, and some of the newest chips, such as the A20 Pro, have two 16-core engines. Apple's specs for each chip give its count. The app asks Core ML for it through each model's `MLModelConfiguration.computeUnits`, and Core ML makes the final scheduling decision, so this is a stated preference rather than a guarantee that the Neural Engine ran. On a Mac, new libraries embed with Core AI on the GPU, and the Simulator runs Core ML on the CPU.",
                 seeAlso: [.tops, .chip, .vector],
                 synonyms: ["ane", "npu", "16-core", "core ml", "coreml"]
             )
@@ -394,7 +394,7 @@ extension GlossaryTermID {
                 icon: "memorychip",
                 section: .hardware,
                 plain: "Memory that the processor, the graphics cores and the Neural Engine share, so work does not have to be copied between them. On the larger chips more of it lets more of your library be in flight at once.",
-                technical: "Read from `ProcessInfo.physicalMemory` and shown to a tenth of a gigabyte (a value within 0.05 of a whole number shows as whole); Apple publishes no memory figure for any iPhone. On the top-tier chips (M-series, A20 Pro) it scales some concurrency ceilings, and on every device it bounds how many full-resolution PDF pages are held at once.",
+                technical: "Read from `ProcessInfo.physicalMemory` and shown to a tenth of a gigabyte (a value within 0.05 of a whole number shows as whole); Apple publishes no memory figure for any iPhone. On every Mac, and on an iPad or iPhone in the app's top tier, it scales some concurrency ceilings, and on every device it bounds how many full-resolution PDF pages are held at once.",
                 seeAlso: [.chip, .embedBatch, .gpuProfile],
                 synonyms: ["ram", "memory", "gb", "shared memory"]
             )

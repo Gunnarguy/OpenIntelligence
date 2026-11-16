@@ -385,8 +385,7 @@ class AppleFoundationLLMServiceUnavailable: LLMService {
     func generate(prompt _: String, context _: String?, config _: InferenceConfig) async throws -> LLMResponse {
         #if targetEnvironment(simulator)
             throw LLMError.generationFailed(
-                "Apple Intelligence requires a physical device with Apple Silicon: "
-                    + "iPhone (A17 Pro+), iPad (M1+), or Mac (M1+). "
+                "Apple Intelligence requires a physical device: \(AppleIntelligenceCopy.supportedDevices). "
                     + "The iOS Simulator cannot run Foundation Models."
             )
         #else

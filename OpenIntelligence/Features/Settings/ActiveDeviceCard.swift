@@ -145,7 +145,7 @@ struct ActiveDeviceCard: View {
         let (state, ready) = Self.intelligenceState()
         let name = device.modelName ?? device.formFactor.deviceNoun
         return SettingsStatusPanel(
-            symbol: "cpu", title: name, badge: state, badgeColor: ready ? .cyan : Color.white.opacity(0.7),
+            symbol: "cpu", title: name, badge: state, badgeColor: ready ? .cyan : Color.secondary,
             blocks: tileList.map { tile in
                 .init(symbol: tile.icon, name: tile.id, color: tile.color, figure: tile.value, share: nil, caption: tile.source)
             }

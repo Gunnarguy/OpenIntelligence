@@ -47,7 +47,8 @@ struct SettingsSectionHeader: View {
 }
 
 /// One figure: a small label with its icon, the value, and an optional line saying where it came from. Lit with a
-/// tint where a step turns it up.
+/// tint where a step turns it up: the tint colours the symbol and the value only, on the same neutral fill as every
+/// `SettingsStatusPanel` block (5.8, 2026-11-16: one look for Settings; it was a tinted fill with a coloured outline).
 struct SpecTile: View {
     let name: String
     let value: String
@@ -59,12 +60,13 @@ struct SpecTile: View {
     var marker: String? = nil
     var muted = false
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         // Colours worked out first: as one expression the view took the type checker too long.
         let accent: Color = tint ?? Color.secondary
-        let valueColor: Color = tint ?? (muted ? Color.secondary : Color.primary)
-        let fill: Color = tint.map { $0.opacity(0.10) } ?? Color.secondary.opacity(0.07)
-        let stroke: Color = (tint ?? Color.clear).opacity(0.5)
+        let valueColor: Color = tint.map { DSColors.readable($0) } ?? (muted ? Color.secondary : Color.primary)
+        let fill: Color = SettingsStatusPanel.blockFill(dark: colorScheme == .dark)
         // No text below Apple's minimum and none cut off (5.8 premium pass): the name and caption were 9 and 8 points on
         // one line, shrinking further and ending in "..." ("Reranked per s...").
         let small = SettingsStatusPanel.minimumTextSize
@@ -93,12 +95,8 @@ struct SpecTile: View {
         .padding(.horizontal, DSSpacing.sm)
         .padding(.vertical, DSSpacing.xs)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip + 2, style: .continuous)
                 .fill(fill)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .strokeBorder(stroke, lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
     }

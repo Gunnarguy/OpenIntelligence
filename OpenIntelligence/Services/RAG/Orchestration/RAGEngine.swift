@@ -72,6 +72,8 @@ actor RAGEngine {
     /// On device the same race decides whether a user's first query after launch is ranked like
     /// every later one.
     private var setupTask: Task<Void, Never>?
+    /// The background preparation of the reranker's `.fastPrediction` form on Maximum (`prepareFastForm`, 5.8).
+    private var fastFormTask: Task<Void, Never>?
 
     init() {
         setupTask = Task { [weak self] in
@@ -113,22 +115,22 @@ actor RAGEngine {
                 // next launch (`RerankerModelLocation`, 5.8).
                 let location = RerankerModelLocation.loadURL(for: bundledURL)
                 let url = location.url
-                var loaded: [(length: Int, model: MLModel)] = []
-                for (index, length) in [256, 512].enumerated() {
-                    Task { @MainActor in RerankerSetupStatus.shared.setStep(index + 1) }
-                    do {
-                        let config = MLModelConfiguration()
-                        config.computeUnits = .cpuAndNeuralEngine
-                        config.functionName = "len\(length)"
-                        // Maximum asks Core ML to favour prediction speed over load time, memory and disk (5.8). It
-                        // is a separate compiled form, so the first launch after choosing Maximum prepares search again.
-                        if DeviceCapabilityService.maximumProfileSelected {
-                            config.optimizationHints.specializationStrategy = .fastPrediction
-                        }
-                        loaded.append((length, try MLModel(contentsOf: url, configuration: config)))
-                    } catch {
-                        Log.error(
-                            "[RAGEngine] Failed to load ReRanker function len\(length): \(error)", category: .retrieval)
+                // Maximum runs the `.fastPrediction` form, but compiling it took 70 to 128 s on the owner's iPhone 16
+                // Pro Max against 20.8 to 59.7 s for the default form (journal `reranker.load`, 2026-11-09 to 16). So the
+                // default form loads first and search is ready on it; the fast form is prepared afterwards in the
+                // background and swapped in (`prepareFastForm`), and from then on, for this build and model, loads
+                // directly from Core ML's cache (5.8, 2026-11-16).
+                let maximum = DeviceCapabilityService.maximumProfileSelected
+                var fast = maximum && RerankerFastForm.isPrepared(for: url)
+                var loaded = Self.loadRerankerFunctions(at: url, fast: fast) { step in
+                    Task { @MainActor in RerankerSetupStatus.shared.setStep(step) }
+                }
+                if fast && loaded.count < 2 {
+                    // The recorded fast form did not load; search runs on the default form and the record is dropped.
+                    RerankerFastForm.forget()
+                    fast = false
+                    loaded = Self.loadRerankerFunctions(at: url, fast: false) { step in
+                        Task { @MainActor in RerankerSetupStatus.shared.setStep(step) }
                     }
                 }
                 self.rerankerModels = loaded
@@ -136,14 +138,19 @@ actor RAGEngine {
                 Log.info(
                     "[RAGEngine] Loaded \(url.lastPathComponent) (\(location.fixedPath ? "fixed path" : "bundle")), functions "
                         + loaded.map { "len\($0.length)" }.joined(separator: ", ")
-                        + " in \(String(format: "%.2f", loadSeconds)) s", category: .retrieval)
+                        + " (\(fast ? "fastPrediction" : "default") form) in \(String(format: "%.2f", loadSeconds)) s",
+                    category: .retrieval)
                 // The first load after an install compiles for the Neural Engine; this is what the phone check reads.
                 VerificationJournal.record(
                     "reranker.load", loaded.count == 2 ? .ok : .failed, durationMs: loadSeconds * 1000,
                     ["functions": loaded.map { "len\($0.length)" }.joined(separator: ","),
                         "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
-                        "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)",
+                        "form": fast ? "fastPrediction" : "default",
+                        "fastPrediction": "\(fast)",
                         "fixedPath": "\(location.fixedPath)"])
+                if maximum && !fast && loaded.count == 2 {
+                    prepareFastForm(at: url)
+                }
             } else {
                 Log.warning(
                     "[RAGEngine] ReRankerModel not found (looked for .mlmodelc and .mlpackage)", category: .retrieval)
@@ -160,6 +167,71 @@ actor RAGEngine {
             }
         }
     }
+
+    #if canImport(CoreML)
+        /// Loads the reranker's two functions (`len256`, `len512`) from `url` on the Neural Engine, in the
+        /// `.fastPrediction` form when `fast` is set. A function that fails to load is logged and left out. Runs on the
+        /// caller's thread: the first load of a form compiles it, which takes tens of seconds.
+        nonisolated static func loadRerankerFunctions(
+            at url: URL, fast: Bool, onStep: ((Int) -> Void)? = nil
+        ) -> [(length: Int, model: MLModel)] {
+            var loaded: [(length: Int, model: MLModel)] = []
+            for (index, length) in [256, 512].enumerated() {
+                onStep?(index + 1)
+                do {
+                    let config = MLModelConfiguration()
+                    config.computeUnits = .cpuAndNeuralEngine
+                    config.functionName = "len\(length)"
+                    if fast {
+                        config.optimizationHints.specializationStrategy = .fastPrediction
+                    }
+                    loaded.append((length, try MLModel(contentsOf: url, configuration: config)))
+                } catch {
+                    Log.error(
+                        "[RAGEngine] Failed to load ReRanker function len\(length) "
+                            + "(\(fast ? "fastPrediction" : "default") form): \(error)",
+                        category: .retrieval)
+                }
+            }
+            return loaded
+        }
+
+        /// Prepares the `.fastPrediction` form of both functions at low priority, off this actor so searches keep
+        /// running on the default form meanwhile, and swaps it in once both have loaded (Maximum only, 5.8). Only
+        /// while the app is in front and the system is not asking apps to scale back; otherwise the next launch tries
+        /// again. The same weights run in both forms (`RerankerFormTests` compares their rankings).
+        private func prepareFastForm(at url: URL) {
+            guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+            fastFormTask = Task.detached(priority: .background) { [weak self] in
+                guard !SystemResourceAdvice.prefersReducedUsage, await RerankerWarmup.appIsInFront() else {
+                    VerificationJournal.record("reranker.fastForm", .info, ["skipped": "notInFrontOrReducedUsage"])
+                    return
+                }
+                let start = Date()
+                let fast = Self.loadRerankerFunctions(at: url, fast: true)
+                let seconds = Date().timeIntervalSince(start)
+                guard fast.count == 2 else {
+                    VerificationJournal.record(
+                        "reranker.fastForm", .failed, durationMs: seconds * 1000,
+                        ["functions": fast.map { "len\($0.length)" }.joined(separator: ",")])
+                    return
+                }
+                await self?.adoptFastForm(fast, url: url, seconds: seconds)
+            }
+        }
+
+        private func adoptFastForm(_ fast: [(length: Int, model: MLModel)], url: URL, seconds: Double) {
+            // A search already running keeps the array it was handed; the next one gets the fast form.
+            rerankerModels = fast
+            RerankerFastForm.markPrepared(for: url)
+            Log.info(
+                "[RAGEngine] Swapped in the fastPrediction form, prepared in \(String(format: "%.2f", seconds)) s",
+                category: .retrieval)
+            VerificationJournal.record(
+                "reranker.fastForm", .ok, durationMs: seconds * 1000,
+                ["functions": fast.map { "len\($0.length)" }.joined(separator: ","), "model": url.lastPathComponent])
+        }
+    #endif
 
     // MARK: - MMR (Maximal Marginal Relevance)
 

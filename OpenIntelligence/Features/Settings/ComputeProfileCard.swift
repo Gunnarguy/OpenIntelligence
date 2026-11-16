@@ -40,6 +40,7 @@ struct ComputeProfileCard: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var expanded: String?
     @State private var showsFixed = false
     /// Bumped on every profile change, for the chip's sweep.
@@ -264,23 +265,30 @@ struct ComputeProfileCard: View {
 
     // MARK: The chip
 
-    /// The chip itself: three parts that glow with how many of the jobs each one may run.
+    /// The chip itself: three parts, each with a bar of how many of the jobs it may run.
+    ///
+    /// Drawn as `SettingsStatusPanel` is since 5.8 (2026-11-16): a grouped cell surface with a hairline edge, one neutral
+    /// fill for every part, and colour only on each part's symbol and bar. It was a near-black die with scan lines, a
+    /// gradient edge and a glow per part, which the owner called "a little bit tacky".
     private var die: some View {
         VStack(spacing: DSSpacing.xs) {
             HStack {
                 Image(systemName: "memorychip")
                     .scaledFont(size: 11, weight: .semibold)
                 Text(chipName)
-                    .scaledFont(size: 12, weight: .bold, design: .monospaced)
+                    .scaledFont(size: 15, weight: .semibold, relativeTo: .subheadline)
                 Spacer()
-                Text(profile.displayName.uppercased())
-                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .heavy, design: .monospaced)
+                Text(profile.displayName)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize + 1, weight: .semibold, relativeTo: .caption)
                     .foregroundStyle(
-                        Self.color(for: profile) == .secondary ? Color.white.opacity(0.7) : Self.color(for: profile)
+                        Self.color(for: profile) == .secondary ? Color.secondary : DSColors.readable(Self.color(for: profile))
                     )
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Self.color(for: profile).opacity(colorScheme == .dark ? 0.20 : 0.12)))
                     .contentTransition(.interpolate)
             }
-            .foregroundStyle(Color.white.opacity(0.85))
+            .foregroundStyle(.secondary)
 
             HStack(spacing: DSSpacing.sm) {
                 ForEach(Chip.allCases) { chip in
@@ -289,32 +297,7 @@ struct ComputeProfileCard: View {
             }
         }
         .padding(DSSpacing.sm)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(Color(white: 0.07))
-                // Fine traces, like the die's wiring.
-                Canvas { context, size in
-                    var path = Path()
-                    stride(from: 0, through: size.height, by: 9).forEach { y in
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: size.width, y: y))
-                    }
-                    context.stroke(path, with: .color(Color.white.opacity(0.035)), lineWidth: 0.5)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-            }
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: Chip.allCases.filter { jobs(on: $0) > 0 }.map(\.color),
-                        startPoint: .leading, endPoint: .trailing),
-                    lineWidth: 1.2
-                )
-                .opacity(0.8)
-        )
+        .settingsPanelSurface(dark: colorScheme == .dark)
         .phaseAnimator(reduceMotion ? [0.0] : [0.0, 1.0, 0.0], trigger: sweep) { view, phase in
             view.brightness(phase * 0.08).scaleEffect(1 + phase * 0.01)
         } animation: { _ in
@@ -329,16 +312,15 @@ struct ComputeProfileCard: View {
 
     private func chipBlock(_ chip: Chip) -> some View {
         let count = jobs(on: chip)
-        let share = Double(count) / Double(max(1, current.count))
         let on = count > 0
         return VStack(spacing: 3) {
             Image(systemName: chip.symbol)
                 .scaledFont(size: 15, weight: .semibold)
-                .foregroundStyle(on ? Color.white : chip.color.opacity(0.35))
+                .foregroundStyle(on ? DSColors.readable(chip.color) : chip.color.opacity(0.35))
                 .symbolEffect(.bounce, value: count)
             Text(chip.name)
-                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
-                .foregroundStyle(on ? Color.white : Color.white.opacity(0.35))
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
+                .foregroundStyle(on ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -346,35 +328,26 @@ struct ComputeProfileCard: View {
             HStack(spacing: 2) {
                 ForEach(0..<current.count, id: \.self) { index in
                     Capsule()
-                        .fill(index < count ? chip.color : Color.white.opacity(0.12))
+                        .fill(index < count ? chip.color : chip.color.opacity(colorScheme == .dark ? 0.22 : 0.15))
                         .frame(height: 4)
                 }
             }
             .padding(.horizontal, DSSpacing.xs)
             Text("\(count) of \(current.count) jobs")
-                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize + 2, weight: .semibold, design: .rounded)
+                .monospacedDigit()
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(on ? Color.white.opacity(0.85) : Color.white.opacity(0.3))
+                .foregroundStyle(on ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                 .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DSSpacing.xs)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            chip.color.opacity(on ? 0.30 + 0.45 * share : 0.05), chip.color.opacity(on ? 0.10 : 0.02),
-                        ],
-                        center: .center, startRadius: 2, endRadius: 70))
+            RoundedRectangle(cornerRadius: DSCorners.chip + 2, style: .continuous)
+                .fill(SettingsStatusPanel.blockFill(dark: colorScheme == .dark))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                .strokeBorder(chip.color.opacity(on ? 0.95 : 0.2), lineWidth: 1)
-        )
-        .shadow(color: chip.color.opacity(on ? 0.25 + 0.5 * share : 0), radius: on ? 4 + 12 * share : 0)
     }
 
     // MARK: The ladder

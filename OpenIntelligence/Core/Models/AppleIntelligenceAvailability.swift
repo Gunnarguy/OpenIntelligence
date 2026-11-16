@@ -25,10 +25,11 @@ nonisolated enum AppleIntelligenceUnavailability: String, Sendable, Equatable {
 /// The words each surface uses for an unavailable model. One place, so the chat error, the Settings
 /// status and the notice on an empty chat never disagree.
 nonisolated enum AppleIntelligenceCopy {
-    /// The hardware Apple lists for Apple Intelligence (support.apple.com/en-us/121115, read
-    /// 2026-10-06), in the short form the store description uses.
+    /// The hardware Apple lists for Apple Intelligence (support.apple.com/en-us/121115, published 2026-11-05, read
+    /// 2026-11-16), in short form. The 2026-10-06 wording left out the iPhone Air and Duo, the A20 Pro iPad mini and the
+    /// MacBook Neo.
     static let supportedDevices =
-        "an iPhone 15 Pro, any iPhone 16 or later, an iPad mini with A17 Pro, or an iPad or Mac with an M1 chip or later"
+        "an iPhone 15 Pro or later (including iPhone Air and iPhone Duo), an iPad mini with A17 Pro or A20 Pro, an iPad with M1 or later, a MacBook Neo, or a Mac with M1 or later"
 
     /// A few words for a status chip or a Settings row.
     static func status(for reason: AppleIntelligenceUnavailability?) -> String {

@@ -292,7 +292,7 @@ struct FoundationModelErrorMapper {
         } else {
             switch error {
             case let .exceededContextWindowSize(context):
-                Log.warning("[FM] Context window exceeded (4096 tokens): \(context)", category: .llm)
+                Log.warning("[FM] Context window exceeded (\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)) tokens on device): \(context)", category: .llm)
                 TelemetryCenter.emit(
                     .system,
                     severity: .warning,

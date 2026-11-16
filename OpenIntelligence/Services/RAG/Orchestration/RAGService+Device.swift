@@ -102,15 +102,15 @@ extension RAGService {
                         // Jump to post-Foundation Models setup
                         if hasAppleIntelligenceOS {
                             capabilities.supportsAppleIntelligence =
-                                capabilities.deviceChip.supportsAppleIntelligence
+                                DeviceCapabilityService.shared.supportsAppleIntelligence
                             capabilities.supportsPrivateCloudCompute =
                                 DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                             capabilities.supportsWritingTools = true
                             capabilities.supportsImagePlayground =
-                                capabilities.deviceChip.supportsAppleIntelligence
+                                DeviceCapabilityService.shared.supportsAppleIntelligence
                             if !capabilities.supportsAppleIntelligence {
                                 capabilities.appleIntelligenceUnavailableReason =
-                                    "Requires A17 Pro+ or M-series"
+                                    "Requires \(AppleIntelligenceCopy.supportedDevices)"
                             }
                         }
 
@@ -183,21 +183,21 @@ extension RAGService {
                     DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                 capabilities.supportsWritingTools = true
                 capabilities.supportsImagePlayground =
-                    capabilities.deviceChip.supportsAppleIntelligence
+                    DeviceCapabilityService.shared.supportsAppleIntelligence
             } else if hasAppleIntelligenceOS {
                 // iOS 18.1+ has Apple Intelligence (PCC, Writing Tools, ChatGPT)
                 // but no Foundation Models yet
                 capabilities.supportsAppleIntelligence =
-                    capabilities.deviceChip.supportsAppleIntelligence
+                    DeviceCapabilityService.shared.supportsAppleIntelligence
                 capabilities.supportsPrivateCloudCompute =
                     DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                 capabilities.supportsWritingTools = true
                 capabilities.supportsImagePlayground =
-                    capabilities.deviceChip.supportsAppleIntelligence
+                    DeviceCapabilityService.shared.supportsAppleIntelligence
                 capabilities.foundationModelUnavailableReason = "Requires iOS 26"
                 if !capabilities.supportsAppleIntelligence {
                     capabilities.appleIntelligenceUnavailableReason =
-                        "Requires A17 Pro+ or M-series"
+                        "Requires \(AppleIntelligenceCopy.supportedDevices)"
                 }
             } else {
                 capabilities.foundationModelUnavailableReason = "Requires iOS 26"
@@ -206,16 +206,16 @@ extension RAGService {
         #else
             if hasAppleIntelligenceOS {
                 capabilities.supportsAppleIntelligence =
-                    capabilities.deviceChip.supportsAppleIntelligence
+                    DeviceCapabilityService.shared.supportsAppleIntelligence
                 capabilities.supportsPrivateCloudCompute =
                     DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                 capabilities.supportsWritingTools = true
                 capabilities.supportsImagePlayground =
-                    capabilities.deviceChip.supportsAppleIntelligence
+                    DeviceCapabilityService.shared.supportsAppleIntelligence
                 capabilities.foundationModelUnavailableReason = "Build with iOS 26 SDK to enable"
                 if !capabilities.supportsAppleIntelligence {
                     capabilities.appleIntelligenceUnavailableReason =
-                        "Requires A17 Pro+ or M-series"
+                        "Requires \(AppleIntelligenceCopy.supportedDevices)"
                 }
             } else {
                 capabilities.foundationModelUnavailableReason = "Build with iOS 26 SDK to enable"
@@ -363,6 +363,9 @@ extension RAGService {
 
 // MARK: - Device Chip Detection
 
+/// A chip label from an identifier table last updated before the iPhone 17 family; it named those phones "A12 or Older" and
+/// M1/M2 iPads A16 (audit 2026-11-16). It no longer decides whether Apple Intelligence is supported: that is
+/// `DeviceCapabilityService.supportsAppleIntelligence`, from tables that cover every device Apple lists.
 enum DeviceChip: String {
     case mSeries = "Apple Silicon (M1+)"
     case a18Pro = "A18 Pro"
@@ -447,30 +450,6 @@ struct DeviceCapabilities {
     // Computed Properties
     var deviceTier: DeviceTier = .low
 
-    /// Estimated maximum context tokens Apple Intelligence can allocate on this hardware
-    /// - Returns 4,096 tokens per session (same limit applies on-device and via PCC per TN3193)
-    var appleIntelligenceContextTokens: Int {
-        if supportsFoundationModels {
-            return 4096
-        } else if supportsAppleIntelligence {
-            return 4096
-        } else {
-            return 0
-        }
-    }
-
-    /// Human-readable summary of the Apple Intelligence context behaviour for this device
-    var appleIntelligenceContextDescription: String? {
-        if supportsFoundationModels {
-            return
-                "4,096 token context window. Private Cloud Compute handles complex queries that benefit from server-side processing."
-        } else if supportsAppleIntelligence {
-            return
-                "4,096 tokens handled fully on-device while Foundation Models finish downloading."
-        } else {
-            return nil
-        }
-    }
 
     var canRunRAG: Bool { supportsEmbeddings }
 
@@ -484,7 +463,7 @@ struct DeviceCapabilities {
         } else if let reason = appleIntelligenceUnavailableReason {
             return reason
         } else if iOSMajor >= 18 {
-            return "Requires A17 Pro+ or M-series"
+            return "Requires \(AppleIntelligenceCopy.supportedDevices)"
         } else {
             return "Requires iOS 18.1+"
         }

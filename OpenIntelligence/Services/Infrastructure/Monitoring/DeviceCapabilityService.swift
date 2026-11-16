@@ -1153,55 +1153,24 @@ final class DeviceCapabilityService: @unchecked Sendable {
         Self.ingestionExecutionProfileLock.unlock()
     }
 
-    /// Get optimized AgenticConfig for current device
+    /// Deep Think's settings on this device: one confidence target and depth everywhere, scaled up by memory where there is
+    /// more of it (5.8, 2026-11-16).
+    ///
+    /// Until 5.8 the tier set the target (85% on an A17 Pro, 90% on A18, 92% on A19, 95% on M-series) and the steps, from
+    /// a table that disagreed with itself for one chip in different devices (audit 2026-11-16), and every answer benchmark
+    /// ran at the top tier (Simulator or Mac). The owner's rules: accuracy first, Deep Think never gets shallower to get
+    /// quicker, and every figure true for the device it runs on. So the measured settings apply on every supported device;
+    /// memory, which is read live, only raises the step and token ceilings above them.
     func optimizedAgenticConfig() -> AgenticConfig {
-        switch cachedTier {
-        case .unsupported:
-            return .fast // Shouldn't happen, but fallback
-
-        case .baseline:
-            // A17 Pro: Moderate settings for quality without thermal throttling
-            return AgenticConfig(
-                maxSteps: 5,
-                maxTotalTokens: 20000,
-                streamIntermediateResults: true,
-                confidenceThreshold: 0.85, // Higher quality threshold
-                escalationThreshold: 0.35
-            )
-
-        case .enhanced:
-            // A18/A18 Pro: High quality, good thermal headroom
-            return AgenticConfig(
-                maxSteps: 8,
-                maxTotalTokens: 32000,
-                streamIntermediateResults: true,
-                confidenceThreshold: 0.90,
-                escalationThreshold: 0.40
-            )
-
-        case .advanced:
-            // A19/A19 Pro: Maximum quality
-            return AgenticConfig(
-                maxSteps: 10,
-                maxTotalTokens: 40000,
-                streamIntermediateResults: true,
-                confidenceThreshold: 0.92,
-                escalationThreshold: 0.45
-            )
-
-        case .ultraAdvanced:
-            // M-series / future: Full power, highest quality, dynamically scale to RAM
-            let ramMultiplier = max(1.0, cachedMemoryGB / 16.0)
-            let steps = min(32, Int(12.0 * ramMultiplier))
-            let tokens = min(128000, Int(56000.0 * ramMultiplier))
-            return AgenticConfig(
-                maxSteps: steps,
-                maxTotalTokens: tokens,
-                streamIntermediateResults: true,
-                confidenceThreshold: 0.95,
-                escalationThreshold: 0.50
-            )
-        }
+        guard cachedTier != .unsupported else { return .fast }
+        let ramMultiplier = max(1.0, cachedMemoryGB / 16.0)
+        return AgenticConfig(
+            maxSteps: min(32, Int(12.0 * ramMultiplier)),
+            maxTotalTokens: min(128000, Int(56000.0 * ramMultiplier)),
+            streamIntermediateResults: true,
+            confidenceThreshold: 0.95,
+            escalationThreshold: 0.50
+        )
     }
 
     // MARK: - Detection Logic
@@ -1396,7 +1365,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case (16, _): return (.ultraAdvanced, chip, .iPadPro)  // iPad Pro M4
         case (17, _): return (.ultraAdvanced, chip, .iPadPro)  // iPad Pro M5
         case (19, 1...2): return (.ultraAdvanced, chip, .iPadMini)  // iPad mini (A20 Pro)
-        case (18..., _): return (.ultraAdvanced, chip, .iPadPro)  // newer than this build
+        // Newer than this build: the top chip tier, as every new iPad has been, but the iPad Air's power settings, not the
+        // Pro's, since a new identifier says nothing about which model it is (audit 2026-11-16; it was `.iPadPro`).
+        case (18..., _): return (.ultraAdvanced, chip, .iPadAir)
         default: return (.unsupported, chip, .iPadAir)
         }
     }
@@ -1478,19 +1449,29 @@ final class DeviceCapabilityService: @unchecked Sendable {
             maxBufferLengthMB: Int(device.maxBufferLength / 1_048_576),
             maxThreadsPerThreadgroup: threadCount,
             maxThreadgroupMemoryKB: Int(device.maxThreadgroupMemoryLength / 1024),
-            highestAppleFamily: (1 ... 11).reversed().first { family in
+            highestAppleFamily: (1 ... 20).reversed().first { family in  // 20, not 11, so a newer GPU family reads as itself (audit 2026-11-16)
                 MTLGPUFamily(rawValue: 1000 + family).map { device.supportsFamily($0) } ?? false
             }
         )
     }
 
-    private func chipIsAtLeast(_ chipPrefix: String) -> Bool {
-        if cachedChipName.hasPrefix(chipPrefix) {
-            return true
-        }
-        // Handle simulated or sub-branded host chips (e.g., "Simulator on M3 Pro", "iPadAppOnMac:M3")
-        let words = cachedChipName.components(separatedBy: CharacterSet.alphanumerics.inverted)
-        return words.contains(chipPrefix)
+    /// Whether this device's chip is of `chip`'s family ("M" or "A") and at least its generation: `chipIsAtLeast("M4")`
+    /// is true on an M4, M5 or M6. It matched name prefixes until 5.8, so a chip newer than the ones named (M6, an A21)
+    /// matched no branch and got the floor's values (audit 2026-11-16).
+    private func chipIsAtLeast(_ chip: String) -> Bool {
+        guard let wanted = Self.chipFamilyAndGeneration(in: chip),
+            let actual = Self.chipFamilyAndGeneration(in: cachedChipName)
+        else { return false }
+        return wanted.family == actual.family && actual.generation >= wanted.generation
+    }
+
+    /// "M" or "A" and the generation from a chip or brand string: "Apple M6 Max" -> ("M", 6), "Apple A18 Pro GPU" ->
+    /// ("A", 18). Anchored to a standalone token, as `appleSiliconGeneration` is. Nil when no such token is present.
+    nonisolated static func chipFamilyAndGeneration(in name: String) -> (family: Character, generation: Int)? {
+        guard let range = name.range(of: "\\b[AM][0-9]+\\b", options: [.regularExpression]) else { return nil }
+        let token = name[range]
+        guard let family = token.first, let generation = Int(token.dropFirst()) else { return nil }
+        return (family, generation)
     }
 
     private static func describeComputeUnits(_ units: MLComputeUnits) -> String {

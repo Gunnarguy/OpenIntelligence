@@ -42,6 +42,7 @@ struct IntelligenceModeCard: View {
     var onSelect: (RAGQualityMode) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var expanded: String?
     @State private var showsShared = false
     @State private var sweep = 0
@@ -253,41 +254,44 @@ struct IntelligenceModeCard: View {
                     .scaledFont(size: 11, weight: .semibold)
                 // The same header as the Compute Profile's chip: the thing at work, then the step in its colour.
                 Text("\(modelName ?? "Apple's model") · \(windowDescription)")
-                    .scaledFont(size: 12, weight: .bold, design: .monospaced)
+                    .scaledFont(size: 15, weight: .semibold, relativeTo: .subheadline)
                     .lineLimit(2)
-                    .minimumScaleFactor(SettingsStatusPanel.floorScale(for: 12))
+                    .minimumScaleFactor(SettingsStatusPanel.floorScale(for: 15))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                Text(mode.displayName.uppercased())
-                    .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .heavy, design: .monospaced)
-                    .foregroundStyle(tint)
+                Text(mode.displayName)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize + 1, weight: .semibold, relativeTo: .caption)
+                    .foregroundStyle(DSColors.readable(tint))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(tint.opacity(colorScheme == .dark ? 0.20 : 0.12)))
                     .contentTransition(.interpolate)
             }
-            .foregroundStyle(Color.white.opacity(0.85))
+            .foregroundStyle(.secondary)
 
             HStack(spacing: DSSpacing.sm) {
                 ForEach(stageFigures, id: \.title) { figure in
                     let color = Self.stageColor(figure.title)
-                    let share = Double(figure.lit) / 6
                     VStack(spacing: 3) {
                         Image(systemName: figure.symbol)
                             .scaledFont(size: 15, weight: .semibold)
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(DSColors.readable(color))
                             .symbolEffect(.bounce, value: sweep)
                         Text(figure.title.capitalized)
-                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .bold)
-                            .foregroundStyle(Color.white)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
+                            .foregroundStyle(.secondary)
                         HStack(spacing: 2) {
                             ForEach(0..<6, id: \.self) { index in
                                 Capsule()
-                                    .fill(index < figure.lit ? color : Color.white.opacity(0.12))
+                                    .fill(index < figure.lit ? color : color.opacity(colorScheme == .dark ? 0.22 : 0.15))
                                     .frame(height: 4)
                             }
                         }
                         .padding(.horizontal, DSSpacing.xs)
                         Text(figure.value)
-                            .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold, design: .monospaced)
-                            .foregroundStyle(Color.white.opacity(0.9))
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize + 2, weight: .semibold, design: .rounded)
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -296,47 +300,16 @@ struct IntelligenceModeCard: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, DSSpacing.xs)
                     .background(
-                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .fill(
-                                RadialGradient(
-                                    colors: [color.opacity(0.30 + 0.45 * share), color.opacity(0.10)],
-                                    center: .center, startRadius: 2, endRadius: 70))
+                        RoundedRectangle(cornerRadius: DSCorners.chip + 2, style: .continuous)
+                            .fill(SettingsStatusPanel.blockFill(dark: colorScheme == .dark))
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
-                            .strokeBorder(color.opacity(0.95), lineWidth: 1)
-                    )
-                    .shadow(color: color.opacity(0.25 + 0.5 * share), radius: 4 + 12 * share)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(figure.title.capitalized): \(figure.value)")
                 }
             }
         }
         .padding(DSSpacing.sm)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(Color(white: 0.07))
-                Canvas { context, size in
-                    var path = Path()
-                    stride(from: 0, through: size.height, by: 9).forEach { y in
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: size.width, y: y))
-                    }
-                    context.stroke(path, with: .color(Color.white.opacity(0.035)), lineWidth: 0.5)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-            }
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: ["SEARCH", "REASON", "CHECK"].map { Self.stageColor($0) }, startPoint: .leading, endPoint: .trailing),
-                    lineWidth: 1.2
-                )
-                .opacity(0.8)
-        )
+        .settingsPanelSurface(dark: colorScheme == .dark)
         .phaseAnimator(reduceMotion ? [0.0] : [0.0, 1.0, 0.0], trigger: sweep) { view, phase in
             view.brightness(phase * 0.08).scaleEffect(1 + phase * 0.01)
         } animation: { _ in

@@ -173,16 +173,13 @@ struct ChatComposerV2: View {
                         .tour(.attach, in: Tour.chat)
                     }
                 }
-                .background(
+                // The input is a control, so Liquid Glass (5.8, 2026-11-16; was `.ultraThinMaterial`), with the accent edge
+                // kept while it has focus.
+                .glassEffect(
+                    .regular.interactive(), in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
+                .overlay(
                     RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                                .strokeBorder(
-                                    isInputFocused ? DSColors.accent.opacity(0.4) : Color.primary.opacity(0.08),
-                                    lineWidth: 1
-                                )
-                        )
+                        .strokeBorder(DSColors.accent.opacity(isInputFocused ? 0.4 : 0), lineWidth: 1)
                 )
                 .animation(DSAnimations.fastEase, value: isInputFocused)
 
@@ -215,7 +212,7 @@ struct ChatComposerV2: View {
             .padding(.horizontal, DSSpacing.lg)
             .padding(.vertical, DSSpacing.md)
         }
-        .background(.ultraThinMaterial)
+        // No material behind the bar any more: the input's glass is the surface, and glass does not sit on glass.
         .onSubmit(send)
         .alert(
             "Dictation",

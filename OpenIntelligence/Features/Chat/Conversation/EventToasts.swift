@@ -75,15 +75,9 @@ struct EventToastView: View {
         }
         .padding(.horizontal, DSSpacing.sm)
         .padding(.vertical, DSSpacing.sm)
-        .background(
-            .ultraThinMaterial,
-            in: Capsule()
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(toast.tint.opacity(0.3), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+        // Floats over the conversation, so Liquid Glass (5.8, 2026-11-16; was `.ultraThinMaterial` with a tinted edge and
+        // a drawn shadow, which the glass brings itself).
+        .glassEffect(.regular, in: Capsule())
         .scaleEffect(isVisible ? 1.0 : 0.9)
         .opacity(isVisible ? 1.0 : 0.0)
         .onAppear {

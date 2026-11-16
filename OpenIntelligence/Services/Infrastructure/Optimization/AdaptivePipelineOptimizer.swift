@@ -111,8 +111,38 @@ struct AdaptivePipelineConfig: Sendable {
     let minSimilarityThreshold: Float
     let mmrLambda: Float
 
-    /// Base configuration for device tier (before runtime adjustments)
+    /// Base configuration for a device tier, before runtime adjustments: the answer-quality settings are the same on every
+    /// supported device, and only pacing (batch size, cooldown, timeout, context budget) follows the tier.
+    ///
+    /// Until 5.8 the tier also set the retrieval candidates (75 on an A17 Pro, 100 on A18, 150 on A19, 250 on M-series),
+    /// iterative retrieval (off on A17 Pro), the similarity floor and the MMR balance, from a hand-written table that gave
+    /// one chip different tiers in different devices (audit 2026-11-16). Every answer benchmark ran in the Simulator or on
+    /// a Mac, both at the top tier, so iPhones and iPads answered with settings nothing had measured. The owner's rule is
+    /// accuracy first, on every device ("factual, adaptive and dynamic based off of each device", 2026-11-16): the measured
+    /// settings now apply everywhere, and speed adapts through the live thermal, battery and memory adjustments.
     static func base(for tier: DeviceCapabilityTier) -> AdaptivePipelineConfig {
+        let paced = tierBase(for: tier)
+        guard tier != .unsupported else { return paced }
+        let measured = tierBase(for: .ultraAdvanced)
+        return AdaptivePipelineConfig(
+            enableHyDE: measured.enableHyDE,
+            enableParentDocumentRetrieval: measured.enableParentDocumentRetrieval,
+            enableContextualCompression: measured.enableContextualCompression,
+            enableIterativeRetrieval: measured.enableIterativeRetrieval,
+            enableQueryRewriting: measured.enableQueryRewriting,
+            maxRetrievalCandidates: measured.maxRetrievalCandidates,
+            maxContextTokens: paced.maxContextTokens,
+            rerankBatchSize: paced.rerankBatchSize,
+            maxAgenticSteps: measured.maxAgenticSteps,
+            stepCooldownMs: paced.stepCooldownMs,
+            maxQueryTimeoutSeconds: paced.maxQueryTimeoutSeconds,
+            minSimilarityThreshold: measured.minSimilarityThreshold,
+            mmrLambda: measured.mmrLambda
+        )
+    }
+
+    /// Each tier's own settings, of which `base(for:)` keeps only the pacing.
+    private static func tierBase(for tier: DeviceCapabilityTier) -> AdaptivePipelineConfig {
         switch tier {
         case .unsupported:
             return AdaptivePipelineConfig(
@@ -362,7 +392,7 @@ final class AdaptivePipelineOptimizer: ObservableObject {
                     enableHyDE: true,
                     enableParentDocumentRetrieval: true,
                     enableContextualCompression: true,
-                    enableIterativeRetrieval: deviceTier >= .enhanced,
+                    enableIterativeRetrieval: deviceTier != .unsupported,
                     enableQueryRewriting: true,
                     maxRetrievalCandidates: min(50, adjusted.maxRetrievalCandidates + 10),
                     maxContextTokens: adjusted.maxContextTokens,

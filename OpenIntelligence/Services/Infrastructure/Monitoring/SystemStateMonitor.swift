@@ -11,6 +11,9 @@
 import Combine
 import Darwin.Mach
 import Foundation
+#if os(macOS)
+    import IOKit.ps
+#endif
 
 #if canImport(UIKit)
     import UIKit
@@ -442,11 +445,14 @@ final class SystemStateMonitor: ObservableObject {
                 isFullyCharged = rawBatteryState == .full
             }
         #else
-            // macOS: assume plugged in / full
-            let batteryLevel: Float = 1.0
-            let batteryState: MacBatteryState = .full
-            let isCharging = true
-            let isFullyCharged = true
+            // macOS: the internal battery from IOKit's power sources, as the Live System Monitor reads it. Until 5.8 this
+            // was a constant 1.0 and "charging", so every MacBook showed 100% on battery (audit 2026-11-16). A desktop Mac
+            // has no internal battery and reports -1, which hides the battery figure.
+            let power = Self.macBattery()
+            let batteryLevel: Float = power.level
+            let batteryState: MacBatteryState = power.state
+            let isCharging = power.state == .charging || power.state == .full
+            let isFullyCharged = power.state == .full
             let _ = isMac  // suppress unused warning
         #endif
 
@@ -678,6 +684,30 @@ final class SystemStateMonitor: ObservableObject {
 
 #else
     /// macOS battery state stub (no UIDevice available on macOS native target)
+    #if os(macOS)
+    extension SystemStateMonitor {
+        /// The Mac's internal battery level (0 to 1) and state, or -1 and `.unknown` with no internal battery.
+        nonisolated static func macBattery() -> (level: Float, state: MacBatteryState) {
+            guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+                let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef]
+            else { return (-1, .unknown) }
+            for source in list {
+                guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
+                    description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType
+                else { continue }
+                let current = description[kIOPSCurrentCapacityKey] as? Int ?? 0
+                let maximum = description[kIOPSMaxCapacityKey] as? Int ?? 100
+                let level = maximum > 0 ? Float(current) / Float(maximum) : -1
+                let charging = description[kIOPSIsChargingKey] as? Bool ?? false
+                let onAC = description[kIOPSPowerSourceStateKey] as? String == kIOPSACPowerValue
+                // Plugged in and not charging (full, or held by optimized charging) counts as `.full`, plugged in.
+                return (min(1, level), charging ? .charging : (onAC ? .full : .unplugged))
+            }
+            return (-1, .unknown)
+        }
+    }
+    #endif
+
     enum MacBatteryState: Sendable, Equatable, CustomStringConvertible {
         case unknown, unplugged, charging, full
         public var description: String {

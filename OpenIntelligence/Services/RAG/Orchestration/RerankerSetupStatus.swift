@@ -143,12 +143,47 @@ nonisolated enum RerankerWarmup {
     }
 
     @MainActor
-    private static func appIsInFront() -> Bool {
+    static func appIsInFront() -> Bool {
         #if canImport(UIKit)
             return UIApplication.shared.applicationState == .active
         #else
             return true
         #endif
+    }
+}
+
+/// Whether the reranker's `.fastPrediction` form has been prepared for this build and model (5.8, 2026-11-16).
+///
+/// On Maximum the app loads the default form first and prepares the fast one in the background (`RAGEngine`); this
+/// record lets a later launch of the same build load the fast form straight from Core ML's cache. It names the build
+/// (CFBundleVersion) and the model's file name, which carries the model's fingerprint at its fixed path
+/// (`RerankerModelLocation`), so an update or a new model starts from the default form again.
+nonisolated enum RerankerFastForm {
+    static let defaultsKey = "rerankerFastFormPrepared"
+
+    /// The build, the installed executable's modification time and the model. The time is there because every install
+    /// empties Core ML's cache while development installs share one build number (150 all through 2026-11-16), so a
+    /// record keyed by build alone would load the fast form "from cache" after a reinstall and compile it in front of
+    /// the person instead.
+    static func stamp(for model: URL) -> String {
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        let installed =
+            Bundle.main.executableURL
+            .flatMap { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }
+            .map { String(Int($0.timeIntervalSince1970)) } ?? "unknown"
+        return "\(build)|\(installed)|\(model.lastPathComponent)"
+    }
+
+    static func isPrepared(for model: URL, defaults: UserDefaults = .standard) -> Bool {
+        defaults.string(forKey: defaultsKey) == stamp(for: model)
+    }
+
+    static func markPrepared(for model: URL, defaults: UserDefaults = .standard) {
+        defaults.set(stamp(for: model), forKey: defaultsKey)
+    }
+
+    static func forget(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: defaultsKey)
     }
 }
 

@@ -18,6 +18,16 @@ import AppKit
 #endif
 
 extension SettingsView {
+    /// The symbol of the device the app runs on, for "On this device" blocks: it was always an iPhone (audit 2026-11-16).
+    static var thisDeviceSymbol: String {
+        #if os(macOS)
+            // A Mac with an internal battery is a laptop; Mac identifiers no longer say which.
+            return SystemStateMonitor.macBattery().level >= 0 ? "laptopcomputer" : "desktopcomputer"
+        #else
+            return UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone"
+        #endif
+    }
+
     // MARK: - Model & Privacy
 
     /// The Model & Privacy page (2026-11-16): Apple Intelligence and Private Cloud Compute were two pages, and where an
@@ -287,10 +297,10 @@ extension SettingsView {
             symbol: "text.viewfinder",
             title: "Reads at once",
             badge: available ? "Cloud ready" : "On device only",
-            badgeColor: available ? .green : Color.white.opacity(0.7),
+            badgeColor: available ? .green : Color.secondary,
             blocks: [
                 .init(
-                    symbol: "iphone", name: "On this device", color: .blue,
+                    symbol: Self.thisDeviceSymbol, name: "On this device", color: .blue,
                     figure: onDevice > 0 ? onDevice.formatted() : "Unavailable",
                     share: Double(onDevice) / largest, caption: onDevice > 0 ? "tokens" : "no model"),
                 .init(
@@ -326,7 +336,7 @@ extension SettingsView {
             symbol: "books.vertical",
             title: own.count == 1 ? "1 library" : "\(own.count) libraries",
             badge: synced > 0 ? "Syncing" : "Local only",
-            badgeColor: synced > 0 ? .green : Color.white.opacity(0.7),
+            badgeColor: synced > 0 ? .green : Color.secondary,
             blocks: [
                 .init(
                     symbol: "internaldrive", name: "On this device", color: .blue, figure: "\(local)",

@@ -1191,7 +1191,7 @@ extension AgenticOrchestrator {
 
             do {
                 Log.info(
-                    "[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (4096 total limit)",
+                    "[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)) on-device window)",
                     category: .llm)
                 let synthesisResponse = try await LLMStreamingContext.$handler.withValue(
                     LLMStreamingContext.answerHandler

@@ -488,7 +488,7 @@ extension SettingsView {
                 symbol: "brain.head.profile",
                 title: "OpenIntelligence",
                 badge: pccAllowed ? "PCC ready" : (pccAvailable ? "PCC available" : "On device"),
-                badgeColor: pccAvailable ? .cyan : Color.white.opacity(0.7),
+                badgeColor: pccAvailable ? .cyan : Color.secondary,
                 blocks: [
                     .init(
                         symbol: "apple.intelligence", name: "Model", color: .blue, figure: modelFigure,

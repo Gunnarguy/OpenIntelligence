@@ -25,7 +25,7 @@ extension UnifiedMetricsBar {
                 HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "bolt.horizontal.fill")
                         .scaledFont(size: SettingsStatusPanel.minimumTextSize)
-                    Text(DeviceCapabilityService.shared.chipName)
+                    Text(DeviceCapabilityService.shared.chipDisplayName)
                         .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .medium)
                 }
                 .foregroundStyle(.cyan)

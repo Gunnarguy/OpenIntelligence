@@ -14,6 +14,8 @@ struct OnboardingChecklistLauncher: View {
     }
 
     var body: some View {
+        // The pill and its close button are two pieces of glass side by side, so one container renders them together.
+        GlassEffectContainer(spacing: DSSpacing.sm) {
         HStack(alignment: .top, spacing: DSSpacing.sm) {
             // Main launcher button
             Button(action: action) {
@@ -32,37 +34,26 @@ struct OnboardingChecklistLauncher: View {
                 }
                 .padding(.horizontal, DSSpacing.lg)
                 .padding(.vertical, DSSpacing.md)
-                .background(
-                    .ultraThinMaterial,
-                    in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                        // Was `Color.white.opacity(0.15)`, which is very nearly invisible on a
-                        // light background: the pill sits on `.ultraThinMaterial` over whatever
-                        // is behind it, so a white hairline only reads against a dark one.
-                        .stroke(DSColors.border, lineWidth: 1)
-                )
+                // Floats over every tab, so Liquid Glass, interactive since the whole pill is a button (5.8,
+                // 2026-11-16; was `.ultraThinMaterial` with a drawn border and shadow).
+                .glassEffect(
+                    .regular.interactive(), in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
             }
             .buttonStyle(.plain)
-            .shadow(color: Color.black.opacity(0.25), radius: 18, x: 0, y: 8)
             .accessibilityLabel("Open onboarding checklist")
 
             // Dismiss permanently button
             Button(action: onDismissPermanently) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .background(
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .frame(width: DSSpacing.xxl, height: DSSpacing.xxl)
-                    )
                     .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
-                    .contentShape(Rectangle())
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: Circle())
             .accessibilityLabel("Dismiss setup checklist permanently")
+        }
         }
     }
 }

@@ -849,21 +849,24 @@ extension RAGService {
                                     ]
                                 )
 
-                                // Apple FM has hard 4096 token limit on-device
-                                // Budget: 4096 - 900 (safety) - ~700 (prompt overhead) - ~20 (question) - 768 (output) = ~1700 tokens
-                                // At 2.4 chars/token, that's ~4000 chars max for context
+                                // The on-device window as Apple's model reports it on this device (4,096 on an
+                                // iPhone 16 Pro Max, 8,192 on an M3 Pro Mac). It was a fixed 4096 until 5.8, so a Mac
+                                // retried with half its window (audit 2026-11-16). On a 4,096 window the budget is
+                                // unchanged: 4096 - 1000 (safety) - prompt overhead - question - output, and the
+                                // character caps (2,400 trivial, 3,500 otherwise) scale with the window.
+                                let onDeviceWindow = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+                                let windowScale = max(1.0, Double(onDeviceWindow) / 4096.0)
                                 let reducedMax =
                                     isTrivial
                                     ? max(256, min(genConfig.maxTokens, 384))
                                     : max(512, min(genConfig.maxTokens, 768))
                                 let onDeviceBudgetTokens = max(
                                     200,
-                                    4096 - 1000 - promptOverheadTokens - questionTokens - reducedMax
+                                    onDeviceWindow - 1000 - promptOverheadTokens - questionTokens - reducedMax
                                 )
-                                // FIXED: Reduced from 8500 to 3500 chars to actually fit in 4096 token window
                                 // Apple's modelmanagerd routes to PCC when context exceeds on-device capacity
                                 let onDeviceMaxChars = min(
-                                    isTrivial ? 2400 : 3500,
+                                    Int(Double(isTrivial ? 2400 : 3500) * windowScale),
                                     max(800, Int(Double(onDeviceBudgetTokens) * conservativeCharsPerToken))
                                 )
                                 let baseCandidates = retryCandidates.isEmpty ? contextCandidates : retryCandidates
