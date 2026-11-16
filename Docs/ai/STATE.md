@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-15 (owner's clock), written in the evening session of 2026-11-14 PT
+Updated: 2026-11-16
 Branch/worktree: `main`, primary checkout
-Last verified commit: b33ce4c6
+Last verified commit: adf95abb
 
 ## Objective
 
@@ -16,13 +16,21 @@ The bar discussed with him on 2026-11-14 (not formally confirmed): no mode below
 loses data, breaks an advertised feature or blocks the build. Open rows that fail none of those move to the next
 release with their closing condition written on them.
 
-## Settings list redesign (b33ce4c6, done 2026-11-15)
+## UI work on 2026-11-15 and 16 (all run on the org API credit through `~/.agents/bin/ccp`, briefs and logs in the session scratchpad)
 
-Run at the owner's request as one `claude -p` turn billed to the organization's API credit (`~/.agents/bin/ccp`,
-about $2.06, 26 minutes; brief `settings-brief.md` and log `settings-run.log` in the session scratchpad). One accent
-colour for every icon, system-sized rows, small headers, a one-line status under the app name. Seen in the iOS 27
-Simulator at Large and at the largest accessibility size (`/private/tmp/oi-settings-after/`); the Intelligence group
-went from about 835 to 670 pixels tall. Not seen: the Mac's list, dark mode, the support card at the bottom.
+| Commit | What | Cost |
+|---|---|---|
+| b33ce4c6 | Settings list rows tightened (he said "looks the exact same") | $2.06 |
+| 77309c88 | One type scale and card language for Settings and every Database section (spec on `DSTypography` in `Theme.swift`); lit panels as heroes; graphite icon tiles | $20.86 |
+| 7b2da34e | Plans one tap from Settings, plans screen cut to usage panel, three cards, the table, quiet links | $3.27 |
+| (no commit) | Read-only reviews of every Settings page and of published research on premium feel: `audit-run.log`, `premium-run.log` | $4.88 |
+| adf95abb | Ten fixes he chose: Developer row Debug-only, About facts, panel and PCC page agree, rating copy, panel text at Apple's minimum, Database empty state, privacy line up, success haptic, Annual first, Intelligence Mode titles wrap | $7.17 over two runs (the first stopped while he played a game) |
+
+Not done, his choice for later (5.9): the reorganisation group of the review (merge Notifications into Appearance and Apple
+Intelligence with Private Cloud Compute, route picker on the PCC page, Advanced sheet restyled, one technical-details
+switch, no cards inside cards). Also open: repeated bullets on the plan cards (asked, no answer yet); 8 to 10 pt text in
+the Compute Profile and Intelligence Mode lists below their panels.
+Seen only in the iOS 27 Simulator: all of the above. Not seen: the Mac, dark mode, large text, the haptic, a Release build.
 
 ## Status
 
@@ -33,7 +41,7 @@ went from about 835 to 670 pixels tall. Not seen: the Mac's list, dark mode, the
 | Unit suite | 1,751 overnight on 2026-11-14 with one failure fixed; since then only single classes run, all green |
 | Five Simulator checks | done (`FiveChecksSimulatorTests`, `FiveChecksUITests`); four rows closed in Notion; the lease row (40049a74d54f814eadbace9c62d87ef9) is a line on the owner's checklist |
 | Release text | audited against every commit since v5.7.0 by an Antigravity job (288 then, 307 now); gaps fixed. Store text not pushed |
-| Devices | both being installed with b33ce4c6 when this was written (see the session's last message) |
+| Devices | being installed with adf95abb (Mac and iPhone) when this was written |
 | Roadmap | v5.8: about 96 In Progress; most close from the device pass |
 
 ## Done on 2026-11-14 afternoon and evening (all committed)
@@ -109,6 +117,6 @@ in the session scratchpad (writes `/private/tmp/oi-checks-shots`). Logs: `python
 
 ## Exact Next Action
 
-Confirm the iPhone and the Mac run b33ce4c6 or later (rebuild with the commands above if not), then tell the owner the
-build is ready for his pass. When he says "done", pull both logs with `phone_evidence.py` since the install time,
-close the rows they prove, and read `index.modelCheck` for the first cross-device similarity.
+Confirm both devices run adf95abb or later (rebuild with the commands above if not); he then runs his device pass. When he
+says "done", pull both logs with `phone_evidence.py` since the install time, close the rows they prove, and read
+`index.modelCheck` for the first cross-device similarity. Then, at his word only, push and submit.
