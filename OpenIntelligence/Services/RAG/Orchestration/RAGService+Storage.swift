@@ -400,8 +400,13 @@ extension RAGService {
                 category: .ingestion)
         }
 
+        // The coordinated write runs off the main thread (5.8). It waits for any other writer, iCloud included,
+        // and on the owner's iPhone on 2026-11-16 a sync write that waited on the main thread got the app killed
+        // in the background (0x8BADF00D, scene-update watchdog, 10 s).
+        let documentsURL = documentsStorageURL
         do {
-            try WorkspaceSyncService.coordinatedMergeData(at: documentsStorageURL) { existing in
+            try await Task.detached(priority: .userInitiated) {
+            try WorkspaceSyncService.coordinatedMergeData(at: documentsURL) { existing in
                 var result = liveSnapshot
 
                 if let existing {
@@ -424,6 +429,7 @@ extension RAGService {
                 encoder.outputFormatting = .prettyPrinted
                 return try encoder.encode(result)
             }
+            }.value
             Log.debug(" [RAGService] Saved \(snapshot.count) documents metadata")
         } catch {
             Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")

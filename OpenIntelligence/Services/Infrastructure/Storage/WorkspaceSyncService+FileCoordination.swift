@@ -199,7 +199,7 @@ extension WorkspaceSyncService {
         return hasher.finalize()
     }
 
-    nonisolated func copyItem(at source: URL, to destination: URL) async throws {
+    @concurrent nonisolated func copyItem(at source: URL, to destination: URL) async throws {
         try ensureDirectory(destination.deletingLastPathComponent())
         if source.hasDirectoryPath {
             try fileManager.copyItem(at: source, to: destination)
@@ -608,7 +608,7 @@ extension WorkspaceSyncService {
     /// its files) and writing new ones, with no coordination, so iCloud could upload a store whose
     /// vectors and passages came from different moments, and a device that read it got a store
     /// that loads empty.
-    nonisolated static func coordinatedReplaceItems(at destinations: [URL], with staged: [URL]) async throws {
+    @concurrent nonisolated static func coordinatedReplaceItems(at destinations: [URL], with staged: [URL]) async throws {
         precondition(destinations.count == staged.count)
         let intents = destinations.map { NSFileAccessIntent.writingIntent(with: $0, options: .forReplacing) }
         let coordinator = NSFileCoordinator(filePresenter: nil)
@@ -672,7 +672,7 @@ extension WorkspaceSyncService {
         try coordinatedWriteData(data, to: url)
     }
 
-    nonisolated static func resolveUbiquityContainerURL() async -> URL? {
+    @concurrent nonisolated static func resolveUbiquityContainerURL() async -> URL? {
         await Task.detached(priority: .utility) {
             FileManager.default.url(forUbiquityContainerIdentifier: nil)
         }.value

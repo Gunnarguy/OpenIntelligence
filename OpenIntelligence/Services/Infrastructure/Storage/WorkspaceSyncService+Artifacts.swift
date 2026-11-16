@@ -111,7 +111,7 @@ extension WorkspaceSyncService {
         }
     }
 
-    nonisolated private func synchronizeVectorStore(
+    @concurrent nonisolated private func synchronizeVectorStore(
         for container: KnowledgeContainer,
         localRoot: URL,
         sharedRoot: URL,
@@ -439,7 +439,7 @@ extension WorkspaceSyncService {
         return true
     }
 
-    nonisolated private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
+    @concurrent nonisolated private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
         // Instrumentation only. Opens a database and writes it; see `mergeVectorStoresIfNeeded`.
         Log.debug(
             "[WorkspaceSyncService] persistVectorChunks writing \(chunks.count) chunk(s) to \(url.lastPathComponent)",
@@ -459,7 +459,7 @@ extension WorkspaceSyncService {
     /// on the same volume, then its files take the place of the ones in iCloud in one coordinated
     /// step (`coordinatedReplaceItems`). An empty `chunks` removes the store's files, as the
     /// `clear()` this replaces did.
-    nonisolated func persistVectorChunksIntoICloud(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
+    @concurrent nonisolated func persistVectorChunksIntoICloud(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
         let staging = try fileManager.url(
             for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true)
         defer { try? fileManager.removeItem(at: staging) }
@@ -472,7 +472,7 @@ extension WorkspaceSyncService {
             with: BNNSVectorDatabase.binaryFileURLs(from: stagedURL).filter { $0 != stagedURL })
     }
 
-    nonisolated private func synchronizeAuxiliaryFile(
+    @concurrent nonisolated private func synchronizeAuxiliaryFile(
         filePrefix: String,
         canonicalContainerID: UUID,
         sourceContainerIDs: Set<UUID>,
@@ -528,7 +528,7 @@ extension WorkspaceSyncService {
         }
     }
 
-    nonisolated private func synchronizeEvidenceThreads(
+    @concurrent nonisolated private func synchronizeEvidenceThreads(
         canonicalContainerID: UUID,
         sourceContainerIDs: Set<UUID>,
         localRoot: URL,

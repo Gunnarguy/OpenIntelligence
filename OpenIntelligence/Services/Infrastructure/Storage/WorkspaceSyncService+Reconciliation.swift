@@ -183,7 +183,7 @@ extension WorkspaceSyncService {
     /// missing. Callers that treat "missing" as "empty" must inspect the return
     /// value rather than assume success.
     @discardableResult
-    nonisolated func ensureItemsAvailableLocally(_ urls: [URL], timeout: TimeInterval = 20) async -> [URL] {
+    @concurrent nonisolated func ensureItemsAvailableLocally(_ urls: [URL], timeout: TimeInterval = 20) async -> [URL] {
         var seenPaths: Set<String> = []
         var urlsToDownload: [URL] = []
 
@@ -245,14 +245,14 @@ extension WorkspaceSyncService {
         return fileManager.fileExists(atPath: url.path)
     }
 
-    nonisolated func ensureSourcedDocumentsAvailableLocally(_ sourcedDocuments: [SourcedDocument]) async {
+    @concurrent nonisolated func ensureSourcedDocumentsAvailableLocally(_ sourcedDocuments: [SourcedDocument]) async {
         let urls = sourcedDocuments.compactMap { sourcedDocument in
             resolvedDocumentSourceURL(for: sourcedDocument.document, sourceRoot: sourcedDocument.sourceRoot)
         }
         await ensureItemsAvailableLocally(urls)
     }
 
-    nonisolated func cleanupSharedWorkspace(
+    @concurrent nonisolated func cleanupSharedWorkspace(
         sharedRoot: URL,
         syncedContainerIDs: Set<UUID>,
         referencedRelativePaths: Set<String>
@@ -277,7 +277,7 @@ extension WorkspaceSyncService {
         }
     }
 
-    nonisolated private func cleanupSharedImportedDocuments(
+    @concurrent nonisolated private func cleanupSharedImportedDocuments(
         at importedDocumentsDirectory: URL,
         referencedRelativePaths: Set<String>,
         sharedRoot: URL
@@ -417,14 +417,14 @@ extension WorkspaceSyncService {
         }
     }
 
-    nonisolated func resolveSharedMetadataConflictsIfNeeded(in sharedRoot: URL) async throws {
+    @concurrent nonisolated func resolveSharedMetadataConflictsIfNeeded(in sharedRoot: URL) async throws {
         for fileName in Self.criticalMetadataFileNames {
             let fileURL = sharedRoot.appendingPathComponent(fileName)
             try await resolveConflictsIfNeeded(at: fileURL, sharedRoot: sharedRoot)
         }
     }
 
-    nonisolated private func resolveConflictsIfNeeded(at url: URL, sharedRoot: URL) async throws {
+    @concurrent nonisolated private func resolveConflictsIfNeeded(at url: URL, sharedRoot: URL) async throws {
         guard fileManager.fileExists(atPath: url.path) else { return }
         guard let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !conflictVersions.isEmpty else {
             return

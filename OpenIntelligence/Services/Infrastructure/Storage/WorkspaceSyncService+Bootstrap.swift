@@ -506,7 +506,7 @@ extension WorkspaceSyncService {
         return defaults.string(forKey: deviceIdentifierDefaultsKey) ?? UUID().uuidString
     }
 
-    nonisolated static func ensureItemAvailableLocally(at url: URL, timeout: TimeInterval = 20) async throws {
+    @concurrent nonisolated static func ensureItemAvailableLocally(at url: URL, timeout: TimeInterval = 20) async throws {
         let fileManager = FileManager.default
         let placeholder = url.deletingLastPathComponent()
             .appendingPathComponent(".\(url.lastPathComponent).icloud")
@@ -603,7 +603,7 @@ extension WorkspaceSyncService {
         defaults.object(forKey: Self.lastResolvedBootstrapSharedSignatureDefaultsKey) as? Int
     }
 
-    nonisolated private func workspaceInventory(at root: URL) async throws -> WorkspaceInventory {
+    @concurrent nonisolated private func workspaceInventory(at root: URL) async throws -> WorkspaceInventory {
         try await Task.detached {
             try self.readWorkspaceInventorySync(at: root)
         }.value

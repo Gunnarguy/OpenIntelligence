@@ -10,7 +10,7 @@ import CryptoKit
 import os
 
 extension WorkspaceSyncService {
-    nonisolated func synchronizeConfiguredLibraries(
+    @concurrent nonisolated func synchronizeConfiguredLibraries(
         localRoot: URL,
         sharedRoot: URL,
         localInventory: WorkspaceInventory,
@@ -549,7 +549,7 @@ extension WorkspaceSyncService {
         return hasher.finalize()
     }
 
-    nonisolated func createRecoverySnapshot(at root: URL, label: String) async throws {
+    @concurrent nonisolated func createRecoverySnapshot(at root: URL, label: String) async throws {
         guard fileManager.fileExists(atPath: root.path) else { return }
 
         let snapshotRoot = OpenIntelligenceRuntimePaths.localCacheDirectory()

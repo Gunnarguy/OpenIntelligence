@@ -10,7 +10,7 @@ import CryptoKit
 import os
 
 extension WorkspaceSyncService {
-    nonisolated private func migrateCanonicalWorkspaceIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws {
+    @concurrent nonisolated private func migrateCanonicalWorkspaceIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws {
         guard fileManager.fileExists(atPath: localRoot.path) else { return }
 
         let mergedContainers = try mergeContainersIfNeeded(from: localRoot, to: sharedRoot)
@@ -58,7 +58,7 @@ extension WorkspaceSyncService {
         return mergedContainers
     }
 
-    nonisolated private func mergeDocumentMetadataIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws -> [Document] {
+    @concurrent nonisolated private func mergeDocumentMetadataIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws -> [Document] {
         let localDocumentsURL = localRoot.appendingPathComponent("documents_metadata.json")
         let sharedDocumentsURL = sharedRoot.appendingPathComponent("documents_metadata.json")
         let localDocuments = try Self.readJSONIfPresent([Document].self, from: localDocumentsURL) ?? []
@@ -189,11 +189,11 @@ extension WorkspaceSyncService {
         return merged
     }
 
-    nonisolated func mergeDocuments(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) async throws -> [Document] {
+    @concurrent nonisolated func mergeDocuments(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) async throws -> [Document] {
         try await mergeDocumentsWithAliases(sourcedDocuments, into: sharedRoot).documents
     }
 
-    nonisolated func mergeDocumentsWithAliases(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) async throws -> DocumentMergeResult {
+    @concurrent nonisolated func mergeDocumentsWithAliases(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) async throws -> DocumentMergeResult {
         var orderedIds: [UUID] = []
         var byId: [UUID: Document] = [:]
         var duplicateKeyToId: [String: UUID] = [:]
@@ -248,7 +248,7 @@ extension WorkspaceSyncService {
         return DocumentMergeResult(documents: mergedDocuments, sourceToCanonical: sourceToCanonical)
     }
 
-    nonisolated private func mergeVectorStoresIfNeeded(
+    @concurrent nonisolated private func mergeVectorStoresIfNeeded(
         from localRoot: URL,
         to sharedRoot: URL,
         containers: [KnowledgeContainer],
@@ -316,7 +316,7 @@ extension WorkspaceSyncService {
         }
     }
 
-    nonisolated func loadVectorChunks(from storageURL: URL, dimension: Int) async throws -> [DocumentChunk] {
+    @concurrent nonisolated func loadVectorChunks(from storageURL: URL, dimension: Int) async throws -> [DocumentChunk] {
         // Instrumentation only. Every call constructs a database, and construction reads from
         // disk; see the note in `mergeVectorStoresIfNeeded`.
         Log.debug(
@@ -417,7 +417,7 @@ extension WorkspaceSyncService {
         }
     }
 
-    nonisolated private func materializeDocument(
+    @concurrent nonisolated private func materializeDocument(
         _ document: Document,
         from sourceRoot: URL,
         into sharedRoot: URL,
