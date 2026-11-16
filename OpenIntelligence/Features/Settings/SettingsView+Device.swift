@@ -36,15 +36,17 @@ extension SettingsView {
         // Context Window moved to the Intelligence Mode page (5.8), and Language Support to Model & Privacy
         // (2026-11-16): which languages Apple's model answers in is a fact about the model.
 
+        // Compute Profile right under the device, the Silicon-Native RAG Engine after it (the owner, 2026-11-16: "swap
+        // compute profile with the silicon native rag engine section").
+        SurfaceCard {
+            gpuAccelerationSection(deviceService: deviceService)
+        }
+
         // Silicon-Native RAG Engine: vDSP, Metal shaders and batch sizes, with Technical Details on (5.7).
         if settings.showTechnicalDetails {
             SurfaceCard {
                 siliconNativeRAGSection(deviceService: deviceService)
             }
-        }
-
-        SurfaceCard {
-            gpuAccelerationSection(deviceService: deviceService)
         }
 
         // Live System Monitor: thermal state, memory, cores and the pipeline's own adjustments, with Technical

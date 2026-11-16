@@ -209,18 +209,36 @@ struct ComputeProfileCard: View {
     private var current: [Workload] { workloads(for: profile) }
 
     /// The profile one step down, whose chips this one adds to.
-    private var previous: GPUExecutionProfile? {
+    private var previous: GPUExecutionProfile? { previous(of: profile) }
+
+    private func previous(of step: GPUExecutionProfile) -> GPUExecutionProfile? {
         let all = GPUExecutionProfile.allCases
-        guard let index = all.firstIndex(of: profile), index > 0 else { return nil }
+        guard let index = all.firstIndex(of: step), index > 0 else { return nil }
         return all[index - 1]
     }
 
+    /// Draws `content` for every profile, hidden, and the current one on top, so a part takes the height of its longest
+    /// version and nothing below it moves when the profile changes (5.8, 2026-11-16, the owner: "The UI jumps around bc
+    /// of word wrapping"). `lineLimit(reservesSpace:)` reserved lines, but a longer wording still pushed past them.
+    private func stable<Content: View>(
+        alignment: Alignment = .topLeading, @ViewBuilder _ content: @escaping (GPUExecutionProfile) -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            ForEach(GPUExecutionProfile.allCases, id: \.self) { step in
+                content(step).hidden().accessibilityHidden(true)
+            }
+            content(profile)
+        }
+    }
+
     /// Per row, the chips this profile turns on that the one below it does not.
-    private var added: [String: Set<Chip>] {
-        guard let previous else { return [:] }
+    private var added: [String: Set<Chip>] { added(for: profile) }
+
+    private func added(for profile: GPUExecutionProfile) -> [String: Set<Chip>] {
+        guard let previous = previous(of: profile) else { return [:] }
         let before = Dictionary(uniqueKeysWithValues: workloads(for: previous).map { ($0.id, $0.chips) })
         var result: [String: Set<Chip>] = [:]
-        for row in current {
+        for row in workloads(for: profile) {
             let new = row.chips.subtracting(before[row.id] ?? [])
             if !new.isEmpty { result[row.id] = new }
         }
@@ -249,10 +267,13 @@ struct ComputeProfileCard: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             die
             ladder
-            Text(profile.engagement.summary)
-                .scaledFont(size: 11)
-                .foregroundStyle(.secondary)
-                .lineLimit(2, reservesSpace: true)
+            stable { step in
+                Text(step.engagement.summary)
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             addsBanner
             jobsList
             intensityGrid
@@ -399,8 +420,13 @@ struct ComputeProfileCard: View {
 
     /// What this step adds over the one below, always shown and always the same height: a title and two lines.
     private var addsBanner: some View {
-        let addedNow = added
-        let lines = current.compactMap { row -> String? in
+        stable { step in addsBanner(for: step) }
+    }
+
+    private func addsBanner(for profile: GPUExecutionProfile) -> some View {
+        let addedNow = added(for: profile)
+        let previous = previous(of: profile)
+        let lines = workloads(for: profile).compactMap { row -> String? in
             guard let chips = addedNow[row.id] else { return nil }
             return "\(row.name): "
                 + ListFormatter.localizedString(byJoining: Chip.allCases.filter { chips.contains($0) }.map(\.name))
@@ -455,7 +481,7 @@ struct ComputeProfileCard: View {
                 Text(detail)
                     .scaledFont(size: 11)
                     .foregroundStyle(.secondary)
-                    .lineLimit(3, reservesSpace: true)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -610,6 +636,18 @@ struct ComputeProfileCard: View {
     /// How hard each job runs, as six tiles in the dots' language (5.8): the value in force now, lit where the
     /// profile turns it up: Performance and Maximum go deeper, Efficiency does fewer at once (5.8).
     private var intensityGrid: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            // Ceilings: a hot device, Low Power Mode or a background import without the GPU steps them down (5.8 review).
+            SettingsGroupLabel(text: "HOW HARD, AT MOST")
+            SpecTileGrid() {
+                ForEach(0..<6, id: \.self) { index in
+                    stable { step in intensityTile(index, for: step) }
+                }
+            }
+        }
+    }
+
+    private func intensityTile(_ index: Int, for profile: GPUExecutionProfile) -> some View {
         let depth = DeviceCapabilityService.shared.depth(for: profile)
         let base = DeviceCapabilityService.Depth.standard
         let pages = concurrencyFor(profile).renderSlots
@@ -624,20 +662,13 @@ struct ComputeProfileCard: View {
             ("Keywords per search", "up to \(depth.keywordLimit)", "textformat", depth.keywordLimit > base.keywordLimit ? 1 : 0),
         ]
         let tint = Self.color(for: profile)
-        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            // Ceilings: a hot device, Low Power Mode or a background import without the GPU steps them down (5.8 review).
-            SettingsGroupLabel(text: "HOW HARD, AT MOST")
-            SpecTileGrid() {
-                ForEach(tiles, id: \.0) { tile in
-                    SpecTile(
-                        name: tile.0, value: tile.1, icon: tile.2,
-                        tint: tile.3 > 0 ? tint : nil,
-                        marker: tile.3 > 0 ? "bolt.fill" : (tile.3 < 0 ? "tortoise.fill" : nil),
-                        muted: tile.3 < 0)
-                        .accessibilityValue(tile.3 > 0 ? "more than Balanced" : (tile.3 < 0 ? "fewer than Balanced" : "same as Balanced"))
-                }
-            }
-        }
+        let tile = tiles[index]
+        return SpecTile(
+            name: tile.0, value: tile.1, icon: tile.2,
+            tint: tile.3 > 0 ? tint : nil,
+            marker: tile.3 > 0 ? "bolt.fill" : (tile.3 < 0 ? "tortoise.fill" : nil),
+            muted: tile.3 < 0)
+            .accessibilityValue(tile.3 > 0 ? "more than Balanced" : (tile.3 < 0 ? "fewer than Balanced" : "same as Balanced"))
     }
 
     // MARK: Same in every profile

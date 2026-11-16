@@ -65,9 +65,26 @@ struct IntelligenceModeCard: View {
         }
     }
 
-    private var previous: RAGQualityMode? {
-        guard let index = Self.modes.firstIndex(of: mode), index > 0 else { return nil }
+    private var previous: RAGQualityMode? { previous(of: mode) }
+
+    private func previous(of step: RAGQualityMode) -> RAGQualityMode? {
+        guard let index = Self.modes.firstIndex(of: step), index > 0 else { return nil }
         return Self.modes[index - 1]
+    }
+
+    /// Draws `content` for every mode, hidden, and the current mode's on top, so a part takes the height of its
+    /// longest version and nothing below it moves when the mode changes (5.8, 2026-11-16, the owner: "The UI jumps
+    /// around bc of word wrapping ... I don't want it to jump around"). Each mode's words wrapped to their own number of
+    /// lines, so the panel, the ladder and everything under them shifted with each tap.
+    private func stable<Content: View>(
+        alignment: Alignment = .topLeading, @ViewBuilder _ content: @escaping (RAGQualityMode) -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            ForEach(Self.modes, id: \.self) { step in
+                content(step).hidden().accessibilityHidden(true)
+            }
+            content(mode)
+        }
     }
 
     // MARK: - Model
@@ -178,9 +195,11 @@ struct IntelligenceModeCard: View {
     private var current: [Step] { steps.filter { $0.modes.contains(mode) } }
 
     /// Steps this mode runs and the one below does not.
-    private var added: [Step] {
-        guard let previous else { return [] }
-        return steps.filter { $0.modes.contains(mode) && !$0.modes.contains(previous) }
+    private var added: [Step] { added(for: mode) }
+
+    private func added(for step: RAGQualityMode) -> [Step] {
+        guard let previous = previous(of: step) else { return [] }
+        return steps.filter { $0.modes.contains(step) && !$0.modes.contains(previous) }
     }
 
     // MARK: - Body
@@ -190,10 +209,13 @@ struct IntelligenceModeCard: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             panel
             ladder
-            Text(callout(mode))
-                .scaledFont(size: 11)
-                .foregroundStyle(.secondary)
-                .lineLimit(2, reservesSpace: true)
+            stable { step in
+                Text(callout(step))
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             addsBanner
             stepsList
             howMuch
@@ -214,8 +236,10 @@ struct IntelligenceModeCard: View {
         let lit: Int
     }
 
-    private var stageFigures: [StageFigure] {
-        switch mode.canonical {
+    private var stageFigures: [StageFigure] { stageFigures(for: mode) }
+
+    private func stageFigures(for step: RAGQualityMode) -> [StageFigure] {
+        switch step.canonical {
         case .deepThink:
             return [
                 StageFigure(title: "SEARCH", symbol: "magnifyingglass", value: "5 first, more if needed", lit: 4),
@@ -270,7 +294,8 @@ struct IntelligenceModeCard: View {
             .foregroundStyle(.secondary)
 
             HStack(spacing: DSSpacing.sm) {
-                ForEach(stageFigures, id: \.title) { figure in
+                ForEach(0..<stageFigures.count, id: \.self) { column in
+                    let figure = stageFigures[column]
                     let color = Self.stageColor(figure.title)
                     VStack(spacing: 3) {
                         Image(systemName: figure.symbol)
@@ -288,14 +313,16 @@ struct IntelligenceModeCard: View {
                             }
                         }
                         .padding(.horizontal, DSSpacing.xs)
-                        Text(figure.value)
-                            .scaledFont(size: SettingsStatusPanel.minimumTextSize + 2, weight: .semibold, design: .rounded)
-                            .monospacedDigit()
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .contentTransition(.interpolate)
+                        stable(alignment: .top) { step in
+                            Text(stageFigures(for: step)[column].value)
+                                .scaledFont(size: SettingsStatusPanel.minimumTextSize + 2, weight: .semibold, design: .rounded)
+                                .monospacedDigit()
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .contentTransition(.interpolate)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, DSSpacing.xs)
@@ -362,10 +389,15 @@ struct IntelligenceModeCard: View {
     // MARK: What this step adds
 
     private var addsBanner: some View {
+        stable { step in addsBanner(for: step) }
+    }
+
+    private func addsBanner(for mode: RAGQualityMode) -> some View {
         let title: String
         let detail: String
         let symbol: String
-        if let previous {
+        let added = added(for: mode)
+        if let previous = previous(of: mode) {
             title = "\(mode.displayName) adds to \(previous.displayName)"
             // Steps first, then what How Much turns up, two lines at most, as on the Compute Profile card.
             let extra = mode.canonical == .maximum ? ["After its strongest searches, a broad search and up to 3 variants"] : ["Neighbours ±3"]
@@ -389,7 +421,7 @@ struct IntelligenceModeCard: View {
                 Text(detail)
                     .scaledFont(size: 11)
                     .foregroundStyle(.secondary)
-                    .lineLimit(3, reservesSpace: true)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -550,7 +582,9 @@ struct IntelligenceModeCard: View {
     ///   min(50, max(8, ...)) and only after a strong first search (`AgenticOrchestrator.swift`, `.excellent`).
     /// - Beside each match: `RAGQualityMode`'s neighbour radius, Standard's from `ParentDocumentService`.
     /// Chat history left the tiles: the "Reads earlier turns of the chat" row says it, correctly.
-    private var tiles: [Tile] {
+    private var tiles: [Tile] { tiles(for: mode) }
+
+    private func tiles(for mode: RAGQualityMode) -> [Tile] {
         let standardChars = min(10_000, max(0, Int(Double(windowTokens - 420) * 0.88 * 1.4)))
         let standardReads = "up to \((standardChars / 100 * 100).formatted()) characters"
         let reads: String
@@ -609,14 +643,16 @@ struct IntelligenceModeCard: View {
     }
 
     private var howMuch: some View {
-        let tint = Self.color(for: mode)
-        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             SettingsGroupLabel(text: "HOW MUCH")
             SpecTileGrid() {
-                ForEach(tiles, id: \.name) { tile in
-                    SpecTile(
-                        name: tile.name, value: tile.value, icon: tile.icon, caption: tile.caption,
-                        tint: tile.up ? tint : nil, marker: tile.up ? "bolt.fill" : nil)
+                ForEach(0..<tiles.count, id: \.self) { index in
+                    stable { step in
+                        let tile = tiles(for: step)[index]
+                        SpecTile(
+                            name: tile.name, value: tile.value, icon: tile.icon, caption: tile.caption,
+                            tint: tile.up ? Self.color(for: step) : nil, marker: tile.up ? "bolt.fill" : nil)
+                    }
                 }
             }
         }
