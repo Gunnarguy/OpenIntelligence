@@ -130,4 +130,33 @@ final class ReleaseFinishTests: XCTestCase {
             "once saved it is an ordinary conversation")
         XCTAssertNil(UserDefaults.standard.string(forKey: key), "and its record is dropped")
     }
+
+    // MARK: New Chat starts clean (2026-11-15)
+
+    func testANewChatClearsTheLibrarysConversationMemoryAndNoOtherLibrarys() async throws {
+        DirectModelCallsForTesting.disabled = true
+        defer { DirectModelCallsForTesting.disabled = false }
+        let engine = RAGService()
+        let library = UUID()
+        let other = UUID()
+        addTeardownBlock { @MainActor in
+            UserDefaults.standard.removeObject(forKey: RAGService.unsavedNewThreadKey(library))
+            ConversationMemoryService.shared.clearMemory(for: other)
+        }
+        await ConversationMemoryService.shared.addTurn(
+            userQuery: "What is the pet policy?", assistantResponse: "Your documents do not say.", refused: true,
+            for: library)
+        await ConversationMemoryService.shared.addTurn(
+            userQuery: "What is the rent?", assistantResponse: "The rent is $1,200 [S1].", for: other)
+
+        try engine.createNewThread(for: library)
+
+        XCTAssertTrue(ConversationMemoryService.shared.memory(for: library).recentTurns.isEmpty)
+        XCTAssertEqual(ConversationMemoryService.shared.memory(for: other).recentTurns.count, 1)
+        let prompt = engine.buildGenerationPrompt(
+            selectedId: library, question: "And the deposit?", retrievalConfig: .default,
+            qualityModeRequiresCitations: false
+        ).promptForGeneration
+        XCTAssertEqual(prompt, "And the deposit?", "the new chat's first question goes alone")
+    }
 }

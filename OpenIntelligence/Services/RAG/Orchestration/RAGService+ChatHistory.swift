@@ -306,6 +306,12 @@ extension RAGService {
         // The model's saved transcript is kept per library, not per conversation: left on disk, the next launch would
         // restore the old conversation's context into the new chat (refuting review, 2026-11-10).
         TranscriptPersistenceService.shared.deleteTranscript(for: containerId)
+        // The library's conversation memory and the model's live session went on into the new chat through 5.8's
+        // first builds, so its first question was rewritten and answered against the old one's turns (2026-11-15).
+        if #available(iOS 26.0, *) {
+            ConversationMemoryService.shared.clearMemory(for: containerId)
+        }
+        resetLLMSession()
     }
 
     /// A New Chat with nothing asked in it yet is not a file, so through 5.8's first builds the next launch reopened the

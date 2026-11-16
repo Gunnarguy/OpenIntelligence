@@ -328,6 +328,9 @@ extension RAGService {
             let conversationMemoryEnabled =
                 qualityModeUsesConversationMemory && (settingsStore?.enableConversationMemory ?? true)
             var recentTurns: [ConversationTurn] = []
+            // No refused answer and nothing from before the library's documents last changed (5.8,
+            // `ConversationContextRules`): the rewritten question is what retrieval and the gates then see.
+            let documentsChangedAt = LibraryDocumentChanges.shared.changedAt(selectedId)
 
             if #available(iOS 26.0, *), conversationMemoryEnabled {
                 // Get memory-enhanced context with tracked entities
@@ -335,7 +338,9 @@ extension RAGService {
                 // Synthetic context causes false-positive rewrites (e.g., "this button" → "the button you mentioned")
                 let memory = ConversationMemoryService.shared.memory(for: selectedId)
                 let maxTurns = min(qualityModeMaxConversationTurns, 3)  // Use quality mode limit for rewriting
-                recentTurns = memory.recentTurns.suffix(maxTurns).map { turn in
+                recentTurns = memory.recentTurns.filter {
+                    ConversationContextRules.isUsable($0, documentsChangedAt: documentsChangedAt)
+                }.suffix(maxTurns).map { turn in
                     ConversationTurn(
                         role: "user",
                         content: turn.userQuery,
@@ -353,8 +358,9 @@ extension RAGService {
             if recentTurns.isEmpty {
                 let conversationHistory = chatHistory(for: selectedId)
                 recentTurns =
-                    conversationHistory
-                    .filter { $0.role != .system }
+                    ConversationContextRules.usableEarlierMessages(
+                        conversationHistory, documentsChangedAt: documentsChangedAt
+                    )
                     .suffix(4)  // Last 4 messages
                     .map { msg in
                         ConversationTurn(

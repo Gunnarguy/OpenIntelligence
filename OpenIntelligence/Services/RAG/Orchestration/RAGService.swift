@@ -709,9 +709,20 @@ class RAGService: ObservableObject {
         // What each library's count shows (5.8, `ContainerService.documentCount`).
         didSet {
             documentsChangeCount &+= 1
+            let defaultLibrary = containerService.containers.first?.id
             containerService.setListedDocumentCounts(
-                ContainerService.documentCounts(
-                    of: documents.map(\.containerId), defaultLibrary: containerService.containers.first?.id))
+                ContainerService.documentCounts(of: documents.map(\.containerId), defaultLibrary: defaultLibrary))
+            // When each library's set of documents changed (5.8), so earlier conversation turns are not given to the
+            // model once the documents they were answered from changed. Not before the documents are first loaded,
+            // when the list is not yet the library's.
+            if hasAppliedLoadedDocuments {
+                LibraryDocumentChanges.shared.record(
+                    documents.compactMap { document in
+                        (document.containerId ?? defaultLibrary).map {
+                            (id: document.id, library: $0, passages: document.totalChunks)
+                        }
+                    })
+            }
         }
     }
     /// Counts every change to `documents`. A workspace reload reads the list off the main thread and applies

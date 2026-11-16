@@ -680,10 +680,13 @@ extension RAGService {
             lastMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines)
             == question.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // No refused or failed answer, and nothing from before the library's documents last changed (5.8,
+        // `ConversationContextRules`).
+        let documentsChangedAt = LibraryDocumentChanges.shared.changedAt(selectedId)
         let previousMessages =
-            history
-            .filter { $0.role != .system }
-            .dropLast(dropsCurrent ? 1 : 0)
+            ConversationContextRules.usableEarlierMessages(
+                Array(history.dropLast(dropsCurrent ? 1 : 0)), documentsChangedAt: documentsChangedAt
+            )
             .suffix(4)  // Keep last 4 turns (2 User, 2 Assistant)
 
         // Use ConversationMemoryService for enhanced context if enabled
@@ -694,7 +697,7 @@ extension RAGService {
             // Get intelligent memory context with summarization
             // DYNAMIC: Pass question for semantic relevance scoring and adaptive budgeting
             let memoryContext = ConversationMemoryService.shared.contextInjection(
-                for: selectedId, query: question)
+                for: selectedId, query: question, documentsChangedAt: documentsChangedAt)
             if !memoryContext.isEmpty {
                 historyContext = Self.earlierTurnsFraming + Self.withoutHeadingMarks(memoryContext) + "\nCURRENT QUESTION: "
                 Log.debug(

@@ -50,6 +50,11 @@ struct ConversationMemory: Codable, Sendable {
     /// Number of total turns summarized into this memory
     var totalTurnsSummarized: Int
 
+    /// When the first turn behind the summary and the key topics was added (5.8). Nil in a memory saved before 5.8,
+    /// which is read as "unknown": once the library's documents change, that memory's summary and topics are not
+    /// given to the model.
+    var firstTurnAt: Date?
+
     init(containerId: UUID) {
         id = UUID()
         self.containerId = containerId
@@ -76,13 +81,34 @@ struct MemoryTurn: Codable, Sendable, Identifiable {
     /// Higher scores = preserved longer before summarization
     var importanceScore: Float
 
-    init(userQuery: String, assistantResponse: String) {
+    /// Whether the answer was a refusal (5.8, `ConversationContextRules.isRefusal`). A refused turn and its question
+    /// are kept on record but never given to the model or the query rewriter again: through 5.8's first builds a
+    /// refusal from before a re-import kept the next questions refusing until Clear Chat. False in older files.
+    var refused: Bool
+
+    init(userQuery: String, assistantResponse: String, timestamp: Date = Date(), refused: Bool = false) {
         id = UUID()
         self.userQuery = userQuery
         self.assistantResponse = assistantResponse
-        timestamp = Date()
+        self.timestamp = timestamp
         extractedFacts = []
         importanceScore = 0.5 // Default mid-importance
+        self.refused = refused
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, userQuery, assistantResponse, timestamp, extractedFacts, importanceScore, refused
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userQuery = try container.decode(String.self, forKey: .userQuery)
+        assistantResponse = try container.decode(String.self, forKey: .assistantResponse)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        extractedFacts = try container.decode([String].self, forKey: .extractedFacts)
+        importanceScore = try container.decode(Float.self, forKey: .importanceScore)
+        refused = try container.decodeIfPresent(Bool.self, forKey: .refused) ?? false
     }
 
     /// Calculate importance based on information density
@@ -111,6 +137,154 @@ struct MemoryTurn: Codable, Sendable, Identifiable {
         }
 
         importanceScore = min(1.0, max(0.0, score))
+    }
+}
+
+// MARK: - What earlier turns may reach a prompt (5.8)
+
+/// Which earlier turns of a conversation may be given to the model and the query rewriter. Two rules, both from a
+/// person who re-imported fixed documents and kept getting refusals in the open chat until Clear Chat (2026-11-15):
+/// a refused answer never goes back into a prompt, and nothing from before the library's documents last changed does.
+nonisolated enum ConversationContextRules {
+    /// The gating decisions only a refusal records. "no_documents" is not one: an answer given without passages
+    /// records it too. A refusal with that decision is caught by `StructuredAnswer.refuse` instead.
+    static let refusalDecisions: Set<String> = [
+        "no_sources", "rerank_empty", "low_confidence", "mmr_empty", "high_accuracy_blocked", "context_empty",
+        "relevance_gate_failed", "missing_citations", "source_only_abstained",
+    ]
+    /// A decision that starts with this is a refusal too; the failed gates follow it.
+    static let refusalDecisionPrefix = "verification_gates_failed"
+
+    /// Whether an answer was a refusal: its structured answer says so, or its gating decision (a comma-separated
+    /// record) holds a decision only a refusal records.
+    static func isRefusal(structuredAnswer: StructuredAnswer?, gatingDecision: String?) -> Bool {
+        if structuredAnswer?.refuse == true { return true }
+        guard let gatingDecision else { return false }
+        return gatingDecision.split(separator: ",").contains { token in
+            let decision = token.trimmingCharacters(in: .whitespaces)
+            return refusalDecisions.contains(decision) || decision.hasPrefix(refusalDecisionPrefix)
+        }
+    }
+
+    /// An assistant message the app wrote for a failure (an error, or an answer cut off), which has neither the
+    /// answer's metadata nor a structured answer.
+    @MainActor static func isErrorMessage(_ message: ChatMessage) -> Bool {
+        message.role == .assistant && message.metadata == nil && message.structuredAnswer == nil
+    }
+
+    /// Whether a memory turn may be given to the model: not refused, and not older than the library's last change
+    /// of documents.
+    @MainActor static func isUsable(_ turn: MemoryTurn, documentsChangedAt: Date?) -> Bool {
+        guard !turn.refused else { return false }
+        guard let documentsChangedAt else { return true }
+        return turn.timestamp >= documentsChangedAt
+    }
+
+    /// Whether a memory's summary and key topics may be given to the model: they come from turns since
+    /// `firstTurnAt`, so not once the documents changed after that (or when it is unknown).
+    @MainActor static func summaryIsUsable(_ memory: ConversationMemory, documentsChangedAt: Date?) -> Bool {
+        guard let documentsChangedAt else { return true }
+        guard let firstTurnAt = memory.firstTurnAt else { return false }
+        return firstTurnAt >= documentsChangedAt
+    }
+
+    /// The earlier messages of a chat that may be given to the model, oldest first: no system messages, none from
+    /// before the library's documents last changed, and no refused or failed answer, together with the question
+    /// it answered.
+    @MainActor static func usableEarlierMessages(_ messages: [ChatMessage], documentsChangedAt: Date?) -> [ChatMessage] {
+        let conversation = messages.filter { $0.role != .system }
+        var dropped = Set<Int>()
+        for (index, message) in conversation.enumerated() {
+            let asked = index > 0 && conversation[index - 1].role == .user ? index - 1 : nil
+            // An answer goes with its question: one asked before the change goes, even if answered after it.
+            if let documentsChangedAt {
+                let questionBefore =
+                    message.role == .assistant && asked.map { conversation[$0].timestamp < documentsChangedAt } == true
+                if message.timestamp < documentsChangedAt || questionBefore {
+                    dropped.insert(index)
+                    continue
+                }
+            }
+            guard message.role == .assistant else { continue }
+            let refused =
+                isErrorMessage(message)
+                || isRefusal(structuredAnswer: message.structuredAnswer, gatingDecision: message.metadata?.gatingDecision)
+            guard refused else { continue }
+            dropped.insert(index)
+            if let asked { dropped.insert(asked) }
+        }
+        return conversation.enumerated().filter { !dropped.contains($0.offset) }.map(\.element)
+    }
+}
+
+/// When each library's set of documents last changed (5.8), kept in this device's defaults so it survives a relaunch.
+/// A change is a document added to or gone from the library, or a document whose passage count changed; a document's
+/// summary passage or its content tags are not. Earlier conversation turns are not given to the model once the
+/// documents they were answered from changed (`ConversationContextRules`).
+@MainActor
+final class LibraryDocumentChanges {
+    static let shared = LibraryDocumentChanges(defaults: .standard)
+
+    static let tokensKey = "libraryDocumentTokens"
+    static let changedAtKey = "libraryDocumentsChangedAt"
+    static let seededKey = "libraryDocumentTokensSeeded"
+
+    private let defaults: UserDefaults
+    private var tokens: [String: String]
+    private var changedAt: [String: Double]
+    /// Whether a first look has been recorded. After it, a library seen for the first time (one that had no
+    /// documents, given its first) is a change.
+    private var seeded: Bool
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+        tokens = defaults.dictionary(forKey: Self.tokensKey) as? [String: String] ?? [:]
+        changedAt = defaults.dictionary(forKey: Self.changedAtKey) as? [String: Double] ?? [:]
+        seeded = defaults.bool(forKey: Self.seededKey)
+    }
+
+    /// When the library's documents last changed, or nil if no change has been seen since 5.8.
+    func changedAt(_ libraryId: UUID) -> Date? {
+        changedAt[libraryId.uuidString].map { Date(timeIntervalSince1970: $0) }
+    }
+
+    /// Compares each library's documents (id and passage count) with what was last recorded, and records `now` for
+    /// each library whose set differs. The first look records no change, so the first launch of 5.8 ends no
+    /// conversation; after it, a library given its first documents is a change, and so is one left with none.
+    @discardableResult
+    func record(_ documents: [(id: UUID, library: UUID, passages: Int)], now: Date = Date()) -> [UUID] {
+        var byLibrary: [String: [(id: UUID, passages: Int)]] = [:]
+        for document in documents {
+            byLibrary[document.library.uuidString, default: []].append((id: document.id, passages: document.passages))
+        }
+        var current: [String: String] = [:]
+        for (library, documents) in byLibrary {
+            current[library] = RAGService.queryCacheDocumentsToken(documents, appVersion: "")
+        }
+        let emptyToken = RAGService.queryCacheDocumentsToken([], appVersion: "")
+        var changed: [UUID] = []
+        for library in Set(current.keys).union(tokens.keys) {
+            let new = current[library] ?? emptyToken
+            guard let old = tokens[library] ?? (seeded ? emptyToken : nil) else { continue }
+            if old != new, let id = UUID(uuidString: library) {
+                changedAt[library] = now.timeIntervalSince1970
+                changed.append(id)
+            }
+        }
+        var next = tokens
+        for (library, token) in current { next[library] = token }
+        for library in tokens.keys where current[library] == nil { next[library] = emptyToken }
+        if !seeded {
+            seeded = true
+            defaults.set(true, forKey: Self.seededKey)
+        }
+        guard next != tokens || !changed.isEmpty else { return [] }
+        tokens = next
+        defaults.set(tokens, forKey: Self.tokensKey)
+        if !changed.isEmpty {
+            defaults.set(changedAt, forKey: Self.changedAtKey)
+        }
+        return changed
     }
 }
 
@@ -185,6 +359,14 @@ final class ConversationMemoryService {
     private var saveTask: Task<Void, Never>?
     private let saveDebounceDuration: TimeInterval = 2.0
 
+    /// Every write of a memory file goes through this one queue, in order, so the empty memory a clear writes is
+    /// never overtaken by an older write still on its way (5.8).
+    private nonisolated static let writeQueue = DispatchQueue(label: "ConversationMemoryService.write", qos: .utility)
+
+    /// Counts the clears of each library's memory (5.8). A background summary started before a clear finds the count
+    /// moved and is dropped instead of writing the cleared conversation back.
+    private var clearCounts: [UUID: Int] = [:]
+
     // MARK: - Adaptive Token Budget
 
     /// Base character budget for memory context
@@ -256,32 +438,47 @@ final class ConversationMemoryService {
     /// - Debounced disk writes (prevents thrashing)
     /// - Background summarization (doesn't block caller)
     /// - Importance scoring for intelligent summarization prioritization
+    /// `refused` (5.8): the answer was a refusal (`ConversationContextRules.isRefusal`). The turn is kept on record and
+    /// adds nothing to the key topics; it is never given to the model again.
     func addTurn(
         userQuery: String,
         assistantResponse: String,
+        refused: Bool = false,
         for containerId: UUID
     ) async {
         var memory = memory(for: containerId)
 
         // Create the new turn
-        var turn = MemoryTurn(userQuery: userQuery, assistantResponse: assistantResponse)
+        var turn = MemoryTurn(userQuery: userQuery, assistantResponse: assistantResponse, refused: refused)
 
-        // Extract facts from the response (simple extraction - fast, no LLM)
-        turn.extractedFacts = extractFacts(from: assistantResponse)
+        if !refused {
+            // Extract facts from the response (simple extraction - fast, no LLM)
+            turn.extractedFacts = extractFacts(from: assistantResponse)
+        }
 
         // DYNAMIC: Calculate importance score for prioritized summarization
         turn.calculateImportance()
 
         // Add to recent turns
         memory.recentTurns.append(turn)
+        if memory.firstTurnAt == nil {
+            // A memory saved before 5.8 already holds turns, a summary or topics of unknown age: its start is
+            // unknown, so it never counts as begun after a change of documents.
+            let heldEarlierTurns =
+                memory.recentTurns.count > 1 || !memory.summary.isEmpty || !memory.entities.isEmpty
+                || !memory.topics.isEmpty
+            memory.firstTurnAt = heldEarlierTurns ? .distantPast : turn.timestamp
+        }
 
-        // Extract and track entities from the query and response (fast regex, no LLM)
-        let newEntities = extractEntities(from: userQuery + " " + assistantResponse)
-        memory.entities = Array(Set(memory.entities + newEntities).prefix(config.maxEntities))
+        if !refused {
+            // Extract and track entities from the query and response (fast regex, no LLM)
+            let newEntities = extractEntities(from: userQuery + " " + assistantResponse)
+            memory.entities = Array(Set(memory.entities + newEntities).prefix(config.maxEntities))
 
-        // Extract topics (fast, no LLM)
-        let newTopics = extractTopics(from: userQuery)
-        memory.topics = Array(Set(memory.topics + newTopics).prefix(config.maxTopics))
+            // Extract topics (fast, no LLM)
+            let newTopics = extractTopics(from: userQuery)
+            memory.topics = Array(Set(memory.topics + newTopics).prefix(config.maxTopics))
+        }
 
         // Update timestamp
         memory.lastUpdated = Date()
@@ -295,8 +492,9 @@ final class ConversationMemoryService {
         // Check if we need to summarize older turns (background, non-blocking)
         if memory.recentTurns.count > config.maxRecentTurns + config.summarizationThreshold {
             let memorySnapshot = memory
+            let clearCount = clearCounts[containerId, default: 0]
             Task.detached(priority: .utility) { [weak self] in
-                await self?.performBackgroundSummarization(for: memorySnapshot)
+                await self?.performBackgroundSummarization(for: memorySnapshot, clearCount: clearCount)
             }
         }
 
@@ -346,8 +544,18 @@ final class ConversationMemoryService {
     /// - Query-adaptive token budget (simple queries get less, follow-ups get more)
     /// - Semantic relevance scoring (prioritizes memory relevant to current query)
     /// - Prioritizes recent turns over summary, and summary over entities
-    func contextInjection(for containerId: UUID, query: String = "") -> String {
-        let memory = memory(for: containerId)
+    ///
+    /// Refused turns, and turns from before `documentsChangedAt` (the library's last change of documents), are left
+    /// out; so are the summary and key topics when they may hold such turns (5.8, `ConversationContextRules`).
+    func contextInjection(for containerId: UUID, query: String = "", documentsChangedAt: Date? = nil) -> String {
+        var memory = memory(for: containerId)
+        memory.recentTurns = memory.recentTurns.filter {
+            ConversationContextRules.isUsable($0, documentsChangedAt: documentsChangedAt)
+        }
+        if !ConversationContextRules.summaryIsUsable(memory, documentsChangedAt: documentsChangedAt) {
+            memory.summary = ""
+            memory.entities = []
+        }
 
         guard !memory.summary.isEmpty || !memory.recentTurns.isEmpty else {
             return ""
@@ -455,10 +663,33 @@ final class ConversationMemoryService {
     }
 
     /// Clear memory for a container
+    ///
+    /// Saves an empty memory instead of deleting the file (5.8): with iCloud on, the library's shared copy is merged
+    /// newest-file-wins, so a deleted local file was copied back from the shared one and the cleared conversation
+    /// returned. A save still waiting for its debounce is dropped, and a summary still being written is discarded.
     func clearMemory(for containerId: UUID) {
-        memoryCache.removeValue(forKey: containerId)
-        deleteMemory(for: containerId)
+        clearCounts[containerId, default: 0] += 1
+        pendingSaves.remove(containerId)
+        let empty = ConversationMemory(containerId: containerId)
+        memoryCache[containerId] = empty
+        saveMemory(empty)
         Log.debug("[ConversationMemory] Cleared memory for container \(containerId)", category: .retrieval)
+    }
+
+    /// Waits until every memory file write queued so far is on disk. For tests.
+    nonisolated static func waitForWrites() {
+        writeQueue.sync {}
+    }
+
+    /// Forgets the in-memory copies so the next read comes from disk. For tests.
+    func dropCachedMemories() {
+        memoryCache.removeAll()
+    }
+
+    /// Writes any save waiting for its debounce now. For tests.
+    func flushPendingSavesNow() {
+        saveTask?.cancel()
+        flushPendingSaves()
     }
 
     // MARK: - Debounced Persistence
@@ -502,7 +733,7 @@ final class ConversationMemoryService {
     ///
     /// DYNAMIC: Uses importance scoring to preserve high-value turns longer.
     /// Low-importance turns are summarized first, high-importance turns are kept verbatim.
-    private func performBackgroundSummarization(for memory: ConversationMemory) async {
+    private func performBackgroundSummarization(for memory: ConversationMemory, clearCount: Int) async {
         var mutableMemory = memory
 
         // DYNAMIC: Sort turns by importance - summarize LOW importance first
@@ -526,14 +757,26 @@ final class ConversationMemoryService {
             textToSummarize += "Previous summary: \(mutableMemory.summary)\n\nNew conversation:\n"
         }
 
-        for turn in turnsToSummarize {
+        // A refused turn is never given to the model again, a summary included (5.8).
+        for turn in turnsToSummarize where !turn.refused {
             // Include importance in summary for context
             let importanceLabel = turn.importanceScore > 0.7 ? "[Important] " : ""
             textToSummarize += "\(importanceLabel)Q: \(turn.userQuery)\nA: \(String(turn.assistantResponse.prefix(500)))\n\n"
         }
 
-        // Generate summary using LLM (this is the slow part)
-        let newSummary = await generateSummary(for: textToSummarize)
+        // Generate summary using LLM (this is the slow part). Turns that were all refused leave the summary as it was.
+        let newSummary: String
+        if turnsToSummarize.contains(where: { !$0.refused }) {
+            newSummary = await generateSummary(for: textToSummarize)
+        } else {
+            newSummary = mutableMemory.summary
+        }
+
+        // The memory was cleared while the summary was written (5.8): writing it back would restore the conversation.
+        guard clearCounts[memory.containerId, default: 0] == clearCount else {
+            Log.debug("[ConversationMemory] Dropped a summary of a cleared memory", category: .retrieval)
+            return
+        }
 
         // Update memory atomically
         mutableMemory.summary = String(newSummary.prefix(config.maxSummaryLength))
@@ -688,7 +931,7 @@ final class ConversationMemoryService {
             encoder.outputFormatting = [.prettyPrinted]
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(memory)
-            Task.detached {
+            Self.writeQueue.async {
                 do {
                     try WorkspaceSyncService.coordinatedWriteData(data, to: url)
                 } catch {
@@ -712,13 +955,6 @@ final class ConversationMemoryService {
         } catch {
             Log.error("[ConversationMemory] Failed to load memory: \(error)", category: .retrieval)
             return nil
-        }
-    }
-
-    private func deleteMemory(for containerId: UUID) {
-        let url = memoryURL(for: containerId)
-        Task.detached {
-            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
         }
     }
 }

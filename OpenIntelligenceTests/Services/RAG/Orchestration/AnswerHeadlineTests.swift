@@ -182,4 +182,69 @@ final class AnswerHeadlineTests: XCTestCase {
         let paused = (0..<3).map { passage($0, other, rebuilt) } + (3..<6).map { passage($0, other, rebuilt.addingTimeInterval(5 * 3600)) }
         XCTAssertEqual(PassageGenerations.newest(of: paused).removed, 0, "an import paused for hours holds each place once")
     }
+
+    // MARK: Earlier turns in the prompt (2026-11-15)
+
+    /// A person re-imported fixed documents and kept getting refusals in the open chat until Clear Chat: the earlier
+    /// refusal and turns from before the change went into every prompt.
+    @MainActor
+    func testThePromptLeavesOutRefusedTurnsAndTurnsFromBeforeTheDocumentsChanged() async {
+        DirectModelCallsForTesting.disabled = true
+        defer { DirectModelCallsForTesting.disabled = false }
+        let engine = RAGService()
+        let library = UUID()
+        let memory = ConversationMemoryService.shared
+        memory.clearMemory(for: library)
+        addTeardownBlock { @MainActor in ConversationMemoryService.shared.clearMemory(for: library) }
+        func prompt(_ question: String) -> String {
+            engine.buildGenerationPrompt(
+                selectedId: library, question: question, retrievalConfig: .default, qualityModeRequiresCitations: false
+            ).promptForGeneration
+        }
+
+        // Memory: a refusal is left out, an answer is kept.
+        await memory.addTurn(
+            userQuery: "What is the pet policy?", assistantResponse: "Your documents do not say.", refused: true,
+            for: library)
+        XCTAssertEqual(prompt("And the deposit?"), "And the deposit?")
+        await memory.addTurn(
+            userQuery: "What is the rent?", assistantResponse: "The rent is $1,200 a month [S1].", for: library)
+        let withMemory = prompt("When is it due?")
+        XCTAssertTrue(withMemory.contains("What is the rent?"), withMemory)
+        XCTAssertFalse(withMemory.contains("pet policy"), withMemory)
+
+        // The library's documents change: the turn before it is left out too.
+        let changes = LibraryDocumentChanges.shared
+        let document = UUID()
+        changes.record([(id: document, library: library, passages: 1)])
+        changes.record([(id: document, library: library, passages: 2)], now: Date().addingTimeInterval(1))
+        XCTAssertEqual(prompt("When is it due?"), "When is it due?")
+
+        // The chat history, which stands in when memory has nothing: the same two rules.
+        memory.clearMemory(for: library)
+        let later = Date().addingTimeInterval(5)
+        let metadata = ResponseMetadata(
+            totalGenerationTime: 1, tokensGenerated: 5, modelUsed: "test", retrievalTime: 0, gatingDecision: "verified:90%")
+        engine.chatHistories[library] = [
+            ChatMessage(role: .user, content: "What is the rent?", timestamp: Date().addingTimeInterval(-60)),
+            ChatMessage(
+                role: .assistant, content: "The rent is $1,200 a month [S1].", timestamp: Date().addingTimeInterval(-59),
+                metadata: metadata),
+            ChatMessage(role: .user, content: "What is the pet policy?", timestamp: later),
+            ChatMessage(
+                role: .assistant, content: "Your documents do not say.", timestamp: later,
+                structuredAnswer: StructuredAnswer.refusal(reason: "Your documents do not say.")),
+            ChatMessage(role: .user, content: "Who is the landlord?", timestamp: later),
+            ChatMessage(role: .assistant, content: "Acme Property [S2].", timestamp: later, metadata: metadata),
+            ChatMessage(role: .user, content: "When is it due?", timestamp: later),
+        ]
+        let withHistory = prompt("When is it due?")
+        XCTAssertTrue(withHistory.contains("User: Who is the landlord?"), withHistory)
+        XCTAssertTrue(withHistory.contains("Assistant: Acme Property [S2]."), withHistory)
+        XCTAssertFalse(withHistory.contains("pet policy"), withHistory)
+        XCTAssertFalse(withHistory.contains("do not say"), withHistory)
+        XCTAssertFalse(withHistory.contains("$1,200"), "from before the documents changed")
+        XCTAssertTrue(withHistory.hasSuffix("CURRENT QUESTION: When is it due?"), withHistory)
+        engine.chatHistories[library] = []
+    }
 }

@@ -400,11 +400,16 @@ extension RAGService {
         // IMPORTANT: Fire-and-forget to avoid blocking response delivery
         let useConversationMemory = await MainActor.run { settingsStore?.enableConversationMemory ?? true }
         if #available(iOS 26.0, *), useConversationMemory {
+            // A refusal is recorded as one and never given to the model again (5.8, `ConversationContextRules`).
+            let refused = ConversationContextRules.isRefusal(
+                structuredAnswer: finalResponse.structuredAnswer,
+                gatingDecision: finalResponse.metadata.gatingDecision)
             // Detached task prevents blocking the response return
             Task.detached(priority: .utility) {
                 await ConversationMemoryService.shared.addTurn(
                     userQuery: query,
                     assistantResponse: finalResponse.generatedResponse,
+                    refused: refused,
                     for: containerId
                 )
             }
