@@ -77,6 +77,9 @@
         /// coordinates, measured from the `Spacer` that separates them. Boxes, labels and
         /// skeletons are clipped to it so they never sit on Cancel, the title or the buttons.
         @State private var openCameraArea: CGRect = .zero
+        /// The camera preview's frame in global coordinates. The overlays draw in its space and are
+        /// shifted into the open camera area.
+        @State private var previewFrame: CGRect = .zero
 
         /// Whether the bottom card shows its chips and live text, or only its one-line caption.
         @State private var detailsExpanded = true
@@ -90,41 +93,35 @@
                         cameraManager.attachPreviewLayer(previewLayer)
                     }
                     .ignoresSafeArea()
-
-                    // AR Overlay layer with detected regions
-                    DetectionOverlayView(
-                        regions: filteredRegions,
-                        selectedType: selectedRegionType,
-                        sourceSize: analysedSourceSize,
-                        openAreaGlobal: openCameraArea
-                    )
-                    .ignoresSafeArea()
-
-                    // Pose wireframe overlay
-                    PoseWireframeOverlay(
-                        humanPoses: humanPoses,
-                        animalPoses: animalPoses,
-                        sourceSize: analysedSourceSize,
-                        openAreaGlobal: openCameraArea
-                    )
-                    .ignoresSafeArea()
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .global)
+                    } action: { newValue in
+                        previewFrame = newValue
+                    }
 
                     // UI Controls overlay
-                    VStack(spacing: 0) {
-                        // Top bar with filters and flash
-                        topControlsBar
-
+                    VStack(spacing: DSSpacing.sm) {
                         // Live metrics HUD
                         if showMetricsHUD {
                             metricsHUD
                         }
 
-                        Spacer()
+                        // The open camera area. Boxes, labels and skeletons are drawn inside it and
+                        // clipped to it, so none can sit on the bar, the card or the capture bar.
+                        //
+                        // **What was wrong before (2026-11-16).** The overlays covered the whole
+                        // screen and were masked to an area measured from a `Spacer`, and on the
+                        // owner's iPhone a box and its "Computer" tag still sat over the flash
+                        // button. Drawing them inside the area they belong to, with a hard clip,
+                        // leaves nothing to measure wrong.
+                        Color.clear
                             .onGeometryChange(for: CGRect.self) { proxy in
                                 proxy.frame(in: .global)
                             } action: { newValue in
                                 openCameraArea = newValue
                             }
+                            .overlay(alignment: .topLeading) { cameraOverlays }
+                            .clipped()
 
                         // Chips, live text and the experimental caption, in one compact card.
                         detailsCard
@@ -147,12 +144,16 @@
                         }
                         .accessibilityElement(children: .combine)
                     }
-                    ToolbarItem(placement: .primaryAction) {
+                    ToolbarItemGroup(placement: .primaryAction) {
                         Button {
-                            showMetricsHUD.toggle()
+                            flashEnabled.toggle()
+                            cameraManager.setFlash(flashEnabled)
                         } label: {
-                            Image(systemName: showMetricsHUD ? "chart.bar.fill" : "chart.bar")
+                            Image(systemName: flashEnabled ? "bolt.fill" : "bolt.slash")
                         }
+                        .accessibilityLabel(flashEnabled ? "Flash on" : "Flash off")
+
+                        optionsMenu
                     }
                 }
                 .onAppear {
@@ -225,36 +226,53 @@
             }
         }
 
-        // MARK: - Top Controls
+        // MARK: - Overlays and options
 
-        private var topControlsBar: some View {
-            HStack {
-                // Flash toggle
-                Button {
-                    flashEnabled.toggle()
-                    cameraManager.setFlash(flashEnabled)
-                } label: {
-                    Image(systemName: flashEnabled ? "bolt.fill" : "bolt.slash")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .padding(DSSpacing.md)
-                        .background(Circle().fill(Color.black.opacity(0.5)))
-                }
+        /// Boxes and skeletons, drawn in the camera preview's own space (the overlays convert
+        /// Vision's coordinates against the full preview) and shifted so that space lines up with
+        /// the preview behind them. The open camera area clips the result.
+        private var cameraOverlays: some View {
+            let shiftX = previewFrame.minX - openCameraArea.minX
+            let shiftY = previewFrame.minY - openCameraArea.minY
+            return ZStack(alignment: .topLeading) {
+                DetectionOverlayView(
+                    regions: filteredRegions,
+                    selectedType: selectedRegionType,
+                    sourceSize: analysedSourceSize,
+                    openAreaGlobal: openCameraArea
+                )
+                PoseWireframeOverlay(
+                    humanPoses: humanPoses,
+                    animalPoses: animalPoses,
+                    sourceSize: analysedSourceSize,
+                    openAreaGlobal: openCameraArea
+                )
+            }
+            .frame(width: max(previewFrame.width, 1), height: max(previewFrame.height, 1), alignment: .topLeading)
+            .offset(x: shiftX, y: shiftY)
+            .allowsHitTesting(false)
+        }
 
-                Spacer()
-
-                // Region type filter
-                Picker("Filter", selection: $selectedRegionType) {
+        /// What the screen shows and the live metrics, in one menu in the bar. These were a
+        /// black-circle flash button and a black-capsule picker floating over the picture, under
+        /// which a box's label could hide (2026-11-16), and a bar-chart button nobody could read.
+        private var optionsMenu: some View {
+            Menu {
+                Picker("Show", selection: $selectedRegionType) {
                     ForEach(RegionType.allCases) { type in
                         Label(type.displayName, systemImage: type.icon)
                             .tag(type)
                     }
                 }
-                .pickerStyle(.menu)
-                .tint(.white)
-                .background(Capsule().fill(Color.black.opacity(0.5)))
+                Toggle(isOn: $showMetricsHUD) {
+                    Label("Live Metrics", systemImage: "chart.bar")
+                }
+            } label: {
+                Image(
+                    systemName: selectedRegionType == .all
+                        ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
             }
-            .padding(DSSpacing.lg)
+            .accessibilityLabel("What to show")
         }
 
         // MARK: - Live Metrics HUD
@@ -348,41 +366,44 @@
                 .padding(.horizontal, DSSpacing.lg)
             }
             .padding(.vertical, DSSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            .environment(\.colorScheme, .dark)
             .padding(.horizontal, DSSpacing.lg)
         }
 
         // MARK: - Experimental badge
 
-        /// The screen's honesty marker, in the same chip shape the app uses elsewhere.
+        /// The screen's honesty marker. White on solid orange: orange text on the glass bar over a
+        /// bright picture could not be read (2026-11-16).
         private var experimentalBadge: some View {
             Text("Experimental")
                 .font(DSTypography.chip)
-                .foregroundStyle(DSColors.warning)
+                .foregroundStyle(.white)
                 .padding(.horizontal, DSSpacing.sm)
                 .padding(.vertical, DSSpacing.xxs)
-                .background(Capsule().fill(DSColors.chipBackground(for: DSColors.warning)))
+                .background(Capsule().fill(DSColors.warning))
                 .accessibilityLabel("Experimental feature")
         }
 
         // MARK: - Details card
 
-        /// Chips, live text and the caption, in one card.
+        /// Chips, live text and the caption, in one glass card.
         ///
         /// **What was wrong before (2026-11-10).** A labels card (two headed chip groups that wrap
         /// onto several lines, plus face and person counts) and a separate Live Text card (five
         /// lines and a character count) stacked above the shutter covered about a third of the
-        /// camera view on the owner's iPhone 16 Pro Max. Now every chip group is one line that
-        /// scrolls sideways, live text is at most two lines, and the whole card folds down to
-        /// its caption with the chevron.
+        /// camera view on the owner's iPhone 16 Pro Max. Now every chip is on one line that
+        /// scrolls sideways, live text is at most two lines, and the whole card folds down to its
+        /// caption with the chevron.
+        ///
+        /// **2026-11-16.** The boxed objects come first (`ObjectLabelPolicy.chips`): three scene
+        /// words used to lead, and the laptop filling the frame was named off the right edge.
         private var detailsCard: some View {
             let faceCount = regionCounts[.face] ?? 0
             let humanCount = regionCounts[.human] ?? 0
             let showsText = !liveOCRText.isEmpty && (selectedRegionType == .all || selectedRegionType == .text)
-            let hasChips = !sceneLabels.isEmpty || !detectedObjects.isEmpty || faceCount > 0 || humanCount > 0
+            let chips = ObjectLabelPolicy.chips(objects: detectedObjects, scenes: sceneLabels)
+            let hasChips = !chips.isEmpty || faceCount > 0 || humanCount > 0
 
             return VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Button {
@@ -409,24 +430,26 @@
                     if hasChips {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: DSSpacing.xs) {
-                                ForEach(sceneLabels.prefix(3), id: \.self) { label in
-                                    detailChip(label, systemImage: "photo", color: DSColors.accent)
-                                }
-                                ForEach(detectedObjects.prefix(6), id: \.self) { label in
-                                    detailChip(label, systemImage: "cube", color: .orange)
+                                ForEach(chips, id: \.text) { chip in
+                                    if chip.isObject {
+                                        detailChip(chip.text, systemImage: "cube", fill: RegionType.object.color)
+                                    } else {
+                                        detailChip(chip.text, systemImage: "photo", fill: .white.opacity(0.18))
+                                    }
                                 }
                                 if faceCount > 0 {
                                     detailChip(
                                         "\(faceCount) face\(faceCount == 1 ? "" : "s")",
-                                        systemImage: "face.smiling", color: DSColors.accent)
+                                        systemImage: "face.smiling", fill: RegionType.face.color)
                                 }
                                 if humanCount > 0 {
                                     detailChip(
                                         "\(humanCount) person\(humanCount == 1 ? "" : "s")",
-                                        systemImage: "figure.stand", color: .green)
+                                        systemImage: "figure.stand", fill: RegionType.human.color)
                                 }
                             }
                         }
+                        .scrollClipDisabled()
                     }
 
                     if showsText {
@@ -446,17 +469,14 @@
             }
             .padding(.horizontal, DSSpacing.md)
             .padding(.vertical, DSSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             .environment(\.colorScheme, .dark)
             .padding(.horizontal, DSSpacing.lg)
         }
 
-        /// One chip in the details card. Scene chips describe the whole picture; object chips are
-        /// the names of the boxes on screen.
-        private func detailChip(_ text: String, systemImage: String, color: Color) -> some View {
+        /// One chip in the details card. Object chips, in the box colour, are the names of the
+        /// boxes on screen; scene chips, plain, describe the whole picture.
+        private func detailChip(_ text: String, systemImage: String, fill: Color) -> some View {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: systemImage)
                 Text(text)
@@ -466,71 +486,91 @@
             .foregroundStyle(.white)
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xxs)
-            .background(Capsule().fill(color.opacity(0.85)))
+            .background(Capsule().fill(fill))
         }
 
         // MARK: - Bottom Capture Bar
 
+        /// Text, the shutter and Document, on the camera's own glass.
+        ///
+        /// **What was wrong before (2026-11-16).** The three controls sat on a black gradient
+        /// slab narrower than the screen, beside a glass Cancel button and a glass details card.
+        /// Now the side buttons are glass circles in one container, as the system Camera's
+        /// controls are, and the shutter keeps its white ring.
         private var bottomCaptureBar: some View {
-            HStack(spacing: DSSpacing.xxl) {
-                // Quick capture (text only)
-                Button {
-                    captureTextOnly()
-                } label: {
-                    VStack(spacing: DSSpacing.xs) {
-                        Image(systemName: "doc.text.viewfinder")
-                            .font(.title2)
-                        Text("Text")
-                            .font(.caption2)
+            GlassEffectContainer(spacing: DSSpacing.xl) {
+                HStack(alignment: .top) {
+                    sideCaptureButton(
+                        "Text", systemImage: "text.viewfinder", enabled: !liveOCRText.isEmpty,
+                        hint: "Adds the live text to your library"
+                    ) {
+                        captureTextOnly()
                     }
-                    .foregroundStyle(.white)
-                }
 
-                // Main capture button
-                Button {
-                    performFullCapture()
-                } label: {
-                    ZStack {
-                        Circle()
-                            .stroke(Color.white, lineWidth: 4)
-                            .frame(width: 70, height: 70)
+                    Spacer(minLength: DSSpacing.lg)
 
-                        Circle()
-                            .fill(isCapturing ? Color.red : Color.white)
-                            .frame(width: 58, height: 58)
-
-                        if isCapturing {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    Button {
+                        performFullCapture()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .stroke(Color.white, lineWidth: 4)
+                                .frame(width: 72, height: 72)
+                            Circle()
+                                .fill(isCapturing ? Color.red : Color.white)
+                                .frame(width: 60, height: 60)
+                            if isCapturing {
+                                ProgressView()
+                                    .tint(.white)
+                            }
                         }
+                        .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
                     }
-                }
-                .disabled(isCapturing)
+                    .buttonStyle(.plain)
+                    .disabled(isCapturing)
+                    .accessibilityLabel("Capture")
+                    .accessibilityHint("Takes a photo and reads it for your library")
 
-                // Document capture (full structured)
-                Button {
-                    captureDocument()
-                } label: {
-                    VStack(spacing: DSSpacing.xs) {
-                        Image(systemName: "doc.richtext")
-                            .font(.title2)
-                        Text("Document")
-                            .font(.caption2)
+                    Spacer(minLength: DSSpacing.lg)
+
+                    sideCaptureButton(
+                        "Document", systemImage: "doc.viewfinder", enabled: !isCapturing,
+                        hint: "Takes a photo and reads its text, tables and lists"
+                    ) {
+                        captureDocument()
                     }
-                    .foregroundStyle(.white)
                 }
+                .padding(.horizontal, DSSpacing.xxl)
             }
-            .padding(.vertical, DSSpacing.xl)
-            .padding(.horizontal, DSSpacing.lg)
-            .background(
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.7)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
-            )
+            .padding(.bottom, DSSpacing.sm)
+        }
+
+        /// A glass circle with its name under it, beside the shutter.
+        private func sideCaptureButton(
+            _ title: String,
+            systemImage: String,
+            enabled: Bool,
+            hint: String,
+            action: @escaping () -> Void
+        ) -> some View {
+            Button(action: action) {
+                VStack(spacing: DSSpacing.xs) {
+                    Image(systemName: systemImage)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .glassEffect(.regular.interactive(), in: Circle())
+                    Text(title)
+                        .font(DSTypography.meta)
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.6), radius: 2)
+                }
+                .opacity(enabled ? 1 : 0.45)
+            }
+            .buttonStyle(.plain)
+            .disabled(!enabled)
+            .accessibilityLabel(title)
+            .accessibilityHint(hint)
         }
 
         // MARK: - Actions

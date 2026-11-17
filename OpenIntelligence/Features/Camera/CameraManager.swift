@@ -981,40 +981,28 @@
         /// for iOS 18 and is value-typed, `async` and Sendable-correct. New work goes on the
         /// current API. Migrating the other eight requests in `performFrameAnalysis` is a separate
         /// job, tracked rather than smuggled in alongside a feature.
-        private nonisolated func labelledSalientObjects(
+        ///
+        /// 2026-11-16: the boxes now come first from the foreground instance mask, one per object
+        /// (`InstanceBoxes`), and from saliency only when the mask finds nothing. The caller filters
+        /// slivers and whole-scene boxes for its own source; this names what it is given.
+        private nonisolated func labelledObjects(
             in ciImage: CIImage,
-            salient: [RectangleObservation],
+            boxes: [CGRect],
             limit: Int
         ) async -> [DetectedRegion] {
-            guard !salient.isEmpty else { return [] }
+            guard !boxes.isEmpty else { return [] }
 
-            // Biggest first: a large salient region is more likely to be the subject than a small
-            // one, and the limit should spend itself on the things worth naming.
+            // Biggest first: a large region is more likely to be the subject than a small one, and
+            // the limit should spend itself on the things worth naming.
             let candidates =
-                salient
-                .filter { $0.confidence > 0.2 }
-                .sorted {
-                    let a = $0.boundingBox.cgRect
-                    let b = $1.boundingBox.cgRect
-                    return (a.width * a.height) > (b.width * b.height)
-                }
+                boxes
+                .sorted { ($0.width * $0.height) > ($1.width * $1.height) }
                 .prefix(limit)
 
             let extent = ciImage.extent
             var results: [DetectedRegion] = []
 
-            for observation in candidates {
-                let box = observation.boundingBox.cgRect
-
-                // A sliver is not an object, and cropping to one produces a classification of
-                // nothing in particular.
-                guard box.width > 0.05, box.height > 0.05 else { continue }
-
-                // Nor is most of the frame. Classifying a crop that covers more than 60% of the
-                // picture is classifying the scene again and printing the answer on a box, which
-                // is how a whole-desk box came to be called "Machine" (2026-11-10).
-                guard box.width * box.height <= 0.6 else { continue }
-
+            for box in candidates {
                 let key = String(
                     format: "%.2f,%.2f,%.2f,%.2f",
                     (box.minX * 20).rounded() / 20, (box.minY * 20).rounded() / 20,
@@ -1046,6 +1034,42 @@
             }
 
             return results
+        }
+
+        /// One box per object in a foreground instance mask. See `InstanceBoxes`.
+        ///
+        /// `instanceMask` labels each pixel with its instance, 0 for the background (Vision's
+        /// `VNObservation.h`, Xcode 27A266a). The header does not name its pixel format, so both
+        /// one-component formats are read and anything else yields no boxes, which falls back to
+        /// saliency rather than guessing.
+        private nonisolated static func instanceBoxes(from observation: VNInstanceMaskObservation) -> [CGRect] {
+            let buffer = observation.instanceMask
+            CVPixelBufferLockBaseAddress(buffer, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+            guard let base = CVPixelBufferGetBaseAddress(buffer) else { return [] }
+
+            let width = CVPixelBufferGetWidth(buffer)
+            let height = CVPixelBufferGetHeight(buffer)
+            let rowBytes = CVPixelBufferGetBytesPerRow(buffer)
+            var labels = [UInt8](repeating: 0, count: width * height)
+
+            switch CVPixelBufferGetPixelFormatType(buffer) {
+            case kCVPixelFormatType_OneComponent8:
+                for row in 0..<height {
+                    let rowStart = base.advanced(by: row * rowBytes).assumingMemoryBound(to: UInt8.self)
+                    for column in 0..<width { labels[row * width + column] = rowStart[column] }
+                }
+            case kCVPixelFormatType_OneComponent32Float:
+                for row in 0..<height {
+                    let rowStart = base.advanced(by: row * rowBytes).assumingMemoryBound(to: Float32.self)
+                    for column in 0..<width {
+                        labels[row * width + column] = UInt8(clamping: Int(rowStart[column].rounded()))
+                    }
+                }
+            default:
+                return []
+            }
+            return InstanceBoxes.boxes(labels: labels, width: width, height: height)
         }
 
         /// The top classification for one crop of a frame, or nil when nothing is confident enough.
@@ -1148,18 +1172,21 @@
             let classifyRequest = VNClassifyImageRequest { request, error in
                 guard let observations = request.results as? [VNClassificationObservation] else { return }
 
-                // Top 3 whole-frame classifications that pass Vision's high-precision filter.
-                // These describe the whole picture and are shown only as Scene chips, never on a
-                // box. A plain 0.3 floor let through parents such as "Consumer Electronics" and
-                // "Machine" whenever any child was likely (2026-11-10).
+                // Top 2 whole-frame classifications that pass Vision's high-precision filter and
+                // name a thing or an informative place. These describe the whole picture and are
+                // shown only as Scene chips, never on a box. A plain 0.3 floor let through parents
+                // such as "Consumer Electronics" and "Machine" whenever any child was likely
+                // (2026-11-10); the precision filter alone still let "Plant" and "Structure"
+                // through beside "Decorative Plant" (2026-11-16). See `ObjectLabelPolicy.isShownAsScene`.
                 let topClassifications =
                     observations
                     .filter {
-                        $0.hasPrecisionRecallCurve
+                        ($0.hasPrecisionRecallCurve
                             ? $0.hasMinimumRecall(0.01, forPrecision: 0.9)
-                            : $0.confidence > 0.6
+                            : $0.confidence > 0.6)
+                            && ObjectLabelPolicy.isShownAsScene($0.identifier)
                     }
-                    .prefix(3)
+                    .prefix(2)
 
                 for classification in topClassifications {
                     // Create a bounding box that represents the whole image for scene labels
@@ -1168,7 +1195,7 @@
                             type: .scene,
                             boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1),
                             confidence: classification.confidence,
-                            preview: classification.identifier.replacingOccurrences(of: "_", with: " ").capitalized
+                            preview: ObjectLabelPolicy.displayName(classification.identifier)
                         ))
                 }
             }
@@ -1242,14 +1269,19 @@
                 }
             }
 
+            // One mask labelling each foreground object, read into one box per object below. See
+            // `InstanceBoxes`.
+            let instanceRequest = VNGenerateForegroundInstanceMaskRequest()
+
             // Lens smudge detection placeholder (VNDetectLensSmudgeRequest not yet available)
             let lensSmudgeDetected = false
 
             // Limit concurrent Vision requests to prevent Metal race conditions
             // Pose estimation only when there was a body in the previous frame. See
-            // `sawHumanLastFrame`. The six requests below are the ones worth running unconditionally.
+            // `sawHumanLastFrame`. The seven requests below are the ones worth running unconditionally.
             var requests: [VNRequest] = [
                 textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest,
+                instanceRequest,
             ]
             if sawHumanLastFrame { requests.append(humanPoseRequest) }
             if sawAnimalLastFrame { requests.append(animalPoseRequest) }
@@ -1262,21 +1294,32 @@
                 }
             }
 
-            // General object detection, assembled from two requests because Apple ships no single
-            // one that does it. Saliency finds boxes around whatever stands out and gives them no
-            // names; classification names an image and gives it no box. Cropping to each salient
-            // box and classifying the crop produces a named box, which is the thing Vision has no
-            // request for. See `labelledSalientObjects`.
+            // General object detection, assembled from requests because Apple ships no single one
+            // that does it. The foreground instance mask gives one box per object (see
+            // `InstanceBoxes`); saliency, which often wraps several objects in one box, is the
+            // fallback when the mask finds nothing. Neither names anything; classification names an
+            // image and gives it no box. Cropping to each box and classifying the crop produces a
+            // named box, which is the thing Vision has no request for. See `labelledObjects`.
             //
             // Four at most. Each costs a classification, and the point is to name what the camera
             // is looking at, not to inventory a room.
-            if let saliency = try? await GenerateObjectnessBasedSaliencyImageRequest().perform(on: ciImage) {
-                regions += await labelledSalientObjects(
-                    in: ciImage,
-                    salient: saliency.salientObjects,
-                    limit: 4
-                )
+            var objectBoxes: [CGRect] = []
+            if let mask = instanceRequest.results?.first {
+                objectBoxes = Self.instanceBoxes(from: mask)
             }
+            if objectBoxes.isEmpty,
+                let saliency = try? await GenerateObjectnessBasedSaliencyImageRequest().perform(on: ciImage)
+            {
+                // Classifying a crop that covers more than 60% of the picture is classifying the
+                // scene again and printing the answer on a box, which is how a whole-desk box came
+                // to be called "Machine" (2026-11-10).
+                objectBoxes =
+                    saliency.salientObjects
+                    .filter { $0.confidence > 0.2 }
+                    .map { $0.boundingBox.cgRect }
+                    .filter { $0.width > 0.05 && $0.height > 0.05 && $0.width * $0.height <= 0.6 }
+            }
+            regions += await labelledObjects(in: ciImage, boxes: objectBoxes, limit: 4)
 
             // Extract scene labels and object names from regions
             let sceneLabels =

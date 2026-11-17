@@ -181,6 +181,114 @@
         static func displayName(_ identifier: String) -> String {
             identifier.replacingOccurrences(of: "_", with: " ").capitalized
         }
+
+        /// Place words that do say something about where the camera is. Every other word in
+        /// `nonObjectIdentifiers` is a parent or a vague scene word and is not shown as a chip.
+        static let informativeSceneIdentifiers: Set<String> = [
+            "kitchen_room", "living_room", "bedroom", "bathroom_room", "dining_room", "classroom",
+            "conference", "cubicle", "restaurant", "interior_shop", "cityscape", "night_sky",
+        ]
+
+        /// Whether a whole-frame classification may be shown as a scene chip.
+        ///
+        /// **What was wrong before (2026-11-16, the owner's iPhone, a MacBook on a counter).** The
+        /// chips read "Plant, Structure, Decorative Plant": "Plant" is the parent of "Decorative
+        /// Plant" and "Structure" says nothing. A specific thing ("decorative_plant") or an
+        /// informative place ("kitchen_room") is shown; parents and vague words are not.
+        static func isShownAsScene(_ identifier: String) -> Bool {
+            !nonObjectIdentifiers.contains(identifier) || informativeSceneIdentifiers.contains(identifier)
+        }
+
+        /// One chip under the camera.
+        struct Chip: Equatable {
+            let text: String
+            /// True for the name of a box on screen, false for a description of the whole picture.
+            let isObject: Bool
+        }
+
+        /// The chips in the order they are shown: the boxed objects first, biggest first as they
+        /// arrive, then up to `maxScenes` scene words that do not repeat an object's name.
+        ///
+        /// The 2026-11-16 screenshot listed three scene chips before any object, so the laptop
+        /// filling the middle of the frame was named last, off the right edge of the row.
+        static func chips(objects: [String], scenes: [String], maxObjects: Int = 4, maxScenes: Int = 2) -> [Chip] {
+            var seen = Set<String>()
+            var result: [Chip] = []
+            for name in objects where seen.insert(name.lowercased()).inserted {
+                guard result.count < maxObjects else { break }
+                result.append(Chip(text: name, isObject: true))
+            }
+            var scenesShown = 0
+            for name in scenes where seen.insert(name.lowercased()).inserted {
+                guard scenesShown < maxScenes else { break }
+                result.append(Chip(text: name, isObject: false))
+                scenesShown += 1
+            }
+            return result
+        }
+    }
+
+    // MARK: - One box per object
+
+    /// Bounding boxes read off a foreground instance map.
+    ///
+    /// **Why (2026-11-16).** Boxes came from `GenerateObjectnessBasedSaliencyImageRequest`, whose
+    /// salient regions often wrap several things at once: pointed at a MacBook on a counter, one box
+    /// took in the laptop, the counter and the chair and was named "Computer". Vision's foreground
+    /// instance mask labels each pixel with the object it belongs to (0 is the background), so the
+    /// tightest rectangle around each label is a box around one object. Saliency stays as the
+    /// fallback for frames where the mask finds nothing.
+    nonisolated enum InstanceBoxes {
+
+        /// One box per instance label, in Vision's normalized space (origin at the lower left),
+        /// largest first.
+        ///
+        /// - Parameters:
+        ///   - labels: the mask, row-major from the top row down, `width * height` values.
+        ///   - minimumSide: a box narrower or shorter than this fraction of the frame is dropped.
+        ///   - maximumArea: a box covering more than this fraction of the frame is dropped: it is
+        ///     the scene, not an object in it.
+        static func boxes(
+            labels: [UInt8],
+            width: Int,
+            height: Int,
+            minimumSide: CGFloat = 0.05,
+            maximumArea: CGFloat = 0.8
+        ) -> [CGRect] {
+            guard width > 0, height > 0, labels.count >= width * height else { return [] }
+
+            // minX, minY, maxX, maxY in pixel rows from the top, per label.
+            var extents: [UInt8: (Int, Int, Int, Int)] = [:]
+            for row in 0..<height {
+                let start = row * width
+                for column in 0..<width {
+                    let label = labels[start + column]
+                    guard label != 0 else { continue }
+                    if let e = extents[label] {
+                        extents[label] = (min(e.0, column), min(e.1, row), max(e.2, column), max(e.3, row))
+                    } else {
+                        extents[label] = (column, row, column, row)
+                    }
+                }
+            }
+
+            let w = CGFloat(width)
+            let h = CGFloat(height)
+            let boxes = extents.values.compactMap { e -> CGRect? in
+                let box = CGRect(
+                    x: CGFloat(e.0) / w,
+                    // Rows count down from the top; Vision's y counts up from the bottom.
+                    y: 1 - CGFloat(e.3 + 1) / h,
+                    width: CGFloat(e.2 - e.0 + 1) / w,
+                    height: CGFloat(e.3 - e.1 + 1) / h
+                )
+                guard box.width >= minimumSide, box.height >= minimumSide,
+                    box.width * box.height <= maximumArea
+                else { return nil }
+                return box
+            }
+            return boxes.sorted { $0.width * $0.height > $1.width * $1.height }
+        }
     }
 
     // MARK: - Which text is real

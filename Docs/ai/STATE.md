@@ -2,7 +2,7 @@
 
 Updated: 2026-11-16
 Branch/worktree: `main`, primary checkout
-Last verified commit: a9933961
+Last verified commit: 6bafcf2a
 
 ## Objective
 
@@ -58,8 +58,50 @@ Not verified: anything on a device (haptics felt, glass seen, the fast-form swap
 | Unit suite | 1,751 overnight on 2026-11-14 with one failure fixed; since then only single classes run, all green |
 | Five Simulator checks | done (`FiveChecksSimulatorTests`, `FiveChecksUITests`); four rows closed in Notion; the lease row (40049a74d54f814eadbace9c62d87ef9) is a line on the owner's checklist |
 | Release text | audited against every commit since v5.7.0 by an Antigravity job (288 then, 307 now); gaps fixed. Store text not pushed |
-| Devices | both run a9933961 (installed 2026-11-16 13:12) |
+| Devices | both run the Vision Capture commit (iPhone 2026-11-16 23:10, Mac 2026-11-17 06:33) |
 | Roadmap | v5.8: about 96 In Progress; most close from the device pass |
+
+## 2026-11-16 evening (committed; pushed with `[ci skip]`, no Xcode Cloud build)
+
+| Commit | What |
+|---|---|
+| f131c860 | Intelligence Mode and Compute Profile hold still when switching (`stable`: every mode drawn hidden, the current one on top); Compute Profile above the Silicon-Native RAG Engine |
+| e7e4a4cd | Neural Engine tile shows Apple's core count on every chip (`AppleDeviceCatalog.neuralEngineCores`), TOPS only where Apple published one |
+| 3eeab1c2 | Mode and profile choices drawn as pills (`ladderChoice`) |
+| 6bafcf2a | Reranker: a failed load is retried before the next search (up to 3 per launch, `reranker.retry`), its errors journaled (`errors`, `attempt`); setup card in plain words; Maximum note no longer claims a faster setup (the default form also takes 75 to 83 s) |
+
+Phone journal after the 6bafcf2a install [measured]: `reranker.load ok attempt=1 form=default` at 01:05:26Z,
+`reranker.fastForm ok` at 01:10:13Z, one Deep Think answer `answer.done ok sources=20` at 01:09:20Z (it waited 44 s for
+setup), 13 stalls, worst 711 ms. The earlier failures that day (`reranker.load failed`, `embedding.load failed`, two
+`answer.done failed error=EmbeddingError` at 23:16 to 23:19Z) came with `sync.waitForFiles ... Code=28 "No space left
+on device"`: the phone had about 44 MB free. Filed as Future Backlog row 41b49a74d54f81eebbc3fbbee08a878d (the app
+never says storage is full).
+
+Rows closed from the logs on 2026-11-16: 40049a74d54f81f3964fc8a7a0792cd5 (PCC steps carry evidence),
+40d49a74d54f81dbb75bd6daf9309f50 (rebuild on one device, both journals), 3f449a74d54f81fa83cafeeb9cbf6344 (crash
+report offered), 3fe49a74d54f8164a5fee6f0f53805ec (Mac context window figures), 40d49a74d54f81779bfaea8b13628d5a
+(Mac launch sync wait). Passing but left open because they need his eyes or a step not yet done: widgets (name and
+count), Atlas names, embedding prepare after delete-and-reinstall, prompt budgets on the Mac, enhanced-security memory
+comparison, iCloud file coordination (PARTIAL). The "rebuild requested after import" rule reads FAIL only because each
+library asked once per device after the 5.8 model change (11-14 and 11-15, and 511B92E9 on the phone 11-16); none
+asked twice on one device. The "34 documents have no passages" trace line is from 2026-11-12; that library reads
+healthy (37 documents, 0 missing) on 2026-11-16.
+
+Overnight 2026-11-16 to 17 (this commit): Vision Capture pass (development builds only; row 41449a74d54f81c1bba2e1633026047a In
+Progress): one box per object from `VNGenerateForegroundInstanceMaskRequest` (`InstanceBoxes`), saliency as fallback;
+overlays drawn inside the open camera area and hard-clipped; object chips first, parents and vague scene words dropped
+(`ObjectLabelPolicy.isShownAsScene`, `.chips`); flash and a Show menu in the bar; glass card and capture buttons. Not seen
+on the phone yet. Glossary PCC plain text cut to fit 360 characters (detail moved to technical).
+
+Full iOS suite at 6bafcf2a on "OI unit" (22:06 to 23:02): 1,799 run, 20 skipped, 33 failed. 30 of the failures were the
+simulator's library at 22 documents on the free plan (`Document quota reached`, limit 5); one was the Glossary length
+(fixed). After `simctl erase` and the fixes, the failing classes plus the camera tests: 113 run, 0 failed, 3 skipped
+[test_verified]. Not settled: `AtlasLabelingTests.testAnAdverbDoesNotNameAnAxisEnd` and
+`testNamingTermsDropsWordsTheirPassagesUseAsAdverbs` failed on the old simulator (NLTagger did not call "gently" an
+adverb) and skipped on the erased one (no English word classes yet); Atlas code unchanged since 2026-11-08.
+
+Disk: 3 GB free became 33 GB (this session's build leftovers and 20 GB of Core ML compile copies in the "OI unit"
+simulator; auto memory `test-simulator-model-cache-grows.md`).
 
 ## Done on 2026-11-14 afternoon and evening (all committed)
 
@@ -135,6 +177,9 @@ in the session scratchpad (writes `/private/tmp/oi-checks-shots`). Logs: `python
 
 ## Exact Next Action
 
-Confirm both devices run adf95abb or later (rebuild with the commands above if not); he then runs his device pass. When he
-says "done", pull both logs with `phone_evidence.py` since the install time, close the rows they prove, and read
-`index.modelCheck` for the first cross-device similarity. Then, at his word only, push and submit.
+He tests on 2026-11-17 on the 6bafcf2a builds already installed (the short version: switch Intelligence Mode a few
+times and import one PDF on the phone, one Deep Think question on the Mac, share an answer to Messages; or the full
+pass in `.claude/skills/device-pass/SKILL.md`). When he says "done", pull both logs with `phone_evidence.py --since
+"2026-11-16 17:00"` (and `--mac --since "2026-11-16 15:08"`), close the rows they prove, then at his word only start the
+Xcode Cloud build (a commit without `[ci skip]`, or a manual run), push the store text, and he submits with "Reset
+rating" ticked.
