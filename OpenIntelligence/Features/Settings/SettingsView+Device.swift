@@ -58,31 +58,6 @@ extension SettingsView {
         }
     }
 
-    /// The languages Apple's model answers in on this device, for Model & Privacy (moved from Device & Performance,
-    /// 2026-11-16).
-    var languageSupportSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            SectionHeader(icon: "globe", title: "Languages")
-
-            // The languages this device's model reports (`SystemLanguageModel.supportedLanguages`, iOS and macOS 26),
-            // named in the person's own language. Through the first 5.7 builds this was a list of 19 typed in by
-            // hand as "verified Apple Intelligence languages as of iOS 26.0+", which nothing checked against the
-            // device, with "Apple routes automatically" under it, which no code here does (2026-10-20).
-            if let languages = modelLanguageNames, !languages.isEmpty {
-                Text(settings.showTechnicalDetails ? "SystemLanguageModel.supportedLanguages on this device:" : "Apple's model on this device answers in:")
-                    .font(.caption)
-                    .foregroundStyle(DSColors.secondaryText)
-                Text(languages.joined(separator: ", "))
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Apple's model hasn't said which languages it answers in on this device.")
-                    .font(.caption)
-                    .foregroundStyle(DSColors.secondaryText)
-            }
-        }
-    }
-
     @ViewBuilder
     private func contextInfoPill(icon: String, label: String, value: String) -> some View {
         HStack(spacing: DSSpacing.xs) {

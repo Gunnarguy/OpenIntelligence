@@ -640,11 +640,15 @@ extension SettingsView {
     /// The widest a Settings page's column gets, in points.
     static let detailColumnWidth: CGFloat = 620
 
+    /// Every pushed page is drawn inside `SettingsLivePage`, so it redraws when a setting changes (2026-11-17). A page
+    /// pushed by a `NavigationLink` is built once from the list's body, which observes `SettingsStore`, and was not
+    /// drawn again when a setting changed: on the Mac, tapping a route or permission on Model & Privacy stored the new
+    /// value while the page went on showing the old one, so a second tap on the old choice did nothing.
     @ViewBuilder
-    private func detailScroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    private func detailScroll<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(spacing: DSSpacing.lg) {
-                content()
+                SettingsLivePage(content: content)
             }
             .padding(DSSpacing.lg)
             // A column no wider than a large phone's page, centred (5.8). On a Mac or an iPad the cards stretched to

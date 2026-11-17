@@ -445,6 +445,8 @@ source text in `scripts/privacy_policy.py`, edited by hand in both). The script 
 Gunzino repository's two copies of the page: until it is run there, the website still says "Settings, Private Cloud
 Compute". Nothing else in the policy changed. `[evidence_level: code_verified, confidence: high]`
 
+*2026-11-17:* Model & Privacy shows the permission as a row of three buttons under the heading "Private Cloud Compute", with no "When to allow it" label, so the same two places now say "Settings, Model & Privacy, Private Cloud Compute" (`PrivacyPolicyView` and `scripts/privacy_policy.py`, edited by hand; the script was not run, so the Gunzino copies still say the older wording until it is). The three choices keep their names. `[evidence_level: code_verified, confidence: high]`
+
 Each statement in the text was checked against the code on 2026-10-15:
 
 - No advertising or tracking code: no `AdSupport`, `AppTrackingTransparency`, `SKAdNetwork` or `AdAttributionKit`

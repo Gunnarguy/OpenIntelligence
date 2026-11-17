@@ -57,154 +57,109 @@ extension SettingsView {
         }
     }
 
+    /// The Apple Intelligence features (2026-11-17, in Intelligence Mode's language): the four switches as compact
+    /// rows, the reply count under Smart Replies, then the features that are always on as tiles. They were rows of
+    /// one size with "Always on" printed at the end of seven of them, and checkboxes on the Mac.
     @ViewBuilder
     var appleIntelligenceFeaturesCard: some View {
-        let badgeColor: Color = activeAIFeatureCount == totalAIFeatureCount ? .green : .orange
-
-        // A `SurfaceCard` on Model & Privacy (2026-11-16). With Technical Details on its title was "Apple
-        // Intelligence", the same as the model card's above it.
         SurfaceCard {
-            HStack(alignment: .firstTextBaseline) {
-                SectionHeader(icon: "apple.intelligence", title: "Apple Intelligence features")
-                Text("\(activeAIFeatureCount) of \(totalAIFeatureCount) on")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(DSColors.readable(badgeColor))
-                    .fixedSize()
-            }
+            SettingsSectionHeader(
+                icon: "apple.intelligence", title: "Apple Intelligence features",
+                badge: "\(activeAIFeatureCount) of \(totalAIFeatureCount) on",
+                badgeColor: activeAIFeatureCount == totalAIFeatureCount ? .green : .orange)
 
-            VStack(spacing: DSSpacing.xxs) {
-                // Toggleable features
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                SettingsGroupLabel(text: "YOU CAN TURN OFF")
                 aiFeatureToggleRow(
                     icon: "text.bubble.fill",
-                    color: .accentColor,
                     title: "Smart Replies",
                     subtitle: settings.showTechnicalDetails ? "Conversational follow-up suggestions" : "Suggested follow-up questions under an answer",
                     isOn: $settings.enableSmartReplies
                 )
-
+                smartReplyCountRow
                 aiFeatureToggleRow(
                     icon: "tag.fill",
-                    color: .accentColor,
                     title: "Content Tagging",
                     subtitle: settings.showTechnicalDetails ? "LLM-powered topic, action & object tagging" : "Labels each document's topics with Apple's model as it's added",
                     isOn: $settings.enableContentTagging
                 )
-
                 aiFeatureToggleRow(
                     icon: "magnifyingglass",
-                    color: .accentColor,
                     title: "Spotlight Indexing",
                     subtitle: settings.showTechnicalDetails ? "System-wide search integration" : "Find your documents from Spotlight search",
                     isOn: $settings.enableSpotlightIndexing
                 )
-
                 aiFeatureToggleRow(
                     icon: "arrow.clockwise.circle.fill",
-                    color: .accentColor,
                     title: "Background Maintenance",
                     subtitle: settings.showTechnicalDetails ? "Scheduled index health checks & Spotlight refresh" : "Checks the search index and refreshes Spotlight on a schedule",
                     isOn: $settings.enableBackgroundMaintenance
                 )
+            }
 
-                // These three were switches bound to `enableWritingTools`,
-                // `enableSpeechAnalysis` and `enableTranslation`. Each key persisted to
-                // UserDefaults and had **zero consumers** anywhere in the app, tests or
-                // the extension — so flipping them changed nothing at all.
-                //
-                // The features themselves are real and always on, which is why these are
-                // status rows now rather than deletions: Writing Tools ships through
-                // `.writingToolsBehavior(.complete)` on the chat composer,
-                // `SpeechAnalyzerService` runs inside `DocumentProcessor` for audio and
-                // video, and `TranslationService` has live call sites. Removing the claim
-                // would have withdrawn something true; removing the control removes
-                // something false.
-                aiFeatureInfoRow(
-                    icon: "pencil.and.outline",
-                    color: .secondary,
-                    title: "Writing Tools",
-                    subtitle: "Summarize, rewrite, proofread"
-                )
-
-                // Voice input is the chat field's dictation button (`VoiceDictation`), built in 5.7;
-                // through 5.6 this line claimed it with no microphone code in the app. The Mac has the
-                // button too since the audio-input entitlement went in (2026-10-14).
-                aiFeatureInfoRow(
-                    icon: "waveform",
-                    color: .secondary,
-                    title: "Speech Analysis",
-                    subtitle: speechAnalysisSubtitle
-                )
-
-                aiFeatureInfoRow(
-                    icon: "character.book.closed.fill",
-                    color: .secondary,
-                    title: "Translation",
-                    subtitle: settings.showTechnicalDetails ? "Multilingual document analysis" : "Searches across languages when a library has a translation language set"
-                )
-
-                Divider()
-
-                // Smart Reply count stepper
-                HStack(spacing: DSSpacing.md) {
-                    Image(systemName: "number.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 20)
-                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("Smart Reply Count")
-                            .font(.subheadline.weight(.medium))
-                        Text("Suggestions per response")
-                            .font(.caption)
-                            .foregroundStyle(DSColors.secondaryText)
-                    }
-                    Spacer()
-                    Stepper(value: $settings.smartReplyCount, in: 1...5) {
-                        Text("\(settings.smartReplyCount)")
-                            .font(.subheadline.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .fixedSize()
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                SettingsGroupLabel(text: "ALWAYS ON")
+                // Writing Tools, Speech Analysis and Translation were switches bound to `enableWritingTools`,
+                // `enableSpeechAnalysis` and `enableTranslation`, and Screen Awareness and Image Playground to
+                // `enableScreenAwareness` and `enableADM3Visuals`. Each key persisted and had **zero consumers**, so
+                // flipping them changed nothing. The features themselves are real and always on: Writing Tools ships
+                // through `.writingToolsBehavior(.complete)` on the chat composer, `SpeechAnalyzerService` runs inside
+                // `DocumentProcessor` for audio and video, `TranslationService` has live call sites, and the App
+                // Intents and the Image Playground path are registered and live. Removing the claim would have
+                // withdrawn something true; removing the control removed something false.
+                SpecTileGrid(columns: 2) {
+                    aiFeatureTile(icon: "pencil.and.outline", title: "Writing Tools", subtitle: "Summarize, rewrite, proofread")
+                    // Voice input is the chat field's dictation button (`VoiceDictation`), built in 5.7; through 5.6
+                    // this line claimed it with no microphone code in the app. The Mac has the button too since the
+                    // audio-input entitlement went in (2026-10-14).
+                    aiFeatureTile(icon: "waveform", title: "Speech Analysis", subtitle: speechAnalysisSubtitle)
+                    aiFeatureTile(
+                        icon: "character.book.closed.fill", title: "Translation",
+                        subtitle: settings.showTechnicalDetails ? "Multilingual document analysis" : "Searches across languages when a library has a translation language set")
+                    aiFeatureTile(
+                        icon: "rectangle.inset.filled.and.person.filled", title: "Screen Awareness",
+                        subtitle: settings.showTechnicalDetails ? "App Intents integration via Shortcuts" : "Siri can tell which document or chat is on your screen")
+                    aiFeatureTile(
+                        icon: "photo.on.rectangle.angled", title: "Image Playground",
+                        subtitle: settings.showTechnicalDetails ? "Interactive ADM 3 image creation from document content" : "Create an image from a document's content")
+                    aiFeatureTile(
+                        icon: "lightbulb.max.fill", title: "App Tips",
+                        subtitle: settings.showTechnicalDetails ? "Contextual guidance & onboarding" : "Tips that point out features as you go")
+                    aiFeatureTile(
+                        icon: "text.book.closed.fill",
+                        // "Gazetteer" is NaturalLanguage's name for it (`NLGazetteer`), kept with Technical Details on (5.7).
+                        title: settings.showTechnicalDetails ? "Gazetteer" : "Vocabulary",
+                        subtitle: settings.showTechnicalDetails ? "Builds domain vocabulary during ingestion" : "Learns the special terms in your documents as they're added")
                 }
-                .padding(.vertical, DSSpacing.xxs)
-
-                Divider()
-
-                // Same as the three above: `enableScreenAwareness` and
-                // `enableADM3Visuals` had no consumers, while the App Intents and the
-                // Image Playground path they describe are registered and live.
-                aiFeatureInfoRow(
-                    icon: "rectangle.inset.filled.and.person.filled",
-                    color: .secondary,
-                    title: "Screen Awareness",
-                    subtitle: settings.showTechnicalDetails ? "Seamless AppIntents integration via Shortcuts" : "Siri can tell which document or chat is on your screen"
-                )
-
-                aiFeatureInfoRow(
-                    icon: "photo.on.rectangle.angled",
-                    color: .secondary,
-                    title: "Image Playground",
-                    subtitle: settings.showTechnicalDetails
-                        ? "Interactive ADM 3 image creation from document content"
-                        : "Create an image from a document's content"
-                )
-
-                aiFeatureInfoRow(
-                    icon: "lightbulb.max.fill",
-                    color: .secondary,
-                    title: "App Tips",
-                    subtitle: settings.showTechnicalDetails ? "Contextual guidance & onboarding" : "Tips that point out features as you go"
-                )
-
-                aiFeatureInfoRow(
-                    icon: "text.book.closed.fill",
-                    color: .secondary,
-                    // "Gazetteer" is NaturalLanguage's name for it (`NLGazetteer`), kept with Technical Details on (5.7).
-                    title: settings.showTechnicalDetails ? "Gazetteer" : "Vocabulary",
-                    subtitle: settings.showTechnicalDetails ? "Builds domain vocabulary during ingestion" : "Learns the special terms in your documents as they're added"
-                )
             }
         }
-     }
+    }
+
+    /// How many suggestions Smart Replies shows, under its switch; dimmed while Smart Replies is off.
+    private var smartReplyCountRow: some View {
+        HStack(spacing: DSSpacing.xs) {
+            Image(systemName: "arrow.turn.down.right")
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize, weight: .semibold)
+                .foregroundStyle(.tertiary)
+                .frame(width: 16)
+            Text("Suggestions per answer")
+                .scaledFont(size: 11)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: DSSpacing.sm)
+            Stepper(value: $settings.smartReplyCount, in: 1...5) {
+                Text("\(settings.smartReplyCount)")
+                    .scaledFont(size: 12, weight: .bold, design: .rounded)
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.readable(.accentColor))
+            }
+            .fixedSize()
+            .accessibilityLabel("Smart Reply suggestions per answer")
+            .accessibilityValue("\(settings.smartReplyCount)")
+        }
+        .padding(.leading, DSSpacing.lg)
+        .disabled(!settings.enableSmartReplies)
+        .opacity(settings.enableSmartReplies ? 1 : 0.45)
+    }
 
     /// The Siri & Shortcuts page (2026-11-16): the panel, the phrases to say, one Open in Shortcuts button, then every
     /// action folded. It was two cards: this one, with the phrase count in a pill and again in the panel, and a
@@ -428,69 +383,77 @@ extension SettingsView {
         }
     }
 
-    /// A toggleable Apple Intelligence feature row.
+    /// A switch, as a compact row in Intelligence Mode's type: the symbol, the name, one line under it.
     @ViewBuilder
     private func aiFeatureToggleRow(
         icon: String,
-        color: Color,
         title: String,
         subtitle: String,
         isOn: Binding<Bool>
     ) -> some View {
-        HStack(spacing: DSSpacing.md) {
+        HStack(alignment: .center, spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption)
-                .foregroundStyle(color)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                .scaledFont(size: 11, weight: .semibold)
+                .foregroundStyle(isOn.wrappedValue ? Color.accentColor : Color.secondary)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.subheadline.weight(.medium))
+                    .scaledFont(size: 12, weight: .semibold)
+                    .foregroundStyle(isOn.wrappedValue ? Color.primary : Color.secondary)
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(DSColors.secondaryText)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-            // The title is the switch's name for VoiceOver; `labelsHidden()` keeps it off the screen (5.7).
+            Spacer(minLength: DSSpacing.sm)
+            // The title is the switch's name for VoiceOver; `labelsHidden()` keeps it off the screen (5.7). A switch
+            // on the Mac too, where a toggle defaults to a checkbox.
             Toggle(title, isOn: isOn)
                 .labelsHidden()
+                .toggleStyle(.switch)
+                #if os(macOS)
+                    .controlSize(.small)
+                #endif
                 .tint(.accentColor)
                 .onChange(of: isOn.wrappedValue) { _, _ in
                     DSHaptics.selection()
                 }
         }
-        .padding(.vertical, DSSpacing.xxs)
     }
 
-    /// An info-only (always active) Apple Intelligence feature row.
-    @ViewBuilder
-    private func aiFeatureInfoRow(
-        icon: String,
-        color: Color,
-        title: String,
-        subtitle: String
-    ) -> some View {
-        HStack(spacing: DSSpacing.md) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundStyle(color)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(DSColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            // Plain text, not a pill (2026-11-16): eight green capsules read as controls that did nothing.
-            Text("Always on")
-                .font(.caption)
-                .foregroundStyle(DSColors.secondaryText)
-                .fixedSize()
+    /// A feature that is always on, as a tile (`AlwaysOnFeatureTile`).
+    private func aiFeatureTile(icon: String, title: String, subtitle: String) -> some View {
+        AlwaysOnFeatureTile(icon: icon, title: title, subtitle: subtitle)
+    }
+
+}
+
+/// A feature that is always on, as a tile on the neutral fill every Settings block uses. Its own view, so it reads the
+/// colour scheme itself: a pushed Settings page is drawn from a copy of `SettingsView` whose environment is fixed at push.
+private struct AlwaysOnFeatureTile: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(Text(Image(systemName: icon)).foregroundStyle(Color.accentColor)) \(title)")
+                .scaledFont(size: 11, weight: .semibold)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(subtitle)
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, DSSpacing.xxs)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.chip + 2, style: .continuous)
+                .fill(SettingsStatusPanel.blockFill(dark: colorScheme == .dark))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), always on. \(subtitle)")
     }
-
 }

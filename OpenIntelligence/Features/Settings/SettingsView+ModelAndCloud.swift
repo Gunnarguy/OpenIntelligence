@@ -30,94 +30,103 @@ extension SettingsView {
 
     // MARK: - Model & Privacy
 
-    /// The Model & Privacy page (2026-11-16): Apple Intelligence and Private Cloud Compute were two pages, and where an
-    /// answer is written (On-Device, Hybrid or PCC) could be chosen only from the chat's model pill. One page now: the
-    /// model and its languages, where answers are written, the Private Cloud Compute permission and quota, then the
-    /// Apple Intelligence features. Every control and stored key is the one it was.
+    /// The Model & Privacy page. One page since 2026-11-16 (Apple Intelligence and Private Cloud Compute were two), and
+    /// since 2026-11-17 in Intelligence Mode's language (the owner: it "should kind of look similar to the other pages
+    /// that we have revamped"). Two cards: answers, then the Apple Intelligence features. It was four cards of prose
+    /// rows: the panel sat inside the third card, the quota was a list ("Status belowLimit", then "Context 32768
+    /// tokens", the figure the panel already showed), the permission's name stood twice beside its menu, and the
+    /// model's 33 languages were one paragraph. Every control and stored key is the one it was: `fmPreference`,
+    /// `pccSetting`, the four feature switches and the reply count.
     @ViewBuilder
     var modelAndPrivacyPage: some View {
-        modelSelectionCard
-        answerRouteCard
-        privateCloudComputeCard
+        answersCard
         appleIntelligenceFeaturesCard
     }
 
-    // MARK: - Model Selection Card
-
-    @ViewBuilder
-    var modelSelectionCard: some View {
+    /// The panel, where answers are written, the Private Cloud Compute permission, then the model folded.
+    private var answersCard: some View {
         SurfaceCard {
-            SectionHeader(
-                icon: "apple.intelligence", title: "Model",
-                caption: deviceCapabilities.supportsAppleIntelligence ? "Apple Intelligence is available" : nil)
-
-            // Model info (not a button since there's only one option)
-            HStack(alignment: .top, spacing: DSSpacing.md) {
-                Image(systemName: "brain.head.profile")
-                    .font(.title3)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 28)
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    // The card's own nickname and tagline ("AFM 3 Ecosystem", "Evidence-first routing ...") with
-                    // Technical Details on; plain words otherwise (5.7 UI cleanup).
-                    Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.nickname : plainModelName)
-                        .font(.subheadline.weight(.medium))
-                    Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.tagline : plainModelTagline)
-                        .font(.caption)
-                        .foregroundStyle(DSColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
+            modelPrivacyPanel
+            if let reason = pccUnavailableLine {
+                Text(reason)
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            // Model capabilities
-            HStack(spacing: DSSpacing.xs) {
-                modelCapabilityPill(icon: "text.bubble", label: "Text Generation")
-                // The model's name only with Technical Details on (5.7 UI cleanup).
-                modelCapabilityPill(icon: "photo", label: settings.showTechnicalDetails ? "ADM 3 Visuals" : "Images")
-                modelCapabilityPill(icon: "doc.text", label: settings.showTechnicalDetails ? "RAG-Ready" : "Your documents")
-            }
-
-            Divider()
-
-            // Moved from Device & Performance (2026-11-16).
-            languageSupportSection
+            answerRouteSection
+            permissionSection
+            modelDetails
         }
     }
 
-    @ViewBuilder
-    private func modelCapabilityPill(icon: String, label: String) -> some View {
-        Label(label, systemImage: icon)
-            .chipStyle(tint: .accentColor)
+    /// Why Private Cloud Compute can't be used here, as the system reports it; nil while it can, or before it reports.
+    private var pccUnavailableLine: String? {
+        guard let capability = pccCapability, !capability.pccAvailable else { return nil }
+        return capability.unavailabilityReason ?? "Private Cloud Compute is unavailable on this device."
     }
 
-    // MARK: - Where answers are written
+    // MARK: Where answers are written
 
-    /// The answer route, bound to `settings.fmPreference`, the setting the chat's model pill
-    /// (`ModelStatusIndicator`) sets (2026-11-16). Three rows in the shape of this page's other rows, a checkmark on
-    /// the chosen one, where the pill's menu was the only place to choose. Private Cloud Compute is offered on iOS and
-    /// macOS 27 (`FoundationModelPreference.availableCases`), and shown but not choosable in a build without its
-    /// entitlement, as in the pill's menu.
-    @ViewBuilder
-    var answerRouteCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "arrow.triangle.branch", title: "Where answers are written",
-                caption: "The same choice as the model button in the chat")
+    /// The routes on the ladder, from staying on the device to the cloud: On-Device, Hybrid, PCC. The chat's model
+    /// button lists the same three (`FoundationModelPreference.availableCases`); PCC only on iOS and macOS 27.
+    private var answerRoutes: [FoundationModelPreference] {
+        [.core3B, .automatic, .privateCloudCompute].filter { route in
+            FoundationModelPreference.availableCases.contains { $0.canonical == route }
+        }
+    }
 
-            VStack(spacing: 0) {
-                ForEach(Array(FoundationModelPreference.availableCases.enumerated()), id: \.element) { index, preference in
-                    if index > 0 { Divider().padding(.leading, 40) }
-                    answerRouteRow(preference)
-                }
+    private static func answerRouteColor(_ preference: FoundationModelPreference) -> Color {
+        switch preference.canonical {
+        case .core3B, .advanced20B: .blue
+        case .automatic: .indigo
+        case .privateCloudCompute: .cyan
+        }
+    }
+
+    private static func answerRouteTitle(_ preference: FoundationModelPreference) -> String {
+        switch preference.canonical {
+        case .core3B, .advanced20B: "On-Device"
+        case .automatic: "Hybrid"
+        case .privateCloudCompute: "Private Cloud Compute"
+        }
+    }
+
+    private func answerRouteWording(_ preference: FoundationModelPreference) -> SettingsLadderNote.Wording {
+        let available = preference.canonical != .privateCloudCompute || pccEntitled
+        return SettingsLadderNote.Wording(
+            symbol: Self.answerRouteIcon(preference),
+            title: available ? Self.answerRouteTitle(preference) : "\(Self.answerRouteTitle(preference)) (not in this build)",
+            detail: Self.answerRouteDescription(preference))
+    }
+
+    /// The answer route, bound to `settings.fmPreference`, the setting the chat's model pill (`ModelStatusIndicator`)
+    /// sets. A ladder since 2026-11-17; three paragraph rows with a checkmark before.
+    private var answerRouteSection: some View {
+        let selected = settings.fmPreference.canonical
+        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            // The caption under the label, not beside it: on a 375-point iPhone the two wrapped into each other.
+            VStack(alignment: .leading, spacing: 1) {
+                SettingsGroupLabel(text: "WHERE ANSWERS ARE WRITTEN")
+                Text("Same as the chat's model button")
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Text("Private Cloud Compute is used only as the permission below allows. Searching your documents always happens on this device.")
-                .font(.caption)
-                .foregroundStyle(DSColors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+            SettingsLadder(
+                rungs: answerRoutes.map { route in
+                    .init(
+                        item: route, name: route.pickerDisplayName, color: Self.answerRouteColor(route),
+                        enabled: route != .privateCloudCompute || pccEntitled,
+                        accessibilityLabel: "\(Self.answerRouteTitle(route)) answer route")
+                },
+                selected: selected
+            ) { route in
+                settings.fmPreference = route
+            }
+            SettingsLadderNote(
+                wordings: answerRoutes.map(answerRouteWording),
+                current: answerRouteWording(selected),
+                color: Self.answerRouteColor(selected))
         }
     }
 
@@ -127,44 +136,6 @@ extension SettingsView {
         #else
             false
         #endif
-    }
-
-    @ViewBuilder
-    private func answerRouteRow(_ preference: FoundationModelPreference) -> some View {
-        let selected = settings.fmPreference.canonical == preference.canonical
-        let enabled = preference != .privateCloudCompute || pccEntitled
-        Button {
-            guard enabled, !selected else { return }
-            DSHaptics.selection()
-            settings.fmPreference = preference
-        } label: {
-            HStack(alignment: .top, spacing: DSSpacing.md) {
-                Image(systemName: Self.answerRouteIcon(preference))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(selected ? Color.accentColor : DSColors.secondaryText)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(enabled ? preference.pickerDisplayName : "\(preference.pickerDisplayName) (not available)")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(enabled ? DSColors.primaryText : DSColors.secondaryText)
-                    Text(Self.answerRouteDescription(preference))
-                        .font(.caption)
-                        .foregroundStyle(DSColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: DSSpacing.sm)
-                Image(systemName: "checkmark")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(selected ? 1 : 0)
-            }
-            .padding(.vertical, DSSpacing.sm)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     /// The pill's icons for the three routes (`ModelStatusIndicator.preferenceIcon`).
@@ -191,86 +162,136 @@ extension SettingsView {
         }
     }
 
-    // MARK: - Private Cloud Compute Card
+    // MARK: Private Cloud Compute permission
+
+    private static func permissionName(_ setting: PCCSettings) -> String {
+        switch setting {
+        case .never: "Never"
+        case .ask: "Ask"
+        case .allow: "Allow"
+        }
+    }
+
+    private static func permissionColor(_ setting: PCCSettings) -> Color {
+        switch setting {
+        case .never: .secondary
+        case .ask: .orange
+        case .allow: .green
+        }
+    }
+
+    private static func permissionWording(_ setting: PCCSettings) -> SettingsLadderNote.Wording {
+        switch setting {
+        case .never:
+            .init(symbol: "hand.raised", title: setting.displayName, detail: "Every answer is written on this device, whatever the route above says.")
+        case .ask:
+            .init(symbol: "questionmark.bubble", title: setting.displayName, detail: "Before an answer goes to Private Cloud Compute, the app asks: Just Once for that question, Always Allow, or Deny, which sets this to Never.")
+        case .allow:
+            .init(symbol: "checkmark.shield", title: setting.displayName, detail: "An answer goes to Private Cloud Compute when the route above sends it, without asking.")
+        }
+    }
+
+    /// `settings.pccSetting` as a ladder (2026-11-17): it was a menu with the setting's name printed beside it twice.
+    /// The menu's full names ("Never use", "Ask when needed", "Allow without asking") are the note's title.
+    private var permissionSection: some View {
+        let supported = deviceCapabilities.supportsPrivateCloudCompute
+        // Corrected 2026-10-15: "after you approve each request" is untrue of Allow without asking, and on iOS and
+        // macOS 26 the reason it's off is the system, not the build.
+        let caption = supported
+            ? "Apple's servers, for the writing step only, with your permission"
+            : DeviceCapabilities.pccRoutingCompiledIn
+                ? "Needs iOS or macOS 27. Every answer is written on this device."
+                : "Not in this build. Every answer is written on this device."
+        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            VStack(alignment: .leading, spacing: 1) {
+                SettingsGroupLabel(text: "PRIVATE CLOUD COMPUTE")
+                Text(caption)
+                    .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            SettingsLadder(
+                rungs: PCCSettings.allCases.map { setting in
+                    .init(
+                        item: setting, name: Self.permissionName(setting), color: Self.permissionColor(setting),
+                        accessibilityLabel: "Private Cloud Compute: \(setting.displayName)")
+                },
+                selected: settings.pccSetting,
+                disabled: !supported
+            ) { setting in
+                settings.pccSetting = setting
+            }
+            // Where Private Cloud Compute can't be used the ladder is off, and the note says so instead of
+            // describing a stored setting that has no effect here.
+            let unsupported = SettingsLadderNote.Wording(
+                symbol: "iphone.gen3", title: "On this device only", detail: caption)
+            SettingsLadderNote(
+                wordings: PCCSettings.allCases.map(Self.permissionWording) + [unsupported],
+                current: supported ? Self.permissionWording(settings.pccSetting) : unsupported,
+                color: supported ? Self.permissionColor(settings.pccSetting) : .secondary)
+            Text("OpenIntelligence does not operate its own servers. Nothing is sent anywhere else. Reading, indexing and searching your documents all happen here regardless of this setting; only the final answer can ever leave.")
+                .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: The model, folded
+
+    /// The model's name and what it does, its capabilities and its languages, folded like Intelligence Mode's "Same
+    /// in every mode". They were the page's first card, and the languages a paragraph of 33 names.
+    private var modelDetails: some View {
+        let languages = modelLanguageNames ?? []
+        return FoldedDetails(title: languages.isEmpty ? "The model" : "The model and its \(languages.count) languages") {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                // The model card's caption until 2026-11-17, kept: whether this device has Apple Intelligence.
+                Label(
+                    deviceCapabilities.supportsAppleIntelligence
+                        ? "Apple Intelligence is available" : "Apple Intelligence isn't available on this device",
+                    systemImage: deviceCapabilities.supportsAppleIntelligence ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .scaledFont(size: 11, weight: .semibold)
+                .foregroundStyle(DSColors.readable(deviceCapabilities.supportsAppleIntelligence ? .green : .orange))
+                VStack(alignment: .leading, spacing: 1) {
+                    // The card's own nickname and tagline ("AFM 3 Ecosystem", "Evidence-first routing ...") with
+                    // Technical Details on; plain words otherwise (5.7 UI cleanup).
+                    Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.nickname : plainModelName)
+                        .scaledFont(size: 12, weight: .semibold)
+                    Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.tagline : plainModelTagline)
+                        .scaledFont(size: 11)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(spacing: DSSpacing.xs) {
+                    modelCapabilityPill(icon: "text.bubble", label: "Text Generation")
+                    // The model's name only with Technical Details on (5.7 UI cleanup).
+                    modelCapabilityPill(icon: "photo", label: settings.showTechnicalDetails ? "ADM 3 Visuals" : "Images")
+                    modelCapabilityPill(icon: "doc.text", label: settings.showTechnicalDetails ? "RAG-Ready" : "Your documents")
+                }
+                SettingsGroupLabel(text: "LANGUAGES")
+                // The languages this device's model reports (`SystemLanguageModel.supportedLanguages`, iOS and macOS
+                // 26), named in the person's own language. Through the first 5.7 builds this was a list of 19 typed in
+                // by hand, which nothing checked against the device (2026-10-20).
+                if languages.isEmpty {
+                    Text("Apple's model hasn't said which languages it answers in on this device.")
+                        .scaledFont(size: 11)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(settings.showTechnicalDetails ? "SystemLanguageModel.supportedLanguages on this device:" : "Apple's model on this device answers in:")
+                        .scaledFont(size: SettingsStatusPanel.minimumTextSize)
+                        .foregroundStyle(.secondary)
+                    Text(languages.joined(separator: " · "))
+                        .scaledFont(size: 11)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
 
     @ViewBuilder
-    var privateCloudComputeCard: some View {
-        SurfaceCard {
-            // Corrected 2026-10-15: "after you approve each request" is untrue of Allow without asking,
-            // and on iOS and macOS 26 the reason it's off is the system, not the build.
-            SectionHeader(
-                icon: "cloud", title: "Private Cloud Compute",
-                caption: deviceCapabilities.supportsPrivateCloudCompute
-                    ? "Apple's servers, for the writing step only, with your permission"
-                    : DeviceCapabilities.pccRoutingCompiledIn
-                        ? "Needs iOS or macOS 27. Every answer is written on this device."
-                        : "Not in this build. Every answer is written on this device.")
-
-            // The paragraph this replaces read "Apple's Private Cloud Compute (PCC) allows
-            // OpenIntelligence to process complex queries with a massive 32,768 token
-            // context window...". Three problems. It framed PCC as the thing that makes
-            // the app work, which is backwards: `FoundationModelRoutePolicy` returns
-            // `.onDevice` on every branch of the automatic path unless a prompt exceeds
-            // the device window. "Massive" is doing work that a number should do. And the
-            // 32,768 was hardcoded directly above a block that renders the *live* figure,
-            // so the same screen could show two different numbers. The panel's badge states the live availability
-            // (`pccCapability`), which the header's Available or Unavailable dot repeated until 2026-11-16.
-            contextWindowPanel
-
-            HStack(spacing: DSSpacing.sm) {
-                Text("When to allow it")
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                Spacer(minLength: DSSpacing.xs)
-                Picker("When to allow it", selection: $settings.pccSetting) {
-                    ForEach(PCCSettings.allCases, id: \.self) { setting in
-                        Text(setting.displayName).tag(setting)
-                    }
-                }
-                .pickerStyle(.menu)
-                .disabled(!deviceCapabilities.supportsPrivateCloudCompute)
-            }
-
-            Text("OpenIntelligence does not operate its own servers. Nothing is sent anywhere else. Reading, indexing and searching your documents all happen here regardless of this setting; only the final answer can ever leave.")
-                .font(.caption)
-                .foregroundStyle(DSColors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-
-            #if canImport(FoundationModels)
-            if #available(iOS 26.0, macOS 26.0, *) {
-                Divider()
-
-                // The quota, as the system reports it ("PCC Quota Status" until 2026-11-16).
-                VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                    Text("Quota")
-                        .font(.subheadline.weight(.medium))
-
-                    if let capability = pccCapability, capability.pccAvailable {
-                        HStack {
-                            Text("Status")
-                                .font(.caption)
-                            Spacer()
-                            Text(capability.pccQuota == .limitReached ? "Limit Reached" : capability.pccQuota.rawValue)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(DSColors.readable(capability.pccQuota == .limitReached ? .red : .green))
-                        }
-                        if let contextSize = capability.pccContextSize {
-                            LabeledContent("Context", value: "\(contextSize) tokens")
-                                .font(.caption)
-                        }
-                    } else if pccCapability == nil {
-                        ProgressView("Reading PCC capability…")
-                            .font(.caption)
-                    } else {
-                        Text(pccCapability?.unavailabilityReason ?? "PCC is currently unavailable on this device.")
-                            .font(.caption)
-                            .foregroundStyle(DSColors.secondaryText)
-                    }
-                }
-            }
-            #endif
-        }
+    private func modelCapabilityPill(icon: String, label: String) -> some View {
+        Label(label, systemImage: icon)
+            .chipStyle(tint: .accentColor)
     }
 
     func refreshPCCCapability() async {
@@ -282,10 +303,10 @@ extension SettingsView {
         TourContext.privateCloudAvailable = pccCapability?.pccAvailable ?? deviceCapabilities.supportsPrivateCloudCompute
     }
 
-    @ViewBuilder
-    /// How much each model can read at once, side by side (5.8): the two figures the rows below this used to
-    /// state, with each bar lit in proportion to the larger window.
-    private var contextWindowPanel: some View {
+    /// The page's panel (5.8; "Reads at once" inside the Private Cloud Compute card until 2026-11-17): the model and
+    /// route in its title, then how much each model reads at once, the permission, and the quota Apple reports. The
+    /// quota was a list under the menu that read "Status belowLimit".
+    private var modelPrivacyPanel: some View {
         let device = pccCapability?.onDeviceContextSize ?? 0
         let onDevice = device > 0 ? device : FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
         let reported = pccCapability?.pccContextSize ?? 0
@@ -293,9 +314,12 @@ extension SettingsView {
         let cloudOn = deviceCapabilities.supportsPrivateCloudCompute
         let largest = Double(max(1, max(onDevice, cloudOn ? cloud : 0)))
         let available = pccCapability?.pccAvailable ?? cloudOn
+        let model = settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.nickname : plainModelName
         return SettingsStatusPanel(
-            symbol: "text.viewfinder",
-            title: "Reads at once",
+            symbol: "apple.intelligence",
+            // The route only where a model writes: Quotes only answers with sentences from the documents.
+            title: settings.selectedModel == .onDeviceAnalysis
+                ? model : "\(model) · \(settings.fmPreference.canonical.pickerDisplayName)",
             badge: available ? "Cloud ready" : "On device only",
             badgeColor: available ? .green : Color.secondary,
             blocks: [
@@ -309,7 +333,33 @@ extension SettingsView {
                     figure: cloudOn ? cloud.formatted() : "Unavailable",
                     share: cloudOn ? Double(cloud) / largest : 0, caption: cloudOn ? "tokens" : "not on this system"),
                 permissionBlock,
+                quotaBlock,
             ])
+    }
+
+    /// Apple's Private Cloud Compute quota for this app, as the system reports it (`PCCQuotaState`), in words.
+    private var quotaBlock: SettingsStatusPanel.Block {
+        let symbol = "gauge.with.dots.needle.67percent"
+        guard let capability = pccCapability else {
+            return .init(symbol: symbol, name: "Quota", color: .orange, figure: "Reading", share: 0, caption: "from the system")
+        }
+        guard capability.pccAvailable else {
+            // On iOS or macOS 27 with the entitlement, unavailable can be for now (`.unavailable(reason)`); the reason
+            // is the line under the panel.
+            return deviceCapabilities.supportsPrivateCloudCompute
+                ? .init(symbol: symbol, name: "Quota", color: .orange, figure: "Unavailable", share: 0, caption: "right now")
+                : .init(symbol: symbol, name: "Quota", color: .orange, figure: "None", share: 0, caption: "no cloud here")
+        }
+        switch capability.pccQuota {
+        case .belowLimit:
+            return .init(symbol: symbol, name: "Quota", color: .orange, figure: "Below limit", share: 0.25, caption: "Apple's limit")
+        case .approachingLimit:
+            return .init(symbol: symbol, name: "Quota", color: .orange, figure: "Near limit", share: 0.8, caption: "Apple's limit")
+        case .limitReached:
+            return .init(symbol: symbol, name: "Quota", color: .red, figure: "Reached", share: 1, caption: "Apple's limit")
+        case .unknown, .unsupported:
+            return .init(symbol: symbol, name: "Quota", color: .orange, figure: "Not reported", share: 0, caption: "by the system")
+        }
     }
 
     /// The permission setting as a block: what the picker below it is set to.

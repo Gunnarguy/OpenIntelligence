@@ -185,3 +185,121 @@ private struct LadderChoice: ViewModifier {
             .contentShape(Capsule())
     }
 }
+
+/// A row of choices drawn as the Intelligence Mode and Compute Profile ladders are (5.8, 2026-11-17): a bar over each
+/// pill that rises from left to right, lit up to the chosen one, and the chosen pill filled in its colour. Model &
+/// Privacy uses it for where answers are written and for the Private Cloud Compute permission, which were a list of
+/// paragraph rows with a checkmark and a menu.
+struct SettingsLadder<Item: Hashable>: View {
+    struct Rung {
+        let item: Item
+        let name: String
+        let color: Color
+        var enabled = true
+        let accessibilityLabel: String
+    }
+
+    let rungs: [Rung]
+    let selected: Item
+    var disabled = false
+    let onSelect: (Item) -> Void
+
+    var body: some View {
+        let selectedIndex = rungs.firstIndex { $0.item == selected } ?? 0
+        HStack(alignment: .bottom, spacing: DSSpacing.xs) {
+            ForEach(Array(rungs.enumerated()), id: \.offset) { index, rung in
+                let isSelected = rung.item == selected
+                let lit = index <= selectedIndex && !disabled
+                Button {
+                    guard !isSelected, rung.enabled, !disabled else { return }
+                    DSHaptics.selection()
+                    onSelect(rung.item)
+                } label: {
+                    VStack(spacing: DSSpacing.xxs) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(
+                                lit
+                                    ? AnyShapeStyle(
+                                        LinearGradient(
+                                            colors: [rung.color.opacity(0.55), rung.color],
+                                            startPoint: .bottom, endPoint: .top))
+                                    : AnyShapeStyle(Color.secondary.opacity(0.14))
+                            )
+                            .frame(height: 6 + CGFloat(index) * 5)
+                            .shadow(color: isSelected && !disabled ? rung.color.opacity(0.6) : .clear, radius: 6)
+                        Text(rung.name)
+                            .scaledFont(size: SettingsStatusPanel.minimumTextSize + 1, weight: .semibold)
+                            .lineLimit(1)
+                            .minimumScaleFactor(SettingsStatusPanel.floorScale(for: SettingsStatusPanel.minimumTextSize + 1))
+                            .ladderChoice(selected: isSelected && !disabled, color: rung.color)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .opacity(rung.enabled && !disabled ? 1 : 0.45)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!rung.enabled || disabled)
+                .accessibilityLabel(rung.enabled ? rung.accessibilityLabel : "\(rung.accessibilityLabel), not available")
+                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+            }
+        }
+    }
+}
+
+/// The tinted line under a ladder that says what the chosen step does (Intelligence Mode's "The base step" banner).
+/// It keeps the height of its tallest wording, so the page doesn't shift as the choice changes.
+struct SettingsLadderNote: View {
+    struct Wording: Equatable {
+        let symbol: String
+        let title: String
+        let detail: String
+    }
+
+    let wordings: [Wording]
+    let current: Wording
+    let color: Color
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(wordings.enumerated()), id: \.offset) { _, wording in
+                note(wording).hidden().accessibilityHidden(true)
+            }
+            note(current)
+        }
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                .fill(color.opacity(0.10))
+        )
+    }
+
+    private func note(_ wording: Wording) -> some View {
+        HStack(alignment: .top, spacing: DSSpacing.sm) {
+            Image(systemName: wording.symbol)
+                .foregroundStyle(DSColors.readable(color))
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(wording.title)
+                    .scaledFont(size: 11, weight: .semibold)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(wording.detail)
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A pushed Settings page that draws itself again whenever `SettingsStore` changes (2026-11-17). Its own
+/// `@EnvironmentObject` subscribes it to the store, and calling `content` again reads the store's current values.
+struct SettingsLivePage<Content: View>: View {
+    @EnvironmentObject private var settings: SettingsStore
+    let content: () -> Content
+
+    var body: some View { content() }
+}

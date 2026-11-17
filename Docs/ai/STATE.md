@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-11-16
+Updated: 2026-11-17
 Branch/worktree: `main`, primary checkout
 Last verified commit: 6bafcf2a
 
@@ -60,6 +60,15 @@ Not verified: anything on a device (haptics felt, glass seen, the fast-form swap
 | Release text | audited against every commit since v5.7.0 by an Antigravity job (288 then, 307 now); gaps fixed. Store text not pushed |
 | Devices | both run the Vision Capture commit (iPhone 2026-11-16 23:10, Mac 2026-11-17 06:33) |
 | Roadmap | v5.8: about 96 In Progress; most close from the device pass |
+
+## 2026-11-17 (committed with `[ci skip]`, not pushed)
+
+- **Device Pass page rewritten** (https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT, version 5): six iPhone and five Mac steps, each line "what to tap / you should see", each step listing the rows it closes (about 60 of 97 open 5.8 rows). The owner tests from it; when he says "done", pull `phone_evidence.py --since "2026-11-16 23:10"` and `--mac --since "2026-11-17 13:36"`.
+- **Model & Privacy redesigned** in Intelligence Mode's language (owner: "should kind of look similar to the other pages"): panel (windows, permission, quota in words), route ladder (`fmPreference`), permission ladder (`pccSetting`), model and languages folded, features as switch rows plus always-on tiles. Shared `SettingsLadder`, `SettingsLadderNote` in `SettingsCardParts.swift`.
+- **Every pushed Settings page now redraws on a setting change** (`SettingsLivePage` in `detailScroll`): before, a tap stored the value but the page kept showing the old one (seen on Model & Privacy and Intelligence Mode on the Mac).
+- Verification: iOS and macOS Debug builds exit 0 (13:36, 13:40); Mac build installed in /Applications 13:36 and the ladders seen redrawing and storing; the owner's Mac settings checked back to Standard, On-Device, Allow in the container plist. The iPhone has NOT got this build (held so it does not interrupt his device pass); install it after he says done.
+- Review (reviewer agent) fixes in the same commit: permission notes checked against `SettingsStore` and `CloudConsentPromptView` (Ask names Just Once for that question, Always Allow, Deny which sets Never); note says the reason where PCC can't be used; quota "Unavailable, right now" vs "None"; "Apple Intelligence is available" kept at the top of the fold; group captions under their labels for iPhone width; always-on tiles read the colour scheme themselves. Privacy policy (`PrivacyPolicyView`, `scripts/privacy_policy.py`) now says "Settings, Model & Privacy, Private Cloud Compute"; the script was NOT run, so Gunzino's copies lag. Not seen on an iPhone or at large text sizes yet.
+- Overnight lesson: the app-install Bash command hung 23:11 to 06:33 (probably an unanswered approval); the Mac never slept, the display did at 01:47 on battery and locked. Quit with `gtimeout 20 osascript` and a `pkill` fallback now.
 
 ## 2026-11-16 evening (committed; pushed with `[ci skip]`, no Xcode Cloud build)
 
