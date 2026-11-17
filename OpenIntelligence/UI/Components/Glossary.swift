@@ -164,8 +164,9 @@ extension GlossaryTermID {
         return "a size the device reports, and none here, where Apple's model isn't available"
     }
 
-    /// Where the figures come from, for the technical register.
-    fileprivate static let documentedWindows = "Apple documents 4,096 tokens (TN3193); an iPhone 16 Pro Max on iOS 27 reports 4,096 and a Mac (M3 Pro) on macOS 27 8,192."
+    /// Where the figures come from, for the technical register. No device's figure is written here: until 2026-11-17
+    /// this said an iPhone 16 Pro Max on iOS 27 reports 4,096, and that iPhone reported 8,192 from iOS 27.2.1 on.
+    fileprivate static let documentedWindows = "Apple documents 4,096 tokens (TN3193). The window differs by device and system version, so the app asks the device for it instead of assuming one."
 
     var definition: GlossaryTerm {
         switch self {

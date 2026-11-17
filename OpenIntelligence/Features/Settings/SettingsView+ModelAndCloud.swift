@@ -244,10 +244,13 @@ extension SettingsView {
         let languages = modelLanguageNames ?? []
         return FoldedDetails(title: languages.isEmpty ? "The model" : "The model and its \(languages.count) languages") {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                // The model card's caption until 2026-11-17, kept: whether this device has Apple Intelligence.
+                // The model card's caption until 2026-11-17, kept: whether this device has Apple Intelligence, and
+                // Apple's name for the model it runs (`onDeviceModelName`, iOS and macOS 27), read from the device.
                 Label(
                     deviceCapabilities.supportsAppleIntelligence
-                        ? "Apple Intelligence is available" : "Apple Intelligence isn't available on this device",
+                        ? (onDeviceModelName.map { "Apple Intelligence is available: this device runs \($0)" }
+                            ?? "Apple Intelligence is available")
+                        : "Apple Intelligence isn't available on this device",
                     systemImage: deviceCapabilities.supportsAppleIntelligence ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                 )
                 .scaledFont(size: 11, weight: .semibold)
