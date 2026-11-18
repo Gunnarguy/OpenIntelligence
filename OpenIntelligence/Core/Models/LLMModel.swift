@@ -103,7 +103,7 @@ enum SamplingStrategy: String, CaseIterable, Sendable, Codable, Identifiable {
     var explanation: String {
         switch self {
         case .greedy:
-            return "Always takes the single most likely next word. The same question returns the same answer every time, which is what you want when looking a fact up. Long answers can start repeating themselves."
+            return "Always takes the single most likely next word. Fixes the model's word choices for Standard answers. The passages found can still differ between runs. Long answers can start repeating themselves."
         case .topK:
             return "Picks at random from a shortlist of the most likely next words. A longer shortlist reads more naturally and varies more. A shorter one stays closer to the wording in your documents."
         case .topP:

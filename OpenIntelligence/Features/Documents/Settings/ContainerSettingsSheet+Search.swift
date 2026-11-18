@@ -18,6 +18,12 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var searchSection: some View {
         Section {
+            // Here since 2026-11-18. It sat in `embeddingResolutionSection`, which no screen placed, so a rebuild
+            // started from this sheet showed no progress at all.
+            if isReembedding, let progress = reembedProgress {
+                ReembedStatusBanner(progress: progress)
+            }
+
             Text("How this library finds the passages an answer is written from.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -418,7 +424,10 @@ extension ContainerSettingsSheet {
                         "Drop a few documents into this library and the dynamic engine will profile everything, set chunking windows, and pick a splitting style for each new file.",
                     bullets: [
                         "New files get a style picked from their text. Rebuilding is always your choice",
-                        "You'll get recommendations before anything hits the cloud (and only with your consent)",
+                        // Was "You'll get recommendations before anything hits the cloud (and only with your
+                        // consent)", corrected 2026-11-18: the plan comes from local text checks
+                        // (`AdaptiveEmbeddingOptimizer.recommendChunkingPlan`), with no model call and no network.
+                        "The style is picked on this device from the file's text; nothing is sent anywhere",
                         "Pause auto mode anytime to freeze the current profile",
                     ],
                     accent: .accentColor
@@ -561,128 +570,6 @@ extension ContainerSettingsSheet {
         case "nl_contextual_embedding": return "Contextual Embeddings"
         case "apple_fm_embed": return "Apple Foundation Model"
         default: return "Apple Natural Language"
-        }
-    }
-
-    @ViewBuilder
-    var embeddingResolutionSection: some View {
-        Section(header: Text("Vector dimension")) {
-            embeddingResolutionContent
-        }
-    }
-
-    @ViewBuilder
-    private var embeddingResolutionContent: some View {
-        Text(
-            "Dimension is fixed by the embedding model (384D for Granite small english r2). Higher dims = richer semantics, more storage (4 bytes × dim per chunk)."
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
-        Picker("Dimension", selection: $dim) {
-            ForEach(availableDimensionOptions, id: \.value) { option in
-                Text("\(option.value)").tag(option.value)
-            }
-        }
-        .pickerStyle(.menu)
-
-        autoAdaptToggle
-        dimensionDetailCard
-        reembedWarnings
-    }
-
-    @ViewBuilder
-    private var autoAdaptToggle: some View {
-        Toggle(isOn: $autoAdaptDimension) {
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Text("Dynamic self-tuning library")
-                if autoAdaptDimension, let directive = activeContainer?.chunkingDirective {
-                    Text(
-                        "Chunking locked on \(directive.strategy.capitalized) • \(directive.targetWordWindow)w / \(directive.overlapWords) overlap from the last run."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-        }
-
-        if autoAdaptDimension {
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text(
-                    "New files get a splitting style picked from their text. The app never re-chunks or re-embeds the whole library on its own; rebuilding is always your choice."
-                )
-                // Self-tuning is not scheduled by any import (`allowsSelfTuningScheduling` is false), so nothing here
-                // promises a next tune (refuting review, 2026-11-10); a library tuned before says when.
-                if let summary = lastSelfTuneSummary {
-                    Text("Last tuned \(summary).")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(Color.accentColor)
-            .padding(.top, DSSpacing.xs)
-        } else {
-            Text(
-                "Leave this off to keep manual control—recommendations still show up, but nothing will re-index or re-chunk without you pressing the button."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.top, DSSpacing.xs)
-        }
-    }
-
-    @ViewBuilder
-    private var dimensionDetailCard: some View {
-        if let selectedOption = dimensionOptions.first(where: { $0.value == dim }) {
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                HStack(spacing: DSSpacing.sm) {
-                    Image(systemName: selectedOption.icon)
-                        .foregroundStyle(Color.accentColor)
-                    Text(selectedOption.title)
-                        .font(.subheadline.weight(.semibold))
-                }
-                Text(selectedOption.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if !selectedOption.metrics.isEmpty {
-                    HStack(spacing: DSSpacing.md) {
-                        ForEach(selectedOption.metrics) { metric in
-                            HStack(spacing: DSSpacing.xs) {
-                                Image(systemName: metric.icon)
-                                    .font(.caption)
-                                Text(metric.text)
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-            .padding(DSSpacing.md)
-            .background(Color.accentColor.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-        }
-    }
-
-    @ViewBuilder
-    private var reembedWarnings: some View {
-        if activeContainer?.embeddingDim != dim {
-            SettingHelpCallout(
-                icon: "arrow.triangle.2.circlepath",
-                title: "Re-embed required",
-                description:
-                    "Changing dimensions reshapes every vector. Reprocess your documents so searches stay accurate.",
-                bullets: [
-                    "Export/backup if you need a snapshot",
-                    "Re-run ingestion to rebuild embeddings",
-                    "Old indexes are discarded once new vectors exist",
-                ],
-                accent: .orange
-            )
-        }
-
-        if isReembedding, let progress = reembedProgress {
-            ReembedStatusBanner(progress: progress)
         }
     }
 

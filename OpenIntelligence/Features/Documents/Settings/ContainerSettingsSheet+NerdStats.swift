@@ -477,7 +477,8 @@ extension ContainerSettingsSheet {
                             .foregroundStyle(.orange)
                         #else
                         let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
-                        Text(hasEntitlement ? "Signed in" : "Missing")
+                        // "Present", not "Signed in" (2026-11-18): this reads the app's signing entitlement, not an account.
+                        Text(hasEntitlement ? "Present" : "Missing")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(hasEntitlement ? .green : .red)
                         #endif

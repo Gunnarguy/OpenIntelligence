@@ -4,8 +4,8 @@
   "name": "Silicon HUD and Telemetry",
   "aliases": ["The HUD", "Silicon HUD", "X-ray overlay", "hardware telemetry", "motherboard HUD", "floating legend"],
   "purpose": "Shows live Neural Engine, CPU, GPU and memory activity in an overlay while the app works.",
-  "revision": "a5511021",
-  "verified_on": "2026-11-17",
+  "revision": "d388ee70",
+  "verified_on": "2026-11-18",
   "entry_points": ["HardwareXRayOverlay", "SiliconLegend", "FloatingLegendWindowManager", "SettingsStore.showSiliconHUD", "HardwareTelemetryState", "DeviceCapabilityService", "SystemStateMonitor"],
   "files": [
     {"path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "role": "primary", "blob": "8ed1d50b6e34c52899fb5e3aefb5d35b2a52a0e1"},
@@ -26,7 +26,7 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemResourceAdvice.swift", "role": "primary", "blob": "39a3340798f141fd2542d26f93adabf12a47fb27"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/SystemResourceAdviceTests.swift", "role": "test", "blob": "52b072876615b93c09641ff42d0f763d54212f1a"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "3596c639d1d9da3b595746fd7ad0722d224bf5f9"},
-    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "b6e5bc25492aeb0f3ffbc464306f24da55384d1d"},
+    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "cbea96b23bfc277a2d6fbb6ad3e949d98065a76f"},
     {"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar+Badges.swift", "role": "shared", "blob": "358c915d054fb116cc1022bc0b0f34cedbcdd690"},
     {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "role": "shared", "blob": "7317ac3f647349634ddb005126803695378fa405"},
     {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "role": "shared", "blob": "ea2a12fdc66a3db47caf659865844a4e5ca124b2"}

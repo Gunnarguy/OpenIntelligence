@@ -4,8 +4,8 @@
   "name": "Semantic Chunking",
   "aliases": ["semantic chunker", "chunk size", "page complexity analyzer", "content tagging service", "chunk metadata", "chunking", "smaller chunks", "larger chunks"],
   "purpose": "Splits extracted text into chunks sized to the kind of file and tags each chunk with its section and metadata.",
-  "revision": "a5511021",
-  "verified_on": "2026-11-17",
+  "revision": "d388ee70",
+  "verified_on": "2026-11-18",
   "entry_points": ["SemanticChunker", "PageComplexityAnalyzer", "ContentTaggingService", "DocumentChunk", "SemanticChunker.chunkText"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "role": "primary", "blob": "071935350df0f337c577f273e18ac4ff47c2be7e"},
@@ -27,7 +27,7 @@
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "shared", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "role": "shared", "blob": "e09349677142e42c4c4e21df4374bb080e98feb4"},
     {"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "role": "shared", "blob": "805220d84cd12198618f16610af89ac69b7ed640"},
-    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "role": "shared", "blob": "51b20d5c057c2ff0ea60e4d13834a7804a8e79b1"},
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "role": "shared", "blob": "8ca8357bc6bbb41a8a65f62d09414170ae6abc0b"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportEnrichment.swift", "role": "shared", "blob": "6890a2d362592441c19b76a826f936cbf922a014"}
   ],
   "nodes": [
@@ -70,7 +70,7 @@
     {"from": "SemanticChunker.chunkText", "type": "depends_on", "to": "SemanticChunker.ChunkingConfig", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker+Chunking.swift", "line": 252, "match": "config: ChunkingConfig = ChunkingConfig(),"}], "by": "build", "note": "constructs it"},
     {"from": "SemanticChunker.chunkText", "type": "depends_on", "to": "SemanticChunker.ChunkingDiagnostics", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker+Chunking.swift", "line": 275, "match": "self.lastDiagnostics = ChunkingDiagnostics("}], "by": "build", "note": "constructs it"},
     {"from": "SemanticChunker.chunkText", "type": "depends_on", "to": "SemanticChunker.EnhancedChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker+Chunking.swift", "line": 380, "match": "chunks.append(EnhancedChunk("}], "by": "build", "note": "constructs it"},
-    {"from": "ContainerSettingsSheet.chunkingSection", "type": "depends_on", "to": "SemanticChunker", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "line": 143, "match": "in: Double(SemanticChunker.ChunkingConfig.minTargetSize)"}], "by": "build", "note": "named there"},
+    {"from": "ContainerSettingsSheet.chunkingSection", "type": "depends_on", "to": "SemanticChunker", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "line": 146, "match": "in: Double(SemanticChunker.ChunkingConfig.minTargetSize)"}], "by": "build", "note": "named there"},
     {"from": "DocumentProcessor.processDocument", "type": "depends_on", "to": "SemanticChunker", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "line": 404, "match": "let baseConfig = SemanticChunker.ChunkingConfig.recommended("}], "by": "build", "note": "named there"},
     {"from": "DocumentProcessor.extractTextFromPDFWithPages", "type": "depends_on", "to": "PageComplexityAnalyzer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "line": 576, "match": "complexityAnalyses = await PageComplexityAnalyzer.shared.analyzeBatch(pages: pagesToAnalyze)"}], "by": "build", "note": "named there"},
     {"from": "ContentTaggingService", "type": "calls", "to": "HardwareTelemetryState.sustain", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 189, "match": "HardwareTelemetryState.shared.sustain(.llmInference, active: true, intensity: 0.7)"}], "by": "build", "note": "named in the body"},
@@ -168,6 +168,6 @@
       {"from": "SemanticChunker", "type": "tested_by", "to": "test:SemanticChunkerTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Document/Chunking/SemanticChunkerTests.swift", "line": 7, "match": "var chunker: SemanticChunker!"}]},
       {"from": "ProcessingMetadata", "type": "tested_by", "to": "test:IngestionFormatCoverageTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Document/Processing/IngestionFormatCoverageTests.swift", "line": 445, "match": ") async throws -> (metadata: ProcessingMetadata, chunks: [ProcessedChunk]) {"}]}
     ],
-    "edges_omitted": 105
+    "edges_omitted": 106
   }
 }

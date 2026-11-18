@@ -38,8 +38,15 @@ struct DeveloperDiagnosticsHubView: View {
             } header: {
                 Text("Pipeline Debugging")
             } footer: {
+                // Rewritten 2026-11-18 from "Force Reasoning uses multi-session even when not needed", which read as
+                // unconditional and as covering every mode. The gates are `RAGService.decideReasoningChain`
+                // (`RAGService+QueryAnswer.swift:733`).
                 Text(
-                    "Pipeline Trace shows chunk flow through RAG stages. Force Reasoning uses multi-session even when not needed."
+                    "Pipeline Trace shows chunk flow through RAG stages. Force Reasoning Chain applies to Standard "
+                        + "answers only, on Apple's model, and runs several sessions only when the question is not "
+                        + "simple or trivial, Evidence-First is off, the best match scores 0.30 or more, and at least "
+                        + "three passages and more than 900 characters of context were included. Deep Think and Maximum are "
+                        + "unaffected."
                 )
             }
 
@@ -102,8 +109,12 @@ struct DeveloperDiagnosticsHubView: View {
                 Picker("Log Level", selection: $loggingLevelRaw) {
                     Text("Silent").tag(LoggingConfiguration.Level.silent.rawValue)
                     Text("Error").tag(LoggingConfiguration.Level.error.rawValue)
+                    // Warning and Verbose since 2026-11-18: `LoggingConfiguration.Level` has six levels, and a stored
+                    // 2 or 5 left the picker with nothing selected.
+                    Text("Warning").tag(LoggingConfiguration.Level.warning.rawValue)
                     Text("Info").tag(LoggingConfiguration.Level.info.rawValue)
                     Text("Debug").tag(LoggingConfiguration.Level.debug.rawValue)
+                    Text("Verbose").tag(LoggingConfiguration.Level.verbose.rawValue)
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: loggingLevelRaw) { _, _ in applyLoggingSettings() }

@@ -25,7 +25,10 @@ extension ContainerSettingsSheet {
             Toggle(isOn: $autoAdaptDimension) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Auto Intelligence")
-                    Text("Picks a splitting style from the start of each file you add. Chunks stay at most 260 words.")
+                    // Corrected 2026-11-18: the pre-scan (`RAGService+Import.swift`, `prescanChunkingPlan`) picks the
+                    // strategy, the size and the overlap, and 260 is the highest target, not the longest chunk: the
+                    // chunker cuts at `safeMaxSize` (`SemanticChunker+Chunking.swift:412`).
+                    Text("Picks a splitting style, chunk size and overlap from the start of each file you add. Chunks aim for at most \(SemanticChunker.ChunkingConfig.maxTargetSize) words and are never longer than \(SemanticChunker.ChunkingConfig.safeMaxSize).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -58,7 +61,7 @@ extension ContainerSettingsSheet {
                 SettingHelpCallout(
                     icon: "wand.and.stars",
                     title: "Auto-tuning active",
-                    description: "Auto Intelligence picks the splitting style. Chunk size stays at most 260 words. Turn it off to set the values yourself.",
+                    description: "Auto Intelligence picks the splitting style, size and overlap. Chunks aim for at most \(SemanticChunker.ChunkingConfig.maxTargetSize) words and are never longer than \(SemanticChunker.ChunkingConfig.safeMaxSize). Turn it off to set the values yourself.",
                     bullets: activeIntelligenceReport?.chunking.rationales ?? [
                         "Current: \(chunkingStrategy.capitalized) strategy",
                         "Window: \(targetWordWindow) words, Overlap: \(overlapWords) words",
@@ -146,7 +149,10 @@ extension ContainerSettingsSheet {
                     .accessibilityLabel("Target Words per Chunk")
                     .accessibilityValue("\(targetWordWindow) words")
 
-                    Text("Smaller = more precise matches, larger = more context per chunk. \(SemanticChunker.ChunkingConfig.maxTargetSize) words is the most the embedding model can take with room for its prefix.")
+                    // Corrected 2026-11-18: the target stops at `maxTargetSize` (260), and the chunker cuts every chunk
+                    // at `safeMaxSize` (310) words (`SemanticChunker+Chunking.swift:412`), which with the ~30-word
+                    // prefix is what the embedding model can take. The old line called 260 the model's limit.
+                    Text("Smaller = more precise matches, larger = more context per chunk. The target goes up to \(SemanticChunker.ChunkingConfig.maxTargetSize) words, and no chunk is longer than \(SemanticChunker.ChunkingConfig.safeMaxSize), which leaves room for the short label the embedding model reads with each one.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -195,14 +201,19 @@ extension ContainerSettingsSheet {
     /// only" and `detectTopicBoundaries` is ten hardcoded English phrases. The default promised a
     /// "280-400 word target" that `DocumentProcessor` clamps to `maxTargetSize`, making the whole
     /// range unreachable. The target is read from the constant now so it cannot drift again.
+    ///
+    /// 2026-11-18: each now says the sliders set its size and overlap. `DocumentProcessor+Import.swift:407-424` takes the
+    /// target and overlap from the library's override (the sliders) whenever one exists, and the maximum is always
+    /// `safeMaxSize`, so a strategy's own size and overlap never apply; it keeps the minimum chunk and the splitting
+    /// rules. Elastic's text said it "sizes chunks", and the default named a fixed 260/50.
     private var chunkingStrategyDescription: String {
         switch chunkingStrategy {
         case "densePrecision":
-            return "A smaller minimum chunk, with topic splitting on and structure kept, for code, formulas or dense technical content. Size comes from the slider."
+            return "A smaller minimum chunk, with topic splitting on and structure kept, for code, formulas or dense technical content. The sliders below set its size and overlap."
         case "elastic":
-            return "Sizes chunks to paragraph and section boundaries, using Apple's sentence detection plus a fixed list of ten English transition phrases. It does not compare meaning between sentences, so the boundaries it finds are structural rather than semantic, and the phrase list is English only."
+            return "A larger minimum chunk, split at paragraph and section boundaries using Apple's sentence detection plus a fixed list of ten English transition phrases. It does not compare meaning between sentences, so the boundaries it finds are structural rather than semantic, and the phrase list is English only. The sliders below set its size and overlap."
         default:
-            return "Up to a \(SemanticChunker.ChunkingConfig.maxTargetSize) word target with \(SemanticChunker.ChunkingConfig.maxOverlap) words of overlap. Balances how much context a chunk carries against how precisely it can be matched."
+            return "The minimum chunk and splitting rules picked for each file's type. The sliders below set its size and overlap, up to \(SemanticChunker.ChunkingConfig.maxTargetSize) and \(SemanticChunker.ChunkingConfig.maxOverlap) words."
         }
     }
 

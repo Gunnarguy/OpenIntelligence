@@ -1029,6 +1029,25 @@ Three properties of the design, each load-bearing:
 
 `[evidence_level: test_verified, confidence: high, evidence_source: RAGService.swift adaptive gate; FoundationModelDynamicProfileRegistry.swift; AdaptiveInferenceProfileTests.swift, 10 cases]`
 
+### Which Model Parameters reach an answer (2026-11-18, 5.8)
+
+Settings › Advanced (`ModelConfigurationSheet`) holds only controls an answer path reads. The stored keys
+(`SettingsStore.Keys`, `ChatScreen`'s `@AppStorage`, `InferenceConfig` fields) are unchanged, so saved values load.
+
+| Control | Reaches | Evidence |
+|---|---|---|
+| Temperature (0 to 0.4) | Standard only; capped at 0.4, or 0.2 for Evidence-First and High Precision | `RAGService+QueryAnswer.swift:597`, `:602`, `:607` |
+| Sampling strategy, seed; Top-K and Top-P (DEBUG builds only) | Standard only | `InferenceConfig` from `ChatScreen+Sending.swift`; Deep Think and Maximum build their own config per call, `RAGService+Agentic.swift:109-113`, `:184-188` |
+| Context window (read only) | Shows `FoundationModelTokenBudget.reportedOnDeviceContextSize`; hidden when nil | the prompt is sized from `FoundationModelTokenBudget.contextSize`, not `llmContextLength` |
+| Removed: penalties | nothing | no penalty field in `GenerationOptions`; only reader `LocalOpenAIServerLLMService.swift` is `#if false` |
+| Removed: System Prompt | the empty-library answer only (`RAGService+QueryExits.swift:794`) | Standard replaces it before every answer (`RAGService+QueryAnswer.swift:574`, `:586`) |
+| Removed: Max Tokens | the first pass's `maximumResponseTokens` only | continuations take the room left in the window (`AppleFoundationLLMService.swift:1327-1334`) |
+
+The Standard passage budget (`RAGService+QueryPipeline.swift:550-555`) no longer charges `inferenceConfig.systemPrompt`,
+since that prompt never reaches a Standard answer; the Standard prompt that replaces it was not charged before this
+change and is not now (`promptOverheadTokens = 120 + toolSchemaTokens`), and an overflow is caught by the overflow retry.
+`[evidence_level: code_verified, confidence: high, evidence_source: the files and lines named in the table, read 2026-11-18]`
+
 ## 22. The three giant functions, broken into steps (2026-11-06, for 5.8)
 
 `RAGService.addDocument` (1,438 lines), `RAGService.queryInternal` (5,826) and the structured PDF parser (1,652) are

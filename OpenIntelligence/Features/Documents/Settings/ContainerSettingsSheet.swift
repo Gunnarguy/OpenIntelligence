@@ -217,8 +217,6 @@ struct ContainerSettingsSheet: View {
                     intelligenceSection
                     accuracyDefaultsSection
                     embeddingProviderSection
-                    // Vector database section hidden — always uses persistent JSON storage
-                    // vectorDatabaseSection
                     libraryNerdStatsSection
                 }
                 deleteLibrarySection
@@ -555,35 +553,6 @@ struct ContainerSettingsSheet: View {
         )
 
         return options
-    }
-
-    var dimensionOptions: [DimensionOption] {
-        [
-            // 384D - Native dimension for CoreML Sentence Embedding (MiniLM-L6-v2)
-            DimensionOption(
-                value: 384,
-                icon: "cpu.fill",
-                title: "384D • Granite small r2",
-                caption: "Bundled Granite model",
-                detail:
-                    "Native output of the bundled granite-embedding-small-english-r2: its CLS vector, normalised, 384 numbers compared by cosine similarity.",
-                metrics: [
-                    // The 384D option serves the Core ML and the Core AI copy. Core ML plans the model onto the Neural
-                    // Engine and Core AI runs it on the GPU (BenchmarkRuns/2026-10-18-compute-plan; 5.7).
-                    OptionMetric(
-                        icon: "bolt.fill", text: "Neural Engine with Core ML, GPU with Core AI", tint: .accentColor),
-                    OptionMetric(icon: "cube.fill", text: "~0.58 MB / 100 docs"),
-                    OptionMetric(icon: "checkmark.seal.fill", text: "Native format"),
-                ]
-            )
-        ]
-    }
-
-    var availableDimensionOptions: [DimensionOption] {
-        guard let option = embeddingProviderOptions.first(where: { $0.id == providerId && $0.isSelectable }) else {
-            return []
-        }
-        return dimensionOptions.filter { option.supportedDimensions.contains($0.value) }
     }
 
     private var availableDimensionValues: [Int] {
@@ -967,17 +936,6 @@ struct EmbeddingProviderOption: Identifiable {
     let supportedDimensions: [Int]
     let metrics: [OptionMetric]
     let alert: ProviderAvailabilityAlert?
-}
-
-struct DimensionOption: Identifiable {
-    let value: Int
-    let icon: String
-    let title: String
-    let caption: String
-    let detail: String
-    let metrics: [OptionMetric]
-
-    var id: Int { value }
 }
 
 struct VectorDBOptionDescriptor: Identifiable {

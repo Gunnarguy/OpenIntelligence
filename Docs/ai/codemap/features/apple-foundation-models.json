@@ -4,8 +4,8 @@
   "name": "Apple Foundation Models",
   "aliases": ["Apple Foundation Models", "SystemLanguageModel", "PrivateCloudComputeLanguageModel", "foundation model session factory", "entitlement checker"],
   "purpose": "Builds the Apple Foundation Models sessions, tools and structured generation that answer on device or on Private Cloud Compute.",
-  "revision": "a5511021",
-  "verified_on": "2026-11-17",
+  "revision": "d388ee70",
+  "verified_on": "2026-11-18",
   "entry_points": ["FoundationModelSessionFactory", "FoundationModelRoutePolicy", "FoundationModelToolRegistry", "FoundationModelStructuredGenerator", "FoundationModelPromptCompiler", "EntitlementChecker"],
   "files": [
     {"path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "role": "primary", "blob": "c5d125680c714c74860b4a476830e6f4cb562d5d"},
@@ -24,7 +24,7 @@
     {"path": "OpenIntelligenceTests/Services/AIPlatform/CustomReasoningProfileTests.swift", "role": "test", "blob": "b0385d58152ef95e8cf26c96d5ebf3f1e4f3475c"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/AnswerModelPriority.swift", "role": "primary", "blob": "e4ba20eb02998897e679f2a9b22e95fd4663d16c"},
     {"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "role": "shared", "blob": "805220d84cd12198618f16610af89ac69b7ed640"},
-    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+NerdStats.swift", "role": "shared", "blob": "1fe903add3e6a2c9f8916e53a59382c9fa1003a2"},
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+NerdStats.swift", "role": "shared", "blob": "8bd6c249b386bf8a58d6cce91bf61831558500ea"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/DirectModelCallsForTesting.swift", "role": "primary", "blob": "36d7ae24720e01ff74ae55b0c3bc85230b9bbc81"}
   ],
   "nodes": [
@@ -85,7 +85,7 @@
     {"from": "FoundationModelStructuredGenerator", "type": "depends_on", "to": "LLMResponse", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelStructuredGenerator.swift", "line": 278, "match": "return LLMResponse("}], "by": "build", "note": "constructs it"},
     {"from": "FoundationModelStructuredGenerator", "type": "depends_on", "to": "StructuredRAGGeneration", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelStructuredGenerator.swift", "line": 334, "match": "structuredRAGGeneration: StructuredRAGGeneration("}], "by": "build", "note": "constructs it"},
     {"from": "AppleFoundationLLMService.ensureSession", "type": "depends_on", "to": "FoundationModelSessionFactory", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "line": 424, "match": "let result = try FoundationModelSessionFactory.createSession("}], "by": "build", "note": "named there"},
-    {"from": "DeveloperDiagnosticsHubView.body", "type": "depends_on", "to": "FoundationModelRoutePolicy", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 67, "match": "let policyRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "named there"},
+    {"from": "DeveloperDiagnosticsHubView.body", "type": "depends_on", "to": "FoundationModelRoutePolicy", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 74, "match": "let policyRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "named there"},
     {"from": "AppleFoundationLLMService.generate", "type": "depends_on", "to": "FoundationModelRoutePolicy", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "line": 504, "match": "let queryType: FoundationModelRoutePolicy.QueryType"}], "by": "build", "note": "named there"},
     {"from": "FoundationModelSessionFactory.createSession", "type": "depends_on", "to": "FoundationModelToolRegistry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift", "line": 32, "match": "let tools = disableTools ? [] : FoundationModelToolRegistry.createTools(toolHandler: toolHandler)"}], "by": "build", "note": "named there"},
     {"from": "FoundationModelStructuredGenerator", "type": "calls", "to": "AppleFoundationModelRoute.contextOptions", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelStructuredGenerator.swift", "line": 84, "match": "let contextOptions = route.contextOptions(includeSchemaInPrompt: true)"}], "by": "build", "note": "named in the body"},

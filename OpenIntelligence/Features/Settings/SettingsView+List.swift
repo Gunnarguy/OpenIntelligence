@@ -217,11 +217,10 @@ extension SettingsView {
             .init(
                 id: .advanced, group: .advanced,
                 title: "Advanced",
-                subtitle: "Temperature, response length, system prompt",
+                subtitle: "Temperature and sampling for Standard answers",
                 icon: "slider.horizontal.3",
                 keywords: [
-                    "system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k",
-                    "sampling", "penalty", "generation", "tuning", "context length", "context window",
+                    "instructions", "temperature", "sampling", "seed", "generation", "tuning", "context window",
                 ]
             ),
             .init(

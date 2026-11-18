@@ -547,8 +547,12 @@ extension RAGService {
                     return isAppleFMOnDevice ? (allowLargeContext ? 800 : 1000) : 800
                 }()
 
-                let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
-                let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens
+                // The caller's system prompt is not charged here (5.8, 2026-11-18). `composeStandardGenerationConfig`
+                // replaces it before every Standard answer (`RAGService+QueryAnswer.swift:574`, `:586`), so its length
+                // only took room from the passages: a long custom prompt in Settings cost passages it never reached.
+                // The Standard prompt that replaces it was not charged here before this change and is not now; a
+                // prompt that still overflows the window is caught by the overflow retry further down.
+                let promptOverheadTokens = 120 + toolSchemaTokens
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
                 let (maxContextChars, useCompactMode, reservedOutputTokens, availableForContextTokens, globalSafetyFactor) = computeContextCharBudget(inferenceConfig: inferenceConfig, baseWindowTokens: baseWindowTokens, promptOverheadTokens: promptOverheadTokens, questionTokens: questionTokens, allowLargeContext: allowLargeContext, isAppleFMOnDevice: isAppleFMOnDevice, applyTrivialCaps: applyTrivialCaps, conservativeCharsPerToken: conservativeCharsPerToken)
@@ -677,7 +681,9 @@ extension RAGService {
                         .planning,
                         title: "🔗 Reasoning chain",
                         detail:
-                            "\(standardComplexity.complexity == .complex ? 4 : 3) sessions × 4K = expanded Standard reasoning"
+                            "\(standardComplexity.complexity == .complex ? 4 : 3) sessions × "
+                            + "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true).formatted()) tokens "
+                            + "= expanded Standard reasoning"
                     )
 
                     // Track reasoning trace for UI display

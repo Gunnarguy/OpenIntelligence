@@ -18,60 +18,6 @@ import AppKit
 #endif
 
 extension SettingsView {
-    // MARK: - Generation Tuning Card
-
-    @ViewBuilder
-    private var generationTuningCard: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.lg) {
-            // Header
-            HStack {
-                Image(systemName: "slider.horizontal.below.square.filled.and.square")
-                    .foregroundStyle(Color.accentColor)
-                Text("Generation Tuning")
-                    .font(.headline)
-                Spacer()
-            }
-
-            Text("Customize how the AI responds to your questions.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            // System Prompt
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                HStack {
-                    Label("System Prompt", systemImage: "text.quote")
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    // Reset button inline
-                    if settings.systemPrompt != "You are a helpful assistant." {
-                        Button {
-                            withAnimation(DSAnimations.fastEase) {
-                                settings.systemPrompt = "You are a helpful assistant."
-                            }
-                        } label: {
-                            Text("Reset")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                TextField("You are a helpful assistant...", text: $settings.systemPrompt, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(3 ... 6)
-                    .font(.caption)
-
-                Text("Instructions given to the AI before each conversation.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(DSSpacing.lg)
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
-    }
-
     // MARK: - Intelligence Mode
 
     /// The Intelligence Mode page (5.8): `IntelligenceModeCard`, in the Compute Profile card's style, with the context
