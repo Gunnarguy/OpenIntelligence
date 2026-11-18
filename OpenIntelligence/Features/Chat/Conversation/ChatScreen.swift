@@ -337,10 +337,11 @@ struct CompactChatHeader: View {
     /// Stats for active container
     private var bottomRowCounts: some View {
         HStack(spacing: DSSpacing.sm) {
-            StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
+            StatChip(icon: "doc.fill", count: docCount, one: "Document", many: "Documents", color: .blue)
             // The passages are the search's units, not the person's: shown with the technical view (5.7).
             if settings.showTechnicalDetails {
-                StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
+                StatChip(
+                    icon: "square.grid.3x3.fill", count: chunkCount, one: "Passage", many: "Passages", color: .purple)
             }
         }
     }
@@ -416,30 +417,63 @@ struct CompactChatHeader: View {
 }
 
 
-/// Small stat chip for header
+/// A count beside the two pickers, drawn the way they are (5.8, the owner's ask): the 20-point circled icon, the same
+/// padding, the same tinted glass capsule and the same height, so the row reads as one family. Only the number, no word
+/// under it and no chevron: a first version put "Documents" and "Passages" under the numbers, which made each chip as
+/// wide as a picker and pushed both onto a line of their own on the iPhone (the owner: "Hellllll no", 2026-11-17).
+///
+/// The number is exact with grouping ("10,000", "144,312"). From a million it shortens to one decimal ("1.2M"), the only
+/// place the exact figure is not shown; VoiceOver always reads the exact count with its word.
 private struct StatChip: View {
     let icon: String
-    let value: String
+    let count: Int
+    let one: String
+    let many: String
     let color: Color
 
-    var body: some View {
-        HStack(spacing: DSSpacing.xxs) {
-            Image(systemName: icon)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(color)
-            // The count in the label color, the color in the icon and the tint (5.7): colored digits on the tinted
-            // capsule measured 4.1 to 1.
-            Text(value)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(DSColors.primaryText)
+    private var valueText: String {
+        if count >= 1_000_000 {
+            return count.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))
         }
+        return count.formatted(.number.grouping(.automatic))
+    }
+
+    private var word: String { count == 1 ? one : many }
+
+    var body: some View {
+        HStack(spacing: DSSpacing.xs) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.14))
+                    .frame(width: 20, height: 20)
+                Image(systemName: icon)
+                    .scaledFont(size: 10, weight: .semibold)
+                    .foregroundStyle(color)
+            }
+            // The number in the label color, the color in the icon and the tint (5.7): colored digits on the tinted
+            // capsule measured 4.1 to 1. The pickers' two lines, hidden, set the height, so the chip matches them at
+            // every text size.
+            ZStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(" ").font(.caption.weight(.semibold))
+                    Text(" ").font(.caption2)
+                }
+                .hidden()
+                Text(valueText)
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+            .accessibilityHidden(true)
+        }
+        .foregroundStyle(DSColors.primaryText)
         .padding(.horizontal, DSSpacing.sm)
-        .padding(.vertical, DSSpacing.xxs)
-        .background(
-            Capsule()
-                .fill(color.opacity(0.1))
-        )
+        .padding(.vertical, DSSpacing.xs)
+        // Not interactive, unlike the pickers: nothing happens on a tap, so it should not respond like a button.
+        .glassEffect(.regular.tint(color.opacity(0.18)), in: Capsule())
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(count.formatted()) \(word.lowercased())")
     }
 }
 
