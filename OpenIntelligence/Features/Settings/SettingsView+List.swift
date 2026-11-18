@@ -20,23 +20,28 @@ import TipKit
 extension SettingsView {
     // MARK: - Settings index
 
-    /// Top-level grouping of the settings tree.
+    /// Top-level grouping of the settings tree, in the order the list shows it. Regrouped 2026-11-17 at the owner's
+    /// ask: How This Works and Plain English sat at the top of Intelligence beside the settings they explain, General
+    /// sat under This Device though it holds the app's look and notifications, and Siri & Shortcuts sat under Account.
+    /// Now the settings come first, then what explains them; the plan sits with the libraries it counts.
     private enum SettingsGroup: String, CaseIterable, Identifiable {
         case intelligence
         case library
         case device
-        case account
-        case system
+        case app
+        case learn
+        case advanced
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .intelligence: return "Intelligence"
-            case .library: return "Libraries"
+            case .library: return "Libraries & Plan"
             case .device: return "This Device"
-            case .account: return "Account"
-            case .system: return "System"
+            case .app: return "App"
+            case .learn: return "Learn"
+            case .advanced: return "Advanced"
             }
         }
     }
@@ -85,35 +90,6 @@ extension SettingsView {
         }
 
         private static let everyEntry: [SettingsEntry] = [
-            // First row of the first group on purpose. This answers the questions a user
-            // has before they have opinions about retrieval depth, and burying it under
-            // About would defeat the reason it exists.
-            .init(
-                id: .howItWorks, group: .intelligence,
-                title: "How This Works",
-                subtitle: "What happens to a document, and what stays on this device",
-                icon: "questionmark.circle",
-                keywords: [
-                    "how", "works", "explain", "privacy", "on-device", "on device", "local",
-                    "server", "upload", "cloud", "embedding", "chunk", "index", "retrieval",
-                    "citation", "sources", "vision", "ocr",
-                ]
-            ),
-            // Second row, immediately after the narrative explanation. The two answer
-            // different questions: How This Works explains the pipeline in order, this
-            // defines a single word you did not recognise while reading it.
-            .init(
-                id: .glossary, group: .intelligence,
-                title: "Plain English",
-                subtitle: "Every word this app uses, defined twice",
-                icon: "character.book.closed",
-                keywords: [
-                    "glossary", "plain", "english", "definition", "definitions", "meaning",
-                    "jargon", "vocabulary", "terms", "what does", "explain", "chunk",
-                    "vector", "embedding", "token", "tops", "neural engine", "ane", "batch",
-                    "rag", "rerank", "bm25", "context window", "temperature", "ocr",
-                ]
-            ),
             .init(
                 id: .intelligenceMode, group: .intelligence,
                 title: "Intelligence Mode",
@@ -145,6 +121,15 @@ extension SettingsView {
                 keywords: ["icloud", "sync", "workspace", "shared", "libraries", "containers"]
             ),
             .init(
+                id: .plan, group: .library,
+                title: "Plan & Usage",
+                subtitle: "Documents, libraries, and Maximum runs",
+                icon: "creditcard",
+                keywords: [
+                    "plan", "billing", "subscription", "pro", "lifetime", "quota", "limit", "upgrade", "purchase",
+                ]
+            ),
+            .init(
                 id: .devicePerformance, group: .device,
                 title: "Device & Performance",
                 subtitle: "Your chip, memory and Compute Profile",
@@ -156,7 +141,7 @@ extension SettingsView {
             ),
             // Appearance and Notifications, one page since 2026-11-16 (three rows and one row before).
             .init(
-                id: .general, group: .device,
+                id: .general, group: .app,
                 title: "General",
                 subtitle: "Accent colour, Technical Details, the hardware HUD and notifications",
                 icon: "gearshape",
@@ -168,43 +153,49 @@ extension SettingsView {
                 ]
             ),
             .init(
-                id: .plan, group: .account,
-                title: "Plan & Usage",
-                subtitle: "Documents, libraries, and Maximum runs",
-                icon: "creditcard",
-                keywords: [
-                    "plan", "billing", "subscription", "pro", "lifetime", "quota", "limit", "upgrade", "purchase",
-                ]
-            ),
-            .init(
-                id: .siriShortcuts, group: .account,
+                id: .siriShortcuts, group: .app,
                 title: "Siri & Shortcuts",
                 subtitle: "Voice commands and automation actions",
                 icon: "mic",
                 keywords: ["siri", "shortcuts", "app intents", "automation", "voice"]
             ),
+            // First row of Learn (2026-11-17). It was the first row of the whole list, above the settings; the owner
+            // wanted the explanations in a section of their own, and Learn keeps them out from under About.
             .init(
-                id: .advanced, group: .system,
-                title: "Advanced",
-                subtitle: "Temperature, response length, system prompt",
-                icon: "slider.horizontal.3",
+                id: .howItWorks, group: .learn,
+                title: "How This Works",
+                subtitle: "What happens to a document, and what stays on this device",
+                icon: "questionmark.circle",
                 keywords: [
-                    "system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k",
-                    "sampling", "penalty", "generation", "tuning", "context length", "context window",
+                    "how", "works", "explain", "privacy", "on-device", "on device", "local",
+                    "server", "upload", "cloud", "embedding", "chunk", "index", "retrieval",
+                    "citation", "sources", "vision", "ocr",
+                ]
+            ),
+            // Second row, immediately after the narrative explanation. The two answer
+            // different questions: How This Works explains the pipeline in order, this
+            // defines a single word you did not recognise while reading it.
+            .init(
+                id: .glossary, group: .learn,
+                title: "Plain English",
+                subtitle: "Every word this app uses, defined twice",
+                icon: "character.book.closed",
+                keywords: [
+                    "glossary", "plain", "english", "definition", "definitions", "meaning",
+                    "jargon", "vocabulary", "terms", "what does", "explain", "chunk",
+                    "vector", "embedding", "token", "tops", "neural engine", "ane", "batch",
+                    "rag", "rerank", "bm25", "context window", "temperature", "ocr",
                 ]
             ),
             .init(
-                id: .developer, group: .system,
-                title: "Developer & Diagnostics",
-                subtitle: "RAG audit, chunk inspector, telemetry",
-                icon: "wrench.and.screwdriver",
-                keywords: [
-                    "developer", "diagnostics", "debug", "logging", "telemetry", "chunk", "audit", "validation",
-                    "benchmark",
-                ]
+                id: .versionHistory, group: .learn,
+                title: "Version History",
+                subtitle: "Every release, and what changed in it",
+                icon: "clock.arrow.circlepath",
+                keywords: ["version", "history", "changelog", "release notes", "updates", "what's new", "previous"]
             ),
             .init(
-                id: .about, group: .system,
+                id: .about, group: .learn,
                 title: "About",
                 subtitle: "Version, privacy policy and links",
                 icon: "info.circle",
@@ -214,11 +205,24 @@ extension SettingsView {
                 ]
             ),
             .init(
-                id: .versionHistory, group: .system,
-                title: "Version History",
-                subtitle: "Every release, and what changed in it",
-                icon: "clock.arrow.circlepath",
-                keywords: ["version", "history", "changelog", "release notes", "updates", "what's new", "previous"]
+                id: .advanced, group: .advanced,
+                title: "Advanced",
+                subtitle: "Temperature, response length, system prompt",
+                icon: "slider.horizontal.3",
+                keywords: [
+                    "system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k",
+                    "sampling", "penalty", "generation", "tuning", "context length", "context window",
+                ]
+            ),
+            .init(
+                id: .developer, group: .advanced,
+                title: "Developer & Diagnostics",
+                subtitle: "RAG audit, chunk inspector, telemetry",
+                icon: "wrench.and.screwdriver",
+                keywords: [
+                    "developer", "diagnostics", "debug", "logging", "telemetry", "chunk", "audit", "validation",
+                    "benchmark",
+                ]
             ),
         ]
     }
