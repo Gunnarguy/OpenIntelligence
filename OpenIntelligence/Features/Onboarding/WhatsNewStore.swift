@@ -132,6 +132,18 @@ final class WhatsNewStore: ObservableObject {
                         "The step that re-scores each search's best candidates now uses IBM's Granite reranker. On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac. It runs on your device like everything else, and unlike the old one it wasn't trained on data licensed for research only."
                 ),
                 .init(
+                    symbol: "memorychip",
+                    title: "The model your device runs, and its window",
+                    detail:
+                        "Apple says its on-device model AFM 3 Core holds 4K to 8K tokens, and AFM 3 Core Advanced 8K on iPhone Air, iPhone 17 Pro, iPhone 18 Pro, iPhone Duo, M4 or later iPads and M3 or later Macs. The system picks which one a device runs. My M3 Pro Mac runs Advanced at 8,192, and my iPhone 16 Pro Max read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1. Model & Privacy names the model it runs."
+                ),
+                .init(
+                    symbol: "text.append",
+                    title: "Long answers no longer stop mid-sentence",
+                    detail:
+                        "When an answer runs long, Apple's model continues it. Each continuation used to stop after 1,600 more characters, wherever the cut fell, and now runs on into the room the window leaves. If Apple pauses the model while you're away, the answer carries on when you come back, or ends with a line saying it stopped early."
+                ),
+                .init(
                     symbol: "tablecells",
                     title: "Tables and numbers come through whole",
                     detail:
@@ -195,7 +207,19 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "cpu",
                     title: "Settings show what really happens",
                     detail:
-                        "Intelligence Mode and Compute Profile show what each step actually does, Active Device shows your device the way Apple and the hardware describe it, and Intelligence Mode no longer lists techniques no mode runs. The X-Ray outlines the chip itself on recent iPhones and iPads, and its labels can be turned off."
+                        "Intelligence Mode and Compute Profile show what each step actually does and hold still as you switch, Active Device shows your device the way Apple and the hardware describe it, with your Mac's model name and the Neural Engine's core count from Apple's specs, and Intelligence Mode no longer lists techniques no mode runs. The X-Ray outlines the chip itself on recent iPhones and iPads, and its labels can be turned off."
+                ),
+                .init(
+                    symbol: "gearshape.2",
+                    title: "Settings in fewer, fuller pages",
+                    detail:
+                        "Model & Privacy holds Apple Intelligence, Private Cloud Compute and where answers are written. General holds Appearance and Notifications, the list is regrouped, Technical Details is one switch for every page, and your plan opens in one tap."
+                ),
+                .init(
+                    symbol: "bubble.left.and.text.bubble.right",
+                    title: "A calmer chat",
+                    detail:
+                        "An answer streams inside its grey bubble from the first word. On iPhone and iPad a swipe in from the left edge opens Evidence Threads, and on a Mac On-Device, Hybrid and PCC are one click in the model menu. After you change a library's documents, earlier answers no longer steer the next one, and New Chat starts clean."
                 ),
                 .init(
                     symbol: "globe.americas",

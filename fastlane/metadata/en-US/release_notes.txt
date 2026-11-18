@@ -5,6 +5,7 @@ MEASURED AGAINST 5.7
 
 • On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9.  One run each, in the iOS 27 Simulator.
 
+
 A ONE-TIME REBUILD
 
 • Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while, and the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.
@@ -14,9 +15,11 @@ ANSWERS
 
 • The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac.
 
+• Apple says its on-device model holds 4K to 8K tokens, and its larger one 8K on M3 or later Macs.  My M3 Pro Mac runs the larger one at 8,192.  A continued answer used to stop after 1,600 more characters and now runs on into the room the window leaves, and Model & Privacy names the model it runs.
+
 • Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
 
-• Deep Think writes its answer from the passages its searches cited, opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back.
+• Deep Think writes its answer from the passages its searches cited (up to about 6,000 tokens where the window is 8K), opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back.
 
 • Maximum now reads the source passages themselves at its last step.  On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change (iOS 27 Simulator).
 
@@ -36,20 +39,20 @@ YOUR DOCUMENTS
 
 STEADIER
 
-• "Getting search ready" happens once after an update, not on every launch.
+• "Getting search ready" happens once after an update.
 
 • The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
 
-• Small tips point out what isn't plain from the screen, one at a time and only when they're useful, and Settings › How This Works › Show Me Around brings them back.
+• Small tips point out what isn't plain from the screen, and Settings › How This Works › Show Me Around brings them back.
 
 
 ALSO
 
-• Intelligence Mode and Compute Profile show what each step actually does, and two windows now share one engine, so they no longer rebuild or sync the same library at the same moment.
+• Settings has fewer, fuller pages, and On-Device, Hybrid and PCC are one click in the chat's model menu.
 
-• The Atlas shows only what's real: one list of topics, the library's own counts, and no more heatmap drawn from random colors.
+• Device & Performance shows your Mac's model name, and a bigger Mac reads more scanned pages at once.
 
-• The app's guides sit in their own library and don't count toward your plan, and rating the app is now Apple's own sheet.
+• The Atlas shows only what's real, two windows share one engine, the guides don't count toward your plan, and rating the app is Apple's own sheet.
 
 
 Everything still runs on your device, unless you approve Apple's Private Cloud Compute.

@@ -114,7 +114,10 @@ final class EvidenceReachBenchmarkTests: XCTestCase {
             XCTFail("Quotes only is selected (the person's choice flag is set); every answer would be excerpts")
             return
         }
-        FoundationModelTokenBudget.onDeviceContextSizeOverrideForTesting = 4096
+        // `TEST_RUNNER_OI_EVIDENCE_WINDOW` sets the window (2026-11-17: the owner's iPhone reads 8,192 since iOS 27.2.1);
+        // 4,096 by default, the iPhone's until then, so earlier runs stay comparable.
+        FoundationModelTokenBudget.onDeviceContextSizeOverrideForTesting =
+            Int(environment["OI_EVIDENCE_WINDOW"] ?? "").flatMap { $0 > 0 ? $0 : nil } ?? 4096
         NetworkMonitor.shared.holdForTesting(false)
         DirectModelCallsForTesting.disabled = !realModel
         addTeardownBlock { @MainActor in

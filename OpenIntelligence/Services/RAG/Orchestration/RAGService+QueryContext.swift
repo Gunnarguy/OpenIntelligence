@@ -39,9 +39,10 @@ extension RAGService {
             // fits 3-5 chunks, so compressing 18 at ~3s each = 54s wasted.
             // Only compress top-N where N = estimated fit + small buffer.
             // Use conservative inline estimates (exact budget is computed later): the window this device reports
-            // less ~1500 overhead/prompt, the question and 300 output. This was a fixed 4096 until 2026-11-17, so on an
-            // 8,192 window (an M3 Pro Mac, and the owner's iPhone 16 Pro Max on iOS 27.2.1) it planned for about half
-            // the room the answer really had and compressed too few candidates.
+            // less ~1500 overhead/prompt, the question and 300 output. This was a fixed 4096 until 2026-11-17. The
+            // window changes only the log lines and thinking events below: `compressionLimit` is at least min(candidates, 5) and
+            // `cappedCompressionLimit` at most 5, so the count compressed is min(candidates, 5) on every window
+            // [evidence_level: code_verified, confidence: high].
             let estQuestionTokens = max(20, question.count / 4)
             let liveWindow = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
             let window = liveWindow > 0 ? liveWindow : FoundationModelTokenBudget.baseContextLength

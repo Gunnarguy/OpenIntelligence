@@ -166,7 +166,9 @@ extension GlossaryTermID {
 
     /// Where the figures come from, for the technical register. No device's figure is written here: until 2026-11-17
     /// this said an iPhone 16 Pro Max on iOS 27 reports 4,096, and that iPhone reported 8,192 from iOS 27.2.1 on.
-    fileprivate static let documentedWindows = "Apple documents 4,096 tokens (TN3193). The window differs by device and system version, so the app asks the device for it instead of assuming one."
+    /// 2026-11-17: Apple's "Detecting available Apple Foundation Models" gives 4K to 8K for AFM 3 Core and 8K for AFM 3
+    /// Core Advanced; TN3193's 4,096 is kept beside it.
+    fileprivate static let documentedWindows = "Apple's TN3193 documents 4,096 tokens, and its page on detecting the on-device models gives 4K to 8K for AFM 3 Core and 8K for AFM 3 Core Advanced. The window differs by device and system version, so the app asks the device for it instead of assuming one."
 
     var definition: GlossaryTerm {
         switch self {

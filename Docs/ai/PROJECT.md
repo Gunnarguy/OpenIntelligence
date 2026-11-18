@@ -106,7 +106,11 @@ These are not roadmap gaps. They are the product.
 
 - **Apple Foundation Models**, for on-device and Private Cloud Compute generation. The public SDK
   exposes no model-tier selector and no server-side architecture or context window, so do not name
-  either in code or copy.
+  either in code or copy. The on-device model and its window are read from the device, never fixed:
+  `SystemLanguageModel.default.contextSize` (4,096 to 8,192 by device and system version) and, on iOS
+  and macOS 27, `SystemLanguageModel.variant.displayName` ("AFM 3 Core" or "AFM 3 Core Advanced", one
+  per device, chosen by the system). See `Docs/ai/DECISIONS.md` 2026-11-17.
+  [evidence_level: code_verified, confidence: high]
 - **Core ML**, for the bundled cross-encoder reranker at
   `OpenIntelligence/Resources/MLModels/ReRankerModel.mlpackage`. `THIRD_PARTY_NOTICES.md` binds it to
   `ibm-granite/granite-embedding-reranker-english-r2`, Apache 2.0 and trained without MS MARCO, by exact path

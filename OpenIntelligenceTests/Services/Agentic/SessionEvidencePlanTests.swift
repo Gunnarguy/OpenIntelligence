@@ -245,8 +245,8 @@ final class ChainSynthesisEvidenceTests: XCTestCase {
     func testBudgetIsTheWindowLessTheAnswerAndPrompt() {
         XCTAssertEqual(ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 4_096), 4_096 - 1_500 - 450 - 256)
         XCTAssertEqual(
-            ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 8_192), SessionEvidencePlan.readingCeilingTokens,
-            "the larger window stops at what a session reads until a larger final prompt is measured")
+            ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 8_192), 8_192 - 1_500 - 450 - 256,
+            "the 8,192 window reads past the 3,200 a session reads (49 against 47 of 53, 2026-11-17)")
         // The notes-only path read about 700 tokens of notes on either window.
         XCTAssertGreaterThan(ChainSynthesisEvidence.evidenceTokenBudget(contextSize: 4_096), 1_800)
     }

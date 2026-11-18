@@ -183,12 +183,17 @@ nonisolated enum ChainSynthesisEvidence {
     static let maxCandidates = SessionEvidencePlan.maxPlannedChunks
 
     /// Tokens the passages and the notes may take together: the window less the answer, the prompt and the safety
-    /// margin, and never more than a session reads (`SessionEvidencePlan.readingCeilingTokens`). The ceiling binds only
-    /// on the 8,192 window (about 5,990 would be free there): more evidence in one prompt made the model miss passages
-    /// in the 2026-10-07 probe, and a larger final prompt has not been measured.
+    /// margin. On a 4,096 window that is 1,890; on an 8,192 window 5,986. Until 2026-11-18 it was also held to what a
+    /// session reads (`SessionEvidencePlan.readingCeilingTokens`, 3,200), from a 2026-10-07 probe on the 20B model.
+    /// Lifting that ceiling at an 8,192 window answered 49 of 53 table questions right against 47 (2 better, 0 worse;
+    /// `BenchmarkRuns/2026-11-17-synthesis-ceiling`, iOS 27.0 Simulator with the Mac's model), so the window decides.
     static func evidenceTokenBudget(contextSize: Int) -> Int {
         let free = contextSize - outputReserveTokens - promptReserveTokens - SessionEvidencePlan.safetyReserveTokens
-        return max(0, min(SessionEvidencePlan.readingCeilingTokens, free))
+        // Switched off, the old ceiling comes back, to measure against it (`RetrievalAblation.synthesisFullWindow`).
+        if RetrievalAblation.isOff(.synthesisFullWindow) {
+            return max(0, min(SessionEvidencePlan.readingCeilingTokens, free))
+        }
+        return max(0, free)
     }
 
     /// The `[S#]` labels a text cites, one-based, in order of first appearance. Reads "[S3]", "[S3, S5]" and

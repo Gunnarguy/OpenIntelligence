@@ -67,6 +67,11 @@ nonisolated enum RetrievalAblation {
         /// the answer's claims failed its check (5.8, 2026-11-13); off, the drafter's "abstain" alone flags it, the path
         /// before it.
         case draftAbstainNeedsFailedClaim
+        /// Deep Think's final step reads as much evidence as the window leaves (5,986 tokens of an 8,192 window, 1,890 of
+        /// 4,096) (5.8, 2026-11-18); off, it is held to `SessionEvidencePlan.readingCeilingTokens` (3,200), the path
+        /// before it. Measured 2026-11-17 as `synthesisReadingCeiling` (the opposite sense): 49 against 47 of 53 table
+        /// questions right at an 8,192 window (`BenchmarkRuns/2026-11-17-synthesis-ceiling`).
+        case synthesisFullWindow
     }
 
     /// The rules switched off for this process, read once.

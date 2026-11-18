@@ -1254,6 +1254,48 @@ back 250 ms or more late as `mainThread.stall` with its `phase` (`launch` until 
 (`watchdog`), and the rules that read `stallFree` require it. It stands in for Time Profiler and `sample` on rows that close on "stayed
 responsive"; the owner accepts or rejects that per row.
 
+### Reading a device's window history *(added 2026-11-17, 5.8)*
+
+The on-device window is whatever the device reports, and it can change under the app: the owner's iPhone 16 Pro Max
+(AFM 3 Core) read 4,096 on iOS 27.0.1 (24A446) through 2026-11-16 17:08 and 8,192 on iOS 27.2.1 (24B156) from
+2026-11-17 08:10 (`Docs/ai/DECISIONS.md`, 2026-11-17). To date such a change, read two files side by side, both pulled
+by `scripts/phone_evidence.py` (above; `xcrun devicectl device copy from --domain-type appDataContainer
+--domain-identifier Gunndamental.OpenIntelligence` per file on the phone, a plain copy from the container with `--mac`):
+
+- `pipeline_trace.log` and `pipeline_trace.prev.log` (`Documents/`): Standard's budget line,
+  `Context budget: base=<window>, ...` (`RAGService+QueryContext.swift`), once per answer, stamped in the device's
+  local time. `base=32768` is a pass sized for Private Cloud Compute and `base=0` a device whose model was
+  unavailable; neither is the on-device window.
+- `metric_reports.jsonl` (`Library/Application Support/OpenIntelligence/LocalCache/`, `MetricDiagnostics.reportsFileURL`,
+  the last 200 reports): each MetricKit payload's `environment.osVersion` (`number`, `buildNumber`) and `timeRange.end`
+  in UTC. This is the only record on the device of which system version it ran when.
+
+```bash
+python3 scripts/phone_evidence.py --since 2026-11-16T00:00     # or --mac; prints the folder it copied into
+d=~/Library/Developer/OpenIntelligence-evidence/<that folder>
+grep -ho '^\[[^]]*\].*Context budget: base=[0-9]*' "$d"/pipeline_trace*.log \
+  | sed -E 's/^\[([^ ]*) ([^.]*)\..*base=/\1 \2 base=/' | sort | awk '{k=$3} k!=p{print; p=k} END{print "last:", $0}'
+python3 -c '
+import json,sys
+for l in open(sys.argv[1]):
+    o=json.loads(l); v=o.get("environment",{}).get("osVersion",{}); r=o.get("timeRange",{})
+    print(r.get("end","?"), v.get("number","?"), v.get("buildNumber","?"))
+' "$d/metric_reports.jsonl" | sort | awk '{k=$2" "$3} k!=p{print; p=k} END{print "last:", $0}'
+```
+
+Each prints the first line of every change and the last line seen. When the last reading of the old window falls on
+the old version and the first reading of the new one on the new version, the change falls across that update; it does
+not say whether the update or a model download in the same span changed it. On the owner's iPhone the change falls
+between a 4,096 reading on iOS 27.0.1 (2026-11-16 17:08) and an 8,192 reading on 27.2.1 (2026-11-17 08:10), and
+which of the two changed it is not known `[evidence_level: inferred, confidence: medium]`. MetricKit delivers about
+once a day, so this bounds the change to an update, not to a release between two versions. For the window now, on
+either device, Settings, Model & Privacy shows the on-device window in its panel and Apple's model name in its fold
+(`SystemLanguageModel.variant`); only the history needs the two files. `[evidence_level: measured (both commands run 2026-11-17), confidence: high, evidence_source: the 2026-11-16 21:55
+pull, ~/Library/Developer/OpenIntelligence-evidence/2026-11-16_215501, for the 4,096 budget lines through
+2026-11-16 10:10 and iOS 27.0.1 in MetricKit through 2026-11-16 17:13 UTC; the 2026-11-17 15:43 pull,
+~/Library/Developer/OpenIntelligence-evidence/2026-11-17_154300 (pipeline_trace.log and metric_reports.jsonl), for the 4,096 reading at 2026-11-16 17:08,
+the 8,192 reading at 2026-11-17 08:10 and iOS 27.2.1 from 2026-11-17 08:00 UTC]`
+
 ### Timing the embedding model on a device *(added 2026-10-12)*
 
 A Debug build carries `DebugEmbeddingBench` (`OpenIntelligence/App/`). It runs when the app is launched with

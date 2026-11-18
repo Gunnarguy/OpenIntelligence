@@ -1706,3 +1706,27 @@ The gain from 581a37b6 is mostly the five which-document and three lost-in-the-m
 in df67ec96 address directly; part of it is therefore the test now scoping a question the way the app does.
 Like for like (the 17 cases outside lost-in-the-middle, whose test scoping changed): 5.7 scored 9, 11, 9 and 5.8 at df67ec96
 scored 15, 14, 14. This is the comparison the release text states.
+
+### 2026-11-17 Deep Think's final step at an 8,192 window: the 3,200 ceiling against the window (`2026-11-17-synthesis-ceiling`)
+
+`EvidenceReachBenchmarkTests` on the patched Simulator copy (`scripts/sim_model_copy.py`, iPhone 17 Pro, iOS 27.0,
+Apple's model through the Mac's AFM 3 Core Advanced), window held at 8,192 (`OI_EVIDENCE_WINDOW`), tree a5511021 plus
+the uncommitted switch, slice 0 of 3 of the table questions (53, the set of `2026-11-12-deepthink-source-passages`),
+each asked twice in one process: "ceiling" as shipped, "window" with `RetrievalAblation.synthesisReadingCeiling` off.
+Decision rule set before the run: the window ships only if it is no worse on right answers.
+
+| Arm | Right | Errors | Median | Final prompt |
+|---|---|---|---|---|
+| ceiling (3,200) | 47/53 | 0 | 104 s | 3,384 to 3,577 tokens |
+| window (5,986) | 49/53 | 0 | 96 s | above 4,000 on all 53, up to 6,308 |
+
+Per question: 2 better, 0 worse (p=0.50). Shipped 2026-11-18 as the default (`RetrievalAblation.synthesisFullWindow`,
+off restores the ceiling). Scored with `evidence_reach.py answers` against `queries-rebuilt/queries.jsonl`: macOS's
+/tmp cleanup removed `/private/tmp/oi-dt-tables/queries.jsonl` and the fixtures at midnight during the run, after the
+test had loaded them; the list was rebuilt with `prepare_tables`' logic from
+`2026-11-08-extraction-fidelity/checks` plus `2026-11-10-rule-audit/tables/checks/KBIE_13_2100863.jsonl`, and every
+one of the 53 result qids matched it. `smoke/` is the 2-question check; `failed-2259/` is a run killed at 22:59 by a
+Mac reinstall's `pkill -x OpenIntelligence`, which also ended the Simulator's test host.
+
+**Not settled.** One run per arm (retrieval is nondeterministic); no iPhone run; 4,096 windows are unchanged by
+construction (1,890 free) and were not re-run.

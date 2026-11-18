@@ -1310,9 +1310,12 @@ import os
                 "Continue exactly from the last incomplete sentence or bullet. Do not restart the answer or repeat earlier content."
 
             var continuedText = ""
-            // The window is the limit, not a character count (5.8). A fixed 1,600-character cap, the same on every
-            // device and route, cut three of four Deep Think calls on the owner's iPhone mid-sentence on 2026-11-17
-            // (the cap broke the stream wherever it fell). Each continuation now gets the room left in this session's
+            // The window is the limit, not a character count (5.8). Each continuation was capped at 1,600 more
+            // characters, one fixed size on every window, device and route, and the cap broke the stream wherever it
+            // fell. No archived trace shows it binding: the owner's iPhone continuations ran 20 to 602 characters, and
+            // two answers were still incomplete after both continuations (2026-11-13 14:03, 2026-11-16 15:19)
+            // [evidence_level: measured, confidence: high, evidence_source: phone pipeline_trace.log pulled
+            // 2026-11-17 15:43]. Each continuation now gets the room left in this session's
             // window, counted by Apple's tokenizer, as its `maximumResponseTokens`, so the model ends where the window
             // ends instead of where the app stopped reading. Repetition and the turn count still guard against loops.
             let maxContinuations = 3

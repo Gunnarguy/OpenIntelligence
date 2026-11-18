@@ -1,1 +1,1 @@
-New in 5.8: search that finds the right passage more often, tables that come through whole, and citations that open on their exact words.  Needs Apple Intelligence.
+New in 5.8: better search, whole tables, citations on their exact words, and long answers with room to finish.  Needs Apple Intelligence.

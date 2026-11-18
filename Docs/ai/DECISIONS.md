@@ -2240,3 +2240,60 @@ stores sync over iCloud, so a device still on 5.7 reads Granite vectors with Min
 tells users to update every device. The app is 3 MB larger in its embedder (48.7 MB against 43 MB) and 86 MB smaller
 without the Core AI copy.
 
+
+## 2026-11-17 - Size work from the device, never a fixed 4,096
+
+**Context.** Apple's "Detecting available Apple Foundation Models" page (fetched 2026-11-17) says each device runs
+one on-device model, chosen by the system: AFM 3 Core (3B) with a window of 4K to 8K that can vary even within the
+same model version, or AFM 3 Core Advanced (20B) with 8K on iPhone Air, iPhone 17 Pro, iPhone 18 Pro, iPhone Duo,
+M4 and later iPads, M3 and later Macs and Vision Pro (M5). The app had sized parts of the answer path as if every
+device had 4,096 tokens. Measured the same day: the owner's iPhone 16 Pro Max (AFM 3 Core) read 4,096 on iOS 27.0.1
+(24A446) through 2026-11-16 17:08 and 8,192 on iOS 27.2.1 (24B156) from 2026-11-17 08:10 (its MetricKit
+`osVersion` beside `pipeline_trace.log`'s `Context budget: base=`) [evidence_level: measured, confidence: high]; the
+change falls between those two readings, across that update, and whether the update or a model download in the same
+span changed it is not known [evidence_level: inferred, confidence: medium]. The owner's M3 Pro Mac runs AFM 3 Core
+Advanced at 8,192, with vision, guided generation and tool calling true and reasoning false [evidence_level: measured,
+confidence: high, evidence_source: Swift probe of SystemLanguageModel.default on macOS 27.0, 2026-11-17]. Each
+continuation was capped at 1,600 more characters, one fixed size on every window; the cap limited what a continuation
+added after the first response, never the whole answer, and no archived trace shows it binding: the owner's iPhone
+continuations ran 20 to 602 characters, and two answers were still incomplete after both continuations (2026-11-13
+14:03, 2026-11-16 15:19) [evidence_level: measured, confidence: high, evidence_source: phone pipeline_trace.log pulled
+2026-11-17 15:43]. The compression estimate started from a fixed 4,096, but the count it feeds is capped so that
+`min(candidates, 5)` passages are compressed whatever the window is, and compression runs only where
+`usesContextualCompression` is true (Deep Think); the estimate changes only the log lines and thinking events that
+report it [evidence_level: code_verified, confidence: high]. Mac page reading and the GPU cache were sized by chip-name lists that stopped at M4 or A19.
+
+**Decision.** Any size that depends on the model or the hardware is read from the device at run time:
+`FoundationModelTokenBudget.contextSize(isAppleFMOnDevice:)` (which reads `SystemLanguageModel.default.contextSize`,
+with `baseContextLength` 4,096 only where the device reports 0) for the window; Apple's tokenizer
+(`SystemLanguageModel.tokenCount(for:)`) for what a transcript already uses; `hw.perflevel0.physicalcpu`, physical
+memory and Metal's `recommendedMaxWorkingSetSize` for the hardware. A chip list may set a floor, never a ceiling.
+Applied the same day: `AppleFoundationLLMService.continueGeneration` gives each continuation
+`continuationTokenRoom` (window less the transcript's count less 64) as its `maximumResponseTokens`;
+`RAGService+QueryContext` sizes the compression estimate from the live window (a log-line change only, as above); `DeviceCapabilityService`
+scales Mac vision concurrency with performance cores and memory; `GPUComputeService` picks its cache tier by chip
+generation and takes a 256th of the working set on a Mac (at most 256 MB). The procedure is the
+`scale-to-the-device` skill. [evidence_level: code_verified, build_verified on iOS and macOS, confidence: high]
+
+**Alternatives.**
+
+- *Raise the fixed figure to 8,192.* Rejected: Apple says AFM 3 Core can report 4K on the same model version, and
+  the owner's phone read 4,096 on iOS 27.0.1 (2026-11-16 17:08) and 8,192 on 27.2.1 (2026-11-17 08:10), a change
+  that falls across that update, where whether the update or a model download in the same span changed it is not
+  known [evidence_level: inferred, confidence: medium]; a raised constant would overflow devices that report 4,096.
+- *Keep a per-device table of windows.* Rejected: the window changed on one phone without the hardware changing,
+  and the 2026-11-10 entry already rules out device facts the hardware does not report.
+- *Raise every 4,096-derived budget at once.* Rejected for answer-shaping budgets (Deep Think's 3,200-token
+  final-step evidence ceiling, the synthesis, summary and transform character caps): more context is not
+  automatically more accurate (the owner's rule 3), and the 2026-10-07 probe on the 20B model found more missed
+  passages with more evidence. Each waits for a benchmark.
+
+**Rationale.** A size read from the device is right on hardware that does not exist yet; a constant is right on
+the device it was measured on and wrong after the next system update.
+
+**Consequences.** The remaining 4,096 literals in the app are fallbacks for a device that reports no window, buffer
+or probe sizes, previews, settings options, comments, and the answer-shaping caps above, which stay until measured.
+A window change shows in the trace (`Context budget: base=`) and can be dated from MetricKit (`Docs/ai/RUNBOOK.md`,
+"Reading a device's window history"). The continuation change was seen on the Mac (continuation room 3,113 tokens,
+an answer finished across two calls) and is not yet seen on the iPhone; the paused-answer resume is build-verified
+only. The Mac GPU cache measured 53 MB on the M3 Pro, where it was 32 MB. Nothing is measured on M4 or later.

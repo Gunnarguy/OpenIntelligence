@@ -194,7 +194,7 @@ It is weakest on questions your library says nothing about. When the evidence is
 - **Source cards and citations** open the passage in its document, highlighted, with a line saying whether it was found word for word, found in part, or not found. A PDF opens at its page; any other file shows the text the app read from it. It shows the words are in your document; whether the answer read them correctly is yours to check.
 - **The metrics bar** expands to show \#(SamplePCCCopy.routeFragment), the token budget it used against the model's window, the execution steps that ran, and the passages that were retrieved.
 - **Response details** list each claim in the answer with its verification verdict.
-- **The Silicon HUD** is a small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. On the iPhones and iPads it has a board layout for, it sits over the place where that silicon physically is; on a Mac, and on a model without a layout, it floats on its own.
+- **The Silicon HUD** is a small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on with Telemetry HUD in Settings, General, under Appearance, and can be dragged anywhere. On the iPhones and iPads it has a board layout for, it sits over the place where that silicon physically is; on a Mac, and on a model without a layout, it floats on its own.
 
 ---
 
@@ -233,7 +233,7 @@ The model is the same in every plan: Apple Intelligence on your device, Deep Thi
 
 Every stage of OpenIntelligence runs on your device: parsing, text recognition, chunking, embedding, indexing, retrieval, re-ranking, packing, generation and verification.
 
-- **Answer generation** uses Apple's on-device Foundation Model through the FoundationModels framework. Measured on an iPhone with the A18 Pro: roughly 27 tokens per second, with 2.2 to 3.2 seconds before the first token appears. The app asks the system for the model's context window every time rather than assuming one, because it differs by device and system version: Apple's technote documents 4,096 tokens, its developer guide gives up to 8K for the larger on-device model, and in November 2026 an iPhone 16 Pro Max on iOS 27.2 and an M3 Pro Mac on macOS 27 both reported 8,192.
+- **Answer generation** uses Apple's on-device Foundation Model through the FoundationModels framework. Measured on an iPhone with the A18 Pro: roughly 27 tokens per second, with 2.2 to 3.2 seconds before the first token appears. The app asks the system for the model's context window every time rather than assuming one, because it differs by device and system version: Apple's technote documents 4,096 tokens, and its developer guide gives 4K to 8K for AFM 3 Core and 8K for AFM 3 Core Advanced, the larger on-device model; the system picks which one a device runs. In November 2026 an iPhone 16 Pro Max on AFM 3 Core reported 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1, and an M3 Pro Mac on macOS 27, which runs AFM 3 Core Advanced, reported 8,192.
 \#(SamplePCCCopy.architectureStatus)
 
 ---
@@ -256,7 +256,7 @@ Text is split into passages along headings and natural boundaries, and every pas
 Each passage becomes a semantic vector using IBM's granite-embedding-small-english-r2 sentence model (all-MiniLM-L6-v2 through 5.7). It runs through Core ML on iPhone, iPad and Mac, and Core ML decides on each device whether the Neural Engine, the GPU or the CPU runs it. Query embeddings use the same model.
 
 ### 4. Store
-Vectors live in a memory-mapped file. Similarity search runs through Accelerate's vDSP routines on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched with a Metal compute shader on the GPU instead. The keyword index is SQLite FTS5.
+Vectors live in a memory-mapped file. Similarity search runs through Accelerate's vDSP routines on the CPU. With Compute Profile on Performance or Full Power, a library of 1,000 passages or more is searched with a Metal compute shader on the GPU instead. The keyword index is SQLite FTS5.
 
 ### 5. Hybrid search
 The vector search and the BM25 keyword search run independently on every question and are merged by reciprocal rank fusion, so a passage that only one of them found still gets a fair score. Identifiers, part numbers and exact phrases come through the keyword arm; paraphrases come through the vector arm.
@@ -288,7 +288,7 @@ Two surfaces show what happened, and they are easy to confuse.
 
 **Under each answer** is the metrics bar. Expand it for the route the query took, the token budget it used against the active window, the execution steps that ran, and the passages it retrieved. Response details list every claim with its verification verdict.
 
-**The Silicon HUD** is the small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. On the iPhones and iPads it has a board layout for, it sits over the place where that silicon physically is; on a Mac, and on a model without a layout, it floats on its own.
+**The Silicon HUD** is the small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on with Telemetry HUD in Settings, General, under Appearance, and can be dragged anywhere. On the iPhones and iPads it has a board layout for, it sits over the place where that silicon physically is; on a Mac, and on a model without a layout, it floats on its own.
 """#
         ),
         SampleDocumentDescriptor(
@@ -312,7 +312,7 @@ This matters because the product runs on Apple's own AI infrastructure, on hardw
 - document parsing and text recognition
 - chunking and indexing
 - semantic and keyword retrieval
-- embedding on the Neural Engine or the GPU, and vector math through Accelerate on the CPU, with Metal for a library of 1,000 passages or more when the GPU setting is on Performance or Maximum
+- embedding on the Neural Engine or the GPU, and vector math through Accelerate on the CPU, with Metal for a library of 1,000 passages or more when Compute Profile is on Performance or Full Power
 - evidence packing
 \#(SamplePCCCopy.staysOnDeviceGeneration)
 - verification of the answer against the evidence
