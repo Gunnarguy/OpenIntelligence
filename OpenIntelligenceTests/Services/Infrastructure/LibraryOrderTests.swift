@@ -39,4 +39,13 @@ final class LibraryOrderTests: XCTestCase {
         XCTAssertEqual(ContainerService.ordered([a, b], by: [UUID(), b]), [b, a])
         XCTAssertEqual(ContainerService.ordered([a, b], by: []), [a, b])
     }
+
+    // The guide library leads the row wherever it sits (2026-11-18).
+    func testTheGuideLibraryIsShownFirst() {
+        let a = UUID(), b = UUID(), guide = UUID()
+        XCTAssertEqual(ContainerService.guideFirst([a, b, guide], guide: guide), [guide, a, b])
+        XCTAssertEqual(ContainerService.guideFirst([guide, a, b], guide: guide), [guide, a, b])
+        XCTAssertEqual(ContainerService.guideFirst([a, b], guide: guide), [a, b], "a guide id not in the row changes nothing")
+        XCTAssertEqual(ContainerService.guideFirst([a, b], guide: nil), [a, b])
+    }
 }

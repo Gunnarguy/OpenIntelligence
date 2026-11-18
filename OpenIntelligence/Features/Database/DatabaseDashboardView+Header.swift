@@ -256,7 +256,7 @@ extension DatabaseDashboardView {
                     tint: .accentColor
                 )
 
-                ForEach(containerService.containers) { container in
+                ForEach(containerService.orderedContainers) { container in
                     scopeChip(
                         label: container.name,
                         icon: container.icon,

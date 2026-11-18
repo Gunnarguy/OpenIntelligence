@@ -70,7 +70,10 @@
             .onAppear {
                 isFocused = true
                 let saved = ContainerService.savedLibraries()
-                libraries = saved.libraries
+                // The guide library first, as in the app's library rows (2026-11-18).
+                let guide = UserDefaults.standard.string(forKey: ContainerService.guideLibraryIdKey).flatMap(UUID.init(uuidString:))
+                let order = ContainerService.guideFirst(saved.libraries.map(\.id), guide: guide)
+                libraries = order.compactMap { id in saved.libraries.first { $0.id == id } }
                 if libraryId == nil || !saved.libraries.contains(where: { $0.id == libraryId }) {
                     libraryId = saved.openId ?? saved.libraries.first?.id
                 }

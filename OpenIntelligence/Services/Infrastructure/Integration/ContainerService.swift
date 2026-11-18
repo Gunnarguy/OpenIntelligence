@@ -515,7 +515,17 @@ final class ContainerService: ObservableObject {
             .compactMap(UUID.init(uuidString:))
         let order = Self.ordered(containers.map(\.id), by: stored)
         let byId = Dictionary(containers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return order.compactMap { byId[$0] }
+        return Self.guideFirst(order, guide: guideLibraryId).compactMap { byId[$0] }
+    }
+
+    /// The guide library always leads the row, far left, wherever it was made or dragged (the owner, 2026-11-18). Only
+    /// the order shown changes; `containers` keeps its stored order, whose first entry is the default library.
+    nonisolated static func guideFirst(_ order: [UUID], guide: UUID?) -> [UUID] {
+        guard let guide, let index = order.firstIndex(of: guide), index > 0 else { return order }
+        var moved = order
+        moved.remove(at: index)
+        moved.insert(guide, at: 0)
+        return moved
     }
 
     /// Moves libraries before `target`, or to the end, in the order this device shows.

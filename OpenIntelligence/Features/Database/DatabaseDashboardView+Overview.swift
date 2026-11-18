@@ -316,7 +316,7 @@ extension DatabaseDashboardView {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             // Per-library intelligence cards
-            ForEach(containerService.containers) { container in
+            ForEach(containerService.orderedContainers) { container in
                 LibraryIntelligenceCard(
                     container: container,
                     intelligenceReport: ragService.intelligenceReport(for: container.id),
