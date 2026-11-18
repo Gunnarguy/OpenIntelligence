@@ -307,6 +307,8 @@ private struct StreamingBubbleV2: View {
                         font: .body,
                         foregroundColor: DSColors.primaryText
                     )
+                    // Bold label bullets draw as headings here too, as in the finished answer (5.8).
+                    .labelBulletsAsHeadings()
 
                     if showsCheckingLabel {
                         HStack(spacing: DSSpacing.xs) {

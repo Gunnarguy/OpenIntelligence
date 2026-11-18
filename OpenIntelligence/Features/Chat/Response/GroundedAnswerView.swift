@@ -58,6 +58,8 @@ struct GroundedAnswerView: View {
                 font: .body,
                 foregroundColor: DSColors.primaryText
             )
+            // Bold label bullets draw as the answer's `###` headings, citations still links (5.8).
+            .labelBulletsAsHeadings()
             .environment(\.openURL, OpenURLAction { url in
                 if url.scheme == CitationLinker.scheme, VerificationJournal.isEnabled {
                     // A label tapped (5.8 journal): its passage's number, or 0 when it opens nothing.

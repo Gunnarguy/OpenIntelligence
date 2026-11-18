@@ -57,6 +57,31 @@ enum MarkdownParserTesting {
     static func isHorizontalRule(_ line: String) -> Bool {
         MarkdownParser.isHorizontalRule(line)
     }
+
+    /// The heading text a list item's content would become, or nil when it stays a bullet. Ignores the
+    /// item after it, which decides only for a label with no colon (see `blockSummary`).
+    static func labelHeadingText(_ item: String) -> String? {
+        MarkdownParser.labelBullet(item)?.text
+    }
+
+    /// One line per parsed block: `h3: text`, `ul: a | b`, `ol: 1. a | 2. b`, `p: text`, `table: a | b`,
+    /// `code: text`, `quote: text`, `hr`.
+    static func blockSummary(_ text: String, promotesLabelBullets: Bool) -> [String] {
+        MarkdownParser.parse(text, promotesLabelBullets: promotesLabelBullets).compactMap { block in
+            switch block {
+            case .heading(let level, let text): return "h\(level): \(text)"
+            case .paragraph(let text): return "p: \(text)"
+            case .table(let header, _, _): return "table: \(header.joined(separator: " | "))"
+            case .bulletList(let items): return "ul: \(items.joined(separator: " | "))"
+            case .numberedList(let items):
+                return "ol: \(items.map { "\($0.number). \($0.text)" }.joined(separator: " | "))"
+            case .codeFence(_, let code): return "code: \(code)"
+            case .blockQuote(let text): return "quote: \(text)"
+            case .horizontalRule: return "hr"
+            case .empty: return nil
+            }
+        }
+    }
 }
 #endif
 
@@ -172,7 +197,10 @@ private struct MarkdownParser {
         return result
     }
 
-    static func parse(_ text: String) -> [MarkdownBlock] {
+    /// `promotesLabelBullets` (answers only, 5.8): a list item that is only a bold label, such as
+    /// `- **What stays on the device:**`, becomes a `###` heading, so the bullets under it read as its
+    /// section. See `labelBullet(_:)` and `listBlocks(_:promotesLabelBullets:)`.
+    static func parse(_ text: String, promotesLabelBullets: Bool = false) -> [MarkdownBlock] {
         let normalized = normalizeInlineMarkdown(text)
         let lines = normalized.components(separatedBy: "\n")
         var blocks: [MarkdownBlock] = []
@@ -277,10 +305,13 @@ private struct MarkdownParser {
             // Bullet list (- item, * item, • item)
             if isBulletLine(trimmed) {
                 var items: [String] = []
+                // Whether each item's line was indented under another item (two spaces or a tab).
+                var nested: [Bool] = []
                 while i < lines.count {
                     let bl = lines[i].trimmingCharacters(in: .whitespaces)
                     if isBulletLine(bl) {
                         items.append(stripBullet(bl))
+                        nested.append(isNestedLine(lines[i]))
                     } else if bl.isEmpty && i + 1 < lines.count && isBulletLine(lines[i + 1].trimmingCharacters(in: .whitespaces)) {
                         // Allow one blank line between list items
                         i += 1
@@ -296,7 +327,10 @@ private struct MarkdownParser {
                     i += 1
                 }
                 if !items.isEmpty {
-                    blocks.append(.bulletList(items: items))
+                    blocks.append(contentsOf: listBlocks(
+                        zip(items, nested).map { (text: $0, nested: $1) },
+                        promotesLabelBullets: promotesLabelBullets
+                    ))
                 }
                 continue
             }
@@ -348,6 +382,78 @@ private struct MarkdownParser {
         }
 
         return blocks
+    }
+
+    /// A bullet list, with each label item turned into a `###` heading when `promotesLabelBullets` is on.
+    /// The bullets between two labels stay one list, unchanged, under the first.
+    ///
+    /// A label is an item at the list's own level whose whole content is one bold span (`labelBullet`).
+    /// One ending in ":" (inside or after the bold) always introduces what follows. One without a colon
+    /// becomes a heading only when the next item is an ordinary bullet or one nested under it, so a list
+    /// whose every item is a bold name (`- **Standard**`, `- **Deep Think**`) stays a list.
+    private static func listBlocks(
+        _ items: [(text: String, nested: Bool)], promotesLabelBullets: Bool
+    ) -> [MarkdownBlock] {
+        guard promotesLabelBullets else { return [.bulletList(items: items.map(\.text))] }
+        var blocks: [MarkdownBlock] = []
+        var run: [String] = []
+        for (index, item) in items.enumerated() {
+            var heading: String?
+            if !item.nested, let label = labelBullet(item.text) {
+                if label.endsWithColon {
+                    heading = label.text
+                } else if index + 1 < items.count {
+                    let next = items[index + 1]
+                    if next.nested || labelBullet(next.text) == nil { heading = label.text }
+                }
+            }
+            if let heading {
+                if !run.isEmpty { blocks.append(.bulletList(items: run)) }
+                run = []
+                blocks.append(.heading(level: 3, text: heading))
+            } else {
+                run.append(item.text)
+            }
+        }
+        if !run.isEmpty { blocks.append(.bulletList(items: run)) }
+        return blocks
+    }
+
+    /// The heading a list item's content makes when the whole of it is one bold span, optionally ending
+    /// in ":" inside or after the bold: `**What stays on the device:**`, `**Risks**:`, `**Risks**`. The
+    /// trailing colon is dropped, as `###` headings in answers carry none, and the bold marks go, as the
+    /// heading style is already the weight. A citation inside the bold stays in the text, a link once
+    /// `CitationLinker` has made it one. Nil for anything else: a bold lead-in followed by text, bold
+    /// inside a sentence, two bold spans, an unclosed span (a line still streaming), a bold sentence
+    /// ending in ".", "!" or "?" without a colon, and anything over 120 characters as read.
+    static func labelBullet(_ item: String) -> (text: String, endsWithColon: Bool)? {
+        let content = item.trimmingCharacters(in: .whitespaces)
+        guard content.hasPrefix("**"),
+            let close = content.range(of: "**", range: content.index(content.startIndex, offsetBy: 2)..<content.endIndex)
+        else { return nil }
+        let inner = String(content[content.index(content.startIndex, offsetBy: 2)..<close.lowerBound])
+        let after = content[close.upperBound...].trimmingCharacters(in: .whitespaces)
+        guard after.isEmpty || after == ":",
+            let first = inner.first, let last = inner.last,
+            !first.isWhitespace, !last.isWhitespace, first != "*", last != "*",
+            !inner.contains("\n")
+        else { return nil }
+
+        let endsWithColon = after == ":" || last == ":"
+        var text = inner
+        while text.hasSuffix(":") { text.removeLast() }
+        text = text.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return nil }
+        if !endsWithColon, let end = text.last, ".!?".contains(end) { return nil }
+        // Length as read: a citation link counts as its label, not its URL.
+        let read = text.replacingOccurrences(of: #"\]\([^)]*\)"#, with: "]", options: .regularExpression)
+        guard read.count <= 120 else { return nil }
+        return (text, endsWithColon)
+    }
+
+    /// Indented two spaces or a tab: an item nested under the one above it.
+    private static func isNestedLine(_ line: String) -> Bool {
+        line.hasPrefix("\t") || line.hasPrefix("  ")
     }
 
     private static func isBulletLine(_ line: String) -> Bool {
@@ -559,6 +665,10 @@ private struct MarkdownBlockView: View {
                         .frame(width: 6, height: 6)
                         .offset(y: 1)
                     InlineMarkdownText(text: item, font: font, foregroundColor: foregroundColor)
+                        // Its full height, always (5.8): with a heading above the list and citation links in the
+                        // item, SwiftUI gave some items one line and cut them off with "…" (measured with `###`
+                        // headings and with label headings, in ImageRenderer and in a UIKit window, iOS 27.0).
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -686,6 +796,8 @@ public struct MarkdownText: View {
     private let scaledSize: CGFloat?
     /// 1 at the default text size; how much Dynamic Type scales body text. Always 1 on the Mac.
     @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
+    /// Set by `labelBulletsAsHeadings(_:)`: answers only, never a question the user typed (5.8).
+    private var promotesLabelBullets = false
 
     public init(_ text: String, font: Font = .body, foregroundColor: Color = .primary) {
         self.text = text
@@ -716,8 +828,17 @@ public struct MarkdownText: View {
         self.scaledSize = nil
     }
 
+    /// A list item that is only a bold label (`- **What stays on the device:**`) draws as a `###` heading,
+    /// with the bullets after it as its section (5.8). For the model's answers: the parse is the view's
+    /// alone, so Copy, Share and export still read the answer's own text.
+    public func labelBulletsAsHeadings(_ enabled: Bool = true) -> MarkdownText {
+        var copy = self
+        copy.promotesLabelBullets = enabled
+        return copy
+    }
+
     public var body: some View {
-        let blocks = MarkdownParser.parse(text)
+        let blocks = MarkdownParser.parse(text, promotesLabelBullets: promotesLabelBullets)
         let size = scaledSize.map { $0 * textScale }
         let bodyFont = size.map { Font.system(size: $0) } ?? font
         let headingBase = size ?? fontSize

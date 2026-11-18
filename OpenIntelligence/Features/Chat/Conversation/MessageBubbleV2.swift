@@ -124,6 +124,8 @@ struct MessageBubbleV2: View {
                             scaledSize: 14,
                             foregroundColor: isUser ? .white : DSColors.primaryText
                         )
+                        // An answer's bold label bullets draw as its `###` headings; a question stays as typed (5.8).
+                        .labelBulletsAsHeadings(!isUser)
 
                         // Visual Evidence (if any)
                         if let visualEvidence = message.visualEvidence {
