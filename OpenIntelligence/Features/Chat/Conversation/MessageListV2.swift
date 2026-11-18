@@ -277,8 +277,10 @@ private struct StreamingBubbleV2: View {
     @State private var showsCheckingLabel = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    /// The finished bubble's margin (`MessageBubbleV2.bubbleSpacerMinLength`), so the bubble keeps its width when
+    /// the answer finishes.
     private var spacerMinLength: CGFloat {
-        horizontalSizeClass == .compact ? DSSpacing.xl : 60
+        horizontalSizeClass == .compact ? 24 : 60
     }
 
     var body: some View {
@@ -310,7 +312,15 @@ private struct StreamingBubbleV2: View {
                     streamingText
                 }
             }
-            .padding(.vertical, DSSpacing.xs)
+            // The finished answer's grey bubble (`MessageBubbleV2`: 16 by 12 padding, `DSColors.surface`, an 18-point
+            // continuous corner set 3 points in for its tail, the same faint shadow), drawn from the first word
+            // (2026-11-17). The text streamed with no box and jumped into the bubble when it finished; the owner
+            // liked the bubble and not the jump.
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+            .padding(.leading, 3)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: spacerMinLength)
@@ -389,8 +399,10 @@ private struct TypingBubbleV2: View {
         }
     }
 
+    /// The finished bubble's margin (`MessageBubbleV2.bubbleSpacerMinLength`), so the bubble keeps its width when
+    /// the answer finishes.
     private var spacerMinLength: CGFloat {
-        horizontalSizeClass == .compact ? DSSpacing.xl : 60
+        horizontalSizeClass == .compact ? 24 : 60
     }
 
     var body: some View {
