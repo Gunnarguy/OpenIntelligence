@@ -228,6 +228,32 @@ extension ChatScreen {
 
             writingToolsProgressOverlay
 
+            #if os(iOS)
+                // A swipe in from the left edge opens Evidence Threads, as the sidebar button does (the owner,
+                // 2026-11-17). A 16-point strip on the leading edge takes the drag; it opens on a mostly horizontal
+                // pull of 50 points, so a vertical scroll that starts at the edge still scrolls the chat.
+                if !showThreadSidebar {
+                    Color.clear
+                        .frame(width: 16)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 10)
+                                .onEnded { value in
+                                    let dx = value.translation.width
+                                    let dy = abs(value.translation.height)
+                                    guard dx > 50, dx > dy * 1.5 else { return }
+                                    withAnimation(DSAnimations.snappySpring) {
+                                        Tour.used(.sidebar)
+                                        showThreadSidebar = true
+                                    }
+                                }
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityHidden(true)
+                }
+            #endif
+
             if showThreadSidebar {
                 ThreadSidebarView(
                     ragService: ragService,
@@ -357,7 +383,6 @@ extension ChatScreen {
 
                 lastLoadedChatContainerId = activeId
                 await recalcActiveCounts()
-
 
                 // Clear stale per-conversation state from previous library
                 followUpSuggestionsTask?.cancel()
@@ -716,16 +741,21 @@ extension ChatScreen {
                 // when it went blank (5.8, the owner's iPhone, 2026-11-03).
                 VerificationJournal.record(
                     "chat.appear",
-                    ["messages": "\(messages.count)", "windows": "\(visibleWindowCount)",
-                        "engines": "\(RAGService.liveEngineCount)", "nav": NavigationProbe.summary()])
+                    [
+                        "messages": "\(messages.count)", "windows": "\(visibleWindowCount)",
+                        "engines": "\(RAGService.liveEngineCount)", "nav": NavigationProbe.summary(),
+                    ])
                 if VerificationJournal.isEnabled, Self.chatFirstShownAt == nil {
                     Self.chatFirstShownAt = Date()
                     VerificationJournal.record(
                         "launch.chatUsable",
-                        ["passages": "\(activeLibraryPassages)",
+                        [
+                            "passages": "\(activeLibraryPassages)",
                             "ms": "\(Int(Date().timeIntervalSince(VerificationJournal.launchedAt) * 1000))",
-                            "stallFree": "\(MainThreadWatchdog.shared.stallFree(since: VerificationJournal.launchedAt))",
-                            "watchdog": "\(MainThreadWatchdog.shared.isRunning)"])
+                            "stallFree":
+                                "\(MainThreadWatchdog.shared.stallFree(since: VerificationJournal.launchedAt))",
+                            "watchdog": "\(MainThreadWatchdog.shared.isRunning)",
+                        ])
                     MainThreadWatchdog.shared.phase = "chatOpen"
                 }
                 if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
