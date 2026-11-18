@@ -552,6 +552,15 @@ OpenIntelligence never sends your documents to a developer-operated backend.
         return removed
     }
 
+    /// The library refreshed samples go back into: the first one a stale copy sits in that still exists, else the
+    /// default library (`liveLibraries.first`, General). A record left behind by a deleted library is removed with the
+    /// rest, and its id must not be the target: `resolveImportLibrary` replaces an unknown id with the open library, which
+    /// on 2026-11-18 put the owner's three guides in Library 4 and left General empty.
+    nonisolated static func refreshTarget(storedIn libraries: [UUID?], liveLibraries: [UUID]) -> UUID? {
+        let live = Set(liveLibraries)
+        return libraries.compactMap { $0 }.first(where: live.contains) ?? liveLibraries.first
+    }
+
     @discardableResult
     func refreshStaleSamples(in ragService: RAGService) async -> [String] {
         await removeNumberedSampleCopies(in: ragService)
@@ -576,8 +585,9 @@ OpenIntelligence never sends your documents to a developer-operated backend.
         // A document with a `nil` containerId belongs to the default library, which is
         // the same rule `documentsForContainer` applies, so `nil` resolves to
         // `containers.first` rather than to the active one.
-        let defaultContainerId = ragService.containerService.containers.first?.id
-        let targetContainerId = doomed.compactMap(\.containerId).first ?? defaultContainerId
+        let targetContainerId = Self.refreshTarget(
+            storedIn: doomed.map(\.containerId),
+            liveLibraries: ragService.containerService.containers.map(\.id))
 
         for document in doomed {
             do {

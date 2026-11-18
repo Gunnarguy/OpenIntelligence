@@ -70,4 +70,29 @@ final class SampleDocumentCopyCleanupTests: XCTestCase {
     func testEmptyLibrary_removesNothing() {
         XCTAssertTrue(SampleDocumentManager.numberedCopiesToRemove(existingFilenames: [], samples: samples).isEmpty)
     }
+
+    // MARK: Where refreshed samples go (2026-11-18)
+
+    private let general = UUID()
+    private let library4 = UUID()
+    private let deleted = UUID()
+
+    func testRefreshTarget_skipsALibraryThatNoLongerExists() {
+        // The owner's Mac: two stale records from a deleted library came first, then three in General.
+        XCTAssertEqual(
+            SampleDocumentManager.refreshTarget(
+                storedIn: [deleted, deleted, general, general, general], liveLibraries: [general, library4]),
+            general)
+    }
+
+    func testRefreshTarget_keepsTheLibraryTheSamplesWereIn() {
+        XCTAssertEqual(
+            SampleDocumentManager.refreshTarget(storedIn: [library4, library4], liveLibraries: [general, library4]),
+            library4)
+    }
+
+    func testRefreshTarget_fallsBackToTheDefaultLibrary() {
+        XCTAssertEqual(
+            SampleDocumentManager.refreshTarget(storedIn: [nil, deleted], liveLibraries: [general, library4]), general)
+    }
 }
