@@ -665,11 +665,23 @@ extension WorkspaceSyncService {
         return try JSONDecoder().decode(type, from: data)
     }
 
+    /// Encode `value` and write it to `url`, unless the file already holds exactly those bytes.
+    ///
+    /// Until 2026-11-18 this wrote every time. A sync pass calls it for `deleted_documents.json` and
+    /// `ingestion_queue.json` in both roots. The two in the iCloud root are the ones that counted: the
+    /// metadata query watches only that root, and local writes during a pass are silenced by
+    /// `isSyncWriteInProgress`. Each rewrite there moved a content-change date `workspaceSignature`
+    /// hashes, so it read as a change from iCloud, and the next pass and a library reload followed
+    /// about every 5 s. On the owner's Mac on 2026-11-18 that was 470 to 715 reloads an
+    /// hour, with the app at 46% CPU, `mds` at 33% and `fileproviderd` at 30% while idle.
+    /// `coordinatedMergeData` already holds the identical-bytes check (and gates the change
+    /// notification on it), so this goes through it rather than repeating the check. The encoder's
+    /// `.sortedKeys` makes equal content produce equal bytes.
     nonisolated static func writeJSON<T: Encodable>(_ value: T, to url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(value)
-        try coordinatedWriteData(data, to: url)
+        try coordinatedMergeData(at: url) { _ in data }
     }
 
     @concurrent nonisolated static func resolveUbiquityContainerURL() async -> URL? {

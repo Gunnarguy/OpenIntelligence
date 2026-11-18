@@ -215,6 +215,20 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 
 ## 9. Sync Boundaries
 
+- **5.8, 2026-11-18: a pass that changed nothing writes nothing.** `WorkspaceSyncService.writeJSON` writes through
+  `coordinatedMergeData`, which leaves a file alone when it already holds the new bytes and announces
+  `.localWorkspaceDidChange` only after a real write. `synchronizeIngestionQueue` writes each copy of
+  `ingestion_queue.json` only when its items, contexts or tombstones differ from what it read from that copy
+  (`ingestionQueueStatesHoldTheSameWork`: `updatedAt` and order ignored, compared before container aliases), and
+  `IngestionQueueTombstonePolicy.merged` orders tombstones that tie on `discardedAt` by id. Before, every pass rewrote
+  `deleted_documents.json` and `ingestion_queue.json` in both roots. Two files in the iCloud root are what counted: the
+  metadata query is scoped to that root and local writes during a pass are silenced by `isSyncWriteInProgress`.
+  `workspaceSignature` hashes content-change dates, so each rewrite of those two read as a change from iCloud and set off the next pass and a reload about every 5 s (470 to 715 reloads
+  an hour on the owner's idle Mac, the app at 46% CPU, `mds` 33%, `fileproviderd` 30%). Still open: a reload saves the
+  queue (`RAGService+ChatHistory.swift:942`), which posts `.localWorkspaceDidChange`.
+  `[evidence_level: test_verified (WorkspaceSyncFileWriteTests, IngestionQueueTombstoneTests) for the skipped writes and
+  the tombstone order; code_verified (WorkspaceSyncService+FileCoordination.swift:492-496) for the notification gate;
+  confidence: high; the owner's Mac at idle not yet re-measured]`
 - **5.8, 2026-11-07: unreferenced document files are held, not deleted.** The local file sweep in
   `WorkspaceSyncService+LibrarySync.swift` skips everything while an import or rebuild is unfinished, and otherwise
   moves a file no record or queue item names into `OrphanedDocuments/` for 30 days (`moveOrphanedDocumentFile`,

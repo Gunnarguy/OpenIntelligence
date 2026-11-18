@@ -588,14 +588,10 @@ extension WorkspaceSyncService {
     ) throws {
         let localQueueURL = localRoot.appendingPathComponent("ingestion_queue.json")
         let sharedQueueURL = sharedRoot.appendingPathComponent("ingestion_queue.json")
-        let localQueue = applyingContainerAliases(
-            to: try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL),
-            aliases: containerAliases
-        )
-        let sharedQueue = applyingContainerAliases(
-            to: try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: sharedQueueURL),
-            aliases: containerAliases
-        )
+        let localQueueOnDisk = try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL)
+        let sharedQueueOnDisk = try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: sharedQueueURL)
+        let localQueue = applyingContainerAliases(to: localQueueOnDisk, aliases: containerAliases)
+        let sharedQueue = applyingContainerAliases(to: sharedQueueOnDisk, aliases: containerAliases)
 
         let localOnlyQueue = filterIngestionQueue(localQueue, mode: .excluding(syncedContainerIDs))
         let localSyncedQueue = filterIngestionQueue(localQueue, mode: .including(syncedContainerIDs))
@@ -617,17 +613,59 @@ extension WorkspaceSyncService {
 
         let finalLocalQueue = mergeIngestionQueue(shared: localOnlyQueue, local: mergedSyncedQueue)
 
+        // A pass that changed no work writes nothing. Each root is compared with what was read from
+        // it, before aliases, so a library merge that remaps a container id still writes. Until
+        // 2026-11-18 both copies were written on every pass (the iCloud one is the copy the
+        // metadata query sees), and `updatedAt` plus the order of
+        // tombstones that tie on `discardedAt` made the bytes differ each time, so the
+        // identical-bytes check in `writeJSON` alone could not stop the rewrite.
         if finalLocalQueue.isEmpty {
             try? Self.coordinatedRemoveItem(at: localQueueURL)
-        } else {
+        } else if !Self.ingestionQueueStatesHoldTheSameWork(finalLocalQueue, localQueueOnDisk) {
             try Self.writeJSON(finalLocalQueue, to: localQueueURL)
         }
 
         if let mergedSyncedQueue {
-            try Self.writeJSON(mergedSyncedQueue, to: sharedQueueURL)
+            if !Self.ingestionQueueStatesHoldTheSameWork(mergedSyncedQueue, sharedQueueOnDisk) {
+                try Self.writeJSON(mergedSyncedQueue, to: sharedQueueURL)
+            }
         } else {
             try? Self.coordinatedRemoveItem(at: sharedQueueURL)
         }
+    }
+
+    /// Whether two queue states hold the same items, contexts and tombstones, ignoring
+    /// `updatedAt` and the order of each list. `updatedAt` moves whenever any device saves the
+    /// queue, and the lists are rebuilt from dictionaries and merges, so neither says whether the
+    /// work in the queue changed. A missing state never matches, so a first write always happens.
+    ///
+    /// Compared as the encoded bytes (sorted keys, as `writeJSON` writes them) of a canonical copy
+    /// of each, with the lists sorted by id and `updatedAt` fixed, so every field of every item,
+    /// context and tombstone counts and nothing else does.
+    nonisolated static func ingestionQueueStatesHoldTheSameWork(
+        _ computed: PersistedIngestionQueueStateRecord,
+        _ onDisk: PersistedIngestionQueueStateRecord?
+    ) -> Bool {
+        guard let onDisk else { return false }
+        guard computed.items.count == onDisk.items.count,
+              computed.contexts.count == onDisk.contexts.count,
+              computed.tombstones.count == onDisk.tombstones.count
+        else { return false }
+
+        func canonical(_ state: PersistedIngestionQueueStateRecord) -> Data? {
+            let ordered = PersistedIngestionQueueStateRecord(
+                items: state.items.sorted { $0.id.uuidString < $1.id.uuidString },
+                contexts: state.contexts.sorted { $0.id.uuidString < $1.id.uuidString },
+                tombstones: state.tombstones.sorted { $0.id.uuidString < $1.id.uuidString },
+                updatedAt: .distantPast
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return try? encoder.encode(ordered)
+        }
+
+        guard let lhs = canonical(computed), let rhs = canonical(onDisk) else { return false }
+        return lhs == rhs
     }
 
 

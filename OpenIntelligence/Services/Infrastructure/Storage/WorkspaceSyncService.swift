@@ -150,8 +150,15 @@ enum IngestionQueueTombstonePolicy {
             }
             byID[tombstone.id] = tombstone
         }
+        // Newest first, and the id breaks a tie. Without the tie-break the order of tombstones that
+        // share a `discardedAt` came from dictionary iteration, which differs between runs: on the
+        // owner's Mac 59 of 73 tombstones shared one date, so every pass wrote a reordered
+        // `ingestion_queue.json`, and past the retention cap the kept set itself could change.
         return byID.values
-            .sorted { $0.discardedAt > $1.discardedAt }
+            .sorted { lhs, rhs in
+                if lhs.discardedAt != rhs.discardedAt { return lhs.discardedAt > rhs.discardedAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
             .prefix(maximumRetainedTombstones)
             .map { $0 }
     }
