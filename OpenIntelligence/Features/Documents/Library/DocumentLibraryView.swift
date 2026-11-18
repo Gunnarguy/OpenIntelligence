@@ -417,10 +417,12 @@ private enum DocumentImportReadiness {
 /// Swipe a document to delete it, where a scroll view's rows can carry swipe actions: iOS and macOS 27, with
 /// `SwipeActionsContainerOn27` on the list (5.7).
 struct DocumentSwipeToDelete: ViewModifier {
+    /// Off for the guide library's documents, which come with the app (5.8).
+    var enabled = true
     let delete: () -> Void
 
     func body(content: Content) -> some View {
-        if #available(iOS 27.0, macOS 27.0, *) {
+        if #available(iOS 27.0, macOS 27.0, *), enabled {
             content.swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button(role: .destructive, action: delete) {
                     Label("Delete", systemImage: "trash")

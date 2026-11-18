@@ -26,6 +26,13 @@ import PDFKit
 extension RAGService {
     // MARK: - Deleting with undo (5.7)
 
+    /// A document in the guide library, which holds the app's own guides (5.8). The person can't delete one or empty
+    /// the library: only the app's guide refresh, a rebuild, or deleting the whole library removes them, and what the
+    /// person adds while it is open goes to their own library (`enqueueDocuments`, `resolveImportLibrary`).
+    func isProtectedGuideDocument(_ document: Document) -> Bool {
+        containerService.isGuideLibrary(document.containerId)
+    }
+
     /// Takes documents out of the list now and removes them for good after `window`, unless `undoRemoval` puts
     /// them back first (5.7, `PendingDocumentRemoval`). `beforeRemoving` runs for each document just before its
     /// removal, as deleting a shared document's file from iCloud does. With an `undoManager`, its Undo (Edit,
@@ -40,7 +47,8 @@ extension RAGService {
         actionName: String = "Delete Document",
         beforeRemoving: (@MainActor (Document) async -> Void)? = nil
     ) -> UUID? {
-        let wanted = Set(documentsToRemove.map(\.id))
+        // The guide library's documents come with the app (5.8): a swipe, a menu, Siri or Shortcuts can't delete them.
+        let wanted = Set(documentsToRemove.filter { !isProtectedGuideDocument($0) }.map(\.id))
         var taken: [Document] = []
         var positions: [Int] = []
         for (position, document) in documents.enumerated() where wanted.contains(document.id) {
@@ -321,6 +329,8 @@ extension RAGService {
         // empty its stores without recording it as deleted, and an Undo would bring back an empty document.
         await commitPendingRemovals()
         let activeId = await MainActor.run { self.containerService.activeContainerId }
+        // Remove All Documents doesn't empty the guide library (5.8); deleting the library itself still can.
+        if await MainActor.run(body: { self.containerService.isGuideLibrary(activeId) }) { return }
         let docsToDelete = await MainActor.run {
             self.documents.filter { $0.containerId == activeId }
         }

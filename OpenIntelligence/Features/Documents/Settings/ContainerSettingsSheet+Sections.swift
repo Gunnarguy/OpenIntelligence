@@ -40,6 +40,20 @@ extension ContainerSettingsSheet {
 
 
 
+// MARK: - Separate evaluation
+
+/// Builds its content in its own `body`, so the sheet's `body` holds a small closure instead of the whole section.
+///
+/// 5.8 build 150 crashed on an iPhone opening Library Settings with Technical Details on: the main thread ran out of
+/// stack inside `ContainerSettingsSheet.body` while it built the Library Deep Dive card, because one `body` built
+/// every section's value at once and a Debug build gives each of those values its own stack slot. Each section in
+/// this wrapper is built later, in its own update, after the sheet's `body` has returned.
+struct SeparatelyBuilt<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
+}
+
 // MARK: - Date Extension for Relative Description
 
 private extension Date {

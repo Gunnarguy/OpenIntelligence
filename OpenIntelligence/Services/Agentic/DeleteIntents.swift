@@ -45,13 +45,18 @@ struct DeleteDocumentsIntent: DeleteIntent, UndoableIntent {
             guard !entities.isEmpty else {
                 throw $entities.needsValueError("Which documents should be deleted?")
             }
-            try await requestConfirmation(
-                actionName: .continue,
-                dialog: IntentDialog(stringLiteral: DocumentDeletion.question(for: entities.map(\.filename))))
-
             let wanted = Set(entities.map(\.id))
             let engine = await MainActor.run { IntentSupport.engine() }
             let documents = try await DocumentDeletion.documents(wanted, in: engine)
+            // The guide library's documents come with the app (5.8), so Siri and Shortcuts don't delete them either.
+            // Checked before asking, so nobody confirms a deletion that then doesn't happen.
+            if let guide = await MainActor.run(body: { documents.first { engine.isProtectedGuideDocument($0) } }) {
+                throw OIIntentError(
+                    "\(guide.filename) is one of OpenIntelligence's own guides. They come with the app and can't be deleted, so nothing was deleted.")
+            }
+            try await requestConfirmation(
+                actionName: .continue,
+                dialog: IntentDialog(stringLiteral: DocumentDeletion.question(for: entities.map(\.filename))))
             if await scheduleWithUndo(documents, in: engine) {
                 Log.info("[Shortcuts] Deleted \(documents.count) document(s), undoable for a few seconds", category: .pipeline)
                 return .result(

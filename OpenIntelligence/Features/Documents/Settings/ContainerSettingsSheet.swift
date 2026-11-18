@@ -195,8 +195,10 @@ struct ContainerSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                identitySection
-                storageSection
+                // Each section is built in its own update (`SeparatelyBuilt`): built together in this body they ran
+                // the main thread out of stack on an iPhone (5.8 build 150, Technical Details on).
+                SeparatelyBuilt { identitySection }
+                SeparatelyBuilt { storageSection }
                 WatchedFolderSection(
                     library: activeContainer,
                     ragService: ragService,
@@ -209,17 +211,17 @@ struct ContainerSettingsSheet: View {
                 // What a person can change first, each with what it means; the library's analysis, its embedding model
                 // and its diagnostics only with Technical Details on (Settings, Appearance), as the Settings pages do
                 // (5.8 premium pass). They sat between the everyday settings, with developer rows among them.
-                searchSection
-                chunkingSection
-                aiFeatureOverridesSection
-                privateCloudComputeSection
+                SeparatelyBuilt { searchSection }
+                SeparatelyBuilt { chunkingSection }
+                SeparatelyBuilt { aiFeatureOverridesSection }
+                SeparatelyBuilt { privateCloudComputeSection }
                 if settings.showTechnicalDetails {
-                    intelligenceSection
-                    accuracyDefaultsSection
-                    embeddingProviderSection
-                    libraryNerdStatsSection
+                    SeparatelyBuilt { intelligenceSection }
+                    SeparatelyBuilt { accuracyDefaultsSection }
+                    SeparatelyBuilt { embeddingProviderSection }
+                    SeparatelyBuilt { libraryNerdStatsSection }
                 }
-                deleteLibrarySection
+                SeparatelyBuilt { deleteLibrarySection }
             }
             .macGroupedForm()
             .navigationTitle("Library Settings")

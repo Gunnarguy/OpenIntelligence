@@ -80,7 +80,7 @@ struct ModernDocumentCard: View {
                     }
                     .font(DSTypography.caption)
                     .foregroundStyle(DSColors.secondaryText)
-                    
+
                     if isSharedICloudDocument {
                         HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "icloud.fill")
@@ -123,21 +123,24 @@ struct ModernDocumentCard: View {
                 Label("Copy Link", systemImage: "link")
             }
 
-            Divider()
+            // The guide library's documents come with the app and aren't deleted one by one (5.8).
+            if !ragService.isProtectedGuideDocument(document) {
+                Divider()
 
-            Button(role: .destructive) {
-                deleteMode = .local
-                showingDeleteAlert = true
-            } label: {
-                Label(isSharedICloudDocument ? "Remove Local Copy" : "Delete", systemImage: "trash")
-            }
-
-            if isSharedICloudDocument {
                 Button(role: .destructive) {
-                    deleteMode = .everywhere
+                    deleteMode = .local
                     showingDeleteAlert = true
                 } label: {
-                    Label("Delete Everywhere", systemImage: "cloud.moon.fill")
+                    Label(isSharedICloudDocument ? "Remove Local Copy" : "Delete", systemImage: "trash")
+                }
+
+                if isSharedICloudDocument {
+                    Button(role: .destructive) {
+                        deleteMode = .everywhere
+                        showingDeleteAlert = true
+                    } label: {
+                        Label("Delete Everywhere", systemImage: "cloud.moon.fill")
+                    }
                 }
             }
         }
@@ -205,10 +208,12 @@ struct ModernDocumentCard: View {
                 // because it is read at the moment someone decides whether to tap Delete.
                 return Self.sharedDeleteMessage(for: document.filename)
             } else {
-                return "This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device. You can undo it for a few seconds."
+                return
+                    "This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device. You can undo it for a few seconds."
             }
         case .everywhere:
-            return "This will delete \"\(document.filename)\" from iCloud Sync and remove it from every device using this shared library. You can undo it for a few seconds."
+            return
+                "This will delete \"\(document.filename)\" from iCloud Sync and remove it from every device using this shared library. You can undo it for a few seconds."
         }
     }
 

@@ -87,7 +87,7 @@ extension DocumentLibraryView {
                 // Each card names its document, so Siri and Apple Intelligence know which
                 // documents are on screen (5.7).
                 .appEntityIdentifier(.document(document.id))
-                .modifier(DocumentSwipeToDelete { swipeDelete(document) })
+                .modifier(DocumentSwipeToDelete(enabled: !ragService.isProtectedGuideDocument(document)) { swipeDelete(document) })
                 .tour(.documentMenu, in: Tour.documents, when: document.id == filteredDocuments.first?.id)
             }
         }
@@ -286,7 +286,7 @@ extension DocumentLibraryView {
         if containerService.isGuideLibrary(containerService.activeContainerId) {
             Label {
                 Text(
-                    "OpenIntelligence's own guides, free and outside your plan's limits. Ask this library how the app works. Files you add go to \(containerService.containers.first { !containerService.isGuideLibrary($0.id) }?.name ?? "your library")."
+                    "OpenIntelligence's own guides, free and outside your plan's limits. Ask this library how the app works. Its guides come with the app and stay as they are; files you add go to \(containerService.containers.first { !containerService.isGuideLibrary($0.id) }?.name ?? "your library")."
                 )
                 .font(DSTypography.body)
                 .foregroundStyle(DSColors.secondaryText)
@@ -510,17 +510,20 @@ extension DocumentLibraryView {
             // showing, rather than `ragService.documents`, which is every document in every
             // library. The old binding left the destructive action live on a library that is
             // visibly empty, because some other library had documents in it.
-            DocumentActionChip(
-                title: activeLibrary.map { "Remove All Documents from \($0.name)" } ?? "Remove All Documents",
-                systemImage: "doc.badge.ellipsis",
-                isEnabled: !filteredDocuments.isEmpty,
-                iconOnly: true
-            ) {
-                Tour.used(.removeAll)
-                DSHaptics.medium()
-                showingClearAllConfirmation = true
+            // Not in the guide library, whose documents come with the app (5.8).
+            if !containerService.isGuideLibrary(activeLibrary?.id) {
+                DocumentActionChip(
+                    title: activeLibrary.map { "Remove All Documents from \($0.name)" } ?? "Remove All Documents",
+                    systemImage: "doc.badge.ellipsis",
+                    isEnabled: !filteredDocuments.isEmpty,
+                    iconOnly: true
+                ) {
+                    Tour.used(.removeAll)
+                    DSHaptics.medium()
+                    showingClearAllConfirmation = true
+                }
+                .tour(.removeAll, in: Tour.documents)
             }
-            .tour(.removeAll, in: Tour.documents)
 
             DocumentActionChip(
                 title: activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",

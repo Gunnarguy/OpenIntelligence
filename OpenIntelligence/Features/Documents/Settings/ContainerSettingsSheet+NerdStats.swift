@@ -25,7 +25,8 @@ extension ContainerSettingsSheet {
                     }
                     .padding(.vertical, DSSpacing.sm)
                 } else {
-                    libraryNerdStatsContent
+                    // The six cards are built in their own update; built inline here they were where the stack ran out.
+                    SeparatelyBuilt { libraryNerdStatsContent }
                 }
             } label: {
                 HStack(spacing: DSSpacing.sm) {
