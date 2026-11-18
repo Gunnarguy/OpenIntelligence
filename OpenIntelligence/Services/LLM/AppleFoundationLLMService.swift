@@ -177,11 +177,6 @@ import os
             return model.supportedLanguages
         }
 
-        /// Context window size for on-device model
-        static var onDeviceContextWindowSize: Int {
-            return 4096
-        }
-
         /// Conservative PCC context-window value for synchronous compatibility callers.
         /// Runtime routing obtains the live SDK value asynchronously through
         /// `LiveFoundationModelCapabilityProvider`.
