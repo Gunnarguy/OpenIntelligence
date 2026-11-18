@@ -1,172 +1,102 @@
 # Current State
 
-Updated: 2026-11-17
+Updated: 2026-11-17 22:40
 Branch/worktree: `main`, primary checkout
-Last verified commit: 6bafcf2a
+Last verified commit: 3da70f6c
 
 ## Objective
 
-**Ship 5.8, now planned for 2026-11-15.** The owner runs his device pass on the final build (checklist page
-https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT, the same steps in `.claude/skills/device-pass/SKILL.md`), says
-"done", the agent closes rows from the logs, and then at his word the agent pushes the Xcode Cloud build and the store
-text and he submits with "Reset rating when this version is released" ticked
-(`Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15). Every commit carries `[ci skip]`; nothing is pushed.
+**Ship 5.8.** The owner runs his device pass (checklist page https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT, the
+same steps in `.claude/skills/device-pass/SKILL.md`), says "done", the agent closes rows from the logs, and then at his
+word only the agent starts the Xcode Cloud build and pushes the store text, and he submits. **No rating reset on 5.8**
+(his decision 2026-11-17, reversing 2026-11-09; `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 15 and auto memory
+`oi-58-rating-reset.md`). Every commit carries `[ci skip]`; nothing since 6bafcf2a is pushed.
 
-The bar discussed with him on 2026-11-14 (not formally confirmed): no mode below 5.7; unit suite green; nothing found
-loses data, breaks an advertised feature or blocks the build. Open rows that fail none of those move to the next
-release with their closing condition written on them.
-
-## UI work on 2026-11-15 and 16 (all run on the org API credit through `~/.agents/bin/ccp`, briefs and logs in the session scratchpad)
-
-| Commit | What | Cost |
-|---|---|---|
-| b33ce4c6 | Settings list rows tightened (he said "looks the exact same") | $2.06 |
-| 77309c88 | One type scale and card language for Settings and every Database section (spec on `DSTypography` in `Theme.swift`); lit panels as heroes; graphite icon tiles | $20.86 |
-| 7b2da34e | Plans one tap from Settings, plans screen cut to usage panel, three cards, the table, quiet links | $3.27 |
-| (no commit) | Read-only reviews of every Settings page and of published research on premium feel: `audit-run.log`, `premium-run.log` | $4.88 |
-| adf95abb | Ten fixes he chose: Developer row Debug-only, About facts, panel and PCC page agree, rating copy, panel text at Apple's minimum, Database empty state, privacy line up, success haptic, Annual first, Intelligence Mode titles wrap | $7.17 over two runs (the first stopped while he played a game) |
-
-Overnight 2026-11-16, four org-credit jobs in sequence (`night-*.md` briefs and `night-*.log` reports in the session
-scratchpad, about $68 in all):
-
-| Job | Commits | What |
-|---|---|---|
-| A | b7caf016, 9e4dc8c5 | Chat-context follow-ups to e5b26f86: every refusal kind stays out of later prompts; Siri's hand-off answer kept (edits `ChatMessage.swift` under the standing approval, test written first); a deleted library's memory file removed; Standard golden 34 of 35 unchanged. Notion row 41a49a74d54f8104a826d25ee6e6cc8b |
-| B | 614ae4fa, 7c8218a3 | The type and card spec through Documents, Library Settings (12 screens to 6, developer rows behind Technical Details), sheets, Atlas, Chat chrome (bubbles untouched); no text under 11 pt there |
-| C | fa81bf58 | Settings reorganised: General (Appearance plus Notifications), Model & Privacy (with the answer-route picker), Advanced as cards, one technical switch (old Plain English value not carried over, on purpose), no nested cards, Siri & Shortcuts one card, About trimmed |
-| D | 746085c2 | Database sections each say what they are for; Maintenance opens on index health and recommends a repair only when a check finds a reason; Optimize renamed Reclaim Unused Space; Search tips corrected |
-
-Screenshots: `/private/tmp/oi-premium-after/`, `/private/tmp/oi-reorg-after/`, `/private/tmp/oi-database-after/`. All seen only in
-the iOS 27 Simulator. Open: the colour and icon pickers (job B skipped them); the repeated plan-card bullets (asked, no answer).
-
-## 2026-11-16 afternoon (committed, both devices run a9933961)
-
-| Commit | What |
-|---|---|
-| ebfcaba1, 8f6a4684 | Equal heights in panels and spec tiles; "this library" captions |
-| 97dc8852 | Haptics: one per touch, none without one, a beat while answers write and Deep Think steps; X-Ray counts only played haptics |
-| a9933961 | Calm neutral panels (colour only on symbol and bar), Liquid Glass on floating pieces only (HIG Materials); plain-words search card; reranker default form first, fast form in the background on Maximum (`RerankerFastForm`); device audit fixes: real Mac battery, `chipIsAtLeast` by generation, answer quality the same on every device (was tier-dependent: Deep Think 85-95%, 75-250 candidates), live window for the overflow retry, eligible-device copy per Apple 2026-11-05 |
-
-Not verified: anything on a device (haptics felt, glass seen, the fast-form swap's timing, answer time on an A17 Pro or A18 with 250 candidates). `RerankerFormTests` ran on the Simulator's CPU only; the macOS test target fails to resolve the app module (pre-existing). Next measurement: `phone_evidence.py` for `reranker.load` (`form`) and `reranker.fastForm` after he opens the app.
+In flight beside it: the Deep Think final-step evidence measurement (below), at his request "Measure the bigger Deep
+Think evidence budget".
 
 ## Status
 
 | What | Result |
 |---|---|
-| 20-case answer test by rule, build df67ec96 | 17, 17, 17 of 20; like for like (17 cases whose test scoping did not change) 15, 14, 14 against 5.7's 9, 11, 9. Stated in the splash, Version History and both store notes. `BenchmarkRuns/2026-11-14-1112-answer-modes`, LEDGER entry written |
-| Table questions | Standard 47/53, Deep Think 46/53, Maximum 25/30 (8 before Maximum read source passages) |
-| Unit suite | 1,751 overnight on 2026-11-14 with one failure fixed; since then only single classes run, all green |
-| Five Simulator checks | done (`FiveChecksSimulatorTests`, `FiveChecksUITests`); four rows closed in Notion; the lease row (40049a74d54f814eadbace9c62d87ef9) is a line on the owner's checklist |
-| Release text | audited against every commit since v5.7.0 by an Antigravity job (288 then, 307 now); gaps fixed. Store text not pushed |
-| Devices | both run the Vision Capture commit (iPhone 2026-11-16 23:10, Mac 2026-11-17 06:33) |
-| Roadmap | v5.8: about 96 In Progress; most close from the device pass |
+| 20-case answer test by rule, build df67ec96 | 17, 17, 17 of 20; like for like 15, 14, 14 against 5.7's 9, 11, 9. `BenchmarkRuns/2026-11-14-1112-answer-modes`, LEDGER entry written |
+| Table questions | Standard 47/53, Deep Think 46/53, Maximum 25/30 |
+| Unit suite | full iOS suite at 6bafcf2a: 1,799 run, 33 failed (30 were the simulator's free-plan quota); after `simctl erase` and fixes the failing classes 113 run, 0 failed. Since then only single classes run |
+| Release text | audited against every commit since v5.7.0; store text not pushed. Today's commits are in `CHANGELOG.md` 5.8 |
+| Roadmap | v5.8: about 96 rows In Progress; most close from the device pass |
 
-## 2026-11-17 (committed with `[ci skip]`, not pushed)
-
-- **Device Pass page rewritten** (https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT, version 5): six iPhone and five Mac steps, each line "what to tap / you should see", each step listing the rows it closes (about 60 of 97 open 5.8 rows). The owner tests from it; when he says "done", pull `phone_evidence.py --since "2026-11-16 23:10"` and `--mac --since "2026-11-17 13:36"`.
-- **Model & Privacy redesigned** in Intelligence Mode's language (owner: "should kind of look similar to the other pages"): panel (windows, permission, quota in words), route ladder (`fmPreference`), permission ladder (`pccSetting`), model and languages folded, features as switch rows plus always-on tiles. Shared `SettingsLadder`, `SettingsLadderNote` in `SettingsCardParts.swift`.
-- **Every pushed Settings page now redraws on a setting change** (`SettingsLivePage` in `detailScroll`): before, a tap stored the value but the page kept showing the old one (seen on Model & Privacy and Intelligence Mode on the Mac).
-- Verification: iOS and macOS Debug builds exit 0 (13:36, 13:40); Mac build installed in /Applications 13:36 and the ladders seen redrawing and storing; the owner's Mac settings checked back to Standard, On-Device, Allow in the container plist. The iPhone has NOT got this build (held so it does not interrupt his device pass); install it after he says done.
-- Review (reviewer agent) fixes in the same commit: permission notes checked against `SettingsStore` and `CloudConsentPromptView` (Ask names Just Once for that question, Always Allow, Deny which sets Never); note says the reason where PCC can't be used; quota "Unavailable, right now" vs "None"; "Apple Intelligence is available" kept at the top of the fold; group captions under their labels for iPhone width; always-on tiles read the colour scheme themselves. Privacy policy (`PrivacyPolicyView`, `scripts/privacy_policy.py`) now says "Settings, Model & Privacy, Private Cloud Compute"; the script was NOT run, so Gunzino's copies lag. Not seen on an iPhone or at large text sizes yet.
-- Overnight lesson: the app-install Bash command hung 23:11 to 06:33 (probably an unanswered approval); the Mac never slept, the display did at 01:47 on battery and locked. Quit with `gtimeout 20 osascript` and a `pkill` fallback now.
-
-## 2026-11-16 evening (committed; pushed with `[ci skip]`, no Xcode Cloud build)
+## Completed on 2026-11-17 (committed with `[ci skip]`, not pushed)
 
 | Commit | What |
 |---|---|
-| f131c860 | Intelligence Mode and Compute Profile hold still when switching (`stable`: every mode drawn hidden, the current one on top); Compute Profile above the Silicon-Native RAG Engine |
-| e7e4a4cd | Neural Engine tile shows Apple's core count on every chip (`AppleDeviceCatalog.neuralEngineCores`), TOPS only where Apple published one |
-| 3eeab1c2 | Mode and profile choices drawn as pills (`ladderChoice`) |
-| 6bafcf2a | Reranker: a failed load is retried before the next search (up to 3 per launch, `reranker.retry`), its errors journaled (`errors`, `attempt`); setup card in plain words; Maximum note no longer claims a faster setup (the default form also takes 75 to 83 s) |
+| 47a8f675 | Model & Privacy in Intelligence Mode's language; every pushed Settings page redraws on a setting change (`SettingsLivePage`). Privacy policy names the new heading; `scripts/privacy_policy.py` NOT run, so Gunzino's copies lag |
+| 9bd8c53a, 566241c3 | Device facts checked against Apple: model name from `SystemLanguageModel.variant`, every Apple silicon Mac named, no Neural Engine claims Apple doesn't make, eligibility copy quotes Apple, A20 and M6 GPU pool |
+| 1231ab96 | Settings list regrouped: Intelligence, Libraries & Plan, This Device, App, Learn, Advanced |
+| 6ff765fa | Mac chat route menu: the three routes are the menu's own items (`ModelStatusIndicator`, `.pickerStyle(.inline)`) |
+| e361dcd1, 0e2a5bdc | An answer streams inside its grey bubble; iOS left-edge swipe opens Evidence Threads |
+| d66706f3 | Chat header counts drawn like the pickers (`StatChip` in `ChatScreen.swift`), number only, grouped |
+| 3fb31070 | `AppleFoundationLLMService.continueGeneration`: continuation room from the live window (`continuationTokenRoom`) instead of 1,600 characters; a `rateLimited` pause mid-answer resumes when the app is active again (`resumeAfterPause`), else the answer ends with a "stopped early" note (`RAGService+Generation.swift`); Mac Vision concurrency from performance cores and memory, GPU cache from chip generation and Metal's working set; skill `.claude/skills/scale-to-the-device` |
+| 63ad336b | Compression estimate (`RAGService+QueryContext.swift`) reads the live window; unused 4,096 constant deleted |
+| 2532a0c4, 3da70f6c | The iPhone's window history and the release inference, in the skill and auto memory |
 
-Phone journal after the 6bafcf2a install [measured]: `reranker.load ok attempt=1 form=default` at 01:05:26Z,
-`reranker.fastForm ok` at 01:10:13Z, one Deep Think answer `answer.done ok sources=20` at 01:09:20Z (it waited 44 s for
-setup), 13 stalls, worst 711 ms. The earlier failures that day (`reranker.load failed`, `embedding.load failed`, two
-`answer.done failed error=EmbeddingError` at 23:16 to 23:19Z) came with `sync.waitForFiles ... Code=28 "No space left
-on device"`: the phone had about 44 MB free. Filed as Future Backlog row 41b49a74d54f81eebbc3fbbee08a878d (the app
-never says storage is full).
+## Facts established today
 
-Rows closed from the logs on 2026-11-16: 40049a74d54f81f3964fc8a7a0792cd5 (PCC steps carry evidence),
-40d49a74d54f81dbb75bd6daf9309f50 (rebuild on one device, both journals), 3f449a74d54f81fa83cafeeb9cbf6344 (crash
-report offered), 3fe49a74d54f8164a5fee6f0f53805ec (Mac context window figures), 40d49a74d54f81779bfaea8b13628d5a
-(Mac launch sync wait). Passing but left open because they need his eyes or a step not yet done: widgets (name and
-count), Atlas names, embedding prepare after delete-and-reinstall, prompt budgets on the Mac, enhanced-security memory
-comparison, iCloud file coordination (PARTIAL). The "rebuild requested after import" rule reads FAIL only because each
-library asked once per device after the 5.8 model change (11-14 and 11-15, and 511B92E9 on the phone 11-16); none
-asked twice on one device. The "34 documents have no passages" trace line is from 2026-11-12; that library reads
-healthy (37 documents, 0 missing) on 2026-11-16.
+- The owner's iPhone 16 Pro Max runs AFM 3 Core. Its window read 4,096 on iOS 27.0.1 through 2026-11-16 17:08 and
+  8,192 on iOS 27.2.1 from 2026-11-17 08:10 (overnight update, skipped 27.1 and 27.2) [measured: MetricKit
+  `metric_reports.jsonl` osVersion, `pipeline_trace.log` "Context budget: base="]. Most likely 27.2 changed it
+  [inferred: 27.1 was iPhone Duo only, 27.2.1 bug fixes only]; no Apple text names it.
+- His M3 Pro Mac: AFM 3 Core Advanced, 8,192, no reasoning capability; GPU cache 53 MB after 3fb31070 (was 32) [measured].
+- Fix 1 seen on the Mac: continuation room 3,113 tokens, a "summarize each" answer finished across two calls [measured].
+- Full Disk Access works for the agent's shell, but `/System/Library/AssetsV2/com_apple_MobileAsset_UAF_FM_GenerativeModels`
+  is SIP `restricted` and unreadable even so; Apple's asset catalog returns 403.
 
-Overnight 2026-11-16 to 17 (this commit): Vision Capture pass (development builds only; row 41449a74d54f81c1bba2e1633026047a In
-Progress): one box per object from `VNGenerateForegroundInstanceMaskRequest` (`InstanceBoxes`), saliency as fallback;
-overlays drawn inside the open camera area and hard-clipped; object chips first, parents and vague scene words dropped
-(`ObjectLabelPolicy.isShownAsScene`, `.chips`); flash and a Show menu in the bar; glass card and capture buttons. Not seen
-on the phone yet. Glossary PCC plain text cut to fit 360 characters (detail moved to technical).
+## In flight: Deep Think final-step evidence (uncommitted)
 
-Full iOS suite at 6bafcf2a on "OI unit" (22:06 to 23:02): 1,799 run, 20 skipped, 33 failed. 30 of the failures were the
-simulator's library at 22 documents on the free plan (`Document quota reached`, limit 5); one was the Glossary length
-(fixed). After `simctl erase` and the fixes, the failing classes plus the camera tests: 113 run, 0 failed, 3 skipped
-[test_verified]. Not settled: `AtlasLabelingTests.testAnAdverbDoesNotNameAnAxisEnd` and
-`testNamingTermsDropsWordsTheirPassagesUseAsAdverbs` failed on the old simulator (NLTagger did not call "gently" an
-adverb) and skipped on the erased one (no English word classes yet); Atlas code unchanged since 2026-11-08.
+Question: the final synthesis is capped at 3,200 evidence tokens (`SessionEvidencePlan.readingCeilingTokens`, applied in
+`ChainSynthesisEvidence.evidenceTokenBudget`; from
+a 2026-10-07 probe of the Mac's 20B model). With an 8,192 window the window alone would allow about 5,990. Decision rule,
+set before running: **the window ships only if it gets at least as many answers right as the ceiling.**
 
-Disk: 3 GB free became 33 GB (this session's build leftovers and 20 GB of Core ML compile copies in the "OI unit"
-simulator; auto memory `test-simulator-model-cache-grows.md`).
+- `OpenIntelligence/Services/RAG/Tuning/RetrievalAblation.swift`: new `case synthesisReadingCeiling` (off = the window decides).
+- `OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift`: `ChainSynthesisEvidence.evidenceTokenBudget` returns `max(0, free)` when that switch is off.
+- `OpenIntelligenceTests/Services/RAG/Orchestration/EvidenceReachBenchmarkTests.swift`: window from `OI_EVIDENCE_WINDOW` (default 4,096, so old runs stay comparable).
+- `BenchmarkRuns/2026-11-17-synthesis-ceiling/run.sh` (gitignored): stages and patches the tree to `/private/tmp/oi-eval-src`
+  (`scripts/sim_model_copy.py`), builds into `/private/tmp/oi-eval-dd`, makes simulator "OI answer eval" (iPhone 17 Pro,
+  iOS 27.0), runs arms `ceiling:a:` and `window:a:synthesisReadingCeiling` at window 8,192 on the 53 table questions
+  (slice 0/3), scores with `scripts/evidence_reach.py answers`. It waits while a game runs (timers slow 14x).
+- Running: smoke (2 questions) started 22:25 into `smoke/`; a chained job starts the full run into `full.out` only if the
+  smoke scored both arms. Expected done about 01:00 to 02:00 on 2026-11-18.
 
-## Done on 2026-11-14 afternoon and evening (all committed)
+## Not verified on a device
 
-- Plans screen: "Free, Pro and Lifetime" table of the five paid limits (Maximum, documents, libraries, conversations per
-  library, watched folders); the conversation limit is now on the cards, the Terms and the store description. iCloud
-  Sync is paid and deliberately not listed until row 3ca49a74d54f8103b69be921f0335171 closes on his two-device step
-  (`testICloudSyncWaitsForTheTwoDeviceCheck`).
-- Rating request: made only while the scene is active, held otherwise (`askForRatingWhenInFront`); rules unchanged
-  (first verified or third finished answer, once per version, 14 days apart).
-- Watch a Folder: a one-line row on the Documents page (`WatchedFolderRow`, folder-and-eye glyph from two system
-  symbols), its own sheet with a Mac layout.
-- `SettingsStatusPanel` (the dark lit panel, up to four blocks) on Plan & Usage, Private Cloud Compute, Libraries &
-  iCloud, How This Works, Siri & Shortcuts; Siri phrase rows lead with what they do.
-- Mac: grouped forms so Library Settings scrolls (`macGroupedForm`); View Plans opens from a pushed Settings page; no
-  focus rings (`macWithoutFocusRings`, his choice); new windows open at 70% by 75% of the screen
-  (`defaultWindowPlacement`); Settings pages capped at 620 points wide (`detailColumnWidth`); the menu bar item shows
-  the app icon and has a library picker (`MenuBarAsk`).
-- Sync: a device skips the one-time model rebuild when the vectors iCloud brought are already the live model's
-  (`StoredVectorModelCheck`, `RAGService.storedVectorsAlreadyMatchLiveModel`, journal `index.modelCheck`). Simulator:
-  own vectors 1.000, foreign 0.082, threshold 0.95. The cross-device figure is not yet seen.
-- Glossary's Private Cloud Compute entry states that working steps go there too when it is picked in the model picker.
-- Other repos (not 5.8): OpenCone `fe9d398` and OpenResponses `a6c5507` have Apple's rating request, committed
-  locally, not pushed or versioned.
+The iPhone has the 3fb31070-era Debug build installed at 2026-11-17 18:54, not launched (phone locked). Not seen: the
+edge swipe, the paused-answer resume (needs an answer interrupted by leaving the app), the Mac one-click route menu, the
+header chips on the phone, the 53 MB cache on any M4 or later. Which build `/Applications/OpenIntelligence.app` holds was
+not recorded: rebuild both from HEAD before his pass.
 
-## Seen and not seen
-
-Seen on his Mac through the app's accessibility interface: Library Settings scrolling, the Watched Folder sheet, Model
-Parameters, Semantic Search, Plan & Usage on Lifetime (46 documents, 8 of 20 libraries), the plans screen opening,
-Device & Performance in the narrow column, the app icon in the menu bar. Not seen: focus rings gone, the 70% first
-window (his Mac remembers its size), the menu bar picker panel, about eleven Mac sheets with no size of their own (list
-in `CHANGELOG.md`, "Library Settings scrolls on a Mac"), paid-plan panels other than Lifetime.
-
-## Standing approvals (owner, 2026-11-14 about 00:05)
+## Standing approvals (owner, 2026-11-14)
 
 Install builds on both devices; open the Mac app in the background; edit hard-boundary files when a test proves a
-defect; close and move roadmap rows with evidence. Computer-use access to OpenIntelligence on the Mac was granted on
-2026-11-14. Not given: pushing, submitting, deleting his data.
+defect; close and move roadmap rows with evidence; computer-use on OpenIntelligence. Not given: pushing, Xcode Cloud,
+submitting, deleting his data.
 
 ## Active Constraints
 
-- Commits `[ci skip]`, no attribution, never `git add .`, never stage `scripts/run_quality_matrix.py`.
-- One xcodebuild and one booted simulator at a time; the disk sat at 8 to 10 GB free on 2026-11-14 (floor 9 GB for a
-  build; only this session's own finished eval builds were removed).
+- Commits `[ci skip]`, no attribution lines, never `git add .`; never stage `scripts/run_quality_matrix.py` or
+  `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` (another session's changes), nor the untracked `.agents/skills/` and `.codex/` files.
+- One xcodebuild and one booted simulator at a time; never the whole macOS hosted suite (his real library).
 - `Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` stay byte-identical.
-- The phone trace holds his file names: grep it, never print it whole or commit it.
+- The phone trace, journal and Mac prefs hold his file names: grep them, never print them whole or commit them.
+- Before any device-dependent constant, run the `scale-to-the-device` skill (read Apple's page first).
 
 ## Known and not fixed
 
-- Search setup after an install took 55 to 99 s (embedding) and 87 to 131 s (reranker) on his iPhone at thermal
-  state serious; the earlier "25 to 50 s" was too low.
-- 42 main-thread stalls on the Chat screen during rebuilds (median 301 ms, worst 1,658 ms). Likely cause found 2026-11-16
-  (641c7aa9): approachable concurrency ran the sync service's `nonisolated async` work on the main thread; the same
-  thing got build 150 killed in the background (0x8BADF00D). Now `@concurrent`, test-verified; not yet seen on the phone. Next: `bash scripts/profile_phone.sh` (Time Profiler, 90 s)
-  while he rebuilds one library, then read the main thread's heaviest frames. Closes no row by itself.
-- Chat's passage chip sums documents' recorded counts (8,574) against the store's (8,225); a tip can point at the
-  passage chip after its anchor scrolls; image tables in PDFs; the Spotlight document tap (his phone step decides).
+- Search setup after an install took 55 to 99 s (embedding) and 87 to 131 s (reranker) on his iPhone at thermal state serious.
+- Main-thread stalls on Chat during rebuilds (worst 1,658 ms); the `@concurrent` fix (641c7aa9) is not yet seen on the
+  phone. Next: `bash scripts/profile_phone.sh` while he rebuilds one library.
+- The app never says the phone's storage is full (Future Backlog 41b49a74d54f81eebbc3fbbee08a878d).
+- Open UI asks with no answer: the Standard picker on the Mac lacks its capsule; the colour and icon pickers; repeated plan-card bullets.
+- `AtlasLabelingTests` adverb tests depend on the simulator having English word classes (skip on a fresh one).
 
 ## Commands
 
@@ -178,17 +108,17 @@ iPhone, from `/private/tmp/oi-src`: `xcodebuild build -project OpenIntelligence.
 -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/oi-build -jobs 2
 MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549
 /private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app`. Mac: the same build with
-`-destination 'platform=macOS' -derivedDataPath /private/tmp/oi58-mac-dd`; quit the app
-(`osascript -e 'tell application id "Gunndamental.OpenIntelligence" to quit'`), replace
-`/Applications/OpenIntelligence.app` with `ditto`, then `xattr -cr`. Screens: `ui.sh <name> testShotsOfEverySettingsPage`
-in the session scratchpad (writes `/private/tmp/oi-checks-shots`). Logs: `python3 scripts/phone_evidence.py --since
-<local time> --json`, and the same with `--mac`.
+`-destination 'platform=macOS' -derivedDataPath /private/tmp/oi58-mac-dd`; quit the app with `gtimeout 20 osascript -e
+'tell application id "Gunndamental.OpenIntelligence" to quit'` (pkill fallback), replace
+`/Applications/OpenIntelligence.app` with `ditto`, then `xattr -cr`. Logs: `python3 scripts/phone_evidence.py --since
+<install time, local> --json`, and the same with `--mac`.
 
 ## Exact Next Action
 
-He tests on 2026-11-17 on the 6bafcf2a builds already installed (the short version: switch Intelligence Mode a few
-times and import one PDF on the phone, one Deep Think question on the Mac, share an answer to Messages; or the full
-pass in `.claude/skills/device-pass/SKILL.md`). When he says "done", pull both logs with `phone_evidence.py --since
-"2026-11-16 17:00"` (and `--mac --since "2026-11-16 15:08"`), close the rows they prove, then at his word only start the
-Xcode Cloud build (a commit without `[ci skip]`, or a manual run), push the store text, and he submits with "Reset
-rating" ticked.
+When the chained job finishes, read `BenchmarkRuns/2026-11-17-synthesis-ceiling/full.out` and `score-0of3.txt`
+(right answers per arm, and the synthesis-evidence line counts showing the window arm read above 3,200). Apply the rule:
+if `window` is at least `ceiling` on right answers, make the window the shipped default (remove the 3,200 cap in
+`ChainSynthesisEvidence.evidenceTokenBudget`, with CHANGELOG [Orchestration] and Atlas notes); otherwise keep the cap
+and commit only the switch and test changes. Either way write the LEDGER entry for that folder, commit `[ci skip]`, and
+report the numbers to the owner. Then rebuild both devices from HEAD for his device pass, and on "done" pull
+`phone_evidence.py --since` the install times.
