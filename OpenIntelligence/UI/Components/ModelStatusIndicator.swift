@@ -21,11 +21,12 @@ struct ModelStatusIndicator: View {
                 ForEach(FoundationModelPreference.availableCases) { preference in
                     if preference == .privateCloudCompute {
                         #if canImport(FoundationModels)
-                        let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
+                            let hasEntitlement = EntitlementChecker.hasEntitlement(
+                                "com.apple.developer.private-cloud-compute")
                         #else
-                        let hasEntitlement = false
+                            let hasEntitlement = false
                         #endif
-                        
+
                         if hasEntitlement {
                             pickerLabel(for: preference).tag(preference)
                         } else {
@@ -39,6 +40,10 @@ struct ModelStatusIndicator: View {
                     }
                 }
             }
+            // Inline, so the three routes are the menu's own items. On macOS a Picker inside a Menu draws as a
+            // "Model Preference" submenu, which made the route two clicks deep there (the owner, 2026-11-17); iOS
+            // already showed them inline.
+            .pickerStyle(.inline)
         } label: {
             // Structurally identical to `QualityModeQuickPicker`'s label: a 20pt circled
             // icon, a two-line VStack, then a chevron, at the same spacing and padding.
@@ -83,7 +88,7 @@ struct ModelStatusIndicator: View {
     private struct DetailRow: View {
         let label: String
         let value: String
-        
+
         var body: some View {
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(label)
@@ -98,7 +103,7 @@ struct ModelStatusIndicator: View {
 
     private struct BulletPoint: View {
         let text: String
-        
+
         var body: some View {
             HStack(alignment: .top, spacing: DSSpacing.xs) {
                 Text("•")
