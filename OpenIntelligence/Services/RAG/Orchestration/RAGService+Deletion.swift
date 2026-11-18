@@ -578,12 +578,23 @@ extension RAGService {
         )
 
         var wasStoppedByUser = false
+        // Where the rebuild stopped because its library is gone (5.8): this document and the rest are left as they are.
+        var libraryGoneAt: Int?
         for (index, document) in documentsToRebuild.enumerated() {
             if Task.isCancelled { break }
             if isAutomaticSelfHealing,
                 await MainActor.run(body: { self.isSelfHealingSuppressed(for: targetContainerId) })
             {
                 wasStoppedByUser = true
+                break
+            }
+
+            // The library still exists, checked before anything of this document is cleared (5.8). Deleted while the
+            // rebuild ran, the next document's passages were cleared and its re-add then fell through to the open
+            // library (through the first 5.8 builds), and `dbFor` hands a library that isn't listed the open one's
+            // store.
+            if await MainActor.run(body: { !self.containerService.containers.contains { $0.id == targetContainerId } }) {
+                libraryGoneAt = index
                 break
             }
 
@@ -632,8 +643,16 @@ extension RAGService {
                 chunkingConfigHasNotChanged = true
             }
 
-            // Try to get existing chunks from vector database first
-            let db = await dbFor(targetContainerId)
+            // Try to get existing chunks from vector database first. The library's own store, by its record (5.8):
+            // `dbFor` hands a library that isn't listed the open library's store, which this would then write.
+            guard
+                let db = await MainActor.run(body: { () -> VectorDatabase? in
+                    self.containerService.containers.first { $0.id == targetContainerId }.map { self.vectorRouter.db(for: $0) }
+                })
+            else {
+                libraryGoneAt = index
+                break
+            }
             var chunksToReembed = try await db.chunks(forDocument: document.id)
 
             // If empty in vector DB, try to retrieve from FTS5
@@ -794,7 +813,12 @@ extension RAGService {
                     )
                 }
 
-                // 3. Delete old chunks from vector DB, store new chunks, and persist
+                // 3. Delete old chunks from vector DB, store new chunks, and persist. The library is checked again
+                // first (5.8): deleted while this document was embedded, nothing of it is written.
+                if await MainActor.run(body: { !self.containerService.containers.contains { $0.id == targetContainerId } }) {
+                    libraryGoneAt = index
+                    break
+                }
                 try await db.deleteChunks(forDocument: document.id)
                 try await db.storeBatch(chunks: finalChunks)
                 try await db.persist()
@@ -859,6 +883,13 @@ extension RAGService {
                     break
                 }
 
+                // Checked again just before the passages are cleared (5.8): the library can go while this document's
+                // turn starts, and a re-add into a library that is gone is refused, leaving the document with none.
+                if await MainActor.run(body: { !self.containerService.containers.contains { $0.id == targetContainerId } }) {
+                    libraryGoneAt = index
+                    break
+                }
+
                 // Once the index is cleared, the matching re-add is intentionally atomic from the cancellation
                 // policy's perspective. The record stays listed throughout (5.8), so a re-add that fails leaves the
                 // document listed without passages, which the banner offers to rebuild, and the rest go on.
@@ -881,6 +912,16 @@ extension RAGService {
                         containerId: targetContainerId, documentId: document.id)
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch RAGServiceError.importLibraryGone {
+                    // The library was deleted between the check above and this re-add (5.8). The rebuild stops here, so
+                    // no other document's passages are cleared; the open library gets none of them.
+                    await MainActor.run {
+                        updateIngestionItem(
+                            id: trackingId, filename: document.filename, stage: .failed, detail: "Library deleted",
+                            progress: 1.0, errorMessage: RAGServiceError.importLibraryGone.localizedDescription)
+                    }
+                    libraryGoneAt = index + 1
+                    break
                 } catch {
                     Log.error(
                         "[Reembed] Could not rebuild \(document.filename); it stays listed without passages: \(error.localizedDescription)",
@@ -906,6 +947,30 @@ extension RAGService {
                     self.isProcessing = true
                 }
             }
+        }
+
+        if let goneAt = libraryGoneAt {
+            await MainActor.run {
+                for (offset, item) in rebuildItems.enumerated() where offset >= goneAt {
+                    guard self.ingestionItems.contains(where: { $0.id == item.id && !$0.stage.isTerminal }) else { continue }
+                    updateIngestionItem(
+                        id: item.id, filename: documentsToRebuild[offset].filename, stage: .failed,
+                        detail: "Library deleted", progress: 1.0,
+                        errorMessage: RAGServiceError.importLibraryGone.localizedDescription)
+                }
+                // Gone from the list but not deleted here (an iCloud pass rewrote the list, say): the banner offers the
+                // rebuild again once it is back.
+                let knownDeleted = ContainerService.deletedContainerIds().contains(targetContainerId)
+                if !knownDeleted { self.librariesNeedingIndexRebuild.insert(targetContainerId) }
+                VerificationJournal.record(
+                    "rebuild.libraryGone", .failed,
+                    ["library": VerificationJournal.anon(targetContainerId), "at": "\(goneAt)",
+                        "documents": "\(documentsToRebuild.count)", "knownDeleted": "\(knownDeleted)"])
+            }
+            Log.warning(
+                "[Reembed] Stopped the rebuild of \(targetContainerId): the library is gone; \(documentsToRebuild.count - goneAt) document(s) left as they were",
+                category: .ingestion)
+            return
         }
 
         if wasStoppedByUser {

@@ -95,4 +95,28 @@ final class SampleDocumentCopyCleanupTests: XCTestCase {
         XCTAssertEqual(
             SampleDocumentManager.refreshTarget(storedIn: [nil, deleted], liveLibraries: [general, library4]), general)
     }
+
+    // MARK: - Where a replay of the guides goes (5.8, `importSamples`)
+
+    func testExistingGuideLibrary_skipsAGuideRecordInADeletedLibrary() {
+        // The owner's Mac on 2026-11-18: a guide record named deleted BDB0BCA5, and the import went to Library 4.
+        XCTAssertEqual(
+            SampleDocumentManager.existingGuideLibrary(storedIn: [deleted, general], liveLibraries: [general, library4]),
+            general)
+    }
+
+    func testExistingGuideLibrary_isNilWhenEveryGuideSitsInADeletedLibrary() {
+        // Nil sends the guides to the guide library, never to the deleted one or the one on screen.
+        XCTAssertNil(
+            SampleDocumentManager.existingGuideLibrary(storedIn: [deleted, deleted], liveLibraries: [general, library4]))
+    }
+
+    func testExistingGuideLibrary_aRecordWithNoLibraryIsTheDefaultOne() {
+        XCTAssertEqual(
+            SampleDocumentManager.existingGuideLibrary(storedIn: [deleted, nil], liveLibraries: [general, library4]),
+            general)
+        XCTAssertEqual(
+            SampleDocumentManager.existingGuideLibrary(storedIn: [library4], liveLibraries: [general, library4]),
+            library4)
+    }
 }

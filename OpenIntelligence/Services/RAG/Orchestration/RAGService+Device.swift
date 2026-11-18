@@ -518,6 +518,11 @@ enum RAGServiceError: LocalizedError {
     case maximumModeQuotaReached(limit: Int)
     case cloudConsentDenied(provider: CloudProvider)
     case cloudConsentUnavailable(provider: CloudProvider)
+    /// An import named a library that has been deleted since (5.8). It is not put in the open library instead.
+    case importLibraryGone
+    /// An import named a library this device hasn't received yet (5.8): not listed and not deleted here. The queue
+    /// keeps the item queued until it arrives.
+    case importLibraryNotHereYet
 
     var errorDescription: String? {
         switch self {
@@ -542,6 +547,10 @@ enum RAGServiceError: LocalizedError {
             return "Cloud transmission denied for \(provider.shortName)"
         case .cloudConsentUnavailable(let provider):
             return "Cloud consent for \(provider.shortName) requires the app to be open in the foreground"
+        case .importLibraryGone:
+            return "The library this was added to has been deleted. Add it again to a library that exists."
+        case .importLibraryNotHereYet:
+            return "That library isn't on this device yet. It will be imported once the library arrives."
         }
     }
 }

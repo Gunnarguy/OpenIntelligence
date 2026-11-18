@@ -160,6 +160,25 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   synchronous and cannot adopt an async path without breaking the SDK.
   `[evidence_level: code_verified+build_verified, confidence: exact, evidence_source: LibraryDeletion.swift]`
   `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "indexChunk(\|indexChunks(" OpenIntelligence OpenIntelligenceTests finds only EntityIndexService.swift:137 and its header comment at :31, and LibraryDeletion.swift:117 removes the rows]`
+- **A deleted library takes nothing to another library (2026-11-18, 5.8).** `resolveImportLibrary`
+  (`RAGService+Import.swift`) asks `ContainerService.libraryPresence`: a library deleted here throws
+  `RAGServiceError.importLibraryGone`, where it used to fall through to the open library (deleted
+  `BDB0BCA5` on the owner's Mac took the guides to General on 2026-11-14 and to Library 4 on
+  2026-11-18); one not listed and not deleted here throws `importLibraryNotHereYet`, and the queue
+  keeps the item queued until a reload lists its library. A rebuild takes its store by the library's
+  record, never `dbFor`'s fallback to the open library, and stops before clearing or writing a
+  document once its library is gone. `LibraryDeletion.delete` cleans up a library already gone
+  from the list (journal `library.deleteLocal`), removes what `documentsForContainer` lists, and
+  applies `deleteContainer`'s rule (`ContainerService.mayDelete`). At launch and on every applied
+  workspace reload, `removeRecordsOfDeletedLibraries` (`RAGService+Storage.swift`) leaves out of
+  the read list, **on this device only**, the records of libraries in this device's
+  `deletedContainerIds` (no `deleted_documents.json` entry, no imported file, no vector store), and
+  `purgeQueueItemsOfDeletedLibraries` (`RAGService+ImportQueue.swift`) tombstones only their
+  waiting items that carry this device's lease; an unlisted library not known to be deleted keeps
+  its records and is counted in `library.orphanRecords`. iCloud's `deleted_containers.json` is not
+  consulted (its folder is private to `WorkspaceSyncService`). Detail and per-part evidence:
+  `Docs/INGESTION_PIPELINE.md`, last section.
+  `[evidence_level: code_verified; test_verified for the parts DeletedLibraryLeftoversTests reaches (listed there), confidence: high; not yet seen on a device]`
 - **File placement under `OpenIntelligence/Services/` is a target decision, not just organisation.**
   The `OpenIntelligenceEngine` framework synchronises eighteen folders, including
   `Services/Infrastructure/Integration`, and excludes `Services/Infrastructure/Presentation` and all

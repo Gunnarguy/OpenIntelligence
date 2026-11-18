@@ -75,7 +75,13 @@ enum LibraryDeletion {
         // app and not of any one screen. `DocumentLibraryView` guarded it in the handler that
         // opens the alert and `ContainerSettingsSheet` guarded it in the confirm handler, which
         // is two chances to forget it.
-        guard containerService.containers.count > 1 else { return .refusedLastLibrary }
+        //
+        // The same rule `deleteContainer` applies (5.8), so a library is never emptied and then kept: through the first
+        // 5.8 builds this counted every library and that counted the person's own, so with the guide library beside
+        // one own library the own one lost its documents and stayed. A library already gone from the list may always
+        // go: what it left behind is cleaned up below.
+        let listed = containerService.containers.contains(where: { $0.id == container.id })
+        guard containerService.mayDelete(id: container.id) else { return .refusedLastLibrary }
 
         if container.syncMode == .iCloudShared {
             do {
@@ -85,13 +91,13 @@ enum LibraryDeletion {
             }
         }
 
-        // Nothing to remove locally if it is already gone, which is the only case the deleted
-        // `resolvedLocalDeletionContainerIDs` helper could actually reach.
-        guard containerService.containers.contains(where: { $0.id == container.id }) else {
-            return .deleted
-        }
-
+        // A library already gone from the list is still cleaned up here (5.8). Through the first 5.8 builds this
+        // returned early, so its documents, its queued imports and its id stayed: its records outlived it, and a
+        // record's library then decided where the guides went (deleted BDB0BCA5 on the owner's Mac sent them to General
+        // on 2026-11-14 and to Library 4 on 2026-11-18). `deleteContainer` remembers the id either way.
         let containerId = container.id
+        VerificationJournal.record(
+            "library.deleteLocal", ["library": VerificationJournal.anon(containerId), "listed": "\(listed)"])
 
         // A deletion still in its undo seconds runs first (5.7, `RAGService.scheduleRemoval`): its
         // documents are out of the list, so the loop below would not remove them, and their removal
@@ -104,7 +110,9 @@ enum LibraryDeletion {
 
         // Per document rather than in bulk, because `removeDocument` is what clears the chunks,
         // the full-text rows, the Spotlight entry, the entity index and the imported file.
-        let docsToRemove = ragService.documents.filter { $0.containerId == containerId }
+        // Every document the library shows (5.8, `documentsForContainer`): those of the first library recorded with no
+        // library are its own too, and a filter on the id alone left them behind.
+        let docsToRemove = ragService.documentsForContainer(containerId)
         for doc in docsToRemove {
             try? await ragService.removeDocument(doc)
         }

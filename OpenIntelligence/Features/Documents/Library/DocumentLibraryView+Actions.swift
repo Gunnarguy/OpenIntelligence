@@ -326,6 +326,12 @@ extension DocumentLibraryView {
             // A deletion still in its undo seconds runs first (5.7): its documents are out of the list.
             await ragService.commitPendingRemovals()
 
+            // Their queued imports go too (5.8), as `LibraryDeletion` does: left queued, one ran after its library was
+            // gone, and through the first 5.8 builds that put it in the open library.
+            for containerId in targetContainerIDs {
+                await ragService.cancelAndPurgeIngestion(for: containerId)
+            }
+
             let docsToRemove = await MainActor.run {
                 ragService.documents.filter { document in
                     guard let containerId = document.containerId else { return false }

@@ -22,9 +22,9 @@ RAGService.swift:N` (map in `Docs/ai/split-2026-11-05-linemap.json`, lines as of
 | `RAGService+Consent.swift` | 408 | Private Cloud Compute consent, pipeline tracing |
 | `RAGService+StandardRetrieval.swift` | 1,309 | Standard's retrieval helpers: cross-references, spec-table sniper, section boost, lexical relevance, contextual retrieval |
 | `RAGService+SentenceExtraction.swift` | 726 | sentence-level extraction for lookups |
-| `RAGService+Storage.swift` | 1,509 | document persistence, workspace reload, vector store access |
+| `RAGService+Storage.swift` | 1,719 | document persistence, workspace reload, vector store access, removing a deleted library's records from this device (`removeRecordsOfDeletedLibraries`, 5.8) |
 | `RAGService+Import.swift` | 1,639 | document management: `addDocument` (410 lines, 33-442, its steps as methods below it), the duplicate check, embedding, both stores. Split again 2026-11-07 into the three files below: |
-| `RAGService+ImportQueue.swift` | 856 | the import queue: `enqueueDocuments`, `runIngestionLoop`, pause, cancel and purge, the re-embed kicks, `syncIngestionLiveActivity` |
+| `RAGService+ImportQueue.swift` | 948 | the import queue: `enqueueDocuments`, `runIngestionLoop`, pause, cancel and purge (with `purgeQueueItemsOfDeletedLibraries` and the wait for a library not on this device yet, 5.8), the re-embed kicks, `syncIngestionLiveActivity` |
 | `RAGService+ImportEnrichment.swift` | 375 | `enrichImportedDocument` and the deferred-enrichment bookkeeping (`shouldDeferEnrichment`, `deferredEnrichments`, `runDeferredEnrichmentsIfNeeded`) |
 | `RAGService+IndexHealth.swift` | 711 | the embedding fingerprint, `evaluateSemanticIndexHealth`, the self-healing rebuilds, `rebuildLocalSearchIndexesFromCanonicalState` |
 | `RAGService+Deletion.swift` | 943 | deleting with undo |

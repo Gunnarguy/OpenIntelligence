@@ -739,6 +739,7 @@ extension RAGService {
             let currentDeviceID = WorkspaceSyncService.currentDeviceID()
             let now = Date()
             let validContainerIds = Set(containerService.containers.map(\.id))
+            let knownDeletedContainerIds = ContainerService.deletedContainerIds()
             let defaultContainerId = containerService.containers.first?.id
             // Libraries with a saved rebuild item (5.8): checked below rather than dropped or rebuilt outright.
             var rebuildsToResume: [UUID: Set<UUID>] = [:]
@@ -761,6 +762,13 @@ extension RAGService {
                     Log.warning(
                         "[RAGService] Skipping persisted ingestion item for deleted library: \(item.url.lastPathComponent)",
                         category: .ingestion)
+                    // Retired for good when this device deleted the library and the item carries this device's lease
+                    // (5.8): skipped without a tombstone, the next sync pass merged it back and it was skipped again on
+                    // every reload. A tombstone reaches every device, so an item never leased or leased by another device
+                    // is not retired (`isThisDevicesItem`), nor is one whose library is only not listed yet.
+                    if knownDeletedContainerIds.contains(containerId), Self.isThisDevicesItem(item, device: currentDeviceID) {
+                        retired.append(item)
+                    }
                     continue
                 }
 

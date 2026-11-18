@@ -34,14 +34,121 @@ extension RAGService {
         let loadedDocuments = loadDocumentsSnapshotFromDisk()
         Task { @MainActor [weak self] in
             guard let self, let loadedDocuments else { return }
-            self.applyLoadedDocuments(loadedDocuments)
+            // Records of libraries deleted on this device are left out before the list is applied (5.8).
+            self.applyLoadedDocuments(self.removeRecordsOfDeletedLibraries(from: loadedDocuments))
             // An update changes every cached search's key, as does a document another device added or
             // removed, so cached searches no question can reach are deleted at launch too (5.7).
             await Self.deleteUnreachableCachedSearches(
                 documents: self.documents.map { (id: $0.id, passages: $0.totalChunks) })
             // Deletions made just before the app last closed, whose undo seconds it did not live through (5.7).
             await self.removeDocumentsLeftPending()
+            // Queued imports of libraries deleted on this device (5.8).
+            self.purgeQueueItemsOfDeletedLibraries()
         }
+    }
+
+    // MARK: - What deleted libraries leave behind (5.8)
+
+    /// What one pass of `removeRecordsOfDeletedLibraries` found.
+    struct DeletedLibraryRecordsSweep: Equatable, Sendable {
+        /// Records whose library is not in the list.
+        var found = 0
+        /// Of those, the ones removed: their library is known to be deleted.
+        var removed = 0
+        /// The removed records' ids.
+        var removedIds: Set<UUID> = []
+        /// Records kept because their library is not listed and not known to be deleted.
+        var kept: Int { found - removed }
+    }
+
+    /// The last counts journalled, so a reload that finds the same leftovers does not journal them again.
+    @MainActor private static var lastJournalledOrphanRecords: (found: Int, removed: Int)?
+    /// What the last pass of `removeRecordsOfDeletedLibraries` found.
+    @MainActor static var lastDeletedLibraryRecordsSweep = DeletedLibraryRecordsSweep()
+    /// Deleted libraries whose records' other entries this launch has already removed.
+    @MainActor private static var sweptDeletedLibraries: Set<UUID> = []
+
+    /// Removes, on this device only, the records of documents whose library is known to be deleted (5.8).
+    ///
+    /// A library's records can outlive it: the iCloud pass keeps documents of a library it doesn't list as this
+    /// device's own (`WorkspaceSyncService.synchronizeConfiguredLibraries`), and a deletion that found the library
+    /// already gone from the list returned before removing anything (`LibraryDeletion`, through the first 5.8 builds).
+    /// Such a record named a library that then decided where the guides went: on the owner's Mac the guides asked for
+    /// deleted library BDB0BCA5 went to General on 2026-11-14 and to Library 4 on 2026-11-18.
+    ///
+    /// "Known to be deleted" is this device's list of deleted libraries (`ContainerService.deletedContainerIds`).
+    /// That list can name a library still alive in iCloud (`OpenIntelligenceEngine.deleteLibrary` calls
+    /// `deleteContainer` alone; a Local Only library deleted here can share an id another device still syncs), so
+    /// nothing here reaches another device: the documents are not recorded as deleted (`deleted_documents.json`, which
+    /// sync merges into the shared folder), no imported file is deleted (it can be the shared folder's copy), and only
+    /// this device's own entries go: the record in this device's document list, then its full text, Spotlight entry,
+    /// entity rows and suggested questions. The library's vector store is not opened: a store is opened by its
+    /// library's record, which is gone, and searches already leave out passages of documents in no list
+    /// (`passagesFromKnownDocuments`). iCloud's `deleted_containers.json` is not read: its folder is resolved inside
+    /// `WorkspaceSyncService`, which this change does not edit.
+    ///
+    /// A record of a library that is unlisted and not known to be deleted is kept (its library may not have arrived
+    /// from iCloud yet) and counted in the journal (`library.orphanRecords`). A record is never given another library,
+    /// and one with no library (the first library's, from before libraries) is left as it is.
+    ///
+    /// Takes the list as read from disk and returns it without those records, so it is applied without them (at launch
+    /// and on each workspace reload). `lastDeletedLibraryRecordsSweep` holds what the last pass found.
+    @MainActor
+    func removeRecordsOfDeletedLibraries(
+        from loaded: [Document], knownDeleted: Set<UUID> = ContainerService.deletedContainerIds()
+    ) -> [Document] {
+        let listed = Set(containerService.containers.map(\.id))
+        let unlisted = loaded.filter { document in
+            guard let library = document.containerId else { return false }
+            return !listed.contains(library)
+        }
+        let doomed = unlisted.filter { document in document.containerId.map { knownDeleted.contains($0) } ?? false }
+        let sweep = DeletedLibraryRecordsSweep(
+            found: unlisted.count, removed: doomed.count, removedIds: Set(doomed.map(\.id)))
+        // Journalled and logged when the counts change, not on every reload (every 5 s on the Mac).
+        let last = Self.lastJournalledOrphanRecords
+        if last?.found != sweep.found || last?.removed != sweep.removed, sweep.found > 0 || last != nil {
+            Self.lastJournalledOrphanRecords = (sweep.found, sweep.removed)
+            VerificationJournal.record(
+                "library.orphanRecords",
+                ["found": "\(sweep.found)", "removed": "\(sweep.removed)", "kept": "\(sweep.kept)",
+                    "libraries": "\(Set(unlisted.compactMap(\.containerId)).count)"])
+            if sweep.kept > 0 {
+                Log.info(
+                    "[RAGService] Kept \(sweep.kept) document record(s) of a library this device doesn't list and hasn't deleted",
+                    category: .ingestion)
+            }
+        }
+        Self.lastDeletedLibraryRecordsSweep = sweep
+        guard !doomed.isEmpty else { return loaded }
+
+        let ids = sweep.removedIds
+        // This device's other entries go once a launch per library (5.8): the sync pass can write a record back into
+        // this device's list, and the reload after it finds it again, so the deletes below would run on every reload.
+        let firstSweep = doomed.filter { document in
+            document.containerId.map { !Self.sweptDeletedLibraries.contains($0) } ?? false
+        }
+        Self.sweptDeletedLibraries.formUnion(firstSweep.compactMap(\.containerId))
+        if !firstSweep.isEmpty {
+            Log.info(
+                "[RAGService] Removed \(doomed.count) document record(s) of deleted libraries from this device",
+                category: .ingestion)
+        }
+        // The document list first, then this device's entries for those documents.
+        Task { [weak self] in
+            await self?.saveDocumentsToDisk(droppingLocally: ids)
+            for document in firstSweep {
+                await SQLiteFullTextService.shared.delete(for: document.id)
+                await SQLiteFullTextService.shared.deleteChunks(for: document.id)
+                await FullTextStorageService.shared.delete(for: document.id)
+                SpotlightIndexService.shared.deindexDocument(id: document.id, containerId: document.containerId)
+                await EntityIndexService.shared.removeDocument(document.id)
+                if let library = document.containerId {
+                    await SuggestedQuestionsService.shared.removeQuestions(for: document.id, in: library)
+                }
+            }
+        }
+        return loaded.filter { !ids.contains($0.id) }
     }
 
     /// The stored documents: none when there is no file yet, and nil when there is one and it
@@ -228,7 +335,9 @@ extension RAGService {
 
         let snapshotStarted = Date()
         let readDocuments = documentsData.flatMap { decodeDocumentsSnapshot($0) }
-        let loadedDocuments = readDocuments ?? documents
+        // Records of libraries deleted on this device are left out before the list is applied (5.8), so Spotlight and
+        // the analysis sweep never see them arrive.
+        let loadedDocuments = readDocuments.map { removeRecordsOfDeletedLibraries(from: $0) } ?? documents
         if readDocuments != nil {
             applyLoadedDocuments(loadedDocuments)
         }
@@ -244,6 +353,8 @@ extension RAGService {
             // iCloud-synced path is what CLAUDE.md opens by warning about.
             let queueStarted = Date()
             await restorePersistedIngestionQueueIfNeeded()
+            purgeQueueItemsOfDeletedLibraries()
+            resumeImportsWaitingForTheirLibrary()
             Log.info(
                 "[WorkspaceReload] #\(callNumber) ingestionQueue "
                     + "\(String(format: "%.0f", Date().timeIntervalSince(queueStarted) * 1000))ms",
@@ -364,7 +475,10 @@ extension RAGService {
         return leftOver.count
     }
 
-    func saveDocumentsToDisk() async {
+    /// - Parameter droppingLocally: documents to leave out of this device's list though nothing recorded them as
+    ///   deleted (5.8, `removeRecordsOfDeletedLibraries`). Without it the merge below keeps a document on disk that is
+    ///   not in memory and not recorded as deleted, so they would stay.
+    func saveDocumentsToDisk(droppingLocally dropped: Set<UUID> = []) async {
         let snapshot = await MainActor.run {
             let fp = self.localIndexSyncFingerprint(for: self.documents)
             self.lastLocalIndexSyncFingerprint = fp
@@ -413,7 +527,7 @@ extension RAGService {
                     let snapshotIDs = Set(liveSnapshot.map(\.id))
                     let onDisk = (try? JSONDecoder().decode([Document].self, from: existing)) ?? []
                     let unknownToThisProcess = onDisk.filter {
-                        !snapshotIDs.contains($0.id) && !tombstoned.contains($0.id.uuidString)
+                        !snapshotIDs.contains($0.id) && !tombstoned.contains($0.id.uuidString) && !dropped.contains($0.id)
                     }
 
                     if !unknownToThisProcess.isEmpty {

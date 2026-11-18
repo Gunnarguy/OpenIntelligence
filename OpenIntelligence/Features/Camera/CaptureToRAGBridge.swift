@@ -57,9 +57,9 @@ actor CaptureToRAGBridge {
 
         Log.info("[CaptureToRAG] Created temp file: \(filename) (\(content.count) chars)", category: .ingestion)
 
-        // Ingest via RAGService
+        // Ingest via RAGService, into the library it was captured for (5.8: the id was taken and not passed on).
         await MainActor.run {
-            _ = ragService.enqueueDocuments([fileURL])
+            _ = ragService.enqueueDocuments([fileURL], containerId: containerId)
             Log.info("[CaptureToRAG] Successfully queued capture: \(title)", category: .ingestion)
         }
     }
@@ -115,7 +115,7 @@ actor CaptureToRAGBridge {
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
 
         await MainActor.run {
-            _ = ragService.enqueueDocuments([fileURL])
+            _ = ragService.enqueueDocuments([fileURL], containerId: containerId)
         }
     }
 

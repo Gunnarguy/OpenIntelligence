@@ -57,6 +57,23 @@ struct AddToLibraryIntent: AppIntent {
                 throw $file.needsValueError("What should I add? Give a file, a link or some text.")
             }
 
+            // A library that no longer exists is refused before anything is stored (5.8), the way Open Library refuses
+            // it (`LibraryIntents`). Through the first 5.8 builds the import fell through to the open library.
+            if let id = library?.id {
+                // A library created on another device, or by another action, is on disk before this list has it.
+                let libraries = await MainActor.run { IntentSupport.engine().containerService }
+                switch await libraries.libraryPresence(id) {
+                case .listed:
+                    break
+                case .deletedHere:
+                    throw OIIntentError("That library no longer exists.", kind: .itemNotFound)
+                case .notHereYet:
+                    // Not called deleted (5.8): a library made on another device that hasn't arrived here yet.
+                    throw OIIntentError(
+                        "That library isn't on this device yet. Try again once it has arrived.", kind: .itemNotFound)
+                }
+            }
+
             var stored: [URL] = []
             var failures: [String] = []
 

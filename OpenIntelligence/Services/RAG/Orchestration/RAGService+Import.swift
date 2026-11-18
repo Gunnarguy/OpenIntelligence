@@ -28,8 +28,8 @@ extension RAGService {
 
     /// Add a document to the knowledge base
     /// This performs the full ingestion pipeline: parse → chunk → embed → store
-    /// - Parameter containerId: the library to import into. `nil`, or a library that no longer exists,
-    ///   means the active one.
+    /// - Parameter containerId: the library to import into. `nil` means the active one. A library that no longer
+    ///   exists throws `RAGServiceError.importLibraryGone` (5.8); through the first 5.8 builds it meant the active one.
     func addDocument(
         at url: URL,
         context: IngestionContext = .userInitiated,
@@ -38,11 +38,12 @@ extension RAGService {
         containerId: UUID? = nil,
         documentId reusedDocumentId: UUID? = nil
     ) async throws {
+        // The library first (5.8): an import for a library that is gone stops before its file is copied in.
+        let activeContainerId = try await resolveImportLibrary(containerId: containerId, context: context)
         let managedURL = try prepareManagedDocumentURL(from: url)
         try await WorkspaceSyncService.ensureItemAvailableLocally(at: managedURL)
         let filename = managedURL.lastPathComponent
         let managedRelativePath = AppSupportPaths.relativePath(for: managedURL)
-        let activeContainerId = await resolveImportLibrary(containerId: containerId, context: context)
 
         let documentHash = await hashAndRecordDocument(managedURL: managedURL, filename: filename, trackingId: trackingId, managedRelativePath: managedRelativePath)
 
@@ -443,13 +444,26 @@ extension RAGService {
 
     /// Step B: resolves the library this import goes to: the one it was queued for if it still exists, redirected to the person's own library unless it is onboarding or a rebuild.
     /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
-    private func resolveImportLibrary(containerId: UUID?, context: IngestionContext) async -> UUID {
+    ///
+    /// A named library deleted on this device throws `RAGServiceError.importLibraryGone` (5.8). Through the first 5.8
+    /// builds it fell through to the open library, with nothing logged: on the owner's Mac the sample guides, asked
+    /// for deleted library BDB0BCA5, went to General on 2026-11-14 and to Library 4 on 2026-11-18. A library this
+    /// device hasn't received yet (not listed, not deleted here) throws `importLibraryNotHereYet`, which the queue
+    /// takes as "wait": the item stays queued until the library arrives. A library saved by another engine or device
+    /// is found by reading the saved list off the main thread first (`ContainerService.libraryPresence`). `nil` still
+    /// means the open library.
+    private func resolveImportLibrary(containerId: UUID?, context: IngestionContext) async throws -> UUID {
         // The library the file was queued for (5.7). Through 5.6 every import went to the library that
         // was active when the queue reached it, so "Add to Library" naming another library, or a file
         // queued before the person switched libraries, landed in the open one. The name stays: the
         // rest of this function and the large-file paths take it as the import's library.
-        let activeContainerId = await MainActor.run { () -> UUID in
-            if let containerId, self.containerService.containers.contains(where: { $0.id == containerId }) {
+        if let containerId {
+            let presence = await self.containerService.libraryPresence(containerId)
+            if presence != .listed { throw Self.importLibraryMissing(containerId, presence: presence, context: context) }
+        }
+        let activeContainerId = await MainActor.run { () -> UUID? in
+            if let containerId {
+                guard self.containerService.containers.contains(where: { $0.id == containerId }) else { return nil }
                 // The guide library takes the app's guides only (5.8): anything else goes to the person's own. A rebuild
                 // puts each document back where it was, the guides included.
                 if context != .onboarding, context != .autoRebuild, let own = self.containerService.libraryForOwnFiles(requested: containerId) {
@@ -464,7 +478,29 @@ extension RAGService {
             }
             return self.containerService.activeContainerId
         }
+        guard let activeContainerId else {
+            // Gone between the check above and here.
+            let presence: ContainerService.LibraryPresence =
+                ContainerService.deletedContainerIds().contains(containerId ?? UUID()) ? .deletedHere : .notHereYet
+            throw Self.importLibraryMissing(containerId, presence: presence, context: context)
+        }
         return activeContainerId
+    }
+
+    /// The error, journal line and log line for an import whose named library is not listed (5.8).
+    private static func importLibraryMissing(
+        _ containerId: UUID?, presence: ContainerService.LibraryPresence, context: IngestionContext
+    ) -> RAGServiceError {
+        let deleted = presence == .deletedHere
+        VerificationJournal.record(
+            deleted ? "import.libraryGone" : "import.libraryNotHereYet", deleted ? .failed : .info,
+            ["library": VerificationJournal.anon(containerId), "context": "\(context)", "knownDeleted": "\(deleted)"])
+        Log.warning(
+            deleted
+                ? "[RAGService] Not importing: the library it was added to (\(VerificationJournal.anon(containerId))) has been deleted"
+                : "[RAGService] Waiting: the library it was added to (\(VerificationJournal.anon(containerId))) isn't on this device yet",
+            category: .ingestion)
+        return deleted ? .importLibraryGone : .importLibraryNotHereYet
     }
 
     /// Step C: computes the file's hash (nil when it cannot be read) and records it with the storage path on the tracked item.

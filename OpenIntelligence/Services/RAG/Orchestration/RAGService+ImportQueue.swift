@@ -388,6 +388,79 @@ extension RAGService {
         }
     }
 
+    /// Whether a queue item is this device's to retire for a library deleted here (5.8): it carries this device's lease,
+    /// live or run out. A tombstone reaches every device through iCloud's copy of the queue, and the list of deleted
+    /// libraries is this device's, so an item never leased or leased by another device is left alone: in memory, on
+    /// disk, and without a tombstone.
+    nonisolated static func isThisDevicesItem(_ item: IngestionItem, device: String) -> Bool {
+        item.leaseOwnerDeviceId == device
+    }
+
+    /// Removes the waiting imports (queued or paused) of libraries known to be deleted (5.8) that carry this device's
+    /// lease (`isThisDevicesItem`), with a tombstone each so iCloud's copy of the queue loses them too. Runs at launch
+    /// and on every workspace reload.
+    ///
+    /// Finished items stay, so a "library deleted" failure stays on screen until the queue prunes it. A file being
+    /// imported is left to its import, which fails on its own (`resolveImportLibrary`), and a queued item never leased
+    /// fails the same way when the queue reaches it.
+    @MainActor
+    @discardableResult
+    func purgeQueueItemsOfDeletedLibraries(
+        knownDeleted: Set<UUID> = ContainerService.deletedContainerIds()
+    ) -> Int {
+        let listed = Set(containerService.containers.map(\.id))
+        let device = WorkspaceSyncService.currentDeviceID()
+        let items = ingestionItems.filter { item in
+            guard let library = item.containerId, knownDeleted.contains(library), !listed.contains(library),
+                !item.stage.isTerminal, item.stage == .queued || item.stage == .paused
+            else { return false }
+            return Self.isThisDevicesItem(item, device: device)
+        }
+        guard !items.isEmpty else { return 0 }
+        recordIngestionQueueTombstones(for: items)
+        let ids = Set(items.map(\.id))
+        ingestionItems.removeAll { ids.contains($0.id) }
+        finalizeCancelledIngestionTracking(for: Array(ids))
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
+        VerificationJournal.record("queue.deletedLibraryPurged", ["items": "\(items.count)"])
+        Log.info("[RAGService] Removed \(items.count) waiting import(s) of deleted libraries", category: .ingestion)
+        return items.count
+    }
+
+    /// What a queued item that waits for its library says (5.8), and how `resumeImportsWaitingForTheirLibrary` knows it.
+    nonisolated static let waitingForLibraryDetail = "Waiting for its library to arrive on this device"
+
+    /// Puts an item whose library isn't on this device yet back in the queue, unleased, to wait (5.8).
+    @MainActor
+    func returnToQueueToWaitForItsLibrary(id: UUID) {
+        guard let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
+        var item = ingestionItems[index]
+        item.stage = .queued
+        item.detail = Self.waitingForLibraryDetail
+        item.progress = nil
+        item.startedAt = nil
+        item.errorMessage = nil
+        item.clearLease()
+        ingestionItems[index] = item
+        savePersistedIngestionQueueState()
+    }
+
+    /// Starts the queue when an item that waited for its library can now go (5.8): its library is listed. Called on
+    /// each workspace reload, which is where a library arriving from iCloud is listed. Only waiting items count: an
+    /// item queued again when the background time ran out waits for the app to come back (`queuedForResumeDetail`).
+    @MainActor
+    func resumeImportsWaitingForTheirLibrary() {
+        guard ingestionTask == nil else { return }
+        let listed = Set(containerService.containers.map(\.id))
+        let ready = ingestionItems.contains { item in
+            guard item.stage == .queued, item.detail == Self.waitingForLibraryDetail, let library = item.containerId
+            else { return false }
+            return listed.contains(library)
+        }
+        if ready { startIngestionTaskIfNeeded() }
+    }
+
     @MainActor
     func cancelAndPurgeIngestion(for containerId: UUID) async {
         let matchingItems = ingestionItems.filter { $0.containerId == containerId }
@@ -467,6 +540,11 @@ extension RAGService {
                     }
                     break
                 }
+            } catch RAGServiceError.importLibraryNotHereYet {
+                // Its library isn't on this device yet (5.8): the item waits, queued and marked, and the next reload
+                // that lists the library starts it (`resumeImportsWaitingForTheirLibrary`). `nextQueuedIngestionItem`
+                // passes a marked item over until then, so this loop doesn't take it again.
+                await MainActor.run { self.returnToQueueToWaitForItsLibrary(id: next.id) }
             } catch {
                 await MainActor.run {
                     self.markIngestionFailed(id: next.id, error: error)
@@ -553,12 +631,21 @@ extension RAGService {
     private func nextQueuedIngestionItem() -> IngestionItem? {
         let now = Date()
         let currentDeviceID = WorkspaceSyncService.currentDeviceID()
+        let listed = Set(containerService.containers.map(\.id))
+        let deleted = ContainerService.deletedContainerIds()
         guard
             let index = ingestionItems.firstIndex(where: { item in
                 // A rebuild's items are worked by the rebuild itself (`reembedDocuments`), not by this queue (5.8):
                 // taken here, a rebuild's document was imported as a new file, skipped as already imported, and its
                 // item marked done while the rebuild still waited on it.
                 guard item.stage == .queued, !item.metrics.isRebuild else { return false }
+                // An item already found waiting for its library (5.8, `returnToQueueToWaitForItsLibrary`) is passed over
+                // until the library is listed; once it is deleted here instead, it is taken, and fails.
+                if item.detail == Self.waitingForLibraryDetail, let library = item.containerId, !listed.contains(library),
+                    !deleted.contains(library)
+                {
+                    return false
+                }
                 return !item.hasActiveLease(at: now) || item.isLeased(to: currentDeviceID, at: now)
             })
         else {

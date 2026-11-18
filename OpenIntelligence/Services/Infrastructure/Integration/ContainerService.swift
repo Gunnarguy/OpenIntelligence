@@ -64,19 +64,24 @@ final class ContainerService: ObservableObject {
             activeContainerId = def.id
             Self.saveContainers(containers)
         } else {
-            containers = Self.restoringLocalFingerprints(in: loaded)
-            if !containers.contains(where: { $0.id == activeContainerId }) {
-                if let savedActive = UserDefaults.standard.string(forKey: "activeContainerId"),
-                   let uuid = UUID(uuidString: savedActive),
-                   loaded.contains(where: { $0.id == uuid }) {
-                    activeContainerId = uuid
-                } else if let first = loaded.first {
-                    activeContainerId = first.id
-                }
-            }
+            apply(loaded: loaded)
         }
 
         UserDefaults.standard.set(activeContainerId.uuidString, forKey: "activeContainerId")
+    }
+
+    /// A non-empty saved list put in place of this one, keeping the open library where it still exists.
+    private func apply(loaded: [KnowledgeContainer]) {
+        containers = Self.restoringLocalFingerprints(in: loaded)
+        if !containers.contains(where: { $0.id == activeContainerId }) {
+            if let savedActive = UserDefaults.standard.string(forKey: "activeContainerId"),
+               let uuid = UUID(uuidString: savedActive),
+               loaded.contains(where: { $0.id == uuid }) {
+                activeContainerId = uuid
+            } else if let first = loaded.first {
+                activeContainerId = first.id
+            }
+        }
     }
 
     /// The next unused default library name.
@@ -213,10 +218,26 @@ final class ContainerService: ObservableObject {
         }
     }
 
+    /// Whether a library may be deleted: one not in the list always may (5.8), so what it left behind is cleaned up
+    /// and its id remembered; a listed one only while another library remains and, unless it is the guide library,
+    /// while the person keeps an own library besides it. `LibraryDeletion` asks the same, so a library is never
+    /// emptied and then kept.
+    nonisolated static func mayDelete(listed: Bool, libraries: Int, isGuide: Bool, ownLibraries: Int) -> Bool {
+        !listed || (libraries > 1 && (isGuide || ownLibraries > 1))
+    }
+
+    func mayDelete(id: UUID) -> Bool {
+        Self.mayDelete(
+            listed: containers.contains(where: { $0.id == id }), libraries: containers.count,
+            isGuide: isGuideLibrary(id), ownLibraries: countedLibraryCount)
+    }
+
     func deleteContainer(id: UUID) {
         // Prevent deleting the last container; ensure at least one remains. The guide library doesn't count (5.8):
-        // the person's own last library stays, so what they add always has somewhere to go.
-        guard containers.count > 1, isGuideLibrary(id) || countedLibraryCount > 1 else { return }
+        // the person's own last library stays, so what they add always has somewhere to go. A library already gone
+        // from the list is remembered as deleted all the same (5.8): through the first 5.8 builds the one-library
+        // case returned here without remembering it, so what it left behind was not known to be a deleted library's.
+        guard mayDelete(id: id) else { return }
         Self.rememberDeleted(id)
         containers.removeAll { $0.id == id }
         VerificationJournal.record(
@@ -367,6 +388,52 @@ final class ContainerService: ObservableObject {
         }
     }
 
+    /// Whether the saved library list holds `id`, read off the main thread (5.8). For a library this list doesn't
+    /// hold yet (made on another device or by another engine) before reloading it: a reload reads the list on the
+    /// main thread, so it is only worth doing when the library is there. Waits for the writes queued before it, as a
+    /// load does.
+    nonisolated static func savedListContains(_ id: UUID) async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            listWriteQueue.sync {}
+            let url = AppSupportPaths.containersListURL()
+            guard FileManager.default.fileExists(atPath: url.path),
+                let data = try? WorkspaceSyncService.coordinatedReadData(from: url),
+                let saved = try? JSONDecoder().decode([SavedLibraryId].self, from: data)
+            else { return false }
+            return saved.contains { $0.id == id }
+        }.value
+    }
+
+    /// A saved library's id and nothing else, decoded off the main thread.
+    private nonisolated struct SavedLibraryId: Decodable {
+        let id: UUID
+    }
+
+    /// Where a library named by an import or an action stands on this device (5.8).
+    enum LibraryPresence: Equatable, Sendable {
+        /// In this list (after reading the saved one again when it held the library).
+        case listed
+        /// Deleted on this device (`deletedContainerIds`).
+        case deletedHere
+        /// Neither: a library this device has not received yet, from iCloud or another device. Not called deleted.
+        case notHereYet
+    }
+
+    /// Where `id` stands: listed; saved by another engine or device since this list was read, in which case this list
+    /// is replaced by the saved one; deleted here; or not here yet (5.8). The saved list is read off the main thread
+    /// first, and the list in memory is replaced only by a saved list that is not empty and holds the library, so this
+    /// path never writes a default library.
+    func libraryPresence(_ id: UUID) async -> LibraryPresence {
+        if containers.contains(where: { $0.id == id }) { return .listed }
+        if Self.deletedContainerIds().contains(id) { return .deletedHere }
+        guard await Self.savedListContains(id) else { return .notHereYet }
+        let loaded = Self.loadContainers()
+        guard !loaded.isEmpty, loaded.contains(where: { $0.id == id }) else { return .notHereYet }
+        apply(loaded: loaded)
+        UserDefaults.standard.set(activeContainerId.uuidString, forKey: "activeContainerId")
+        return containers.contains(where: { $0.id == id }) ? .listed : .notHereYet
+    }
+
     /// The saved libraries and the one last open, for a surface with no engine of its own: the Mac's menu bar
     /// item lists them to ask one by name (5.8).
     static func savedLibraries() -> (libraries: [KnowledgeContainer], openId: UUID?) {
@@ -492,7 +559,7 @@ final class ContainerService: ObservableObject {
     /// few seconds, and nothing ordered those tasks, so an older list could be written after a
     /// newer one. `reloadFromDisk`, which the Documents tab calls before every workspace reload,
     /// then replaced the libraries in memory with that older list.
-    private static let listWriteQueue = DispatchQueue(
+    nonisolated private static let listWriteQueue = DispatchQueue(
         label: "Gunndamental.OpenIntelligence.container-list-write", qos: .utility)
 
     /// Libraries deleted on this device (5.7, roadmap row "Deleted library comes back").

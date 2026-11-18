@@ -322,6 +322,8 @@ extension ChatScreen {
                 return "Cloud processing was declined. Switch to on-device or try again."
             case .cloudConsentUnavailable:
                 return "Cloud processing needs confirmation in the foreground. Open the app and try again."
+            case .importLibraryGone, .importLibraryNotHereYet:
+                return ragError.errorDescription ?? "That library isn't available."
             }
         }
 

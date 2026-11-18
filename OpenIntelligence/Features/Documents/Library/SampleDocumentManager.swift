@@ -403,8 +403,14 @@ OpenIntelligence never sends your documents to a developer-operated backend.
         // Matching on filename rather than hash is deliberate: these three files are
         // written by this app from string literals, so the name is a reliable identity,
         // and a user who renamed one should keep their copy rather than have it doubled.
-        let existingNames = await MainActor.run {
-            Set(ragService.documents.map { $0.filename })
+        // A copy in a library deleted on this device doesn't count (5.8): it is not a copy anyone can ask, and counting
+        // it skipped the guide. One in a library not listed yet still counts, since it may be arriving from iCloud and
+        // importing beside it would make a second copy.
+        let existingNames = await MainActor.run { () -> Set<String> in
+            let deleted = ContainerService.deletedContainerIds()
+            return Set(
+                ragService.documents.filter { document in document.containerId.map { !deleted.contains($0) } ?? true }
+                    .map { $0.filename })
         }
         let urls = allURLs.filter { url in
             guard let sample = samples.first(where: { $0.storageFilename == url.lastPathComponent }) else {
@@ -427,8 +433,14 @@ OpenIntelligence never sends your documents to a developer-operated backend.
         let target = await MainActor.run { () -> UUID in
             if let containerId { return containerId }
             let services = ragService.containerService
-            if let existing = ragService.documents.first(where: { self.isGuide(filename: $0.filename) }) {
-                return existing.containerId ?? services.containers.first?.id ?? services.ensureGuideLibrary()
+            // A guide in a library that still exists (5.8). Through the first 5.8 builds the first guide record was
+            // taken whatever its library, and a deleted library's leftover named a library `resolveImportLibrary` sent
+            // to the open one (deleted BDB0BCA5 on the owner's Mac: General on 2026-11-14, Library 4 on 2026-11-18).
+            if let existing = Self.existingGuideLibrary(
+                storedIn: ragService.documents.filter { self.isGuide(filename: $0.filename) }.map(\.containerId),
+                liveLibraries: services.containers.map(\.id))
+            {
+                return existing
             }
             let guide = services.ensureGuideLibrary()
             ragService.containerService.setActive(guide)
@@ -554,11 +566,24 @@ OpenIntelligence never sends your documents to a developer-operated backend.
 
     /// The library refreshed samples go back into: the first one a stale copy sits in that still exists, else the
     /// default library (`liveLibraries.first`, General). A record left behind by a deleted library is removed with the
-    /// rest, and its id must not be the target: `resolveImportLibrary` replaces an unknown id with the open library, which
-    /// on 2026-11-18 put the owner's three guides in Library 4 and left General empty.
+    /// rest, and its id must not be the target: through the first 5.8 builds `resolveImportLibrary` replaced an unknown id
+    /// with the open library, which on 2026-11-18 put the owner's three guides in Library 4 and left General empty (it
+    /// now refuses the import instead).
     nonisolated static func refreshTarget(storedIn libraries: [UUID?], liveLibraries: [UUID]) -> UUID? {
         let live = Set(liveLibraries)
         return libraries.compactMap { $0 }.first(where: live.contains) ?? liveLibraries.first
+    }
+
+    /// The library guides already sit in that a replay adds the missing ones to (5.8): the first of `libraries` that
+    /// still exists, a record with no library counting as the default one (`liveLibraries.first`), or nil when every
+    /// guide sits in a library that is gone, which sends the guides to the guide library.
+    nonisolated static func existingGuideLibrary(storedIn libraries: [UUID?], liveLibraries: [UUID]) -> UUID? {
+        let live = Set(liveLibraries)
+        for library in libraries {
+            guard let library else { return liveLibraries.first }
+            if live.contains(library) { return library }
+        }
+        return nil
     }
 
     @discardableResult
