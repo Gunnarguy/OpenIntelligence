@@ -55,27 +55,44 @@ final class MetalBufferPool: @unchecked Sendable {
         // Previous 192MB cap consumed ~10% of app jetsam budget just for buffer reuse.
         // New caps: 48/32/24/16 MB — still effective for RAG vector searches
         // (typical search buffer = 1943×384×4 = ~3MB, so 32MB caches ~10 searches).
-        let deviceName = device.name.lowercased()
-        // A20 and M6 added 2026-11-17: the newest chips had fallen to the 16 MB minimum because the list stopped at A19 and M5.
-        if deviceName.contains("a20") || deviceName.contains("m6") || deviceName.contains("a19")
-            || deviceName.contains("m5") || deviceName.contains("m4")
-        {
-            // Apple10 / Next-gen: Moderate caching
-            self.maxCacheBytes = 48 * 1024 * 1024   // 48MB (was 256MB)
-            self.maxBuffersPerBucket = 6
-        } else if deviceName.contains("a18") || deviceName.contains("m3") {
-            // Apple10/Apple9: Moderate caching
-            self.maxCacheBytes = 32 * 1024 * 1024   // 32MB (was 192MB)
-            self.maxBuffersPerBucket = 4
-        } else if deviceName.contains("a17") || deviceName.contains("m2") {
-            // Apple8/9: Conservative caching
-            self.maxCacheBytes = 24 * 1024 * 1024   // 24MB (was 128MB)
-            self.maxBuffersPerBucket = 4
+        // By chip generation, read from the Metal device's name ("Apple M3 Pro", "Apple A18 Pro GPU"), so a chip
+        // newer than this code lands in the top tier. A list of names left A20 and M6 at the 16 MB minimum until
+        // 2026-11-17, and would have done the same to every later chip.
+        let chip = DeviceCapabilityService.chipFamilyAndGeneration(in: device.name)
+        let generation = chip.map { $0.family == "M" ? $0.generation : $0.generation - 15 } ?? 0  // A19 ~ M4
+        var cache: Int
+        var perBucket: Int
+        if generation >= 4 {
+            // A19, M4 and later
+            cache = 48 * 1024 * 1024   // 48MB (was 256MB)
+            perBucket = 6
+        } else if generation == 3 {
+            // A18, M3
+            cache = 32 * 1024 * 1024   // 32MB (was 192MB)
+            perBucket = 4
+        } else if generation >= 1 {
+            // A17 Pro, M1, M2
+            cache = 24 * 1024 * 1024   // 24MB (was 128MB)
+            perBucket = 4
         } else {
             // Older devices or unknown: Minimal caching
-            self.maxCacheBytes = 16 * 1024 * 1024   // 16MB (was 64MB)
-            self.maxBuffersPerBucket = 3
+            cache = 16 * 1024 * 1024   // 16MB (was 64MB)
+            perBucket = 3
         }
+
+        #if os(macOS)
+            // A Mac's GPU budget, read from the device (5.8): one 256th of the working set Metal recommends, at most
+            // 256 MB, never below the chip tier above. The tiers were written for an iPhone's per-app memory limit,
+            // so a Mac with 128 GB got the same 48 MB as an iPhone. An M3 Pro (18 GB) gets about 50 MB.
+            let byWorkingSet = Int(min(UInt64(256 * 1024 * 1024), device.recommendedMaxWorkingSetSize / 256))
+            if byWorkingSet > cache {
+                cache = byWorkingSet
+                perBucket = max(perBucket, min(16, byWorkingSet / (8 * 1024 * 1024)))
+            }
+        #endif
+
+        self.maxCacheBytes = cache
+        self.maxBuffersPerBucket = perBucket
 
         Log.info("[MetalBufferPool] 📦 Cache configured: \(maxCacheBytes / (1024*1024))MB, \(maxBuffersPerBucket) buffers/bucket", category: .initialization)
     }

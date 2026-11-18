@@ -735,126 +735,89 @@ import os
 
             var lastTokenTimestamp = Date()
 
+            // Apple pauses the on-device model for an app in the background ("rate limited"), and an answer that was
+            // streaming stopped there and was kept half-written, with nothing to say so (the owner's iPhone,
+            // 2026-11-17 18:08: he left the app to take a screenshot). A rate limit after part of the answer has
+            // streamed now waits for the app to be back on screen and continues the same answer from where it stopped
+            // (`resumeAfterPause`); only if that fails does the error go on, with the partial answer, as before.
             do {
-                for try await snapshot in responseStream {
-                    snapshotCount += 1
+                do {
+                    for try await snapshot in responseStream {
+                        snapshotCount += 1
 
-                    if firstTokenTime == nil {
-                        firstTokenTime = Date().timeIntervalSince(startTime)
+                        if firstTokenTime == nil {
+                            firstTokenTime = Date().timeIntervalSince(startTime)
 
-                        if let ttft = firstTokenTime {
-                            Log.info(
-                                "[FM] First token in \(String(format: "%.2f", ttft))s (\(actualExecutionLocation))",
-                                category: .llm)
-                        }
-                    }
-
-                    // Detect phase from transcript
-                    if let lastEntry = session.transcript.last {
-                        switch lastEntry {
-                        case .response:
-                            // Update response text from snapshot
-                            let previousLength = responseText.count
-                            responseText = snapshot.content
-                            let newChars = responseText.count - previousLength
-
-                            if newChars > 0 {
-                                let chunk = String(responseText.suffix(newChars))
-                                LLMStreamingContext.emit(text: chunk, isFinal: false)
+                            if let ttft = firstTokenTime {
+                                Log.info(
+                                    "[FM] First token in \(String(format: "%.2f", ttft))s (\(actualExecutionLocation))",
+                                    category: .llm)
                             }
+                        }
 
-                        default:
-                            // For other entry types, we don't stream to the chat bubble yet
-                            break
+                        // Detect phase from transcript
+                        if let lastEntry = session.transcript.last {
+                            switch lastEntry {
+                            case .response:
+                                // Update response text from snapshot
+                                let previousLength = responseText.count
+                                responseText = snapshot.content
+                                let newChars = responseText.count - previousLength
+
+                                if newChars > 0 {
+                                    let chunk = String(responseText.suffix(newChars))
+                                    LLMStreamingContext.emit(text: chunk, isFinal: false)
+                                }
+
+                            default:
+                                // For other entry types, we don't stream to the chat bubble yet
+                                break
+                            }
+                        }
+
+                        // Update token metrics (approximate based on total generated so far)
+                        let currentTokenEstimate = max(1, Int(ceil(Double(snapshot.content.count) / 1.4)))
+                        let newTokens = currentTokenEstimate - tokenCount
+                        if newTokens > 0 {
+                            tokenCount = currentTokenEstimate
+
+                            // Drive the Silicon HUD from real generation. The token reporter
+                            // had no call sites anywhere, so `totalLLMTokensGenerated` and
+                            // `lastLLMTokenLatencyMs` were permanently zero and the Neural
+                            // Engine bar never moved while an answer was being written.
+                            //
+                            // Reported once per snapshot with a count, never once per token:
+                            // the reporter is `nonisolated static` and hops to the main actor
+                            // through its own `Task(priority: .high)`, so a per-token call
+                            // would enqueue one high-priority main-actor task per token, each
+                            // running a `withAnimation`.
+                            let now = Date()
+                            let perTokenMs = now.timeIntervalSince(lastTokenTimestamp) * 1000 / Double(newTokens)
+                            lastTokenTimestamp = now
+                            HardwareTelemetryReporter.reportLLMTokens(count: newTokens, tokenLatencyMs: perTokenMs)
                         }
                     }
-
-                    // Update token metrics (approximate based on total generated so far)
-                    let currentTokenEstimate = max(1, Int(ceil(Double(snapshot.content.count) / 1.4)))
-                    let newTokens = currentTokenEstimate - tokenCount
-                    if newTokens > 0 {
-                        tokenCount = currentTokenEstimate
-
-                        // Drive the Silicon HUD from real generation. The token reporter
-                        // had no call sites anywhere, so `totalLLMTokensGenerated` and
-                        // `lastLLMTokenLatencyMs` were permanently zero and the Neural
-                        // Engine bar never moved while an answer was being written.
-                        //
-                        // Reported once per snapshot with a count, never once per token:
-                        // the reporter is `nonisolated static` and hops to the main actor
-                        // through its own `Task(priority: .high)`, so a per-token call
-                        // would enqueue one high-priority main-actor task per token, each
-                        // running a `withAnimation`.
-                        let now = Date()
-                        let perTokenMs = now.timeIntervalSince(lastTokenTimestamp) * 1000 / Double(newTokens)
-                        lastTokenTimestamp = now
-                        HardwareTelemetryReporter.reportLLMTokens(count: newTokens, tokenLatencyMs: perTokenMs)
-                    }
-                }
-            } catch let error as LanguageModelSession.GenerationError {
-                // Stop Neural Engine activity on error
-                HardwareTelemetryReporter.sustain(.llmInference, active: false)
-
-                // Capture the SDK error in full BEFORE mapping. The mapper
-                // converts it into one of our own LLMError cases, so the
-                // original case and its associated Context — which is where
-                // Apple puts the actual reason, and often the offending
-                // content — is unrecoverable after this point. Logging only
-                // `localizedDescription` downstream is why a decodingFailure
-                // reads as the bare string "Failed to parse generated content".
-                Log.error(
-                    "[FM] GenerationError before mapping:\n"
-                        + "     case: \(String(describing: error))\n"
-                        + "     desc: \(error.localizedDescription)\n"
-                        + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens) route: \(actualRoute)",
-                    category: .llm
-                )
-
-                let mapped = FoundationModelErrorMapper.mapError(
-                    error, isStructured: false, estimatedTokens: estimatedTokens)
-                switch mapped {
-                case .throwError(let mappedError):
-                    throw mappedError
-                case .setFlags(let violation, let unsupported):
-                    guardrailViolation = violation
-                    unsupportedLanguage = unsupported
-                }
-            } catch {
-                // Anything that is NOT a LanguageModelSession.GenerationError reached this point
-                // with nothing but its localizedDescription intact, and the pre-mapping log above
-                // never ran. That is why "Failed to parse generated content" has been undiagnosable:
-                // the one line designed to reveal Apple's actual reason sits behind a typed catch
-                // that the error does not match. The comment earlier in this function already
-                // records the same class of miss for cancellation thrown out of `for try await`.
-                //
-                // Device evidence 2026-08-14: a plain 64 token prose request (title routing, no
-                // schema, `context: nil`) failed with `ParsingError` / "Failed to parse generated
-                // content", which is the same error the final synthesis fails with. That ruled out
-                // both hypotheses acted on earlier the same day, rate limiting and guided generation
-                // against a @Generable schema, and left nothing behind to replace them.
-                //
-                // Diagnostics only. The error is rethrown unchanged.
-                // Log what the stream actually produced before it failed.
-                //
-                // An Instruments capture on 2026-08-14 shows these requests are not empty at the
-                // framework level: Apple records `Error Count: 0`, a non-zero `generatedTokenCount`
-                // of 21 to 49, and `deltasCount: 2`, while the final `Response` in
-                // `ModelInferenceTable` is the empty string. So tokens are emitted and then resolve
-                // to nothing. `responseText` accumulates `snapshot.content` from the stream and is
-                // still in scope here, which means the app has been holding those tokens the whole
-                // time and throwing them away unread. Whatever they are is the remaining unknown in
-                // this failure, and printing them costs nothing.
-                // iOS 27 replaced `GenerationError` with four separate types, and none of them
-                // match the typed catch above. A device capture on 2026-08-16 was 17 of 17
-                // `GeneratedContent.ParsingError`, every one falling to this handler with only its
-                // `localizedDescription` intact. `mapModernError` returns nil for anything that is
-                // not one of the new types, so the original behaviour below is unchanged.
-                if let mapped = FoundationModelErrorMapper.mapModernError(
-                    error,
-                    isStructured: false,
-                    estimatedTokens: estimatedTokens
-                ) {
+                } catch let error as LanguageModelSession.GenerationError {
+                    // Stop Neural Engine activity on error
                     HardwareTelemetryReporter.sustain(.llmInference, active: false)
+
+                    // Capture the SDK error in full BEFORE mapping. The mapper
+                    // converts it into one of our own LLMError cases, so the
+                    // original case and its associated Context — which is where
+                    // Apple puts the actual reason, and often the offending
+                    // content — is unrecoverable after this point. Logging only
+                    // `localizedDescription` downstream is why a decodingFailure
+                    // reads as the bare string "Failed to parse generated content".
+                    Log.error(
+                        "[FM] GenerationError before mapping:\n"
+                            + "     case: \(String(describing: error))\n"
+                            + "     desc: \(error.localizedDescription)\n"
+                            + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens) route: \(actualRoute)",
+                        category: .llm
+                    )
+
+                    let mapped = FoundationModelErrorMapper.mapError(
+                        error, isStructured: false, estimatedTokens: estimatedTokens)
                     switch mapped {
                     case .throwError(let mappedError):
                         throw mappedError
@@ -862,21 +825,77 @@ import os
                         guardrailViolation = violation
                         unsupportedLanguage = unsupported
                     }
-                } else {
+                } catch {
+                    // Anything that is NOT a LanguageModelSession.GenerationError reached this point
+                    // with nothing but its localizedDescription intact, and the pre-mapping log above
+                    // never ran. That is why "Failed to parse generated content" has been undiagnosable:
+                    // the one line designed to reveal Apple's actual reason sits behind a typed catch
+                    // that the error does not match. The comment earlier in this function already
+                    // records the same class of miss for cancellation thrown out of `for try await`.
+                    //
+                    // Device evidence 2026-08-14: a plain 64 token prose request (title routing, no
+                    // schema, `context: nil`) failed with `ParsingError` / "Failed to parse generated
+                    // content", which is the same error the final synthesis fails with. That ruled out
+                    // both hypotheses acted on earlier the same day, rate limiting and guided generation
+                    // against a @Generable schema, and left nothing behind to replace them.
+                    //
+                    // Diagnostics only. The error is rethrown unchanged.
+                    // Log what the stream actually produced before it failed.
+                    //
+                    // An Instruments capture on 2026-08-14 shows these requests are not empty at the
+                    // framework level: Apple records `Error Count: 0`, a non-zero `generatedTokenCount`
+                    // of 21 to 49, and `deltasCount: 2`, while the final `Response` in
+                    // `ModelInferenceTable` is the empty string. So tokens are emitted and then resolve
+                    // to nothing. `responseText` accumulates `snapshot.content` from the stream and is
+                    // still in scope here, which means the app has been holding those tokens the whole
+                    // time and throwing them away unread. Whatever they are is the remaining unknown in
+                    // this failure, and printing them costs nothing.
+                    // iOS 27 replaced `GenerationError` with four separate types, and none of them
+                    // match the typed catch above. A device capture on 2026-08-16 was 17 of 17
+                    // `GeneratedContent.ParsingError`, every one falling to this handler with only its
+                    // `localizedDescription` intact. `mapModernError` returns nil for anything that is
+                    // not one of the new types, so the original behaviour below is unchanged.
+                    if let mapped = FoundationModelErrorMapper.mapModernError(
+                        error,
+                        isStructured: false,
+                        estimatedTokens: estimatedTokens
+                    ) {
+                        HardwareTelemetryReporter.sustain(.llmInference, active: false)
+                        switch mapped {
+                        case .throwError(let mappedError):
+                            throw mappedError
+                        case .setFlags(let violation, let unsupported):
+                            guardrailViolation = violation
+                            unsupportedLanguage = unsupported
+                        }
+                    } else {
 
-                    let partial = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    Log.error(
-                        "[FM] Non-GenerationError escaped generation:\n"
-                            + "     type: \(type(of: error))\n"
-                            + "     case: \(String(describing: error))\n"
-                            + "     desc: \(error.localizedDescription)\n"
-                            + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens)\n"
-                            + "     partialTextChars: \(partial.count)\n"
-                            + "     partialText: \(partial.isEmpty ? "<nothing streamed>" : String(partial.prefix(400)))",
-                        category: .llm
-                    )
-                    throw error
+                        let partial = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Log.error(
+                            "[FM] Non-GenerationError escaped generation:\n"
+                                + "     type: \(type(of: error))\n"
+                                + "     case: \(String(describing: error))\n"
+                                + "     desc: \(error.localizedDescription)\n"
+                                + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens)\n"
+                                + "     partialTextChars: \(partial.count)\n"
+                                + "     partialText: \(partial.isEmpty ? "<nothing streamed>" : String(partial.prefix(400)))",
+                            category: .llm
+                        )
+                        throw error
+                    }
                 }
+            } catch LLMError.rateLimited(let message)
+                where !responseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                HardwareTelemetryReporter.sustain(.llmInference, active: false)
+                guard
+                    let resumed = await resumeAfterPause(
+                        session: session, originalPrompt: fullPrompt, partial: responseText, options: options,
+                        route: actualRoute)
+                else {
+                    throw LLMError.rateLimited(message)
+                }
+                responseText += resumed
             }
 
             // Stop Neural Engine activity indicator
@@ -1296,13 +1315,28 @@ import os
                 "Continue exactly from the last incomplete sentence or bullet. Do not restart the answer or repeat earlier content."
 
             var continuedText = ""
-            let maxContinuations = 2  // Reduced from 3 — fewer chances to loop
+            // The window is the limit, not a character count (5.8). A fixed 1,600-character cap, the same on every
+            // device and route, cut three of four Deep Think calls on the owner's iPhone mid-sentence on 2026-11-17
+            // (the cap broke the stream wherever it fell). Each continuation now gets the room left in this session's
+            // window, counted by Apple's tokenizer, as its `maximumResponseTokens`, so the model ends where the window
+            // ends instead of where the app stopped reading. Repetition and the turn count still guard against loops.
+            let maxContinuations = 3
             var continuationCount = 0
-            let maxContinuationChars = 1600  // Hard cap on total continuation length
 
             while continuationCount < maxContinuations {
                 continuationCount += 1
 
+                let roomLeft = await Self.continuationTokenRoom(session: session, route: route)
+                guard roomLeft >= Self.minimumContinuationTokens else {
+                    Log.info(
+                        "[FM] Continuation stopped: \(roomLeft) tokens left in the window", category: .llm)
+                    break
+                }
+                var continuationOptions = options
+                continuationOptions.maximumResponseTokens = roomLeft
+                Log.info("[FM] Continuation \(continuationCount): up to \(roomLeft) tokens", category: .llm)
+
+                var chunkText = ""
                 do {
                     let stream: LanguageModelSession.ResponseStream<String>
                     #if compiler(>=6.4)
@@ -1311,16 +1345,15 @@ import os
                         {
                             stream = session.streamResponse(
                                 to: continuationPrompt,
-                                options: options,
+                                options: continuationOptions,
                                 contextOptions: contextOptions
                             )
                         } else {
-                            stream = session.streamResponse(to: continuationPrompt, options: options)
+                            stream = session.streamResponse(to: continuationPrompt, options: continuationOptions)
                         }
                     #else
-                        stream = session.streamResponse(to: continuationPrompt, options: options)
+                        stream = session.streamResponse(to: continuationPrompt, options: continuationOptions)
                     #endif
-                    var chunkText = ""
 
                     for try await snapshot in stream {
                         let newContent = snapshot.content
@@ -1329,12 +1362,6 @@ import os
                             LLMStreamingContext.emit(text: delta, isFinal: false)
                         }
                         chunkText = newContent
-
-                        // Bail early if continuation is getting too long
-                        if (continuedText.count + chunkText.count) > maxContinuationChars {
-                            Log.info("[FM] Continuation hit char cap (\(maxContinuationChars))", category: .llm)
-                            break
-                        }
                     }
 
                     if chunkText.isEmpty {
@@ -1350,12 +1377,6 @@ import os
 
                     continuedText += chunkText
 
-                    // Hard cap on total continuation length
-                    if continuedText.count > maxContinuationChars {
-                        Log.info("[FM] Continuation reached max chars (\(maxContinuationChars))", category: .llm)
-                        break
-                    }
-
                     // Check if this continuation is complete
                     if !responseNeedsContinuation(continuedText) {
                         break
@@ -1366,12 +1387,116 @@ import os
                         category: .llm)
 
                 } catch {
+                    // Keep what streamed before the error (a full window, a rate limit): it was already shown, and
+                    // dropping it left the answer shorter than what the person had just read.
+                    let combinedSoFar = currentResponse + continuedText
+                    if !chunkText.isEmpty, !isRepetitiveContent(newText: chunkText, existingText: combinedSoFar) {
+                        continuedText += chunkText
+                    }
                     Log.warning("[FM] Continuation failed: \(error)", category: .llm)
                     break
                 }
             }
 
             return continuedText
+        }
+
+        /// Continues an answer Apple's model stopped part way with a rate limit (5.8). Apple documents `rateLimited` as
+        /// too many requests or system load, recovered "by spacing your requests or reducing system load"
+        /// (`LanguageModelError.rateLimited(_:)`, fetched 2026-11-17); on the owner's iPhone it came 23 seconds after the
+        /// app left the screen. So: wait until the app is in front again (iOS; up to ten minutes), then ask the same
+        /// session to continue. The failed turn was reverted (the session's default transcript policy, measured
+        /// 2026-10-09), so the prompt carries the original question and context plus the answer so far. Up to three
+        /// tries, 3, 10 and 30 seconds apart. Returns the added text, streamed to the bubble as it comes, or nil.
+        private func resumeAfterPause(
+            session: LanguageModelSession, originalPrompt: String, partial: String, options: GenerationOptions,
+            route: AppleFoundationModelRoute
+        ) async -> String? {
+            let waits: [UInt64] = [3, 10, 30]
+            for (attempt, seconds) in waits.enumerated() {
+                #if canImport(UIKit) && !os(watchOS)
+                    var waited = 0
+                    while await MainActor.run(body: { UIApplication.shared.applicationState != .active }), waited < 600 {
+                        if Task.isCancelled { return nil }
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        waited += 1
+                    }
+                #endif
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                if Task.isCancelled { return nil }
+                Log.info("[FM] Paused answer: resuming, try \(attempt + 1) of \(waits.count)", category: .llm)
+                let prompt =
+                    originalPrompt
+                    + "\n\nYOUR ANSWER SO FAR (it was interrupted):\n" + partial
+                    + "\n\nContinue the answer exactly where it stops, mid-sentence if it stops mid-sentence. "
+                    + "Do not repeat any of it and do not start over."
+                var resumeOptions = options
+                let room = await Self.continuationTokenRoom(session: session, route: route)
+                if room >= Self.minimumContinuationTokens { resumeOptions.maximumResponseTokens = room }
+                var added = ""
+                do {
+                    let stream: LanguageModelSession.ResponseStream<String>
+                    #if compiler(>=6.4)
+                        if #available(iOS 27.0, macOS 27.0, *), let contextOptions = route.contextOptions() {
+                            stream = session.streamResponse(
+                                to: prompt, options: resumeOptions, contextOptions: contextOptions)
+                        } else {
+                            stream = session.streamResponse(to: prompt, options: resumeOptions)
+                        }
+                    #else
+                        stream = session.streamResponse(to: prompt, options: resumeOptions)
+                    #endif
+                    for try await snapshot in stream {
+                        let content = snapshot.content
+                        if content.count > added.count {
+                            LLMStreamingContext.emit(text: String(content.dropFirst(added.count)), isFinal: false)
+                        }
+                        added = content
+                    }
+                } catch {
+                    Log.warning("[FM] Paused answer: try \(attempt + 1) failed: \(error)", category: .llm)
+                    if !added.isEmpty, !isRepetitiveContent(newText: added, existingText: partial) {
+                        return Self.joinedContinuation(added, after: partial)
+                    }
+                    continue
+                }
+                if added.isEmpty || isRepetitiveContent(newText: added, existingText: partial) {
+                    Log.warning("[FM] Paused answer: the model restarted instead of continuing", category: .llm)
+                    return nil
+                }
+                Log.info("[FM] Paused answer: resumed with \(added.count) chars", category: .llm)
+                return Self.joinedContinuation(added, after: partial)
+            }
+            return nil
+        }
+
+        /// A space between the two parts when neither side brings one.
+        private static func joinedContinuation(_ added: String, after partial: String) -> String {
+            guard let last = partial.last, let first = added.first else { return added }
+            return last.isWhitespace || first.isWhitespace || first.isPunctuation ? added : " " + added
+        }
+
+        /// Below this, a continuation has no room to finish a sentence, so it is not attempted.
+        private static let minimumContinuationTokens = 96
+
+        /// Tokens left in this session's window for one more continuation: the route's window less the transcript so
+        /// far (Apple's tokenizer, `SystemLanguageModel.tokenCount(for:)`, iOS and macOS 26.4) less room for the
+        /// continuation prompt. The on-device window is the one this device reports (8,192 on an M3 Pro Mac and on an
+        /// iPhone 16 Pro Max on iOS 27.2.1, measured 2026-11-17); Private Cloud Compute's is 32,768. Where the count is
+        /// unavailable, a quarter of the window, which is still larger than the 1,600 characters this replaced.
+        private static func continuationTokenRoom(
+            session: LanguageModelSession, route: AppleFoundationModelRoute
+        ) async -> Int {
+            let isPCC: Bool
+            if case .privateCloudCompute = route { isPCC = true } else { isPCC = false }
+            let window = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: !isPCC)
+            let promptReserve = 64
+            if #available(iOS 26.4, macOS 26.4, *) {
+                if let used = try? await SystemLanguageModel.default.tokenCount(for: session.transcript) {
+                    return max(0, window - used - promptReserve)
+                }
+            }
+            return window / 4
         }
 
         /// Checks if new text is substantially repeating content from existing text

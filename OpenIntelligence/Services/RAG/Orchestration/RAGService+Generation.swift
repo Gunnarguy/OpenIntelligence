@@ -1661,8 +1661,19 @@ extension RAGService {
                                 pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                             )
                         }
+                        // Say the answer stopped (5.8). It was kept half-written with nothing to say so, which read as
+                        // a complete answer (the owner's iPhone, 2026-11-17). The service first tries to finish it when
+                        // the stop was Apple pausing the model (`AppleFoundationLLMService.resumeAfterPause`).
+                        let stopNote: String
+                        if case LLMError.rateLimited = error {
+                            stopNote =
+                                "\n\n*This answer stopped early: Apple paused the on-device model while the app was in "
+                                + "the background, and it couldn't be finished. Ask again to get the whole answer.*"
+                        } else {
+                            stopNote = "\n\n*This answer stopped early because the model stopped. Ask again to get the whole answer.*"
+                        }
                         return LLMResponse(
-                            text: capturedTrimmed,
+                            text: capturedTrimmed + stopNote,
                             tokensGenerated: capturedTrimmed.split(whereSeparator: { $0.isWhitespace }).count,
                             timeToFirstToken: firstChunkTime,
                             totalTime: Date().timeIntervalSince(attemptStart),

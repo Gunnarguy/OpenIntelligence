@@ -514,16 +514,16 @@ final class DeviceCapabilityService: @unchecked Sendable {
             if cachedTier == .unsupported {
                 return 2
             }
-            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                return 8
+            let chipFloor: Int
+            if chipIsAtLeast("M4") {
+                chipFloor = 8
+            } else if chipIsAtLeast("M3") {
+                chipFloor = 6
+            } else {
+                chipFloor = 4
             }
-            if chipIsAtLeast("M3") {
-                return 6
-            }
-            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
-                return 4
-            }
-            return 4
+            return Self.hardwareScaledVisionConcurrency(
+                floor: chipFloor, performanceCores: Self.performanceCoreCount, memoryGB: cachedMemoryGB)
         }
 
         if chipIsAtLeast("A20") || chipIsAtLeast("M5") || chipIsAtLeast("A19") || chipIsAtLeast("M4") {
@@ -537,6 +537,23 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
         return 2
     }
+
+    /// Pages a Mac reads at once, from its hardware rather than a chip list (5.8). The chip list stopped at 8 from M4
+    /// on, so an M4 Max or an M6 Ultra read as many pages at once as a base M4. Now: one page per performance core,
+    /// at most one per 2 GB of memory and at most 16, and never below what the chip's generation measured fine at
+    /// (`floor`). An M3 Pro (5 performance cores, 18 GB) keeps its 6; a Mac with 12 performance cores and 36 GB reads
+    /// 12. The thermal limit (`thermallyLimitedVisionConcurrency`) still lowers it on a hot or fanless Mac. iPhone and
+    /// iPad keep the chip values: their memory limit per app, not their cores, is what bounds them. Pure, so it is
+    /// testable.
+    nonisolated static func hardwareScaledVisionConcurrency(floor: Int, performanceCores: Int, memoryGB: Double) -> Int {
+        guard performanceCores > 0 else { return floor }
+        let byHardware = min(16, performanceCores, max(1, Int(memoryGB / 2)))
+        return max(floor, byHardware)
+    }
+
+    /// The top cluster's cores (`hw.perflevel0.physicalcpu`: performance cores, "super cores" from A20 Pro and M5),
+    /// or 0 where the system reports no clusters. Read once.
+    nonisolated static let performanceCoreCount: Int = detectCPUClusters().first?.cores ?? 0
 
     /// Vision concurrency after the live thermal state is applied. The chip picks the ceiling, but no public API says
     /// whether a Mac has a fan (a fanless MacBook Air throttled to 100% CPU against 400% over a five-hour import), so
