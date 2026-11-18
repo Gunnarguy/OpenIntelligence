@@ -896,6 +896,39 @@ onboarding), 7 iPad, 6 Mac. `[evidence_level: measured, confidence: exact, evide
   review), respects the 10-per-set limit by uploading up to 10 before deleting the old ones, and sends
   `mac-*` files to `APP_DESKTOP` on the macOS record.
 
+### 5.8 pass, 2026-11-18: the redesigned Settings, from a demo copy
+
+Ten iPhone scenes (answer, refusal, sources, How This Works, consent, Intelligence Mode, Model & Privacy, the Settings
+list, Plain English, Database) and eight iPad (no How This Works, no Plain English), composed with
+`scripts/compose_store_screenshots.py`, whose `SCENES` and `IPAD_BOXES` hold the 5.8 headlines and callout boxes. Not
+uploaded on that date. `[evidence_level: measured, confidence: high, evidence_source: simctl captures on fresh
+iPhone 18 Pro Max and iPad Pro 13-inch (M4) simulators, iOS 27.0, contact sheet reviewed]`
+
+- **`--screenshot-settings-page <id>`** (DEBUG, with `--screenshot --screenshot-tab settings`) shows that Settings page
+  in place of the list at launch; the id is a `SettingsEntryID` (`intelligenceMode`, `modelPrivacy`, `howItWorks`,
+  `glossary`, `devicePerformance`, ...). A `navigationDestination(isPresented: .constant(true))` hung the app at 100%
+  CPU with a blank screen, so the page stands in for the list rather than being pushed.
+- **Tips cover the chat scenes** ("Standard or Deep Think" over the consent and page scenes). `-tourShowOnly redeemCode`
+  closes every other tour tip for the launch.
+- **Import can fail on a fresh simulator** with "Embedding model is not available on this device": the first launch
+  imports before Core ML has compiled the model. Launch again with `--screenshot-import-samples` once the model has
+  loaded; the second import reads 3 documents in the OpenIntelligence Guide library.
+- **The Settings pages need the demo copy.** The repo build reports Apple Intelligence unavailable in the Simulator
+  ("Apple Intelligence unavailable" under the Settings panel, "PCC is unavailable in Simulator" on Model & Privacy).
+  The copy (`git archive HEAD` into `/private/tmp`, never the repo) switches off the three
+  `targetEnvironment(simulator)` guards PostDesk's `Tools/demos/oi/patch_sim_switches.py` names (the first now lives in
+  `AppleFoundationLLMService.swift`, the second in `RAGService+Device.swift`), returns the Private Cloud Compute snapshot
+  an iPhone with the signed entitlement reports from `FoundationModelCapabilityProvider` (available, below limit, the
+  cloud window left to the app's fallback), and leaves Developer & Diagnostics out of the list. Container prefs
+  `entitlement.activeTier pro` and `entitlement.legacyProtectionState historicalPaidPurchase` show the plan as Lifetime
+  with 1 of 20 libraries instead of Free with "0 left".
+- **The page scene** (`--screenshot-store page`) now opens with "Found word for word in this document." (DEBUG override
+  in `SourcePageView`: the drawn lease is in no library, so the lookup found no text and the banner said the text was
+  not on the device). It was left out of the 5.8 set: the page is drawn at full width and its highlighted lines read
+  too small in a callout.
+- The iPad How This Works still ends with "Private Cloud Compute needs iOS or macOS 27 ... nothing is sent anywhere" in
+  the Simulator, so it stays off the iPad set. The Atlas still has to come from a device; no capture was on disk.
+
 ## Release
 
 Version is derived, not set by hand. `ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` for

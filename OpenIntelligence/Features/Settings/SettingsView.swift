@@ -72,7 +72,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            settingsList
+            settingsRoot
 
             // Motherboard HUD - Full-screen X-ray overlay
             // Shows glowing borders at the ACTUAL physical locations where

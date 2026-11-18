@@ -220,6 +220,29 @@ document, transcript or reasoning **content**, which section 8 forbids.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModels.swiftinterface, Xcode 27A266a: LanguageModelSession.usage is @available(iOS 27.0, macOS 27.0, ...); Usage.Output declares totalTokenCount and reasoningTokenCount; Usage.Input declares totalTokenCount and cachedTokenCount; Response declares no backend field]`
 
+**Measured 2026-11-18: no reasoning reported at any level.** That contradiction is what the owner's iPhone showed on
+2026-11-14 (a Deep Think answer on Private Cloud Compute at `.moderate`, `reasoning=0`), so a DEBUG probe now asks
+directly: `--probe-pcc-reasoning` (`DebugPCCReasoningProbe.swift`) sends one fixed question with a 435-character
+passage, no library and no stored setting, to Private Cloud Compute at no level, light, moderate and deep through
+`streamResponse`, and at moderate through `respond`. It runs from `App.init` before any service starts, writes
+`Documents/pcc_reasoning_probe.json` and quits. On the owner's M3 Pro Mac (macOS 27.0, 26A428) all five calls
+reported `reasoningTokenCount` 0, in the session's usage and in the last stream snapshot's, and no `.reasoning`
+entry in the transcript. Sending a level added 9 input tokens (243 to 252), so the level reaches the request; Apple
+describes `ContextOptions` as "details that should appear in the prompt" and the level as the reasoning the model "is
+allowed to output", not a requirement to reason. Moderate, deep and `respond` at moderate wrote the same 723 characters
+in 2.5 s each. Streaming does not hide the count. A second run (`--probe-pcc-reasoning-hard`) asked a harder
+question, three plans' 12-month costs with four traps, at no level and deep through `streamResponse` and at deep set on
+the session's profile (`LanguageModelSession(profile:)`, `Profile.reasoningLevel(.deep)`). All three answered
+correctly and reported 0 reasoning tokens and no reasoning entry. Deep wrote longer answers (447, 617 and 954 output
+tokens) but took no longer to start (1.2 s, 0.8 s, 0.9 s to first token) and wrote at the same 131 to 137 tokens a
+second, so its extra time (4.6 s, 5.3 s, 7.9 s) is visible text, not hidden reasoning. Nothing about routing or what is
+sent changed: the probe is not in a release build. `[evidence_level: measured, confidence: high for these two questions
+on this Mac, low beyond it: one call per level and path, not run on iOS; evidence_source: pcc_reasoning_probe.json
+2026-11-18T16:27:32Z, pcc_reasoning_probe_hard.json 2026-11-18T16:49:29Z; developer.apple.com/documentation/foundationmodels/contextoptions and
+.../contextoptions/reasoninglevel-swift.property and .../languagemodelsession/profile fetched 2026-11-18;
+FoundationModels.swiftinterface, Xcode 27A266a: LanguageModelSession.init(profile:history:) and
+DynamicProfile.reasoningLevel(_:) are @available(iOS 27.0, macOS 27.0, ...)]`
+
 
 
 `ModelExecutionReceipt` is the durable route truth. It records plan/policy IDs, timestamps, reason codes, intended target, attempts, actual target, fallback reason, completed target, quota category, and verification result. `ResponseMetadata.executionRoute` is a compatibility summary derived from the completed receipt.

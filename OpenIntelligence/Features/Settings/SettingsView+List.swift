@@ -66,6 +66,16 @@ extension SettingsView {
         case advanced, developer, about, versionHistory
     }
 
+    #if DEBUG
+        /// The page `--screenshot-settings-page <id>` opens at launch, for the App Store scenes (5.8). DEBUG only.
+        private static var screenshotPage: SettingsEntry? {
+            guard LaunchArguments.has("--screenshot") || LaunchArguments.has("screenshot"),
+                let raw = LaunchArguments.valueEither(for: "screenshot-settings-page")
+            else { return nil }
+            return SettingsEntry.all.first { $0.id.rawValue == raw }
+        }
+    #endif
+
     /// One navigable destination, plus the words that should find it.
     ///
     /// `keywords` is what makes the tree searchable by the name a knob has in the code
@@ -243,6 +253,24 @@ extension SettingsView {
     //
     // A native `List` also brings correct Dynamic Type row layout, platform insets, and
     // `Section` footers for copy that was previously loose `Text` inside tinted panels.
+    /// The list, or in a DEBUG build's App Store scenes the page `--screenshot-settings-page <id>` names, shown in its place
+    /// with that page's title (5.8), so a simulator capture needs no taps. The value is a `SettingsEntryID` (intelligenceMode,
+    /// modelPrivacy, devicePerformance, howItWorks, ...). A `navigationDestination` held open by a constant binding hung
+    /// the app at launch, so the page stands in for the list instead of being pushed over it.
+    @ViewBuilder
+    var settingsRoot: some View {
+        #if DEBUG
+            if let entry = Self.screenshotPage {
+                destination(for: entry)
+                    .navigationTitle(entry.title)
+            } else {
+                settingsList
+            }
+        #else
+            settingsList
+        #endif
+    }
+
     var settingsList: some View {
         List {
             if trimmedSearch.isEmpty {

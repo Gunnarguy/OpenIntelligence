@@ -25,6 +25,12 @@ struct OpenIntelligenceApp: App {
     #endif
 
     init() {
+        #if DEBUG
+        // `--probe-pcc-reasoning` asks Private Cloud Compute one fixed question at each reasoning level and quits,
+        // before any service, scene or cache step runs (5.8; `DebugPCCReasoningProbe`).
+        DebugPCCReasoningProbe.runAndExitIfRequested()
+        #endif
+
         // Before anything can load a model: Core ML's old compiled copies go once per app version (5.8).
         ModelCompileCache.clearOncePerVersion()
 

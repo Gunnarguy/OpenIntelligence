@@ -19,33 +19,50 @@ ICON = Path(__file__).resolve().parent.parent / "OpenIntelligence/Resources/Asse
 BOLD = "/Library/Fonts/SF-Pro-Display-Bold.otf"
 REG = "/Library/Fonts/SF-Pro-Display-Regular.otf"
 
+# iPad callout boxes in the 2064x2752 capture's pixels. No iPad Plain English (its full-width list reads tiny in a
+# callout) and no iPad How This Works: in the Simulator its last card says
+# Private Cloud Compute needs iOS 27 and nothing is sent, which is not what an iPad on iPadOS 27 shows.
+IPAD_BOXES = {
+    "answer": (30, 510, 1930, 1110),
+    "refusal": (30, 1350, 1930, 1660),
+    "sources": (455, 1225, 1625, 2025),
+    "consent": (460, 1600, 1620, 2215),
+    "intelligenceMode": (440, 210, 1640, 760),
+    "modelPrivacy": (440, 225, 1640, 835),
+    "settings": (30, 240, 2034, 840),
+    "database": (430, 205, 1620, 470),
+}
+
 # (scene, headline, subline, iPhone callout box, iPad callout box). Boxes are (x0, y0, x1, y1) in the
 # raw capture's pixels; None shows the screen alone. Scenes without a raw capture are skipped.
+#
+# 5.8 set, 2026-11-18: the chat scenes as before (`--screenshot-store`) and the redesigned Settings (the list's
+# panel, Intelligence Mode, Model & Privacy, How This Works, Plain English) through
+# `--screenshot-settings-page <id>`. The Settings scenes come from a demo copy whose Simulator switches report what an
+# iPhone with Apple Intelligence reports (RUNBOOK, "Regenerating App Store screenshots", 5.8 pass). The 5.4 list is in
+# git history (2a6bc111).
 SCENES = [
     ("answer", "Ask your own documents anything", "Every claim cites the page it came from",
-     (70, 1080, 1180, 2000), (40, 600, 1920, 1200)),
+     (40, 640, 1290, 2020), IPAD_BOXES.get("answer")),
     ("refusal", "It tells you when your files don't say it", "No guessing. No made-up answers.",
-     (50, 1540, 1270, 2250), (40, 1110, 2020, 1520)),
+     (45, 1570, 1230, 2280), IPAD_BOXES.get("refusal")),
     ("sources", "See where every answer came from", "The real passages, page by page",
-     (50, 1235, 1270, 1760), (460, 1400, 1600, 1720)),
-    # iPhone only: the iPad shows the whole page, whose Private Cloud Compute section reads "not
-    # enabled in this build" in the simulator, which has no PCC entitlement. Devices show it enabled.
-    ("howitworks", "No server. No account.", "Your documents are read, indexed and searched right on your device",
-     (48, 396, 1272, 915), None),
+     (30, 1770, 1290, 2625), IPAD_BOXES.get("sources")),
+    ("howItWorks", "No server. No account.", "Your documents are read, indexed and searched right on your device",
+     (40, 395, 1280, 900), IPAD_BOXES.get("howItWorks")),
     ("consent", "Built on Apple Intelligence", "On your device. Private Cloud Compute only when you approve it.",
-     (70, 1545, 1260, 1975), (480, 1880, 1640, 2190)),
-    # From the owner's iPhone (devicectl device capture screenshot) with the simulator's dark 9:41
-    # status bar pasted over his: the simulator draws the axes and none of the points. The callout
-    # sits low so it covers the library card, which reads "0 Docs" beside 41 chunks.
-    ("atlas", "Your whole library, mapped in 3D", "Every passage placed by what it means",
-     (38, 800, 1282, 2040), None, {"callout_bottom": 0.965}),
-    # On iPad the whole tab shows, including "Performance Advantage" multipliers (100x, 10x) that no
-    # benchmark backs, so the iPad callout sits over them. The iPhone crop ends above them.
-    ("database", "Nothing hidden under the hood", "A real full-text search engine, running on your device",
-     (40, 520, 1280, 1150), (30, 300, 2040, 710), {"tablet": {"callout_bottom": 0.83}}),
-    ("settings", "It explains itself", "Every word it uses, defined in plain English",
-     (40, 1000, 1280, 1640), (30, 770, 1990, 1180)),
-    ("onboarding-1", "Bring any file you've got", "PDFs, Office files, scans, images, code and transcripts", None, None),
+     (30, 1110, 1290, 2010), IPAD_BOXES.get("consent")),
+    ("intelligenceMode", "Think harder when it matters", "Standard, Deep Think or Maximum. You choose how deep it reads.",
+     (40, 400, 1280, 1300), IPAD_BOXES.get("intelligenceMode")),
+    ("modelPrivacy", "You decide where answers are written", "On this device, or Apple's Private Cloud Compute with your permission",
+     (40, 400, 1280, 1365), IPAD_BOXES.get("modelPrivacy")),
+    ("settings", "Everything in plain sight", "Your model, mode, plan and libraries at a glance",
+     (40, 480, 1290, 1040), IPAD_BOXES.get("settings")),
+    ("glossary", "It explains itself", "Every word it uses, defined in plain English",
+     (30, 540, 1290, 840), IPAD_BOXES.get("glossary")),
+    # The iPhone crop ends above anything the Database tab shows below the fold.
+    ("database", "Nothing hidden under the hood", "A real keyword index, running on your device",
+     (40, 380, 1290, 820), IPAD_BOXES.get("database")),
 ]
 
 # The panel colour comes from the app icon so the listing reads as one product.
@@ -189,22 +206,20 @@ def compose(raw, size, title, sub, callout, phone, opts=None):
 # and layered here. Boxes are in the capture's pixels; "mag" is the callout's size against the
 # capture's own pixels, "bottom" seats it low (to cover what should not be featured).
 MAC_SCENES = [
-    ("answer", "Ask your own documents anything", "Every claim cites the page it came from",
-     (40, 600, 2730, 1090), {}),
+    # 5.8 (2026-11-18): staged chat scenes and Settings pages only. The Atlas and Database scenes would show the
+    # owner's own library on the listing, because the Mac capture runs against his real container.
+    ("answer", "Ask your own documents anything", "Every claim checked against the page it came from",
+     (43, 533, 2722, 1037), {}),
     ("refusal", "It tells you when your files don't say it", "No guessing. No made-up answers.",
-     (45, 1050, 2865, 1530), {}),
-    ("sources", "See where every answer came from", "The real passages, page by page", None, {}),
+     (43, 1224, 1980, 1433), {}),
     ("consent", "Built on Apple Intelligence", "On your Mac. Private Cloud Compute only when you approve it.",
-     (999, 759, 1881, 1011), {"mag": 1.7}),
-    # The library card under the graph reads "0 Docs" beside 41 chunks, so the callout covers it.
-    ("atlas", "Your whole library, mapped in 3D", "Every passage placed by what it means",
-     (30, 300, 2850, 1131), {"bottom": 0.975}),
-    # Seated low over the tab's "Performance Advantage" multipliers, which no benchmark backs.
-    ("database", "Nothing hidden under the hood", "A real full-text search engine, running on your Mac",
-     (40, 165, 2840, 480), {"bottom": 0.995}),
-    ("settings", "It explains itself", "Every word it uses, defined in plain English",
-     (30, 625, 1500, 1000), {"mag": 1.35}),
-    ("whatsnew", "Answers that don't keep you waiting", "What's new in 5.4, in the app's own words", None, {}),
+     (972, 415, 1908, 1385), {"mag": 1.1}),
+    ("intelligenceMode", "Think harder when it matters", "Standard, Deep Think or Maximum. You choose how deep it reads.",
+     (886, 173, 1994, 670), {"mag": 1.25}),
+    ("modelPrivacy", "You decide where answers are written", "Apple's model on your Mac, or Private Cloud Compute with your permission",
+     (886, 170, 1994, 756), {"mag": 1.2}),
+    ("settings", "Everything in plain sight", "Your model, mode, plan and libraries at a glance",
+     (36, 216, 2844, 475), {}),
 ]
 
 

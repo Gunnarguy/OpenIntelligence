@@ -76,6 +76,11 @@ struct SourcePageView: View {
                     match = await SourceLookup.find(
                         passage, in: document.id, isOverview: chunk?.chunk.metadata.abstractionLevel.isSummary ?? false
                     ).match
+                    #if DEBUG
+                        // The App Store scene's lease (`--screenshot-store page`, 5.8) is drawn for the scene and sits in no
+                        // library, so the lookup finds no text for it; its passage is on the page word for word.
+                        if LaunchArguments.valueEither(for: "screenshot-store") == "page" { match = .exact }
+                    #endif
                     // A cited page opened (5.8 journal): the file's type and how its passage was found.
                     VerificationJournal.record(
                         "citation.open",
