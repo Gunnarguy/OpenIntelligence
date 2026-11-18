@@ -433,16 +433,15 @@ struct ContainerSettingsSheet: View {
         var options = [
             // MARK: - CoreML Sentence Embedding (Primary)
 
-            // Custom Core ML model: all-MiniLM-L6-v2 (sentence-transformers)
-            // Converted to .mlmodelc via coremltools. 384-dim output.
-            // Mean-pooled sentence embeddings with Neural Engine acceleration.
+            // Core ML model: IBM granite-embedding-small-english-r2 (Apache 2.0) since 5.8, 384-dim output, its CLS token
+            // L2-normalised inside the model (`CoreMLSentenceEmbeddingProvider.poolingRecipe`). MiniLM, mean-pooled, through 5.7.
             EmbeddingProviderOption(
                 id: "coreml_sentence_embedding",
                 icon: "cpu.fill",
                 title: "Neural Engine (Granite)",
                 tagline: "granite-embedding-small-english-r2 • 384-dim",
                 detail:
-                    "Sentence-transformer model fine-tuned for semantic similarity. Produces 384-dimensional vectors via mean-pooling, accelerated on Neural Engine.",
+                    "IBM's Granite embedding model, licensed Apache 2.0. Produces 384-dimensional vectors from its CLS token, normalised inside the model. Core ML plans 485 of its 1,071 operations on the Neural Engine on an M3 Pro; in the iOS Simulator it runs on the CPU.",
                 isSelectable: true,
                 // The badge follows the platform default since 5.7: Core ML on iPhone and iPad,
                 // Core AI on macOS 27 (`EmbeddingProviderDefaults`).
@@ -452,9 +451,10 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     // Was "ANE accelerated". Every device setting gives this model the Neural Engine
                     // (`DeviceCapabilityService.coreMLComputeUnits`: .cpuAndNeuralEngine or .all; background imports
-                    // .cpuAndNeuralEngine), and Core ML plans 150 of its 161 operations there, 11 on the CPU
-                    // (BenchmarkRuns/2026-10-18-compute-plan, M3 Pro). The iOS Simulator runs it on the CPU only.
-                    OptionMetric(icon: "bolt.fill", text: "Runs on the Neural Engine", tint: .accentColor),
+                    // .cpuAndNeuralEngine). For Granite (5.8) Core ML plans 485 of its 1,071 operations there on an M3
+                    // Pro (CHANGELOG 5.8, the Granite entry), under half, so "Uses" rather than "Runs on"; the 150 of 161
+                    // in BenchmarkRuns/2026-10-18-compute-plan was MiniLM. The iOS Simulator runs it on the CPU only.
+                    OptionMetric(icon: "bolt.fill", text: "Uses the Neural Engine", tint: .accentColor),
                     // "High semantic accuracy" was an unmeasured superlative, and the first
                     // measurement contradicts it: over 25 QASPER cases the dense arm ranked
                     // the gold document first in 8% of cases against BM25's 60%. Replaced

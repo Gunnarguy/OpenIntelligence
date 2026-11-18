@@ -159,14 +159,23 @@ struct MessageListV2: View {
                     //
                     // Streaming auto-follow is untouched: the `onChange` handlers below do
                     // that work and already gate on `isPinnedToBottom`.
+                    shownConversationFirstId = messages.first?.id
                     if !hasPerformedInitialScroll || isPinnedToBottom {
                         scrollToBottom(proxy: proxy, animated: false)
                         hasPerformedInitialScroll = true
                     }
                 }
-                .onChange(of: messages.count) { _, _ in
+                .onChange(of: messages.count) { oldCount, newCount in
+                    // A question the reader just sent always brings the list down to it, and so does another
+                    // conversation opening (a library switch), wherever the reader had scrolled (2026-11-18). On the
+                    // owner's Mac a Deep Think question sent while an older answer was on screen ran and finished out
+                    // of sight: the list followed only when it was already pinned to the bottom.
+                    let sentByReader = newCount > oldCount && messages.last?.role == .user
+                    let otherConversation = messages.first?.id != shownConversationFirstId
+                    shownConversationFirstId = messages.first?.id
+                    if sentByReader || otherConversation { isPinnedToBottom = true }
                     guard isPinnedToBottom else { return }
-                    scrollToBottom(proxy: proxy, animated: true)
+                    scrollToBottom(proxy: proxy, animated: !otherConversation)
                 }
                 .onChange(of: streamingText) { _, newText in
                     // Scroll smoothly during streaming - every ~80 chars for smooth following
@@ -211,6 +220,8 @@ struct MessageListV2: View {
     }
 
     @State private var hasPerformedInitialScroll = false
+    /// The first message of the conversation on screen, to tell a library switch from a new message.
+    @State private var shownConversationFirstId: ChatMessage.ID?
     @State private var isPinnedToBottom: Bool = true
 }
 

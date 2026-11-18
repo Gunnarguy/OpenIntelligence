@@ -175,9 +175,11 @@ struct IntelligenceModeCard: View {
                     "After the strongest searches only. Each session reads the relevant sentences of 3 passages, up to "
                     + "2,500 characters; it plans enough sessions to cover the passages found one and a half times (8 to "
                     + "50), with a running summary every fifth, and stops sooner when its findings stop changing, it "
-                    + "repeats itself, or sessions keep failing. The answer is written from its fact bank (about 1,500 "
-                    + "characters) and its last findings. These sessions stay on the device unless you've chosen "
-                    + "Private Cloud Compute."),
+                    + "repeats itself, or sessions keep failing. The answer is written from the top passages found, in the "
+                    + "documents' own words, as many as fit the on-device window up to 3,200 tokens, with its fact bank "
+                    + "(about 1,500 characters) beside them as notes; every value comes from the passages. When no "
+                    + "passage fits, it is written from the fact bank and its last findings. These sessions stay on the "
+                    + "device unless you've chosen Private Cloud Compute."),
             Step(
                 id: "withhold", name: "Its checks can withhold the answer", icon: "hand.raised",
                 stage: .check, modes: [.standard],

@@ -281,8 +281,8 @@ actor QualityAssuranceService {
         // --- RAG Technical Architecture ---
         QATestCase(
             id: "ondevice_token_window",
-            query: "What is the on-device token window size?",
-            expectedAnswer: "4K tokens",
+            query: "What context window does the on-device model report?",
+            expectedAnswer: "4,096 or 8,192 tokens",
             expectedDocumentIds: ["ragtechnicalarchitecture"],
             answerType: .factoid,
             difficulty: .easy
@@ -323,7 +323,7 @@ actor QualityAssuranceService {
         QATestCase(
             id: "pcc_activation_triggers",
             query: "When does the app route to Private Cloud Compute?",
-            expectedAnswer: "Complex multi-step reasoning across multiple files, synthesis that exceeds the 4K on-device token budget, Deep Think or Maximum quality modes with heavy context",
+            expectedAnswer: "When the packed evidence will not fit the on-device model, for a Deep Think or Maximum answer drawn from more than one document, and for every answer when you pick it in the model picker",
             expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
             answerType: .list,
             difficulty: .medium
