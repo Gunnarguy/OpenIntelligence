@@ -349,20 +349,45 @@ extension WorkspaceSyncService {
         allowedDocumentIds: Set<UUID>
     ) -> [DocumentChunk] {
         var orderedIds: [UUID] = []
+        var positionOfId: [UUID: Int] = [:]
         var byId: [UUID: DocumentChunk] = [:]
         var duplicateKeyToId: [String: UUID] = [:]
 
+        // Where both copies hold the same passage (one id, or one document, place and text), the newer copy stays, and
+        // the iCloud copy when they were made at the same moment (5.8, 2026-11-18, at the owner's word for this file
+        // after the trace below). A rebuild in place keeps a passage's id and text and gives it a new vector
+        // (`DocumentChunk.reembedded`). The first copy met used to stay, and the iCloud copy is met first, so each
+        // pass after a rebuild wrote the iCloud copy's old vectors back over the rebuilt ones and the iCloud copy never
+        // changed: on the owner's iPhone on 2026-11-14 a library's 126 passages were re-embedded for the Granite model
+        // at 16:43:06, and at 16:43:10 the pass rewrote the local store and found "Shared vector store already current".
+        // Through 2026-11-18 its questions scored 0.045 against the passage naming their subject (Gate E's qryMax).
+        func replace(_ heldId: UUID, with chunk: DocumentChunk) {
+            guard let held = byId[heldId] else { return }
+            let position = positionOfId[heldId] ?? orderedIds.count
+            byId[heldId] = nil
+            positionOfId[heldId] = nil
+            if position < orderedIds.count { orderedIds[position] = chunk.id } else { orderedIds.append(chunk.id) }
+            positionOfId[chunk.id] = position
+            byId[chunk.id] = chunk
+            let heldKey = vectorChunkDuplicateKey(for: held)
+            if duplicateKeyToId[heldKey] == heldId { duplicateKeyToId[heldKey] = nil }
+            duplicateKeyToId[vectorChunkDuplicateKey(for: chunk)] = chunk.id
+        }
+
         func ingest(_ chunks: [DocumentChunk]) {
             for chunk in chunks where allowedDocumentIds.contains(chunk.documentId) {
-                if byId[chunk.id] != nil {
+                if let held = byId[chunk.id] {
+                    if chunk.metadata.createdAt > held.metadata.createdAt { replace(chunk.id, with: chunk) }
                     continue
                 }
 
                 let duplicateKey = vectorChunkDuplicateKey(for: chunk)
-                if let existingId = duplicateKeyToId[duplicateKey], byId[existingId] != nil {
+                if let existingId = duplicateKeyToId[duplicateKey], let held = byId[existingId] {
+                    if chunk.metadata.createdAt > held.metadata.createdAt { replace(existingId, with: chunk) }
                     continue
                 }
 
+                positionOfId[chunk.id] = orderedIds.count
                 orderedIds.append(chunk.id)
                 byId[chunk.id] = chunk
                 duplicateKeyToId[duplicateKey] = chunk.id

@@ -291,6 +291,9 @@ extension RAGService {
             librariesNeedingIndexRebuild.remove(containerId)
             return
         }
+        if await storedVectorsAreAnotherModels(in: container, db: db, records: records) {
+            return
+        }
         var passagesByDocument: [UUID: Int] = [:]
         for record in records {
             passagesByDocument[record.documentId, default: 0] += 1
@@ -323,6 +326,124 @@ extension RAGService {
             indexRepairsTriedThisLaunch.insert("document:\(document.id.uuidString)")
         }
         enqueueSelfHealingRebuild(for: containerId, onlyDocuments: Set(untried.map(\.id)))
+    }
+
+    /// Whether a library's stored vectors came from another embedding model than the live one, measured on one
+    /// passage of each document, and the repair for the documents that fail (5.8, 2026-11-18). True when it queued a
+    /// repair or raised the banner, so the health check stops there.
+    ///
+    /// `EmbeddingModelRecord` says which model this device last used for a library, not which vectors its store holds.
+    /// Through f5759e4d the sync merge wrote the iCloud copy's old vectors back over every in-place rebuild
+    /// (`WorkspaceSyncService.mergeVectorChunks`), so libraries the record calls Granite's still held MiniLM's: on the
+    /// owner's iPhone on 2026-11-18 a question scored 0.045 against the passage that names its subject. Search by
+    /// meaning and the grounding gate both compare against these vectors, and nothing else would rebuild them.
+    ///
+    /// Once a launch per library, and not at all once a check under this model revision found the live model's
+    /// vectors. The documents that fail are re-embedded in place, through the self-healing queue, so the person's Stop
+    /// holds (`isSelfHealingSuppressed`); a repair runs once per model revision, and if the vectors still don't match
+    /// afterwards the library shows its rebuild banner instead (`StoredVectorModelCheck.repairAction`). At most
+    /// `modelCheckDocumentLimit` documents are sampled, spread across the library. A library that translates before
+    /// embedding is skipped: its vectors were made from the translation, which is not stored, so its passages' own
+    /// text would read as another model's.
+    @MainActor
+    @discardableResult
+    func storedVectorsAreAnotherModels(
+        in container: KnowledgeContainer, db: VectorDatabase, records: [PassageRecord],
+        defaults: UserDefaults = .standard
+    ) async -> Bool {
+        let key = "model:\(container.id.uuidString)"
+        let revision = EmbeddingService.sharedCoreMLProvider.modelRevision
+        // A rebuild under way holds both models' vectors until it ends; the next launch checks again.
+        guard !indexRepairsTriedThisLaunch.contains(key), !records.isEmpty, !isProcessing,
+            !pendingReembedContainerIds.contains(container.id), !pendingSelfHealingContainerIds.contains(container.id),
+            container.embeddingProviderId == EmbeddingProviderDefaults.coreML,
+            translationTargetLanguage(for: container) == nil,
+            StoredVectorModelCheck.checkIsDue(library: container.id, revision: revision, defaults: defaults)
+        else { return false }
+        indexRepairsTriedThisLaunch.insert(key)
+
+        let ids = Self.modelCheckCandidateIds(from: records)
+        guard let candidates = try? await db.chunks(withIDs: ids) else { return false }
+        let service = await resolveEmbeddingContext(preferredContainerId: container.id).service
+        let fitting = candidates.filter {
+            service.countTokens(StoredVectorModelCheck.embeddedText(of: $0)) <= service.maxSafeTokens
+        }
+        guard
+            let sample = StoredVectorModelCheck.sample(
+                of: fitting, documentIds: Set(fitting.map(\.documentId)), perDocument: 1, skippingUntestable: true),
+            !sample.isEmpty
+        else { return false }
+        let stored = await db.getEmbeddings(forChunkIDs: sample.map(\.id))
+        guard let fresh = try? await service.generateEmbeddings(for: sample.map(StoredVectorModelCheck.embeddedText))
+        else { return false }
+        let verdict = StoredVectorModelCheck.documentsWithAnotherModelsVectors(
+            sample: sample, stored: stored, fresh: fresh)
+        let action = StoredVectorModelCheck.repairAction(
+            failing: verdict?.failing, library: container.id, revision: revision,
+            repairsSuppressed: isSelfHealingSuppressed(for: container.id), defaults: defaults)
+        if let verdict {
+            if verdict.failing.isEmpty {
+                librariesWithAnotherModelsVectors.remove(container.id)
+            } else {
+                librariesWithAnotherModelsVectors.insert(container.id)
+            }
+        }
+        let result: String =
+            switch action {
+            case .none: verdict == nil ? "notCompared" : "liveModel"
+            case .rebuild: "rebuild"
+            case .showBanner: "banner"
+            }
+        VerificationJournal.record(
+            "index.modelCheck", verdict?.failing.isEmpty == false ? .failed : .ok,
+            ["library": VerificationJournal.anon(container.id), "result": result,
+                "documents": "\(Set(sample.map(\.documentId)).count)", "compared": "\(verdict?.compared ?? 0)",
+                "failing": "\(verdict?.failing.count ?? 0)"])
+        switch action {
+        case .none:
+            return false
+        case .rebuild(let documents):
+            Log.warning(
+                "[RAGService] Library \(container.id): \(documents.count) of \(verdict?.compared ?? 0) sampled document(s) hold "
+                    + "vectors another model wrote (live model \(revision)); re-embedding those in place.",
+                category: .embedding)
+            // In place: the passages are kept and only their vectors made again (`reembedDocuments`).
+            modelChangeRebuildContainerIds.insert(container.id)
+            enqueueSelfHealingRebuild(for: container.id, onlyDocuments: documents)
+            return true
+        case .showBanner:
+            Log.warning(
+                "[RAGService] Library \(container.id): \(verdict?.failing.count ?? 0) document(s) still hold another model's "
+                    + "vectors after a repair, or repairs are stopped; showing the rebuild banner.",
+                category: .embedding)
+            librariesNeedingIndexRebuild.insert(container.id)
+            return true
+        }
+    }
+
+    /// Most documents the model check samples in one library.
+    nonisolated static let modelCheckDocumentLimit = 64
+
+    /// Up to three passages of each document, spread through it, for the model check to read and pick one testable
+    /// passage from; at most `modelCheckDocumentLimit` documents, spread across the library (5.8).
+    nonisolated static func modelCheckCandidateIds(from records: [PassageRecord], perDocument: Int = 3) -> [UUID] {
+        var byDocument: [UUID: [PassageRecord]] = [:]
+        for record in records { byDocument[record.documentId, default: []].append(record) }
+        let documents = byDocument.keys.sorted { $0.uuidString < $1.uuidString }
+        let picked = sampleIndices(count: documents.count, limit: modelCheckDocumentLimit).map { documents[$0] }
+        return picked.flatMap { document -> [UUID] in
+            let ordered = (byDocument[document] ?? []).sorted { $0.chunkIndex < $1.chunkIndex }
+            let positions = Set((0..<perDocument).map { ordered.count * $0 / perDocument }).sorted()
+            return positions.filter { $0 < ordered.count }.map { ordered[$0].id }
+        }
+    }
+
+    /// Whether Gate E may decline to judge an answer in this library (5.8, 2026-11-18): only a Granite library the model
+    /// check found holding another model's vectors this launch. Never an NLEmbedding or other library, where a question
+    /// far from its passages is a real signal.
+    @MainActor
+    func passageVectorsMayBeAnotherModels(in containerId: UUID, providerId: String) -> Bool {
+        providerId == EmbeddingProviderDefaults.coreML && librariesWithAnotherModelsVectors.contains(containerId)
     }
 
     /// Whether the vectors this device holds for a library were already written by the live embedding model, so

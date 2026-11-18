@@ -782,7 +782,7 @@ private struct VerificationInfo {
         case .partial:
             return VerificationInfo(
                 title: "Partially Verified",
-                subtitle: "Some parts of this answer are well-supported by your documents, but not all claims could be verified.",
+                subtitle: VerificationOutcome.partialSummary(gatingDecision: gatingDecision, claims: claims),
                 icon: "shield.lefthalf.filled",
                 color: .yellow,
                 level: .partial

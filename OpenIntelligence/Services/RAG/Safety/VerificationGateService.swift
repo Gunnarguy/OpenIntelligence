@@ -40,6 +40,9 @@ struct RAGVerificationResult: Sendable {
         let passed: Bool
         let confidence: Float
         let details: String
+        /// The gate could not judge this answer (5.8): it passes, stays out of the overall confidence, and the status
+        /// string names it (`RAGService.verificationSummary`, `not_checked:`), so the answer does not read Verified.
+        var notChecked: Bool = false
     }
 
     struct ClaimResult: Sendable {
@@ -132,6 +135,11 @@ actor VerificationGateService {
 
     static let shared = VerificationGateService()
 
+    /// Gate E's absolute floor: the lowest cosine between an answer and its best passage that counts as grounded, with
+    /// a question embedded by the same model. Below it for the question as well, the passages' vectors came from
+    /// another model and the gate does not judge (5.8, `runGateE`).
+    nonisolated static let semanticGroundingFloor: Float = 0.25
+
     private let config: VerificationConfig
 
     init(config: VerificationConfig = .default) {
@@ -170,7 +178,8 @@ actor VerificationGateService {
         queryEmbedding: [Float]? = nil,
         chunkEmbeddings: [[Float]]? = nil,
         structuredClaims: [StructuredRAGClaim]? = nil,
-        answerIntent: AnswerIntent? = nil
+        answerIntent: AnswerIntent? = nil,
+        passageVectorsMayBeAnotherModels: Bool = false
     ) async -> RAGVerificationResult {
         let __spVerificationGates = PipelineSignposts.synthesis.beginInterval("VerificationGates")
         defer { PipelineSignposts.synthesis.endInterval("VerificationGates", __spVerificationGates) }
@@ -221,7 +230,8 @@ actor VerificationGateService {
                 query: query,
                 chunks: retrievedChunks,
                 answerIntent: answerIntent,
-                fullySupportedClaimCount: fullySupportedClaimCount
+                fullySupportedClaimCount: fullySupportedClaimCount,
+                passageVectorsMayBeAnotherModels: passageVectorsMayBeAnotherModels
             )
             gateResults.append(gateE)
         }
@@ -251,7 +261,9 @@ actor VerificationGateService {
         gateResults.append(gateI)
 
         let allPassed = gateResults.allSatisfy { $0.passed }
-        let overallConfidence = gateResults.reduce(0.0) { $0 + $1.confidence } / Float(gateResults.count)
+        // A gate that could not judge is left out of the average (5.8): it measured nothing.
+        let judged = gateResults.filter { !$0.notChecked }
+        let overallConfidence = judged.reduce(0.0) { $0 + $1.confidence } / Float(max(judged.count, 1))
 
         let criticalGates: Set<VerificationGate> = [.retrievalConfidence, .numericSanity, .semanticGrounding]
         let criticalFailures = gateResults.filter { !$0.passed && criticalGates.contains($0.gate) }
@@ -702,7 +714,8 @@ actor VerificationGateService {
         query: String,
         chunks: [RetrievedChunk],
         answerIntent: AnswerIntent?,
-        fullySupportedClaimCount: Int? = nil
+        fullySupportedClaimCount: Int? = nil,
+        passageVectorsMayBeAnotherModels: Bool = false
     ) -> RAGVerificationResult.GateResult {
 
         guard !chunkEmbeddings.isEmpty else {
@@ -766,7 +779,32 @@ actor VerificationGateService {
 
             // Also apply a floor — even with good ratio, if the absolute similarity
             // is extremely low, the embeddings might be unreliable
-            let absoluteFloor: Float = 0.25
+            let absoluteFloor: Float = Self.semanticGroundingFloor
+
+            // The question these passages were retrieved for sits below the floor too, in a library the model check
+            // found holding another model's vectors (`RAGService.passageVectorsMayBeAnotherModels`, 5.8, 2026-11-18):
+            // no distance here says anything about the answer. Measured on the owner's iPhone: a question about the
+            // gut-brain axis against the passage that names it in its first line, qryMax 0.045, and its answer at
+            // 0.031, because sync had written the old model's vectors back over the library's rebuild
+            // (`WorkspaceSyncService.mergeVectorChunks`). With one model the app's embedder puts any two English texts
+            // measured far above the floor (`GraniteGroundingFloorMeasurementTests`). Only there: in any other library,
+            // NLEmbedding's included, a question far from its passages is a real signal and the floor decides.
+            if passageVectorsMayBeAnotherModels, queryMaxSim < absoluteFloor {
+                Log.warning(
+                    "[VerificationGates] Gate E: not checked: the question is as far from its own passages as the answer "
+                        + "(qryMax=\(formatFloat3(queryMaxSim)), respMax=\(formatFloat3(responseMaxSim)), floor=\(formatFloat2(absoluteFloor))), "
+                        + "and this library's vectors are another model's",
+                    category: .pipeline)
+                return RAGVerificationResult.GateResult(
+                    gate: .semanticGrounding,
+                    passed: true,
+                    confidence: 0,
+                    details:
+                        "NOT_CHECKED (qryMax=\(formatFloat3(queryMaxSim)) < floor \(formatFloat2(absoluteFloor)), respMax=\(formatFloat3(responseMaxSim))). "
+                        + "This library's stored vectors are another model's, being rebuilt, so there is nothing to ground the answer against.",
+                    notChecked: true
+                )
+            }
             let relativeThreshold: Float = 0.80  // Response should be ≥80% as similar as query
             let sameTopicMismatch = topicalAlignment.isMismatch && responseMaxSim >= absoluteFloor
 

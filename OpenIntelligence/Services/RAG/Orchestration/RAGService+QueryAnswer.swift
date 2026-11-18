@@ -322,7 +322,7 @@ extension RAGService {
         auditSecondSim: Float, auditTopSim: Float, responseText: String, queryEmbeddingService: EmbeddingService,
         generationRetrievedChunks: [RetrievedChunk], vdb: any VectorDatabase,
         verificationResult: inout RAGVerificationResult?, contextCandidates: [RetrievedChunk], queryEmbedding: [Float],
-        llmResponse: LLMResponse, verificationTime: inout TimeInterval
+        llmResponse: LLMResponse, verificationTime: inout TimeInterval, passageVectorsMayBeAnotherModels: Bool = false
     ) async -> (confidencePolicy: QueryConfidencePolicy, verificationService: VerificationGateService) {
         Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
 
@@ -379,7 +379,8 @@ extension RAGService {
             responseEmbedding: responseEmbedding,
             queryEmbedding: queryEmbedding,
             chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
-            structuredClaims: llmResponse.structuredRAGGeneration?.claims
+            structuredClaims: llmResponse.structuredRAGGeneration?.claims,
+            passageVectorsMayBeAnotherModels: passageVectorsMayBeAnotherModels
         )
         verificationTime = Date().timeIntervalSince(verificationStartTime)
         return (confidencePolicy: confidencePolicy, verificationService: verificationService)
@@ -955,15 +956,9 @@ extension RAGService {
 
         // Append verification result to gating summary (only if gates were run)
         if let vResult = verificationResult {
-            if vResult.passed {
-                let verifySummary = "verified:\(String(format: "%.0f", vResult.overallConfidence * 100))%"
-                gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
-            } else {
-                let failedGates = vResult.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(
-                    separator: "+")
-                let verifySummary = "unverified:\(failedGates)"
-                gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
-            }
+            // One builder for every mode (5.8): it also names a gate that could not judge (`not_checked:`).
+            let verifySummary = Self.verificationSummary(for: vResult)
+            gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
         } else {
             // Verification gates were skipped
             gatingSummary = gatingSummary.map { "\($0),verification_skipped" } ?? "verification_skipped"

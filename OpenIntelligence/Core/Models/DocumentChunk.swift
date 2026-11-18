@@ -79,6 +79,28 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
         self.embedding = embedding
         self.metadata = metadata
     }
+
+    /// This passage with a vector made again: same id, text and place, the new vector and prefix, and `createdAt` one
+    /// millisecond later than the passage's own (5.8, 2026-11-18). The time is how the sync merge tells two copies of a
+    /// passage apart (`WorkspaceSyncService.mergeVectorChunks`, `PassageGenerations.newest`). A rebuild in place used
+    /// to keep the time, the copies tied, the iCloud copy won and its old model's vectors were written back over the
+    /// rebuild on every device. One millisecond beats the identical copy it was made from and never outranks a later
+    /// split of the document made anywhere else, which a device clock (`Date()`) could: an in-place rebuild of an old
+    /// split, run after another device re-split the document, would have won and undone the re-split everywhere.
+    func reembedded(_ embedding: [Float], contextualPrefix: String?) -> DocumentChunk {
+        DocumentChunk(
+            id: id,
+            documentId: documentId,
+            content: content,
+            parentContent: parentContent,
+            contextualPrefix: contextualPrefix,
+            embedding: embedding,
+            metadata: metadata.remade(at: metadata.createdAt.addingTimeInterval(Self.reembedStep))
+        )
+    }
+
+    /// How much later than its passage a re-embedded copy is dated (`reembedded`).
+    static let reembedStep: TimeInterval = 0.001
 }
 
 // MARK: - Chunk Abstraction Levels (RAPTOR-lite)
@@ -326,6 +348,15 @@ struct ChunkMetadata: Codable, Sendable {
     /// piece before it ended. Every field is carried over: a field added to this type has to be
     /// added here too.
     func moved(chunkIndexBy indexOffset: Int, positionBy positionOffset: Int) -> ChunkMetadata {
+        copied(chunkIndexBy: indexOffset, positionBy: positionOffset, createdAt: createdAt)
+    }
+
+    /// The same metadata for a passage whose vector was made again at `date` (5.8, `DocumentChunk.reembedded`).
+    func remade(at date: Date) -> ChunkMetadata {
+        copied(chunkIndexBy: 0, positionBy: 0, createdAt: date)
+    }
+
+    private func copied(chunkIndexBy indexOffset: Int, positionBy positionOffset: Int, createdAt: Date) -> ChunkMetadata {
         ChunkMetadata(
             chunkIndex: chunkIndex + indexOffset,
             startPosition: startPosition + positionOffset,
@@ -413,7 +444,10 @@ struct ChunkMetadata: Codable, Sendable {
         startPosition = fallbackStart
         // Old persisted chunks will not contain explicit offsets. Fall back to a sensible range based on count.
         endPosition = decodedEnd ?? (fallbackStart + decodedCharacterCount)
-        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        // A passage stored without its time is the oldest copy there is (5.8, 2026-11-18): the time decides which of two
+        // copies the sync merge keeps (`WorkspaceSyncService.mergeVectorChunks`, `PassageGenerations`), and `Date()` here
+        // made an undated copy the newest at every read, so it would have won over every dated one.
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .distantPast
         // Structured document parsing (optional for backward compatibility with old chunks)
         structureType = try container.decodeIfPresent(String.self, forKey: .structureType)
         // Parent Document Retrieval fields (optional for backward compatibility)

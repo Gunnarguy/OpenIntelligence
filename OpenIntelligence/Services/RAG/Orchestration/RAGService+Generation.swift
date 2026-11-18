@@ -275,7 +275,9 @@ extension RAGService {
                     responseEmbedding: responseEmbedding,
                     queryEmbedding: queryEmbedding,
                     chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
-                    structuredClaims: llmResponse.structuredRAGGeneration?.claims
+                    structuredClaims: llmResponse.structuredRAGGeneration?.claims,
+                    passageVectorsMayBeAnotherModels: passageVectorsMayBeAnotherModels(
+                        in: embeddingContext.containerId, providerId: embeddingContext.providerId)
                 )
             } else {
                 verificationResult = nil
@@ -1031,7 +1033,9 @@ extension RAGService {
             responseEmbedding: responseEmbedding,
             queryEmbedding: queryEmbedding,
             chunkEmbeddings: chunkEmbeddings.allSatisfy(\.isEmpty) ? nil : chunkEmbeddings,
-            answerIntent: answerIntent)
+            answerIntent: answerIntent,
+            passageVectorsMayBeAnotherModels: passageVectorsMayBeAnotherModels(
+                in: embeddingContext.containerId, providerId: embeddingContext.providerId))
         Log.info(
             "[RAGService] \(qualityMode.canonical == .maximum ? "Maximum" : "Deep Think") answer gates: "
                 + (result.passed ? "passed" : "failed")
@@ -1065,7 +1069,12 @@ extension RAGService {
     /// `unverified:<failed gates>`.
     nonisolated static func verificationSummary(for result: RAGVerificationResult) -> String {
         if result.passed {
-            return "verified:\(String(format: "%.0f", result.overallConfidence * 100))%"
+            // A gate that could not judge (5.8, Gate E over another model's vectors) is named, and the answer is
+            // `checked:` rather than `verified:`, which `VerificationOutcome` reads as Partially Verified.
+            let unchecked = result.gateResults.filter(\.notChecked).map(\.gate.rawValue)
+            let confidence = "\(String(format: "%.0f", result.overallConfidence * 100))%"
+            guard unchecked.isEmpty else { return "checked:\(confidence),not_checked:" + unchecked.joined(separator: "+") }
+            return "verified:\(confidence)"
         }
         return "unverified:" + result.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: "+")
     }

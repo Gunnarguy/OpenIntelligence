@@ -801,16 +801,11 @@ extension RAGService {
                     break
                 }
 
+                // Dated one millisecond after each passage's own time (5.8, 2026-11-18): the sync merge keeps the newer
+                // copy of a passage, and with the time unchanged the iCloud copy's old vectors won and were written back
+                // over this rebuild on every device (`DocumentChunk.reembedded`).
                 let finalChunks = zip(updatedChunks, embeddings).map { chunk, embedding in
-                    DocumentChunk(
-                        id: chunk.id,
-                        documentId: chunk.documentId,
-                        content: chunk.content,
-                        parentContent: chunk.parentContent,
-                        contextualPrefix: chunk.contextualPrefix,
-                        embedding: embedding,
-                        metadata: chunk.metadata
-                    )
+                    chunk.reembedded(embedding, contextualPrefix: chunk.contextualPrefix)
                 }
 
                 // 3. Delete old chunks from vector DB, store new chunks, and persist. The library is checked again
