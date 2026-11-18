@@ -22,7 +22,7 @@ struct EmbeddingInfoSheet: View {
     private var embeddingMethodName: String {
         switch settings.defaultEmbeddingProvider {
         case "coreml_sentence_embedding":
-            return "Neural Engine Embeddings"
+            return "Granite Embeddings (Core ML)"
         case "coreai_sentence_embedding":
             return "Core AI Embeddings"
         case "nl_contextual_embedding":
@@ -32,7 +32,7 @@ struct EmbeddingInfoSheet: View {
         case "apple_fm_embed":
             return "Apple Foundation Model"
         default:
-            return "Neural Engine Embeddings"
+            return "Granite Embeddings (Core ML)"
         }
     }
 
@@ -40,7 +40,7 @@ struct EmbeddingInfoSheet: View {
     private var embeddingMethodDescription: String {
         switch settings.defaultEmbeddingProvider {
         case "coreml_sentence_embedding":
-            return "IBM granite-embedding-small-english-r2 via Core ML. 384D vectors from its CLS token, normalised, with Neural Engine acceleration for semantic similarity."
+            return "IBM granite-embedding-small-english-r2 via Core ML. 384D vectors from its CLS token, normalised. Core ML picks the Neural Engine, GPU or CPU on each device."
         case "coreai_sentence_embedding":
             return "Core AI copy of all-MiniLM-L6-v2, retired in 5.8; libraries built with it are rebuilt with Granite on Core ML."
         case "nl_contextual_embedding":
@@ -50,7 +50,7 @@ struct EmbeddingInfoSheet: View {
         case "apple_fm_embed":
             return "Apple Foundation Model embeddings (1024D) for state-of-the-art semantic understanding via Private Cloud Compute."
         default:
-            return "IBM granite-embedding-small-english-r2 via Core ML. 384D vectors from its CLS token, normalised, with Neural Engine acceleration for semantic similarity."
+            return "IBM granite-embedding-small-english-r2 via Core ML. 384D vectors from its CLS token, normalised. Core ML picks the Neural Engine, GPU or CPU on each device."
         }
     }
 

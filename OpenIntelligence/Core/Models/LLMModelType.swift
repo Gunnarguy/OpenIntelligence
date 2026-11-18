@@ -215,7 +215,9 @@ extension LLMModelType {
         case .appleIntelligence:
             return ModelCapabilityCardInfo(
                 emoji: "🍎",
-                nickname: "AFM 3 Ecosystem",
+                // Apple's name for the model this device runs, read from the device (2026-11-17). It was
+                // "AFM 3 Ecosystem", a name Apple doesn't use.
+                nickname: FoundationModelTokenBudget.reportedOnDeviceModelName ?? "Apple Foundation Models",
                 tagline: "Evidence-first routing between Apple's on-device model and Private Cloud Compute.",
                 chips: [
                     .init(icon: "cpu", label: "On-Device", detail: "Apple Intelligence", tone: .accent),

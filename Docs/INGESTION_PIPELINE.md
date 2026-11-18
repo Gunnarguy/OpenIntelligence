@@ -1161,7 +1161,7 @@ launch. On a Mac the limit is `DeviceCapabilityService.thermallyLimitedVisionCon
 `.nominal`, half of it (at least 2) at `.fair`, 2 at `.serious` and 1 at `.critical`; the synchronous queue's
 `maxConcurrentOperationCount` is set from the same value before each use. No public API says whether a Mac has a
 fan, and a fanless MacBook Air ran its Vision work at 100% CPU against 400% over a five-hour import at the old fixed
-ceiling. iPhone and iPad keep the fixed ceiling. Operations already running finish; the limit applies to the next.
+ceiling. iPhone and iPad keep the fixed ceiling. Operations already running finish; the limit applies to the next. **Corrected 2026-11-17:** until then none of this ran on a Mac. `isRunningOnMac` tested `uname().machine` for "Mac", and a native macOS build reports "arm64", so every Mac kept the fixed ceiling and Vision calls ran the iOS GPU drain; it is now `#if os(macOS)`. `[evidence_level: code_verified, confidence: high]`
 `[evidence_level: test_verified (VisionThermalLimitTests), not run on a fanless Mac, confidence: medium,
 evidence_source: VisionOCRThrottle.swift AsyncVisionSemaphore, currentVisionConcurrencyLimit;
 DeviceCapabilityService.swift thermallyLimitedVisionConcurrency]`

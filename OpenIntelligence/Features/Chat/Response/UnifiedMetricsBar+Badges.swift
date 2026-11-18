@@ -289,7 +289,7 @@ extension UnifiedMetricsBar {
                     .scaledFont(size: 10, weight: .semibold)
             }
 
-            // Clean label: "Neural Engine" for on-device, "PCC" for cloud
+            // "On" for this device, "PC" for Private Cloud Compute. It said "NE", but Apple doesn't say which unit runs its model
             Text(executionBadgeLabel)
                 .scaledFont(size: 10, weight: .semibold)
 
@@ -340,7 +340,7 @@ extension UnifiedMetricsBar {
 
     private var executionBadgeLabel: String {
         switch execution {
-        case .onDevice, .unknown: return "NE"
+        case .onDevice, .unknown: return "On"
         case .privateCloudCompute: return "PC"
         }
     }

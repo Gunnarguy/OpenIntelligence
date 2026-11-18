@@ -347,7 +347,7 @@ enum WritingToolsError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notAvailable:
-            return "Apple Intelligence not available on this device (requires iOS 26+, A17 Pro or M1+)"
+            return "Apple Intelligence isn't available on this device. It needs \(AppleIntelligenceCopy.supportedDevices)."
         case .processingFailed(let message):
             return "Writing Tools processing failed: \(message)"
         }

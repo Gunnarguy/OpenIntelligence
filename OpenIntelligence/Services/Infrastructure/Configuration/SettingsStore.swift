@@ -339,7 +339,7 @@ final class SettingsStore: ObservableObject {
     /// Enable Screen Awareness via Shortcuts AppIntents.
     @Published var enableScreenAwareness: Bool
 
-    /// Enable ADM 3 Visual Generation for image playground features.
+    /// Enable Image Playground features (the stored key keeps its old name).
     @Published var enableADM3Visuals: Bool
 
     /// Number of smart reply suggestions to generate (1-5).

@@ -194,7 +194,7 @@ It is weakest on questions your library says nothing about. When the evidence is
 - **Source cards and citations** open the passage in its document, highlighted, with a line saying whether it was found word for word, found in part, or not found. A PDF opens at its page; any other file shows the text the app read from it. It shows the words are in your document; whether the answer read them correctly is yours to check.
 - **The metrics bar** expands to show \#(SamplePCCCopy.routeFragment), the token budget it used against the model's window, the execution steps that ran, and the passages that were retrieved.
 - **Response details** list each claim in the answer with its verification verdict.
-- **The Silicon HUD** is a small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. It sits over the place on the board where that silicon physically is.
+- **The Silicon HUD** is a small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. On the iPhones and iPads it has a board layout for, it sits over the place where that silicon physically is; on a Mac, and on a model without a layout, it floats on its own.
 
 ---
 
@@ -233,7 +233,7 @@ The model is the same in every plan: Apple Intelligence on your device, Deep Thi
 
 Every stage of OpenIntelligence runs on your device: parsing, text recognition, chunking, embedding, indexing, retrieval, re-ranking, packing, generation and verification.
 
-- **Answer generation** uses Apple's on-device Foundation Model through the FoundationModels framework. Measured on an iPhone with the A18 Pro: roughly 27 tokens per second, with 2.2 to 3.2 seconds before the first token appears. The app asks the system for the model's context window rather than assuming one, because it differs by device: Apple documents 4,096 tokens, and a Mac on macOS 27 reports 8,192.
+- **Answer generation** uses Apple's on-device Foundation Model through the FoundationModels framework. Measured on an iPhone with the A18 Pro: roughly 27 tokens per second, with 2.2 to 3.2 seconds before the first token appears. The app asks the system for the model's context window every time rather than assuming one, because it differs by device and system version: Apple's technote documents 4,096 tokens, its developer guide gives up to 8K for the larger on-device model, and in November 2026 an iPhone 16 Pro Max on iOS 27.2 and an M3 Pro Mac on macOS 27 both reported 8,192.
 \#(SamplePCCCopy.architectureStatus)
 
 ---
@@ -253,7 +253,7 @@ Each format has its own reader. Scanned pages go through Vision's document recog
 Text is split into passages along headings and natural boundaries, and every passage remembers the document, page and byte range it came from so a citation can be exact.
 
 ### 3. Embed
-Each passage becomes a semantic vector using IBM's granite-embedding-small-english-r2 sentence model (all-MiniLM-L6-v2 through 5.7). It runs through Core ML on iPhone, iPad and Mac, which schedules it on the Neural Engine where the device has one. Query embeddings use the same model.
+Each passage becomes a semantic vector using IBM's granite-embedding-small-english-r2 sentence model (all-MiniLM-L6-v2 through 5.7). It runs through Core ML on iPhone, iPad and Mac, and Core ML decides on each device whether the Neural Engine, the GPU or the CPU runs it. Query embeddings use the same model.
 
 ### 4. Store
 Vectors live in a memory-mapped file. Similarity search runs through Accelerate's vDSP routines on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched with a Metal compute shader on the GPU instead. The keyword index is SQLite FTS5.
@@ -262,7 +262,7 @@ Vectors live in a memory-mapped file. Similarity search runs through Accelerate'
 The vector search and the BM25 keyword search run independently on every question and are merged by reciprocal rank fusion, so a passage that only one of them found still gets a fair score. Identifiers, part numbers and exact phrases come through the keyword arm; paraphrases come through the vector arm.
 
 ### 6. Re-rank and diversify
-The merged candidates are re-scored by a cross-encoder, IBM's granite-embedding-reranker-english-r2 model run through Core ML on the Neural Engine, which reads the question and each passage together rather than comparing two vectors. Maximal marginal relevance then removes near-duplicates so the evidence covers more of the document instead of repeating one paragraph.
+The merged candidates are re-scored by a cross-encoder, IBM's granite-embedding-reranker-english-r2 model run through Core ML, which reads the question and each passage together rather than comparing two vectors. Maximal marginal relevance then removes near-duplicates so the evidence covers more of the document instead of repeating one paragraph.
 
 ### 7. Pack
 The top passages are selected and trimmed to fit the device's window alongside the instructions, the question and room for the answer.
@@ -288,7 +288,7 @@ Two surfaces show what happened, and they are easy to confuse.
 
 **Under each answer** is the metrics bar. Expand it for the route the query took, the token budget it used against the active window, the execution steps that ran, and the passages it retrieved. Response details list every claim with its verification verdict.
 
-**The Silicon HUD** is the small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. It sits over the place on the board where that silicon physically is.
+**The Silicon HUD** is the small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. On the iPhones and iPads it has a board layout for, it sits over the place where that silicon physically is; on a Mac, and on a model without a layout, it floats on its own.
 """#
         ),
         SampleDocumentDescriptor(

@@ -58,6 +58,21 @@ public struct FoundationModelTokenBudget: Sendable {
         return size > 0 ? size : nil
     }
 
+    /// Apple's name for the on-device model this device runs ("AFM 3 Core" or "AFM 3 Core Advanced",
+    /// `SystemLanguageModel.variant.displayName`, iOS and macOS 27), or nil before 27 or where the model isn't
+    /// available. Read from the device, never a table: which device gets which model is Apple's to decide.
+    public nonisolated static var reportedOnDeviceModelName: String? {
+        #if canImport(FoundationModels)
+            if #available(iOS 27.0, macOS 27.0, *) {
+                let model = SystemLanguageModel.default
+                guard case .available = model.availability else { return nil }
+                let name = model.variant.displayName.trimmingCharacters(in: .whitespaces)
+                return name.isEmpty ? nil : name
+            }
+        #endif
+        return nil
+    }
+
     /// Returns the dynamic token budget leaving a safety buffer.
     public nonisolated static func tokenBudget(isAppleFMOnDevice: Bool) -> Int {
         let size = contextSize(isAppleFMOnDevice: isAppleFMOnDevice)

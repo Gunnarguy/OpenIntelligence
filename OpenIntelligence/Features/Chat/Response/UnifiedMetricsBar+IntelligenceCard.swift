@@ -436,7 +436,7 @@ extension UnifiedMetricsBar {
         case .unknown:
             return "Processing with Apple Intelligence."
         case .onDevice:
-            return "Running locally on Neural Engine. No network required."
+            return "Running on this device. No network required."
         case .privateCloudCompute:
             return "Encrypted processing on Apple's attested servers."
         }

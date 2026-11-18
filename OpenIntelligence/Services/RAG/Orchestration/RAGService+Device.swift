@@ -145,7 +145,7 @@ extension RAGService {
 
                         switch reason {
                         case .deviceNotEligible:
-                            let message = "Device not eligible (requires A17 Pro+ or M-series)"
+                            let message = "Device not eligible. Apple Intelligence needs \(AppleIntelligenceCopy.supportedDevices)."
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
                             capabilities.foundationModelUnavailability = .deviceNotEligible

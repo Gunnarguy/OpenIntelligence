@@ -56,7 +56,10 @@ final class MetalBufferPool: @unchecked Sendable {
         // New caps: 48/32/24/16 MB — still effective for RAG vector searches
         // (typical search buffer = 1943×384×4 = ~3MB, so 32MB caches ~10 searches).
         let deviceName = device.name.lowercased()
-        if deviceName.contains("a19") || deviceName.contains("m5") || deviceName.contains("m4") {
+        // A20 and M6 added 2026-11-17: the newest chips had fallen to the 16 MB minimum because the list stopped at A19 and M5.
+        if deviceName.contains("a20") || deviceName.contains("m6") || deviceName.contains("a19")
+            || deviceName.contains("m5") || deviceName.contains("m4")
+        {
             // Apple10 / Next-gen: Moderate caching
             self.maxCacheBytes = 48 * 1024 * 1024   // 48MB (was 256MB)
             self.maxBuffersPerBucket = 6

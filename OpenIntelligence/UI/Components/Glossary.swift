@@ -359,7 +359,7 @@ extension GlossaryTermID {
                 icon: "sparkles",
                 section: .hardware,
                 plain: "Trillions of operations per second. It is Apple's rating for the Neural Engine in a chip, in the way horsepower is a rating for an engine. Apple gives the number for some chips only, so on the others the app shows none rather than an estimate.",
-                technical: "Apple's published figure, looked up by chip and not measured on your device. Apple's newsroom states one for A12 and A12X (5), A14 (11), A15 (15.8), A16 (nearly 17), M1 (11), M1 Ultra (22), M2, M2 Pro and M2 Max (15.8), M2 Ultra (31.6) and M4 (38); the A12Z, A13, A17 Pro, A18, A19, A20, M3 and M5 announcements give none, so the app shows none for them. Apple exposes no live Neural Engine occupancy API, so no app can report real utilisation.",
+                technical: "Apple's published figure, looked up by chip and not measured on your device. Apple's newsroom states one for A12 and A12X (5), A14 (11), A15 (15.8), A16 (nearly 17), M1 (11), M1 Ultra (22), M2, M2 Pro and M2 Max (15.8), M2 Ultra (31.6) and M4 (38); the A12Z, A13, A17 Pro, A18, A19, A20, M3, M5 and M6 announcements give none (M6's says only \"up to 2x the peak compute\"), so the app shows none for them. Apple exposes no live Neural Engine occupancy API, so no app can report real utilisation.",
                 seeAlso: [.neuralEngine, .chip],
                 synonyms: ["tera operations", "38 tops", "npu", "throughput", "rating"]
             )

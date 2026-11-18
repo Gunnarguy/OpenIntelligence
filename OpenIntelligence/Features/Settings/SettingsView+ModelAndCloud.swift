@@ -256,7 +256,7 @@ extension SettingsView {
                 .scaledFont(size: 11, weight: .semibold)
                 .foregroundStyle(DSColors.readable(deviceCapabilities.supportsAppleIntelligence ? .green : .orange))
                 VStack(alignment: .leading, spacing: 1) {
-                    // The card's own nickname and tagline ("AFM 3 Ecosystem", "Evidence-first routing ...") with
+                    // The card's nickname (Apple's model name, read from the device) and tagline with
                     // Technical Details on; plain words otherwise (5.7 UI cleanup).
                     Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.nickname : plainModelName)
                         .scaledFont(size: 12, weight: .semibold)
@@ -268,7 +268,7 @@ extension SettingsView {
                 HStack(spacing: DSSpacing.xs) {
                     modelCapabilityPill(icon: "text.bubble", label: "Text Generation")
                     // The model's name only with Technical Details on (5.7 UI cleanup).
-                    modelCapabilityPill(icon: "photo", label: settings.showTechnicalDetails ? "ADM 3 Visuals" : "Images")
+                    modelCapabilityPill(icon: "photo", label: settings.showTechnicalDetails ? "Image Playground" : "Images")
                     modelCapabilityPill(icon: "doc.text", label: settings.showTechnicalDetails ? "RAG-Ready" : "Your documents")
                 }
                 SettingsGroupLabel(text: "LANGUAGES")

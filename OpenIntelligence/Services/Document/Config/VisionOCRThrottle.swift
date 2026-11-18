@@ -41,8 +41,13 @@ nonisolated private let isAppleSilicon: Bool = {
     #endif
 }()
 
-/// Check if running on Mac (native or iOS app on Mac)
+/// Check if running on Mac (native or iOS app on Mac). A native macOS build reports `uname().machine` as "arm64", not
+/// a name containing "Mac", so until 2026-11-17 this was false on every Mac: the thermal ceiling for a fanless
+/// MacBook Air never applied and Vision calls ran the iOS GPU drain.
 nonisolated private let isRunningOnMac: Bool = {
+    #if os(macOS)
+    return true
+    #else
     var systemInfo = utsname()
     uname(&systemInfo)
     let machine = withUnsafePointer(to: &systemInfo.machine) {
@@ -51,6 +56,7 @@ nonisolated private let isRunningOnMac: Bool = {
         }
     }
     return machine.contains("Mac") || ProcessInfo.processInfo.isiOSAppOnMac
+    #endif
 }()
 
 /// Shared Metal device for GPU synchronization

@@ -145,7 +145,7 @@ import os
             case .unavailable(let reason):
                 switch reason {
                 case .deviceNotEligible:
-                    return "Device not eligible (requires A17 Pro+ or M-series chip)"
+                    return "Device not eligible. Apple Intelligence needs \(AppleIntelligenceCopy.supportedDevices)."
                 case .appleIntelligenceNotEnabled:
                     return
                         "Apple Intelligence not enabled (go to Settings > Apple Intelligence & Siri)"

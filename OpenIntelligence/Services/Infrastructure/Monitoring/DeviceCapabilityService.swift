@@ -385,8 +385,14 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// "7.5 GB" or "18 GB": the reported memory, never rounded to a whole size.
     var memoryDescription: String { AppleDeviceCatalog.memoryDescription(gigabytes: cachedMemoryGB) }
 
-    /// The model's name ("iPhone 16 Pro Max") from Xcode's device database, or nil for a Mac or an unknown model.
+    /// The model's name ("iPhone 16 Pro Max", "MacBook Pro (16-inch, Nov 2023)"), or nil for a model this build does not
+    /// know. A Mac is looked up by `hw.model`, since `uname` gives it only "arm64" (until 2026-11-17 a Mac had no name).
     var modelName: String? {
+        #if os(macOS)
+            if let mac = Self.macModelIdentifier(), let model = AppleDeviceCatalog.model(forIdentifier: mac) {
+                return model.name
+            }
+        #endif
         let identifier = cachedDeviceIdentifier.replacingOccurrences(of: "Simulator:", with: "")
         return AppleDeviceCatalog.model(forIdentifier: identifier)?.name
     }

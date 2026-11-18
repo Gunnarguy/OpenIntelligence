@@ -121,7 +121,7 @@ extension SettingsView {
                         subtitle: settings.showTechnicalDetails ? "App Intents integration via Shortcuts" : "Siri can tell which document or chat is on your screen")
                     aiFeatureTile(
                         icon: "photo.on.rectangle.angled", title: "Image Playground",
-                        subtitle: settings.showTechnicalDetails ? "Interactive ADM 3 image creation from document content" : "Create an image from a document's content")
+                        subtitle: settings.showTechnicalDetails ? "Image Playground, seeded with document content" : "Create an image from a document's content")
                     aiFeatureTile(
                         icon: "lightbulb.max.fill", title: "App Tips",
                         subtitle: settings.showTechnicalDetails ? "Contextual guidance & onboarding" : "Tips that point out features as you go")
