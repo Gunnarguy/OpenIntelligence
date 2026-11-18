@@ -918,7 +918,8 @@ struct Fullscreen3DAtlasView: View {
         // Each end of each axis named by the words of the passages there (5.7).
         let axisLabels = Embedding3DSceneView.AxisLabels(ends: axisEnds)
 
-        // The scene's names in the map: each cluster, or in All Libraries each library, at the middle of its points.
+        // The scene's names in the map: each cluster, or in All Libraries each library, on its point nearest the middle
+        // of its points (5.8).
         let sceneAnnotations: [Embedding3DSceneView.AnnotationData]
         if wantsAll {
             let libraryColors = Self.distinctLibraryColors(libraries.map(\.colorHex), palette: palette)

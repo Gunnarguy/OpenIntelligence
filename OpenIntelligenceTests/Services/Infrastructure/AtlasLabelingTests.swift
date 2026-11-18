@@ -625,4 +625,55 @@ final class AtlasLabelingTests: XCTestCase {
             distinguishingTerms: [["basket", "timer"], ["travel", "cover"]], membership: membership, sources: sources)
         XCTAssertEqual(names, ["Manual", "Travel & Cover"])
     }
+
+    // MARK: - Names the map can draw (5.8, 2026-11-18)
+
+    /// Words joined by hyphens in a name with no spaces, or by underscores, read as words, and a name cut after "&"
+    /// ends before it. Through 2026-11-17 the owner's Atlas named an axis end "Apple-Intelligence-&-Private-Cloud-Compute".
+    func testHyphenatedAndUnderscoredFileNamesReadAsWords() {
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("RAG-Technical-Architecture.md"), "RAG Technical Architecture")
+        XCTAssertEqual(
+            AtlasLabeling.shortDocumentName("Apple-Intelligence-&-Private-Cloud-Compute.md"), "Apple Intelligence",
+            "cut after '&', the name ends before it rather than on half a pair")
+        XCTAssertEqual(
+            AtlasLabeling.shortDocumentName("OpenIntelligence-Product-Guide.md"), "OpenIntelligence Product Guide",
+            "a name of 30 characters is kept whole")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("tax_return_notes.pdf"), "tax return notes")
+        XCTAssertEqual(
+            AtlasLabeling.shortDocumentName("Wi-Fi Setup Guide.pdf"), "Wi-Fi Setup Guide",
+            "a name with spaces keeps its hyphenated words")
+        XCTAssertEqual(
+            AtlasLabeling.shortDocumentName("Research Methods & Statistics for Psychology.pdf"), "Research Methods",
+            "'&' is a small word a cut name doesn't end on")
+        XCTAssertEqual(
+            AtlasLabeling.shortDocumentName("Pride and Prejudice and Zombies Annotated.epub"), "Pride and Prejudice",
+            "a pair is kept when fewer than two words come before it")
+        for name in ["RAG-Technical-Architecture.md", "Apple-Intelligence-&-Private-Cloud-Compute.md"] {
+            XCTAssertLessThanOrEqual(AtlasLabeling.shortDocumentName(name).count, 30)
+        }
+    }
+
+    /// An end named for a document that already names another end, with its section, stays within 30 characters: past
+    /// that the section alone. Through 2026-11-17 the owner's map read "RAG-Technical-Architecture: Where the work runs".
+    func testADocumentAndItsSectionTooLongToDrawBecomeTheSectionAlone() {
+        let document = "RAG Technical Architecture"
+        let sources = AtlasLabeling.PassageSources(
+            groups: [document, document, document, document, "Product Guide", "Apple Intelligence", "Notes", "Menu"],
+            sections: ["Where the work runs", "Where the work runs", nil, nil, nil, nil, nil, nil])
+        let rag = [0, 1, 2, 3], rest = [4, 5, 6, 7]
+        XCTAssertEqual(AtlasLabeling.sourceName(indices: rag, otherIndices: rest, sources: sources, used: []), document)
+        let second = AtlasLabeling.sourceName(indices: rag, otherIndices: rest, sources: sources, used: [document])
+        XCTAssertEqual(second, "Where the work runs")
+        XCTAssertNotEqual(second, document, "the two ends stay distinct")
+    }
+
+    /// The map draws a name of at most 30 characters, cut in whole words with "…", not ending on a small word.
+    func testTheMapDrawsAtMostThirtyCharactersOfAName() {
+        XCTAssertEqual(AtlasLabeling.mapLabelText("Late Charges"), "Late Charges")
+        XCTAssertEqual(AtlasLabeling.mapLabelText("Household Paperwork and Receipts Archive"), "Household Paperwork…")
+        let long = AtlasLabeling.mapLabelText("Supercalifragilisticexpialidocious-and-more")
+        XCTAssertEqual(long.count, 30)
+        XCTAssertTrue(long.hasSuffix("…"))
+        XCTAssertEqual(AtlasLabeling.mapLabelText("Juniper Flats Lease: Late Charges and Fees"), "Juniper Flats Lease: Late…")
+    }
 }

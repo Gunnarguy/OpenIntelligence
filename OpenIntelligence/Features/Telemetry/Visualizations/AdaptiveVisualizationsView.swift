@@ -71,9 +71,12 @@ enum AtlasDrawingStyle: String, CaseIterable {
     }
 }
 
-/// The names the Atlas's scene puts in the map (5.7, restored): one at the middle of each group of points, a cluster or
-/// in All Libraries a library, in the group's colour, scaled as the points are (to 4.5 around their centre). Through
-/// 5.6 the card and the full screen each had a copy of this.
+/// The names the Atlas's scene puts in the map (5.7, restored): one for each group of points, a cluster or in All
+/// Libraries a library, in the group's colour, scaled as the points are (to 4.5 around their centre). Through 5.6 the
+/// card and the full screen each had a copy of this.
+///
+/// Each is placed on the group's point nearest its middle (5.8, 2026-11-18), so the line from its name ends on a point
+/// the map draws. Through 2026-11-17 it was the middle itself, which in a group spread over two lobes is empty space.
 enum AtlasSceneLabels {
     static func annotations(
         coords: [SIMD3<Float>],
@@ -98,11 +101,18 @@ enum AtlasSceneLabels {
             let entry = members[group] ?? (SIMD3<Float>(repeating: 0), 0)
             members[group] = (entry.sum + coords[index], entry.count + 1)
         }
+        // Each group's point nearest its middle.
+        var nearest: [Int: (index: Int, distance: Float)] = [:]
+        for (index, group) in groups.enumerated() {
+            guard let entry = members[group], entry.count > 0 else { continue }
+            let distance = simd_distance_squared(coords[index], entry.sum / Float(entry.count))
+            if distance < nearest[group]?.distance ?? .greatestFiniteMagnitude { nearest[group] = (index, distance) }
+        }
         return names.indices.compactMap { group in
-            guard let entry = members[group], entry.count > 0 else { return nil }
-            let centroid = (entry.sum / Float(entry.count) - center) * scale
+            guard let entry = members[group], entry.count > 0, let anchor = nearest[group] else { return nil }
+            let position = (coords[anchor.index] - center) * scale
             return Embedding3DSceneView.AnnotationData(
-                position: SCNVector3(centroid.x, centroid.y, centroid.z),
+                position: SCNVector3(position.x, position.y, position.z),
                 title: names[group],
                 keywords: ["\(entry.count.formatted()) passages"],
                 color: colors[group % colors.count],

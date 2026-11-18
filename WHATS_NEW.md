@@ -96,6 +96,7 @@ Public release highlights for OpenIntelligence.
 - **A paper's own reference numbers stay out of your answer.** When a passage held citations like [3] or [124], an answer could copy them, and [3] then looked like a link to source 3. They're removed, and a bare [2] the model writes for a source becomes a working [S2].
 - **"Getting search ready" says which step it's on.** It shows Step 1 of 2 or Step 2 of 2 with the seconds so far, where it used to sit near the end and then finish.
 
+- **The Atlas map reads cleanly.** Lines that ran from a cluster to nothing are gone: each cluster's name now sits beside its own dots with a short line to one of them, and a name with no room is hidden along with its line. File names joined with hyphens or underscores read as words ("RAG Technical Architecture"), long names are shortened in whole words, and the words on the map are a label's size, never drawn over each other or over the box in the corner. The Insights card no longer says a document "fits well with your library" when everything in it came in at once.
 ### Libraries
 
 - **Imports keep going when you leave the app.** An import you left running could stop at its last step, because the search model asked for the graphics chip that iOS doesn't give an app in the background, and coming back it sat at Queued until you left and returned again. It now switches to the processor and Neural Engine when you leave and back when you return. Starting an import while another was finishing in the background could also freeze the app until iOS closed it; that's fixed too.

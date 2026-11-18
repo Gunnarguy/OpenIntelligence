@@ -74,6 +74,8 @@ struct Embedding3DSceneView: View {
     var drawsScene = false
     /// What the views over the scene cover, which its axis labels keep clear of (5.7).
     var labelInsets = AxisLabelInsets.zero
+    /// The scene's size in points, which its words are sized for (5.8).
+    @State private var sceneSize = CGSize.zero
 
     /// What each axis runs between, for VoiceOver, in the chart's words (`AtlasChart3D.axisTitle`).
     private var sceneAxesDescription: String {
@@ -99,8 +101,10 @@ struct Embedding3DSceneView: View {
                 reloadToken: reloadToken,
                 annotations: annotations,
                 onPointTapped: onPointTapped,
-                labelInsets: labelInsets
+                labelInsets: labelInsets,
+                viewSize: sceneSize
             )
+            .onGeometryChange(for: CGSize.self, of: { $0.size }) { sceneSize = $0 }
             .background(DSColors.background)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             // VoiceOver reads the map as the chart's is read (5.7): the scene's words are SceneKit text, which it

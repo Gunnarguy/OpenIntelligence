@@ -23,6 +23,8 @@ struct SceneViewContainer: UIViewRepresentable {
     var onPointTapped: ((Int, SCNVector3) -> Void)?
     /// What the views over the scene cover, which the axis labels keep clear of (5.7).
     var labelInsets = AxisLabelInsets.zero
+    /// The view's size in points, which the map's words are sized for (`mapLabelPoints`, 5.8); zero until measured.
+    var viewSize = CGSize.zero
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
@@ -46,6 +48,7 @@ struct SceneViewContainer: UIViewRepresentable {
     private func configure(_ view: SCNView, coordinator: Coordinator) {
         installScene(in: view, built: &coordinator.builtKey)
         coordinator.labelInsets = labelInsets
+        coordinator.viewSize = viewSize
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
@@ -102,30 +105,42 @@ struct SceneViewContainer: UIViewRepresentable {
         private weak var labelledScene: SCNScene?
         private var labelNodes: [SCNNode] = []
         private var axisPins: [AxisLabelPin] = []
+        private var clusterPins: [ClusterLabelPin] = []
 
         /// The share of the view at each edge that the axis labels keep clear of (`AxisLabelInsets`).
         var labelInsets = AxisLabelInsets.zero
+        /// The view's size in points, set from SwiftUI's layout (`Embedding3DSceneView`), so the labels are sized in
+        /// points (5.8) without reading the view off the main thread.
+        var viewSize = CGSize.zero
 
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
             if labelledScene !== scene {
                 labelNodes = mapLabelNodes(in: scene)
                 axisPins = axisLabelPins(in: scene)
+                clusterPins = clusterLabelPins(in: scene)
                 labelledScene = scene
             }
-            sizeLabelsForScreen(labelNodes, pointOfView: camera)
+            let size = viewSize.width > 0 && viewSize.height > 0
+                ? SIMD2(Float(viewSize.width), Float(viewSize.height)) : nil
+            sizeLabelsForScreen(labelNodes, pointOfView: camera, viewSize: size)
         }
 
-        /// Every frame, once the map's turning is applied: the field of view across the narrower side, and each axis
-        /// label on its end or at the edge of the view (5.7). Six labels, so this is cheap enough for every frame.
+        /// Every frame, once the map's turning is applied: the field of view across the narrower side, each axis
+        /// label on its end or at the edge of the view (5.7), and each cluster's name beside its point (5.8). A few
+        /// labels, so this is cheap enough for every frame.
         func renderer(_ renderer: SCNSceneRenderer, didApplyAnimationsAtTime time: TimeInterval) {
             guard let scene = renderer.scene, labelledScene === scene, let camera = renderer.pointOfView else { return }
             let viewport = renderer.currentViewport
             guard viewport.width > 0, viewport.height > 0 else { return }
             let aspect = Float(viewport.width / viewport.height)
             fitProjection(of: camera, aspect: aspect)
-            let axisNames = keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
-            hideClusterLabelsThatCollide(labelNodes, with: axisNames, pointOfView: camera, aspect: aspect)
+            let size = viewSize.width > 0 && viewSize.height > 0
+                ? SIMD2(Float(viewSize.width), Float(viewSize.height)) : nil
+            let axisNames = keepAxisLabelsInView(
+                axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets, viewSize: size)
+            placeClusterLabels(
+                clusterPins, with: axisNames, pointOfView: camera, aspect: aspect, insets: labelInsets, viewSize: size)
         }
     }
 }
@@ -141,6 +156,8 @@ struct SceneViewContainer: NSViewRepresentable {
     var onPointTapped: ((Int, SCNVector3) -> Void)?
     /// What the views over the scene cover, which the axis labels keep clear of (5.7).
     var labelInsets = AxisLabelInsets.zero
+    /// The view's size in points, which the map's words are sized for (`mapLabelPoints`, 5.8); zero until measured.
+    var viewSize = CGSize.zero
 
     func makeNSView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
@@ -164,6 +181,7 @@ struct SceneViewContainer: NSViewRepresentable {
     private func configure(_ view: SCNView, coordinator: Coordinator) {
         installScene(in: view, built: &coordinator.builtKey)
         coordinator.labelInsets = labelInsets
+        coordinator.viewSize = viewSize
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
@@ -219,30 +237,42 @@ struct SceneViewContainer: NSViewRepresentable {
         private weak var labelledScene: SCNScene?
         private var labelNodes: [SCNNode] = []
         private var axisPins: [AxisLabelPin] = []
+        private var clusterPins: [ClusterLabelPin] = []
 
         /// The share of the view at each edge that the axis labels keep clear of (`AxisLabelInsets`).
         var labelInsets = AxisLabelInsets.zero
+        /// The view's size in points, set from SwiftUI's layout (`Embedding3DSceneView`), so the labels are sized in
+        /// points (5.8) without reading the view off the main thread.
+        var viewSize = CGSize.zero
 
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
             if labelledScene !== scene {
                 labelNodes = mapLabelNodes(in: scene)
                 axisPins = axisLabelPins(in: scene)
+                clusterPins = clusterLabelPins(in: scene)
                 labelledScene = scene
             }
-            sizeLabelsForScreen(labelNodes, pointOfView: camera)
+            let size = viewSize.width > 0 && viewSize.height > 0
+                ? SIMD2(Float(viewSize.width), Float(viewSize.height)) : nil
+            sizeLabelsForScreen(labelNodes, pointOfView: camera, viewSize: size)
         }
 
-        /// Every frame, once the map's turning is applied: the field of view across the narrower side, and each axis
-        /// label on its end or at the edge of the view (5.7). Six labels, so this is cheap enough for every frame.
+        /// Every frame, once the map's turning is applied: the field of view across the narrower side, each axis
+        /// label on its end or at the edge of the view (5.7), and each cluster's name beside its point (5.8). A few
+        /// labels, so this is cheap enough for every frame.
         func renderer(_ renderer: SCNSceneRenderer, didApplyAnimationsAtTime time: TimeInterval) {
             guard let scene = renderer.scene, labelledScene === scene, let camera = renderer.pointOfView else { return }
             let viewport = renderer.currentViewport
             guard viewport.width > 0, viewport.height > 0 else { return }
             let aspect = Float(viewport.width / viewport.height)
             fitProjection(of: camera, aspect: aspect)
-            let axisNames = keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
-            hideClusterLabelsThatCollide(labelNodes, with: axisNames, pointOfView: camera, aspect: aspect)
+            let size = viewSize.width > 0 && viewSize.height > 0
+                ? SIMD2(Float(viewSize.width), Float(viewSize.height)) : nil
+            let axisNames = keepAxisLabelsInView(
+                axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets, viewSize: size)
+            placeClusterLabels(
+                clusterPins, with: axisNames, pointOfView: camera, aspect: aspect, insets: labelInsets, viewSize: size)
         }
     }
 }

@@ -483,13 +483,15 @@ final class LibraryVisualizationEngine: ObservableObject {
     }
 
     /// What a stored profile must have been built from to stand for the library now: its documents (by id and
-    /// passage count), its passage count, and its question history's length and newest entry.
+    /// passage count), its passage count, and its question history's length and newest entry. "v2" from 5.8
+    /// (2026-11-18): a profile stored before holds cluster names from hyphenated file names and a recent addition with
+    /// nothing earlier to fit with (`recentAdditions`), so it is built again.
     nonisolated static func diskKey(
         containerId: UUID, documents: [Document], libraryPassageCount: Int, historyCount: Int, newestHistory: String?
     ) -> String {
         let documentsPart = documents.map { "\($0.id.uuidString):\($0.totalChunks)" }.sorted().joined(separator: ",")
         let digest = SHA256.hash(data: Data(documentsPart.utf8)).prefix(12).map { String(format: "%02x", $0) }.joined()
-        return "v1|\(containerId.uuidString)|\(documents.count)|\(digest)|\(libraryPassageCount)|\(historyCount)|\(newestHistory ?? "-")"
+        return "v2|\(containerId.uuidString)|\(documents.count)|\(digest)|\(libraryPassageCount)|\(historyCount)|\(newestHistory ?? "-")"
     }
 
     nonisolated private static func storedProfileURL(_ containerId: UUID) -> URL {
@@ -895,7 +897,8 @@ final class LibraryVisualizationEngine: ObservableObject {
     ) -> [RecentAddition] {
         let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60) // Last 7 days
 
-        let recentDocs = documents.filter { $0.addedAt > cutoff }
+        let recentDocs = Self.recentAdditions(documents.map { ($0.id, $0.addedAt) }, since: cutoff)
+            .compactMap { id in documents.first { $0.id == id } }
 
         return recentDocs.prefix(5).map { doc in
             let docChunks = chunks.filter { $0.documentId == doc.id }
@@ -918,6 +921,19 @@ final class LibraryVisualizationEngine: ObservableObject {
                 nearestTopics: nearestTopics
             )
         }
+    }
+
+    /// The documents added since `cutoff` to a library that held something before them, newest first (5.8,
+    /// 2026-11-18): a document counts only when another came at least an hour earlier, in an import of its own. A
+    /// library whose documents all came in one import has nothing for them to fit with, and through 2026-11-17 the
+    /// guide library's Insights said "OpenIntelligence-Product-Guide.md fits well with your library", scored against
+    /// the two guides imported with it, and named the first in the list rather than the newest.
+    nonisolated static func recentAdditions(_ documents: [(id: UUID, addedAt: Date)], since cutoff: Date) -> [UUID] {
+        guard let earliest = documents.map(\.addedAt).min() else { return [] }
+        return documents
+            .filter { $0.addedAt > cutoff && $0.addedAt.timeIntervalSince(earliest) >= 3_600 }
+            .sorted { $0.addedAt != $1.addedAt ? $0.addedAt > $1.addedAt : $0.id.uuidString < $1.id.uuidString }
+            .map(\.id)
     }
 
     private func calculateIntegrationScore(

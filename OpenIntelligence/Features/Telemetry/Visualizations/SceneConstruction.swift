@@ -40,30 +40,93 @@ nonisolated func mapLabelNodes(in scene: SCNScene) -> [SCNNode] {
 /// the camera starts from, between 0.35 and 4; a cluster's label is drawn half as large again, as at that distance
 /// before, and fades a little with depth.
 ///
+/// Given the view's size in points (5.8, 2026-11-18), each label is drawn at a size in points instead
+/// (`mapLabelPoints`): an axis's name at 10 points on the iPhone's card, a cluster's half a point smaller. Through
+/// 2026-11-17 a label's size was a share of the view's height, so an axis name drew at about 11.5 points on the card,
+/// in bold, near the card title's height on the owner's iPhone, and at about 18 in the upright full screen.
+///
 /// It reads the positions as drawn: a spinning map turns its content with an animation, which moves only the
 /// presentation nodes (SCNNode.h, `presentationNode`: "with any active animations applied"), so a model position
 /// stands still while the map turns. And it uses the depth along the view, not the straight-line distance: a label
 /// off to the side of the screen is no smaller on it for being further along the diagonal.
-nonisolated func sizeLabelsForScreen(_ labels: [SCNNode], pointOfView: SCNNode) {
+nonisolated func sizeLabelsForScreen(_ labels: [SCNNode], pointOfView: SCNNode, viewSize: SIMD2<Float>? = nil) {
     let view = pointOfView.presentation
     let camera = view.simdWorldPosition
     let front = view.simdWorldFront
     let fieldOfView = Float(pointOfView.camera?.fieldOfView ?? 60)
+    // The side of the view the field of view spans (`fitProjection`), in points.
+    let extent: Float? = viewSize.flatMap { size in
+        guard size.x > 0, size.y > 0 else { return nil }
+        return pointOfView.camera?.projectionDirection == .horizontal ? size.x : size.y
+    }
+    let points = viewSize.map { mapLabelPoints(viewSize: $0) }
     // A cluster's label fades by how far behind the middle of the map it is, so the fade is the same from any distance.
     let middle = viewDepth(of: .zero, camera: camera, front: front)
     for label in labels {
         let depth = viewDepth(of: label.presentation.simdWorldPosition, camera: camera, front: front)
-        let scale = screenScale(depth: depth, fieldOfView: fieldOfView)
-        if label.name?.hasPrefix("clusterLabel_") ?? false {
-            label.simdScale = SIMD3(repeating: scale * 1.5)
+        let isCluster = label.name?.hasPrefix("clusterLabel_") ?? false
+        // An axis label is kept on screen (`keepAxisLabelsInView`) even when its end is near the camera, where the
+        // 0.35 floor would draw it larger than the others (review, 2026-10-20).
+        let scale = screenScale(depth: depth, fieldOfView: fieldOfView, minimum: isCluster ? 0.35 : 0.02)
+        var fit: Float = isCluster ? 1.5 : 1
+        if let extent, let points, let font = labelFontSize(label) {
+            fit = labelFit(
+                fontSize: font, points: isCluster ? points.cluster : points.axis, viewExtent: extent)
+        }
+        label.simdScale = SIMD3(repeating: scale * fit)
+        if isCluster {
             let behind = depth - middle
             label.opacity = behind < -3.4 ? 0.95 : behind < 1.6 ? 0.88 : 0.75
-        } else {
-            // An axis label is kept on screen (`keepAxisLabelsInView`) even when its end is near the camera, where the
-            // 0.35 floor would draw it larger than the others (review, 2026-10-20).
-            label.simdScale = SIMD3(repeating: screenScale(depth: depth, fieldOfView: fieldOfView, minimum: 0.02))
         }
     }
+}
+
+/// The size on screen, in points, of an axis's name and of a cluster's name in the map (5.8, 2026-11-18): the smallest
+/// text the app sets (`SettingsStatusPanel.minimumTextSize`, 10 points on iPhone and iPad, 11 on the Mac) on a view 280
+/// points on its shorter side, the card's height, one point more for every 80 points beyond that, up to three; a
+/// cluster's name half a point under an axis's. So 10 on the iPhone's card and 12 in its upright full screen.
+nonisolated func mapLabelPoints(viewSize: SIMD2<Float>) -> (axis: Float, cluster: Float) {
+    #if os(macOS)
+        let smallest: Float = 11
+    #else
+        let smallest: Float = 10
+    #endif
+    let shorter = min(viewSize.x, viewSize.y)
+    let axis = smallest + min(max((shorter - 280) / 80, 0), 3)
+    return (axis, axis - 0.5)
+}
+
+/// The scale that draws text set at `fontSize` scene units at `points` on a view `viewExtent` points across the side its
+/// field of view spans, at the distance the camera starts from with the default 60 degrees; `screenScale` carries it
+/// to any other depth and field of view. Between 0.05 and 20.
+nonisolated func labelFit(fontSize: Float, points: Float, viewExtent: Float) -> Float {
+    let pointsPerUnit = viewExtent / (2 * startingCameraDistance * tan(Float.pi / 6))
+    guard fontSize > 0, pointsPerUnit > 0 else { return 1 }
+    return min(max(points / (fontSize * pointsPerUnit), 0.05), 20)
+}
+
+/// The scale that draws `label` at `points` on screen at `depth` along the view (5.8): what `sizeLabelsForScreen` sets,
+/// for the depth the label is drawn at. The placing passes call it once they know that depth, because SceneKit stops
+/// drawing a still map after a frame or two: a label sized for where its axis end was, then moved nearer to stay out of
+/// the fog, kept the larger size, and three of the six names on the iPhone's card drew half as large again as the rest
+/// (iOS 27.0 Simulator, 2026-11-18). Nil without the view's size or the label's text.
+nonisolated func labelScale(
+    _ label: SCNNode, depth: Float, pointOfView: SCNNode, viewSize: SIMD2<Float>?, cluster: Bool
+) -> Float? {
+    guard let viewSize, viewSize.x > 0, viewSize.y > 0, let font = labelFontSize(label), let camera = pointOfView.camera
+    else { return nil }
+    let extent = camera.projectionDirection == .horizontal ? viewSize.x : viewSize.y
+    let points = mapLabelPoints(viewSize: viewSize)
+    let scale = screenScale(depth: depth, fieldOfView: Float(camera.fieldOfView), minimum: cluster ? 0.35 : 0.02)
+    return scale * labelFit(fontSize: font, points: cluster ? points.cluster : points.axis, viewExtent: extent)
+}
+
+/// The font size, in scene units, of a map label's text: its first child drawn with `SCNText`.
+nonisolated func labelFontSize(_ label: SCNNode) -> Float? {
+    for child in label.childNodes {
+        if let text = child.geometry as? SCNText, let font = text.font { return Float(font.pointSize) }
+    }
+    return nil
 }
 
 /// How far in front of the camera a point is, along the way it looks: the depth a perspective view divides by, never
@@ -188,7 +251,8 @@ nonisolated func fitProjection(of pointOfView: SCNNode, aspect: Float) {
 /// is behind the camera is hidden.
 @discardableResult
 nonisolated func keepAxisLabelsInView(
-    _ pins: [AxisLabelPin], pointOfView: SCNNode, aspect: Float, insets: AxisLabelInsets = .zero, margin: Float = 0.04
+    _ pins: [AxisLabelPin], pointOfView: SCNNode, aspect: Float, insets: AxisLabelInsets = .zero, margin: Float = 0.04,
+    viewSize: SIMD2<Float>? = nil
 ) -> [AxisLabelPlacement] {
     guard let camera = pointOfView.camera, !pins.isEmpty else { return [] }
     let transform = pointOfView.presentation.simdWorldTransform
@@ -209,46 +273,54 @@ nonisolated func keepAxisLabelsInView(
         // A label is drawn over everything and sized for the screen by its depth (`sizeLabelsForScreen`), so the depth
         // it is drawn at changes nothing else.
         let drawDepth = min(depth, max(mapCameraDistance - 1, 0.2))
+        if let sized = labelScale(pin.label, depth: drawDepth, pointOfView: pointOfView, viewSize: viewSize, cluster: false) {
+            pin.label.simdScale = SIMD3(repeating: sized)
+        }
         let scale = pin.label.simdScale.x
         let size = SIMD2<Float>(pin.halfWidth, pin.halfHeight) * scale / (halfAngles * drawDepth)
-        let spot = axisLabelSpot(wanted: wanted, halfSize: size, region: region, placed: placed, boxes: insets.boxes)
-        placed.append(AxisLabelPlacement(center: spot, halfSize: size))
+        var spot = axisLabelSpot(wanted: wanted, halfSize: size, region: region, placed: placed, boxes: insets.boxes)
+        var held = size
+        // A label held off its end gets an arrow beside it (`markOffViewEnd`), which counts as part of it (5.8): placed
+        // by the text alone, the arrow of a name held at the card's edge was drawn past the edge.
+        if isOffEnd(spot: spot, wanted: wanted, size: size) {
+            let away = simd_normalize(wanted - spot)
+            let arrow = edgeArrowReach * scale / (halfAngles * drawDepth)
+            held = size + SIMD2(abs(away.x), abs(away.y)) * arrow
+            spot = axisLabelSpot(wanted: wanted, halfSize: held, region: region, placed: placed, boxes: insets.boxes)
+        }
+        placed.append(AxisLabelPlacement(center: spot, halfSize: held))
         pin.label.simdWorldPosition = worldPoint(at: spot, depth: drawDepth, camera: transform, halfAngles: halfAngles)
         markOffViewEnd(pin, spot: spot, wanted: wanted, size: size)
     }
     return placed
 }
 
-/// Hides a cluster's label while it would be drawn over an axis's name or over a cluster label already kept (5.8,
-/// 2026-11-13): on the owner's iPhone "Platensis & Spirulina · 358 pts" sat across "Military & Medical" and neither
-/// could be read. Axis names stay, since they say what the directions mean and the clusters are also named in the
-/// legend and the chips; among cluster labels the nearer one stays. Every frame, after `keepAxisLabelsInView`.
-nonisolated func hideClusterLabelsThatCollide(
-    _ labels: [SCNNode], with axisLabels: [AxisLabelPlacement], pointOfView: SCNNode, aspect: Float
-) {
-    guard let camera = pointOfView.camera else { return }
-    let clusters = labels.filter { $0.name?.hasPrefix("clusterLabel_") ?? false }
-    guard !clusters.isEmpty else { return }
-    let transform = pointOfView.presentation.simdWorldTransform
-    let halfAngles = viewHalfAngles(
-        fieldOfView: Float(camera.fieldOfView), aspect: aspect, horizontal: camera.projectionDirection == .horizontal)
-    var kept = axisLabels
-    let seen = clusters.map { label -> (label: SCNNode, point: SIMD2<Float>, depth: Float) in
-        let (point, depth) = viewPoint(of: label.presentation.simdWorldPosition, camera: transform, halfAngles: halfAngles)
-        return (label, point, depth)
-    }
-    for entry in seen.sorted(by: { $0.depth < $1.depth }) {
-        guard entry.depth > 0.1 else {
-            entry.label.isHidden = true
-            continue
+/// Half the width and height of a cluster's label in its own units: its background's, else its text's. Read from the
+/// geometry, not the node (5.8): SceneKit leaves a hidden node out of its bounding box, so a label hidden for one frame
+/// measured nothing the next, showed, and was hidden again, every other frame (offscreen render, 2026-11-18).
+nonisolated func clusterLabelHalfSize(_ label: SCNNode) -> SIMD2<Float> {
+    for child in label.childNodes {
+        if let plane = child.geometry as? SCNPlane {
+            return SIMD2(Float(plane.width), Float(plane.height)) * 0.5
         }
-        let (low, high) = entry.label.boundingBox
-        let half = SIMD2<Float>(Float(high.x - low.x), Float(high.y - low.y)) * 0.5 * entry.label.simdScale.x
-        let placement = AxisLabelPlacement(center: entry.point, halfSize: half / (halfAngles * entry.depth))
-        let collides = kept.contains { $0.overlaps(placement) }
-        entry.label.isHidden = collides
-        if !collides { kept.append(placement) }
     }
+    for child in label.childNodes {
+        if let text = child.geometry as? SCNText {
+            let (low, high) = text.boundingBox
+            return SIMD2(Float(high.x - low.x), Float(high.y - low.y)) * 0.5
+        }
+    }
+    return .zero
+}
+
+/// How far beside a label's text the edge arrow reaches, in the label's own units: the arrow's offset (0.22) and the
+/// glyph's half width at its 0.24 size, with room.
+nonisolated let edgeArrowReach: Float = 0.38
+
+/// Whether a label at `spot` is held off the end it names at `wanted`: more than its own height from it, so a nudge
+/// clear of another label is not that.
+nonisolated func isOffEnd(spot: SIMD2<Float>, wanted: SIMD2<Float>, size: SIMD2<Float>) -> Bool {
+    simd_length(wanted - spot) > max(size.y * 2, 0.08)
 }
 
 /// A label held at the edge because its axis end is off the view says so (5.8): dimmed, with an arrow on the side
@@ -256,8 +328,7 @@ nonisolated func hideClusterLabelsThatCollide(
 /// 2026-11-13 the green axis's name rode down onto the card's lower edge as the map turned, and read as a bug.
 nonisolated private func markOffViewEnd(_ pin: AxisLabelPin, spot: SIMD2<Float>, wanted: SIMD2<Float>, size: SIMD2<Float>) {
     let away = wanted - spot
-    // Off its end when held more than its own height from it (a nudge clear of another label is not that).
-    let offEnd = simd_length(away) > max(size.y * 2, 0.08)
+    let offEnd = isOffEnd(spot: spot, wanted: wanted, size: size)
     pin.label.opacity = offEnd ? 0.6 : 1
     let arrow = pin.label.childNode(withName: "edgeArrow", recursively: false) ?? {
         let glyph = SCNText(string: "\u{25B2}", extrusionDepth: 0.02)
@@ -310,12 +381,33 @@ nonisolated struct AxisLabelPlacement: Equatable, Sendable {
         abs(center.x - other.center.x) < halfSize.x + other.halfSize.x
             && abs(center.y - other.center.y) < halfSize.y + other.halfSize.y
     }
+
+    /// All of it on the view: -1 to 1 across and up.
+    var isInsideView: Bool {
+        abs(center.x) + halfSize.x <= 1 && abs(center.y) + halfSize.y <= 1
+    }
+
+    /// How much of it lies over `other`, in the view's units squared.
+    func overlapArea(_ other: AxisLabelPlacement) -> Float {
+        let width = min(center.x + halfSize.x, other.center.x + other.halfSize.x)
+            - max(center.x - halfSize.x, other.center.x - other.halfSize.x)
+        let height = min(center.y + halfSize.y, other.center.y + other.halfSize.y)
+            - max(center.y - halfSize.y, other.center.y - other.halfSize.y)
+        return max(width, 0) * max(height, 0)
+    }
 }
 
 /// Where a label of `halfSize` goes on the view (-1 to 1 across and up) to name the point at `wanted`: there, moved in
-/// until all of it is inside `region`, then, where it would cover one of `boxes`, moved up or down to clear it on the
-/// side with room, then stepped toward the middle of the region by its height while it covers one in `placed`, at
-/// most six times. A label wider or taller than the region is centred across it.
+/// until all of it is inside `region`; then, while it would cover a label in `placed` or one of `boxes`, the nearest
+/// spot that covers none of them, looked for up and down the region in steps of half its height and right up against
+/// each label and box, and then along the row toward the middle. A step toward the middle of the region counts as
+/// nearer than the same step away from it. A label wider or taller than the region is centred across it. When no spot
+/// is clear, the one that covers the least.
+///
+/// Through 2026-11-17 a label that covered one in `placed` stepped toward the middle by its height at most six times,
+/// and was checked against the boxes only before it stepped. On the owner's iPhone "RAG-Technical-Architecture" was
+/// drawn across "Core & Embedding" where an axis pointed at the camera, and "Core & Embedding" was drawn on the card's
+/// legend (2026-11-18).
 nonisolated func axisLabelSpot(
     wanted: SIMD2<Float>, halfSize: SIMD2<Float>, region: AxisLabelRegion, placed: [AxisLabelPlacement],
     boxes: [AxisLabelPlacement] = []
@@ -327,19 +419,61 @@ nonisolated func axisLabelSpot(
         low[axis] = middle[axis]
         high[axis] = middle[axis]
     }
-    var spot = simd_clamp(wanted, low, high)
-    for box in boxes where box.overlaps(AxisLabelPlacement(center: spot, halfSize: halfSize)) {
-        let above = box.center.y + box.halfSize.y + halfSize.y
-        let below = box.center.y - box.halfSize.y - halfSize.y
-        spot.y = above <= high.y || below < low.y ? min(above, high.y) : below
+    let start = simd_clamp(wanted, low, high)
+    let others = placed + boxes
+    func covered(_ spot: SIMD2<Float>) -> Float {
+        let label = AxisLabelPlacement(center: spot, halfSize: halfSize)
+        let area = others.reduce(0) { $0 + $1.overlapArea(label) }
+        return area < 1e-6 ? 0 : area
     }
-    var steps = 0
-    while steps < 6, placed.contains(where: { $0.overlaps(AxisLabelPlacement(center: spot, halfSize: halfSize)) }) {
-        spot.y += (spot.y > middle.y ? -2.2 : 2.2) * halfSize.y
-        spot.y = min(max(spot.y, low.y), high.y)
-        steps += 1
+    guard covered(start) > 0 else { return start }
+
+    // Rows to try: the start's, then up to four steps of half the label's width toward the middle.
+    var columns: [Float] = [start.x]
+    let across = max(halfSize.x * 0.5, 0.01)
+    for step in 1...4 {
+        let x = start.x + (start.x > middle.x ? -1 : 1) * Float(step) * across
+        if x >= low.x - 0.0001, x <= high.x + 0.0001 { columns.append(min(max(x, low.x), high.x)) }
     }
-    return spot
+    // Heights to try: up against each other label or box, and in steps of half the label's height.
+    var heights: [Float] = []
+    // A hair apart, so rounding never counts two labels that touch as covering each other.
+    for other in others {
+        heights.append(other.center.y + other.halfSize.y + halfSize.y + 0.00002)
+        heights.append(other.center.y - other.halfSize.y - halfSize.y - 0.00002)
+    }
+    let step = max(halfSize.y, 0.005)
+    var offset = step
+    while offset <= high.y - low.y + step {
+        heights.append(start.y + offset)
+        heights.append(start.y - offset)
+        offset += step
+    }
+    heights = heights.filter { $0 >= low.y - 0.0001 && $0 <= high.y + 0.0001 }.map { min(max($0, low.y), high.y) }
+
+    var best = start
+    var bestCost = Float.greatestFiniteMagnitude
+    var leastCovered = covered(start)
+    var leastCoveredSpot = start
+    for (column, x) in columns.enumerated() {
+        for y in [start.y] + heights {
+            let spot = SIMD2(x, y)
+            let dy = y - start.y
+            // Toward the middle is nearer: a label pushed in from an edge stays nearer the middle of the view.
+            let towardMiddle = (dy < 0) == (start.y > middle.y)
+            let cost = abs(dy) * (towardMiddle ? 1 : 2) + Float(column) * across * 3
+            guard cost < bestCost else { continue }
+            let cover = covered(spot)
+            if cover == 0 {
+                best = spot
+                bestCost = cost
+            } else if cover < leastCovered {
+                leastCovered = cover
+                leastCoveredSpot = spot
+            }
+        }
+    }
+    return bestCost < .greatestFiniteMagnitude ? best : leastCoveredSpot
 }
 
 // MARK: - Scene construction
@@ -364,6 +498,7 @@ func buildScene(points: [SCNVector3], colors: [PlatformColor], options: Embeddin
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
     addClusterLabels(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
+    pinClusterLabels(of: contentRoot, to: scene.rootNode)
     if options.showLines {
         addInterClusterLines(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
     }
@@ -510,7 +645,8 @@ private func makeIntuiveAxesNode(axisLabels: Embedding3DSceneView.AxisLabels) ->
 
 /// Creates a floating label for an axis endpoint
 private func makeAxisLabel(text: String, position: SCNVector3, color: PlatformColor) -> SCNNode {
-    let textGeo = SCNText(string: text, extrusionDepth: 0.02)
+    // At most 30 characters, in whole words (5.8): a library's or a heading's name can be any length.
+    let textGeo = SCNText(string: AtlasLabeling.mapLabelText(text), extrusionDepth: 0.02)
 
     #if canImport(UIKit)
     textGeo.font = UIFont.systemFont(ofSize: 0.35, weight: .bold)
@@ -721,100 +857,48 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
 
 // MARK: - Cluster Labels (Background-Aware with Arrows)
 
+/// Each cluster's name, its leader line and the point the line runs to (5.8, 2026-11-18). The point (`clusterAnchor_<n>`)
+/// sits on one of the cluster's points in the map and turns with it; the name and its line hang under the scene's root
+/// and are placed on the view every frame (`placeClusterLabels`), beside the point, where nothing else is drawn.
+///
+/// Through 2026-11-17 each name sat at a fixed place in the map at least 3.5 units out from the middle of the clusters,
+/// turned round the vertical by the golden angle for each label after the first, with a line from it to the cluster's
+/// middle. So the second cluster's name was sent about 137 degrees round the map from its cluster, out by the axis
+/// ends, past the card's edge or onto an axis name; a name on an axis name was hidden and its line was not; and a
+/// cluster's middle is empty space when its points lie in two lobes. On the owner's iPhone those were the "lines that
+/// lead to nothing".
 private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationData], backgroundStyle: EmbeddingSceneBackgroundStyle, into root: SCNNode) {
     guard !annotations.isEmpty else { return }
 
-    // Create a dedicated label layer node that renders on top of everything
     let labelLayer = SCNNode()
     labelLayer.name = "labelLayer"
     labelLayer.renderingOrder = 100
 
-    // === PHASE 1: Calculate scene bounds and spread distance ===
-    let allPositions = annotations.map { simd_float3(Float($0.position.x), Float($0.position.y), Float($0.position.z)) }
-    let centroid = allPositions.reduce(simd_float3.zero, +) / Float(allPositions.count)
-    let maxDistFromCenter = allPositions.map { simd_length($0 - centroid) }.max() ?? 1.0
-
-    // Spread labels VERY far out - at least 2.5x the data spread, minimum 3.5 units
-    let baseSpreadRadius = max(maxDistFromCenter * 2.8, 3.5)
-
-    // === PHASE 2: Sort annotations by importance (document clusters first, larger clusters prioritized) ===
+    // Document clusters first, then the larger: the order a label is placed in when two want the same room.
     let sortedAnnotations = annotations.sorted { a, b in
         if a.isDocumentCluster != b.isDocumentCluster { return a.isDocumentCluster }
         return a.clusterSize > b.clusterSize
     }
 
-    // === PHASE 3: Calculate initial positions using golden angle spiral for maximum spread ===
-    var labelPositions: [simd_float3] = []
-    let goldenAngle: Float = .pi * (3.0 - sqrt(5.0)) // ~137.5° - optimal distribution
+    // The middle of the clusters: each name is placed on the side of its point away from it.
+    let positions = annotations.map { simd_float3(Float($0.position.x), Float($0.position.y), Float($0.position.z)) }
+    let middle = SCNNode()
+    middle.name = "clusterMiddle"
+    middle.simdPosition = positions.reduce(simd_float3.zero, +) / Float(positions.count)
+    labelLayer.addChildNode(middle)
 
     for (index, annotation) in sortedAnnotations.enumerated() {
-        let clusterPos = simd_float3(Float(annotation.position.x), Float(annotation.position.y), Float(annotation.position.z))
+        let anchor = SCNNode()
+        anchor.name = "clusterAnchor_\(index)"
+        anchor.position = annotation.position
+        labelLayer.addChildNode(anchor)
 
-        // Calculate direction from scene centroid through cluster point (push labels outward)
-        var outwardDir = simd_normalize(clusterPos - centroid)
-        if simd_length(outwardDir) < 0.01 {
-            // Fallback if cluster is at centroid
-            outwardDir = simd_float3(cos(Float(index)), 0.3, sin(Float(index)))
-        }
+        let leader = makeClusterLeader(
+            color: annotation.color, backgroundStyle: backgroundStyle, isDocumentCluster: annotation.isDocumentCluster)
+        leader.name = "clusterLeader_\(index)"
+        leader.isHidden = true
+        labelLayer.addChildNode(leader)
 
-        // Use golden angle spiral for vertical distribution
-        let spiralOffset = goldenAngle * Float(index)
-        let verticalAngle = Float(index) / Float(max(sortedAnnotations.count, 1)) * Float.pi - Float.pi / 2
-
-        // Add rotation around vertical axis based on spiral
-        let rotatedX = outwardDir.x * cos(spiralOffset) - outwardDir.z * sin(spiralOffset)
-        let rotatedZ = outwardDir.x * sin(spiralOffset) + outwardDir.z * cos(spiralOffset)
-        outwardDir = simd_normalize(simd_float3(rotatedX, outwardDir.y + sin(verticalAngle) * 0.5, rotatedZ))
-
-        // Distance varies by type: document clusters further out
-        let distanceMultiplier: Float = annotation.isDocumentCluster ? 1.4 : 1.1
-        let spreadDist = baseSpreadRadius * distanceMultiplier
-
-        // Add some index-based variation to prevent exact alignments
-        let jitter = Float(index % 3) * 0.2 - 0.2
-
-        let labelPos = clusterPos + outwardDir * (spreadDist + jitter)
-        labelPositions.append(labelPos)
-    }
-
-    // === PHASE 4: Collision detection and resolution ===
-    let minSeparation: Float = 0.8 // Minimum distance between labels
-    let iterations = 4 // Number of repulsion passes
-
-    for _ in 0..<iterations {
-        for i in 0..<labelPositions.count {
-            for j in (i + 1)..<labelPositions.count {
-                let delta = labelPositions[j] - labelPositions[i]
-                let dist = simd_length(delta)
-
-                if dist < minSeparation && dist > 0.001 {
-                    // Push labels apart
-                    let overlap = minSeparation - dist
-                    let pushDir = simd_normalize(delta)
-                    let pushAmount = overlap * 0.6
-
-                    labelPositions[i] -= pushDir * pushAmount
-                    labelPositions[j] += pushDir * pushAmount
-                }
-            }
-        }
-    }
-
-    // === PHASE 5: Create label nodes with arrows ===
-    for (index, annotation) in sortedAnnotations.enumerated() {
-        let labelPos = labelPositions[index]
-        let clusterPos = annotation.position
-
-        // Create arrow pointing FROM label TO cluster centroid
-        let arrowNode = makeArrowToCluster(
-            from: SCNVector3(labelPos.x, labelPos.y, labelPos.z),
-            to: clusterPos,
-            color: annotation.color,
-            backgroundStyle: backgroundStyle,
-            isDocumentCluster: annotation.isDocumentCluster
-        )
-
-        // Create the badge
         let labelNode = makeClusterBadge(
             title: annotation.title,
             clusterSize: annotation.clusterSize,
@@ -825,13 +909,158 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
             priority: index,
             isDocumentCluster: annotation.isDocumentCluster
         )
-
-        labelNode.position = SCNVector3(labelPos.x, labelPos.y, labelPos.z)
-        labelLayer.addChildNode(arrowNode)
+        labelNode.position = annotation.position
+        // Shown once placed (`placeClusterLabels`), so it never draws for a frame on its point.
+        labelNode.isHidden = true
         labelLayer.addChildNode(labelNode)
     }
 
     root.addChildNode(labelLayer)
+}
+
+/// Moves each cluster's name and leader line out of `content` to `root` (5.8), as `pinAxisLabels` does for the axes:
+/// the map turns its content, and a name placed on the view each frame must not be turned with it.
+nonisolated func pinClusterLabels(of content: SCNNode, to root: SCNNode) {
+    let nodes = content.childNodes { node, _ in
+        (node.name?.hasPrefix("clusterLabel_") ?? false) || (node.name?.hasPrefix("clusterLeader_") ?? false)
+    }
+    for node in nodes {
+        let transform = node.simdWorldTransform
+        node.removeFromParentNode()
+        node.simdTransform = transform
+        root.addChildNode(node)
+    }
+}
+
+/// A cluster's name, its leader line, the point the line runs to and the middle of the clusters (5.8).
+nonisolated struct ClusterLabelPin {
+    let label: SCNNode
+    let leader: SCNNode
+    let anchor: SCNNode
+    let middle: SCNNode?
+}
+
+/// The scene's cluster names with their lines and points, found once for each scene, in the order they are placed.
+nonisolated func clusterLabelPins(in scene: SCNScene) -> [ClusterLabelPin] {
+    var anchors: [String: SCNNode] = [:], labels: [String: SCNNode] = [:], leaders: [String: SCNNode] = [:]
+    var middle: SCNNode?
+    scene.rootNode.enumerateHierarchy { node, _ in
+        guard let name = node.name else { return }
+        if name == "clusterMiddle" {
+            middle = node
+        } else if name.hasPrefix("clusterAnchor_") {
+            anchors[String(name.dropFirst("clusterAnchor_".count))] = node
+        } else if name.hasPrefix("clusterLabel_") {
+            labels[String(name.dropFirst("clusterLabel_".count))] = node
+        } else if name.hasPrefix("clusterLeader_") {
+            leaders[String(name.dropFirst("clusterLeader_".count))] = node
+        }
+    }
+    return labels.keys.sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }.compactMap { key in
+        guard let label = labels[key], let leader = leaders[key], let anchor = anchors[key] else { return nil }
+        return ClusterLabelPin(label: label, leader: leader, anchor: anchor, middle: middle)
+    }
+}
+
+/// Places each cluster's name on the view beside the point its line runs to, every frame after `keepAxisLabelsInView`
+/// (5.8, 2026-11-18): on the side away from the middle of the clusters if that side is clear, else the nearest clear
+/// side (`clusterLabelSpot`), clear of every axis name, of `insets` (the full screen's bars, the card's legend) and of the names placed
+/// before it, nearer ones first. Its leader line is drawn from the name to the point. A name with no clear side, or
+/// whose point is off the view or behind the camera, is hidden with its line, so no line is ever drawn to nothing.
+nonisolated func placeClusterLabels(
+    _ pins: [ClusterLabelPin], with axisLabels: [AxisLabelPlacement], pointOfView: SCNNode, aspect: Float,
+    insets: AxisLabelInsets = .zero, viewSize: SIMD2<Float>? = nil
+) {
+    guard let camera = pointOfView.camera, !pins.isEmpty else { return }
+    let transform = pointOfView.presentation.simdWorldTransform
+    let halfAngles = viewHalfAngles(
+        fieldOfView: Float(camera.fieldOfView), aspect: aspect, horizontal: camera.projectionDirection == .horizontal)
+    var taken = axisLabels + insets.boxes
+    // Clear of the full screen's top bar and controls too (`AxisLabelInsets` top and bottom).
+    let region = AxisLabelRegion(insets: insets, margin: 0.02)
+    let middle = pins.first?.middle.map {
+        viewPoint(of: $0.presentation.simdWorldPosition, camera: transform, halfAngles: halfAngles).point
+    }
+    let seen = pins.map { pin in
+        (pin: pin, view: viewPoint(of: pin.anchor.presentation.simdWorldPosition, camera: transform, halfAngles: halfAngles))
+    }
+    for (pin, view) in seen.sorted(by: { $0.view.depth < $1.view.depth }) {
+        var spot: SIMD2<Float>?
+        var drawDepth = view.depth
+        if view.depth > 0.1, abs(view.point.x) <= 1, abs(view.point.y) <= 1 {
+            // No deeper than where the fog starts, as the axis names (`keepAxisLabelsInView`).
+            drawDepth = min(view.depth, max(mapCameraDistance - 1, 0.2))
+            if let sized = labelScale(pin.label, depth: drawDepth, pointOfView: pointOfView, viewSize: viewSize, cluster: true) {
+                pin.label.simdScale = SIMD3(repeating: sized)
+            }
+            let half = clusterLabelHalfSize(pin.label) * pin.label.simdScale.x / (halfAngles * drawDepth)
+            spot = clusterLabelSpot(anchor: view.point, middle: middle, halfSize: half, taken: taken, region: region)
+            if let spot { taken.append(AxisLabelPlacement(center: spot, halfSize: half)) }
+        }
+        guard let spot else {
+            pin.label.isHidden = true
+            pin.leader.isHidden = true
+            continue
+        }
+        let labelPoint = worldPoint(at: spot, depth: drawDepth, camera: transform, halfAngles: halfAngles)
+        pin.label.simdWorldPosition = labelPoint
+        pin.label.isHidden = false
+        drawClusterLeader(
+            pin.leader, from: labelPoint, to: pin.anchor.presentation.simdWorldPosition,
+            width: drawDepth / startingCameraDistance)
+        pin.leader.isHidden = false
+    }
+}
+
+/// Where a cluster's name of `halfSize` goes on the view (-1 to 1 across and up) to name the point at `anchor`: `gap`
+/// from it, on the side away from `middle` (straight up when it is at the middle), else turned from that side by 45
+/// degrees at a time, nearest turn first, then the same again twice as far out. The first spot all inside `region` (the
+/// view less the bars over it, `margin` in from its edges) and over nothing in `taken`; nil when there is none.
+nonisolated func clusterLabelSpot(
+    anchor: SIMD2<Float>, middle: SIMD2<Float>?, halfSize: SIMD2<Float>, taken: [AxisLabelPlacement],
+    gap: Float = 0.12, region: AxisLabelRegion = AxisLabelRegion(insets: .zero, margin: 0.02)
+) -> SIMD2<Float>? {
+    var outward = anchor - (middle ?? .zero)
+    if simd_length(outward) < 0.02 { outward = SIMD2(0, 1) }
+    let base = atan2(outward.y, outward.x)
+    for distance in [gap, gap * 2.2] {
+        for turn in [0, 1, -1, 2, -2, 3, -3, 4] {
+            let angle = base + Float(turn) * .pi / 4
+            let direction = SIMD2(cos(angle), sin(angle))
+            // From the label's centre to its edge along `direction`.
+            let reach = min(
+                abs(direction.x) > 0.001 ? halfSize.x / abs(direction.x) : .greatestFiniteMagnitude,
+                abs(direction.y) > 0.001 ? halfSize.y / abs(direction.y) : .greatestFiniteMagnitude)
+            let spot = anchor + direction * (distance + reach)
+            guard spot.x - halfSize.x >= region.minimum.x, spot.x + halfSize.x <= region.maximum.x,
+                spot.y - halfSize.y >= region.minimum.y, spot.y + halfSize.y <= region.maximum.y
+            else { continue }
+            let label = AxisLabelPlacement(center: spot, halfSize: halfSize)
+            if !taken.contains(where: { $0.overlaps(label) }) { return spot }
+        }
+    }
+    return nil
+}
+
+/// Draws a leader line from a cluster's name at `start` to its point at `end`, stopping short of the point by the size
+/// it is drawn at, `width` times the line's own thickness; with an arrowhead at the point when it has one.
+nonisolated func drawClusterLeader(_ leader: SCNNode, from start: SIMD3<Float>, to end: SIMD3<Float>, width: Float) {
+    let offset = end - start
+    let distance = simd_length(offset)
+    guard distance > 0.0001 else { return }
+    let length = max(distance - 0.1, 0.01)
+    let direction = offset / distance
+    leader.simdWorldPosition = start
+    leader.simdWorldOrientation = simd_quatf(from: SIMD3(0, 1, 0), to: direction)
+    let thickness = max(width, 0.2)
+    if let line = leader.childNode(withName: "leaderLine", recursively: false) {
+        line.simdScale = SIMD3(thickness, length, thickness)
+        line.simdPosition = SIMD3(0, length / 2, 0)
+    }
+    if let tip = leader.childNode(withName: "leaderTip", recursively: false) {
+        tip.simdScale = SIMD3(repeating: thickness)
+        tip.simdPosition = SIMD3(0, length - 0.03 * thickness, 0)
+    }
 }
 
 // MARK: - Inter-Cluster Relationship Lines
@@ -940,98 +1169,42 @@ private func addInterClusterLines(_ annotations: [Embedding3DSceneView.Annotatio
     root.addChildNode(lineLayer)
 }
 
-/// Creates an arrow line from label position pointing to cluster centroid
-private func makeArrowToCluster(
-    from labelPos: SCNVector3,
-    to clusterPos: SCNVector3,
+/// A cluster's leader line (5.8): a line one unit long along +y, which `drawClusterLeader` stretches from the name to
+/// the point every frame, in the cluster's colour, with an arrowhead for a document's cluster. Drawn over the points.
+private func makeClusterLeader(
     color: PlatformColor,
     backgroundStyle: EmbeddingSceneBackgroundStyle,
     isDocumentCluster: Bool
 ) -> SCNNode {
     let container = SCNNode()
 
-    // Calculate direction and length
-    let dx = Float(clusterPos.x) - Float(labelPos.x)
-    let dy = Float(clusterPos.y) - Float(labelPos.y)
-    let dz = Float(clusterPos.z) - Float(labelPos.z)
-    let length = sqrt(dx * dx + dy * dy + dz * dz)
-
-    guard length > 0.1 else { return container } // Skip if too short
-
-    // Shorten the line so it doesn't overlap with label or cluster
-    let shortenAmount: Float = isDocumentCluster ? 0.15 : 0.1
-    let effectiveLength = max(0.1, length - shortenAmount * 2)
-
-    // Create the line (cylinder) — subtle enough to not clutter, visible enough to trace
-    let lineRadius: CGFloat = isDocumentCluster ? 0.005 : 0.003
-    let line = SCNCylinder(radius: lineRadius, height: CGFloat(effectiveLength))
-
+    // About a point wide on the card (5.8): at 0.003 a line was a hairline the owner could barely follow.
+    let line = SCNCylinder(radius: isDocumentCluster ? 0.014 : 0.012, height: 1)
     let lineMat = SCNMaterial()
-    lineMat.diffuse.contents = color.withAlphaComponent(0.35)
+    lineMat.diffuse.contents = color.withAlphaComponent(0.6)
     lineMat.emission.contents = color
-    lineMat.emission.intensity = backgroundStyle.isDark ? 0.25 : 0.12
+    lineMat.emission.intensity = backgroundStyle.isDark ? 0.35 : 0.15
     lineMat.lightingModel = .constant
     lineMat.writesToDepthBuffer = false
     lineMat.readsFromDepthBuffer = false
     line.materials = [lineMat]
-
     let lineNode = SCNNode(geometry: line)
-
-    // Position at midpoint
-    let midX = (Float(labelPos.x) + Float(clusterPos.x)) / 2
-    let midY = (Float(labelPos.y) + Float(clusterPos.y)) / 2
-    let midZ = (Float(labelPos.z) + Float(clusterPos.z)) / 2
-    lineNode.position = SCNVector3(xFloat: midX, yFloat: midY, zFloat: midZ)
-
-    // Rotate to point from label to cluster
-    // Default cylinder is along Y axis, we need to rotate it
-    let direction = simd_normalize(simd_float3(dx, dy, dz))
-    let up = simd_float3(0, 1, 0)
-
-    // Calculate rotation quaternion
-    let dot = simd_dot(up, direction)
-    if abs(dot) < 0.999 {
-        let cross = simd_cross(up, direction)
-        let angle = acos(dot)
-        lineNode.rotation = SCNVector4(xFloat: cross.x, yFloat: cross.y, zFloat: cross.z, wFloat: angle)
-    } else if dot < 0 {
-        // Pointing down
-        lineNode.eulerAngles = SCNVector3(xFloat: Float.pi, yFloat: 0, zFloat: 0)
-    }
-
+    lineNode.name = "leaderLine"
+    lineNode.renderingOrder = 99
     container.addChildNode(lineNode)
 
-    // Create arrowhead (cone) pointing at cluster
     if isDocumentCluster {
-        let coneHeight: CGFloat = 0.06
-        let coneRadius: CGFloat = 0.025
-        let cone = SCNCone(topRadius: 0, bottomRadius: coneRadius, height: coneHeight)
-
+        let cone = SCNCone(topRadius: 0, bottomRadius: 0.025, height: 0.06)
         let coneMat = SCNMaterial()
         coneMat.diffuse.contents = color
         coneMat.emission.contents = color
         coneMat.emission.intensity = 0.5
         coneMat.lightingModel = .constant
+        coneMat.readsFromDepthBuffer = false
         cone.materials = [coneMat]
-
         let coneNode = SCNNode(geometry: cone)
-
-        // Position near cluster (but not at it)
-        let arrowTipDist = shortenAmount + Float(coneHeight) / 2
-        let tipX = Float(clusterPos.x) - direction.x * arrowTipDist
-        let tipY = Float(clusterPos.y) - direction.y * arrowTipDist
-        let tipZ = Float(clusterPos.z) - direction.z * arrowTipDist
-        coneNode.position = SCNVector3(xFloat: tipX, yFloat: tipY, zFloat: tipZ)
-
-        // Rotate cone to point at cluster
-        if abs(dot) < 0.999 {
-            let cross = simd_cross(up, direction)
-            let angle = acos(dot)
-            coneNode.rotation = SCNVector4(xFloat: cross.x, yFloat: cross.y, zFloat: cross.z, wFloat: angle)
-        } else if dot < 0 {
-            coneNode.eulerAngles = SCNVector3(xFloat: Float.pi, yFloat: 0, zFloat: 0)
-        }
-
+        coneNode.name = "leaderTip"
+        coneNode.renderingOrder = 99
         container.addChildNode(coneNode)
     }
 
@@ -1064,7 +1237,7 @@ private func makeClusterBadge(
         displayText = title
     } else if isDocumentCluster {
         // Main document cluster: Name (count) + keywords
-        let truncatedTitle = String(title.prefix(32)) + (title.count > 32 ? "…" : "")
+        let truncatedTitle = AtlasLabeling.mapLabelText(title, limit: 32)
         displayText = "\(truncatedTitle) (\(clusterSize))"
         if detailLevel >= 1 && !keywords.isEmpty {
             // Filter out keywords that are substrings of the title (avoid "API API" duplication)
@@ -1088,8 +1261,9 @@ private func makeClusterBadge(
         }
     } else {
         // Sub-cluster: Section name only, smaller
-        // 28 characters (5.7): at 18, "Cleaning & Detergent" read "Cleaning & Deterge…".
-        let truncatedTitle = String(title.prefix(28)) + (title.count > 28 ? "…" : "")
+        // 28 characters (5.7): at 18, "Cleaning & Detergent" read "Cleaning & Deterge…". From 5.8, 30 in whole words
+        // (`AtlasLabeling.mapLabelText`): "OpenIntelligence Product Guide" read "OpenIntelligence Product Gui…".
+        let truncatedTitle = AtlasLabeling.mapLabelText(title, limit: 30)
         displayText = "▸ \(truncatedTitle)"
         if !keywords.isEmpty {
             // Filter keywords that match section title
@@ -1121,7 +1295,10 @@ private func makeClusterBadge(
         textGeo.font = NSFont.systemFont(ofSize: baseFontSize, weight: fontWeight)
     #endif
     textGeo.flatness = 0.02 // Much smoother curves (lower = smoother but more geometry)
-    textGeo.chamferRadius = 0.005 // Slightly rounded edges
+    // No chamfer (5.8, 2026-11-18), as the axis names since 5.7: with 0.005, iOS 27 drew no text at all, so the
+    // badge's bounding box was its padding alone and the name showed as a small grey pill at the end of its line, the
+    // "small grey dot in empty space" on the owner's iPhone (reproduced in the iOS 27.0 Simulator the same day).
+    textGeo.chamferRadius = 0
 
     // === STYLE-SPECIFIC COLORS ===
     let textMat = SCNMaterial()

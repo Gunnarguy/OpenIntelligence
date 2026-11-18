@@ -755,8 +755,15 @@ public nonisolated enum AtlasLabeling {
 
     /// A document's file name as a short name for the map: no extension, the part before " - " ("Juniper Flats Lease -
     /// Unit 4B.pdf" is "Juniper Flats Lease"), no word with a digit in it ("Kestrel AF-620 Air Fryer Manual" is "Kestrel
-    /// Air Fryer Manual", "Home Insurance Declarations 2026" is "Home Insurance Declarations"), at most 28 characters in
-    /// whole words, not ending on a small word such as "the". A name that would be left empty keeps its words as written.
+    /// Air Fryer Manual", "Home Insurance Declarations 2026" is "Home Insurance Declarations"), and a name over 30
+    /// characters cut to at most 28 in whole words, not ending on a small word such as "the" or "&". A name that would be
+    /// left empty keeps its words as written.
+    ///
+    /// From 5.8 (2026-11-18) words joined by underscores, or by hyphens in a name with no spaces, are words
+    /// ("RAG-Technical-Architecture.md" is "RAG Technical Architecture"), and a name cut at 28 characters after "&",
+    /// "and" or "+" ends before it when two words or more come first ("Apple-Intelligence-&-Private-Cloud-Compute.md"
+    /// is "Apple Intelligence", not "Apple Intelligence & Private"). Through 2026-11-17 a hyphenated file name was one
+    /// word, too long to cut, and the owner's Atlas named an axis end "Apple-Intelligence-&-Private-Cloud-Compute".
     public static func shortDocumentName(_ filename: String) -> String {
         var name = (filename as NSString).deletingPathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
         for separator in [" - ", " – ", " — "] {
@@ -764,21 +771,52 @@ public nonisolated enum AtlasLabeling {
                 name = String(name[..<range.lowerBound])
             }
         }
+        name = name.replacingOccurrences(of: "_", with: " ")
+        if !name.contains(where: \.isWhitespace) { name = name.replacingOccurrences(of: "-", with: " ") }
         let words = name.split(whereSeparator: \.isWhitespace).map(String.init)
         let kept = words.filter { !$0.contains(where: \.isNumber) }
-        var result = ""
+        let candidates = kept.isEmpty ? words : kept
+        // A name of 30 characters or fewer is kept whole (5.8): "OpenIntelligence Product Guide" is 30.
+        let limit = candidates.joined(separator: " ").count <= 30 ? 30 : 28
         var kept28: [String] = []
-        for word in (kept.isEmpty ? words : kept) {
+        for word in candidates {
             let next = kept28.isEmpty ? word : (kept28 + [word]).joined(separator: " ")
-            if next.count > 28, !kept28.isEmpty { break }
+            if next.count > limit, !kept28.isEmpty { break }
             kept28.append(word)
         }
+        let wasCut = kept28.count < candidates.count
         // A name cut at 28 characters doesn't end on "the", "of" or "and" (5.8): "Sperm freezing damage the role of
         // regulated cell death" was "Sperm freezing damage the" on the owner's Atlas.
-        let small: Set<String> = ["a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"]
-        while kept28.count > 1, let last = kept28.last, small.contains(last.lowercased()) { kept28.removeLast() }
-        result = kept28.joined(separator: " ")
-        return result
+        while kept28.count > 1, let last = kept28.last, smallWords.contains(last.lowercased()) { kept28.removeLast() }
+        // Nor on half of a pair: the words after "&" were cut short (5.8).
+        if wasCut, let joint = kept28.lastIndex(where: { ["&", "and", "+"].contains($0.lowercased()) }), joint >= 2 {
+            kept28.removeSubrange(joint...)
+        }
+        return kept28.joined(separator: " ")
+    }
+
+    /// The small words a name cut short doesn't end on.
+    static let smallWords: Set<String> = [
+        "a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with", "&", "+",
+    ]
+
+    /// A name as the map draws it (5.8): at most `limit` characters, in whole words, not ending on a small word, with
+    /// "…" when cut; a first word longer than that is cut inside it. An axis end can be named by a library or a section
+    /// heading of any length, and a name drawn across the card ran past both its edges.
+    public static func mapLabelText(_ name: String, limit: Int = 30) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > limit, limit > 1 else { return trimmed }
+        var kept: [String] = []
+        for word in trimmed.split(whereSeparator: \.isWhitespace).map(String.init) {
+            let next = (kept + [word]).joined(separator: " ")
+            if next.count > limit - 1 { break }
+            kept.append(word)
+        }
+        while kept.count > 1, let last = kept.last, smallWords.contains(last.lowercased()) { kept.removeLast() }
+        guard !kept.isEmpty else { return String(trimmed.prefix(limit - 1)) + "…" }
+        var text = kept.joined(separator: " ")
+        while let last = text.last, ":,;–—-".contains(last) { text.removeLast() }
+        return text + "…"
     }
 
     /// A section heading as a name, or nil when it isn't one (5.7): no leading number or letter ("5. Late Charges" is
@@ -809,7 +847,7 @@ public nonisolated enum AtlasLabeling {
     /// - the document at least half of them come from, when the map holds more than one and at most a third of the other
     ///   passages come from it;
     /// - when that document already names another end, it with the section at least two of its passages here share
-    ///   ("Juniper Flats Lease: Late Charges");
+    ///   ("Juniper Flats Lease: Late Charges"), or the section alone when the two run past 30 characters (5.8);
     /// - the library at least half of them come from, on the same terms, in a map of several libraries;
     /// - the section heading at least two of them and 30% share, more often than the other passages do.
     /// Never a name in `used`. Nil when none stands out, and the caller keeps its words.
@@ -840,7 +878,10 @@ public nonisolated enum AtlasLabeling {
             if !used.contains(document) { return document }
             let mine = indices.filter { sources.groups[$0] == document }
             for (section, count) in ranked(counts(sources.sections, at: mine)) where count >= 2 {
-                let name = "\(document): \(section)"
+                // The section alone once both run past 30 characters (5.8): the document already names another end,
+                // and "RAG-Technical-Architecture: Where the work runs" was too long to draw on the owner's iPhone.
+                let both = "\(document): \(section)"
+                let name = both.count <= 30 ? both : section
                 if !used.contains(name) { return name }
             }
         }

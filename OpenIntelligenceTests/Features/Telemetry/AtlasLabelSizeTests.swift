@@ -194,4 +194,171 @@ final class AtlasLabelSizeTests: XCTestCase {
         XCTAssertGreaterThan(pins[0].halfHeight, 0)
         XCTAssertEqual(mapLabelNodes(in: scene).compactMap(\.name).sorted(), ["axisLabel_0", "axisLabel_1"])
     }
+
+    // MARK: - 5.8, 2026-11-18: sizes in points, placement, leader lines
+
+    /// The map's words are drawn at a size in points: an axis's name at 10 on the iPhone's card (11 on the Mac), 12 in
+    /// the iPhone's upright full screen, a cluster's half a point smaller. Through 2026-11-17 an axis name drew at
+    /// about 11.5 points on the card and 18 in the full screen.
+    func testTheMapsWordsAreDrawnAtASizeInPoints() {
+        #if os(macOS)
+            let smallest: Float = 11
+        #else
+            let smallest: Float = 10
+        #endif
+        let card = mapLabelPoints(viewSize: SIMD2(392, 280))
+        XCTAssertEqual(card.axis, smallest, accuracy: 0.001)
+        XCTAssertEqual(card.cluster, smallest - 0.5, accuracy: 0.001)
+        XCTAssertEqual(mapLabelPoints(viewSize: SIMD2(440, 760)).axis, smallest + 2, accuracy: 0.001)
+        XCTAssertEqual(mapLabelPoints(viewSize: SIMD2(1600, 1000)).axis, smallest + 3, accuracy: 0.001, "at most 3 more")
+
+        // Text 0.35 units high, scaled by `labelFit`, is that many points on a view 280 points high, seen from where the
+        // camera starts.
+        let fit = labelFit(fontSize: 0.35, points: 10, viewExtent: 280)
+        let pointsPerUnit: Float = 280 / (2 * startingCameraDistance * tan(Float.pi / 6))
+        XCTAssertEqual(0.35 * fit * pointsPerUnit, 10, accuracy: 0.001)
+        XCTAssertLessThan(fit, 1, "smaller than the 0.35 units it was drawn at on the card")
+    }
+
+    /// A label is placed clear of every other label and box, even where a stack of them leaves room only far from its
+    /// end. Through 2026-11-17 it stepped at most six times and checked the boxes only before stepping, so on the
+    /// owner's iPhone one axis name was drawn across another and one on the card's legend.
+    func testALabelFindsAClearSpotPastAStackOfOthersAndTheBox() {
+        let half = SIMD2<Float>(0.2, 0.05)
+        let region = AxisLabelRegion(insets: .zero, margin: 0.04)
+        let stack = (0..<8).map { AxisLabelPlacement(center: SIMD2(0, 0.6 - Float($0) * 0.1), halfSize: half) }
+        let box = AxisLabelPlacement(center: SIMD2(0, -0.6), halfSize: SIMD2(0.5, 0.3))
+        let spot = axisLabelSpot(wanted: SIMD2(0, 0.3), halfSize: half, region: region, placed: stack, boxes: [box])
+        let label = AxisLabelPlacement(center: spot, halfSize: half)
+        XCTAssertFalse(stack.contains { $0.overlaps(label) }, "covers no other label: \(spot)")
+        XCTAssertFalse(box.overlaps(label), "and not the box: \(spot)")
+        XCTAssertTrue(label.isInsideView)
+    }
+
+    /// A label nudged clear of the box doesn't land on another label in doing so (the old order checked the box first,
+    /// then stepped onto it again).
+    func testALabelClearOfTheBoxIsAlsoClearOfTheOthers() {
+        let half = SIMD2<Float>(0.2, 0.05)
+        let region = AxisLabelRegion(insets: .zero, margin: 0.04)
+        let box = AxisLabelPlacement(center: SIMD2(-0.65, -0.65), halfSize: SIMD2(0.3, 0.3))
+        let above = AxisLabelPlacement(center: SIMD2(-0.6, -0.3), halfSize: half)
+        let spot = axisLabelSpot(wanted: SIMD2(-0.6, -0.8), halfSize: half, region: region, placed: [above], boxes: [box])
+        let label = AxisLabelPlacement(center: spot, halfSize: half)
+        XCTAssertFalse(box.overlaps(label))
+        XCTAssertFalse(above.overlaps(label))
+    }
+
+    /// A cluster's name goes beside its point on the side away from the middle of the clusters, or the nearest clear
+    /// side, and nowhere when no side is clear.
+    func testAClustersNameGoesBesideItsPointWhereThereIsRoom() {
+        let half = SIMD2<Float>(0.2, 0.05)
+        let right = clusterLabelSpot(anchor: SIMD2(0.2, 0), middle: .zero, halfSize: half, taken: [])
+        XCTAssertEqual(right?.x ?? 0, 0.2 + 0.12 + 0.2, accuracy: 0.0001, "away from the middle, the gap from its edge")
+        XCTAssertEqual(right?.y ?? 1, 0, accuracy: 0.0001)
+
+        let blocked = AxisLabelPlacement(center: SIMD2(0.6, 0), halfSize: SIMD2(0.3, 0.3))
+        let other = try! XCTUnwrap(clusterLabelSpot(anchor: SIMD2(0.2, 0), middle: .zero, halfSize: half, taken: [blocked]))
+        let label = AxisLabelPlacement(center: other, halfSize: half)
+        XCTAssertFalse(blocked.overlaps(label))
+        XCTAssertTrue(label.isInsideView)
+        XCTAssertFalse(label.overlaps(AxisLabelPlacement(center: SIMD2(0.2, 0), halfSize: .zero)), "not over its point")
+
+        let everything = AxisLabelPlacement(center: .zero, halfSize: SIMD2(1, 1))
+        XCTAssertNil(clusterLabelSpot(anchor: SIMD2(0.2, 0), middle: .zero, halfSize: half, taken: [everything]))
+    }
+
+    /// A cluster's name is placed on the view with its leader line from it to the cluster's point, and the two are
+    /// hidden together when there's no room or the point is off the view. Through 2026-11-17 the name was hidden and
+    /// the line stayed, leading to nothing.
+    func testALeaderLineRunsToItsPointAndHidesWithItsName() {
+        let scene = SCNScene()
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.simdPosition = SIMD3(0, 0, startingCameraDistance)
+        scene.rootNode.addChildNode(cameraNode)
+        let content = SCNNode()
+        scene.rootNode.addChildNode(content)
+        let middle = SCNNode()
+        middle.name = "clusterMiddle"
+        middle.simdPosition = SIMD3(-1, 0, 0)
+        content.addChildNode(middle)
+        let anchor = SCNNode()
+        anchor.name = "clusterAnchor_0"
+        anchor.simdPosition = SIMD3(0.5, 0.2, 0)
+        content.addChildNode(anchor)
+        let label = SCNNode()
+        label.name = "clusterLabel_0"
+        label.addChildNode(SCNNode(geometry: SCNPlane(width: 1.0, height: 0.22)))
+        content.addChildNode(label)
+        let leader = SCNNode()
+        leader.name = "clusterLeader_0"
+        let line = SCNNode(geometry: SCNCylinder(radius: 0.01, height: 1))
+        line.name = "leaderLine"
+        leader.addChildNode(line)
+        content.addChildNode(leader)
+        pinClusterLabels(of: content, to: scene.rootNode)
+        XCTAssertTrue(label.parent === scene.rootNode)
+        XCTAssertTrue(leader.parent === scene.rootNode)
+        SCNTransaction.flush()
+
+        let pins = clusterLabelPins(in: scene)
+        XCTAssertEqual(pins.count, 1)
+        placeClusterLabels(pins, with: [], pointOfView: cameraNode, aspect: 1)
+        XCTAssertFalse(label.isHidden)
+        XCTAssertFalse(leader.isHidden)
+        XCTAssertGreaterThan(label.simdWorldPosition.x, 0.5, "on the side away from the middle")
+        // The line starts at the name and points at the cluster's point, stopping just short of it.
+        XCTAssertLessThan(simd_distance(leader.simdWorldPosition, label.simdWorldPosition), 0.0001)
+        let reach = leader.simdWorldPosition + leader.simdWorldOrientation.act(SIMD3(0, line.simdScale.y, 0))
+        XCTAssertEqual(simd_distance(reach, anchor.simdWorldPosition), 0.1, accuracy: 0.01)
+
+        // No room anywhere: both hidden.
+        let everything = AxisLabelPlacement(center: .zero, halfSize: SIMD2(1, 1))
+        placeClusterLabels(pins, with: [everything], pointOfView: cameraNode, aspect: 1)
+        XCTAssertTrue(label.isHidden)
+        XCTAssertTrue(leader.isHidden)
+
+        // The point off the view: both hidden.
+        anchor.simdPosition = SIMD3(-12, 0, 0)
+        SCNTransaction.flush()
+        placeClusterLabels(pins, with: [], pointOfView: cameraNode, aspect: 1)
+        XCTAssertTrue(label.isHidden)
+        XCTAssertTrue(leader.isHidden)
+    }
+
+    /// A cluster's name is anchored on one of its own points, the one nearest its middle, so its line ends on a point the
+    /// map draws. Through 2026-11-17 it was the middle itself, empty space in a cluster of two lobes.
+    func testAClustersNameIsAnchoredOnOneOfItsPoints() {
+        let coords: [SIMD3<Float>] = [SIMD3(-2, 0, 0), SIMD3(-1.8, 0, 0), SIMD3(1.8, 0, 0), SIMD3(2, 0, 0), SIMD3(0.3, 3, 0)]
+        let groups = [0, 0, 0, 0, 1]
+        let annotations = AtlasSceneLabels.annotations(
+            coords: coords, groups: groups, names: ["Two lobes", "One"], colors: [.red, .blue], detailLevel: { _ in 0 })
+        XCTAssertEqual(annotations.count, 2)
+        // The points as the map draws them: centred on their bounds and scaled to 4.5 across.
+        var low = SIMD3<Float>(repeating: .greatestFiniteMagnitude), high = -low
+        for c in coords { low = pointwiseMin(low, c); high = pointwiseMax(high, c) }
+        let scale = 4.5 / max(high.x - low.x, high.y - low.y, high.z - low.z)
+        let drawn = coords.map { ($0 - (low + high) / 2) * scale }
+        for annotation in annotations {
+            let position = SIMD3<Float>(Float(annotation.position.x), Float(annotation.position.y), Float(annotation.position.z))
+            XCTAssertTrue(drawn.contains { simd_distance($0, position) < 0.0001 }, "\(annotation.title) sits on a point")
+        }
+    }
+
+    /// The Insights card's "fits well with your library" names a document added to a library that held something
+    /// before it, the newest first. A library whose documents came in one import has none (the guide library, 2026-11-18).
+    func testARecentAdditionNeedsSomethingEarlierToFitWith() {
+        let now = Date()
+        let a = UUID(), b = UUID(), c = UUID(), d = UUID()
+        let cutoff = now.addingTimeInterval(-7 * 86_400)
+        let start = now.addingTimeInterval(-3 * 86_400)
+        let oneImport = [(a, start), (b, start.addingTimeInterval(1)), (c, start.addingTimeInterval(2))]
+            .map { (id: $0.0, addedAt: $0.1) }
+        XCTAssertEqual(LibraryVisualizationEngine.recentAdditions(oneImport, since: cutoff), [])
+        let later = oneImport + [(id: d, addedAt: now.addingTimeInterval(-60))]
+        XCTAssertEqual(LibraryVisualizationEngine.recentAdditions(later, since: cutoff), [d])
+        let older = [(id: a, addedAt: now.addingTimeInterval(-30 * 86_400)), (id: b, addedAt: now.addingTimeInterval(-3_600)),
+            (id: c, addedAt: now.addingTimeInterval(-60))]
+        XCTAssertEqual(LibraryVisualizationEngine.recentAdditions(older, since: cutoff), [c, b], "newest first")
+    }
 }
