@@ -451,8 +451,9 @@ final class DeletedLibraryLeftoversTests: XCTestCase {
         XCTAssertTrue(ContainerService.mayDelete(listed: false, libraries: 2, isGuide: false, ownLibraries: 1))
         // The own library itself may not, so `LibraryDeletion` refuses before emptying it.
         XCTAssertFalse(ContainerService.mayDelete(listed: true, libraries: 2, isGuide: false, ownLibraries: 1))
-        // The guide library may.
-        XCTAssertTrue(ContainerService.mayDelete(listed: true, libraries: 2, isGuide: true, ownLibraries: 1))
+        // The guide library never may (5.8, 2026-11-18): it is a permanent part of the app.
+        XCTAssertFalse(ContainerService.mayDelete(listed: true, libraries: 2, isGuide: true, ownLibraries: 1))
+        XCTAssertFalse(ContainerService.mayDelete(listed: true, libraries: 5, isGuide: true, ownLibraries: 4))
         // The last library of all may not.
         XCTAssertFalse(ContainerService.mayDelete(listed: true, libraries: 1, isGuide: false, ownLibraries: 1))
         // Two own libraries: either may go.

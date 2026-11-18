@@ -67,6 +67,13 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         /// When a failed prediction moved the model to the CPU (`prediction(from:length:model:)`); it goes back to the
         /// device's own compute units two minutes later.
         private var movedToCPUAt: Date?
+        /// An import's units in front and in the background (5.8), read on the main actor when it starts, so
+        /// `loadedModels()` can follow the app between them off the main thread.
+        private var ingestionForegroundUnits: MLComputeUnits?
+        private var ingestionBackgroundUnits: MLComputeUnits?
+        /// Units whose load failed during this import, not tried again until the next one (5.8): a failed switch was
+        /// otherwise tried on every embed, each a 43 MiB load attempt under `modelLock`.
+        private var failedIngestionUnits: MLComputeUnits?
     #endif
 
     /// Written once by the load task in `loadTokenizer()` and read by `embed` and `countTokens`.
@@ -108,32 +115,55 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
     // copies can briefly be in use; that was true before embedding left the main thread (an `await`
     // let predictions overlap a reload) and is a wider window now.
 
+    /// Guards the ingestion-mode state below, and only that, so switching the mode never waits for a model load (5.8,
+    /// 2026-11-18). The switch took `modelLock`, which a load holds for as long as Core ML takes: on the owner's iPhone
+    /// an import started while the app was in the background called `enableIngestionMode()` on the main thread, it
+    /// waited on a load holding that lock, and iOS killed the app after 10 s (`0x8BADF00D`, scene-update watchdog,
+    /// main thread in `__psynch_mutexwait` under `enableIngestionMode`). Lock order: `modelLock`, then `modeLock`.
+    private let modeLock = NSLock()
     private var isIngestionMode = false
+    /// Whether a model has been loaded, read by `disableIngestionMode()` without taking `modelLock`.
+    private var hasLoadedModel = false
 
     func enableIngestionMode() {
         #if canImport(CoreML)
-            // Same lock as the lazy load, so a mode switch cannot race a first embed. Nothing loads here.
-            modelLock.lock()
-            defer { modelLock.unlock() }
-            guard !isIngestionMode else { return }
-            isIngestionMode = true
-            wantedComputeUnits = DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion
-            Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (the model switches on the next embed)", category: .embedding)
+            // Nothing loads here: the model switches on the next embed (`loadedModels()`).
+            let units = DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion
+            let inFront = DeviceCapabilityService.shared.embeddingComputeUnitsInFront
+            let switched = modeLock.withLock { () -> Bool in
+                guard !isIngestionMode else { return false }
+                isIngestionMode = true
+                wantedComputeUnits = units
+                ingestionForegroundUnits = inFront
+                ingestionBackgroundUnits = DeviceCapabilityService.embeddingComputeUnitsInBackground
+                failedIngestionUnits = nil
+                return true
+            }
+            if switched {
+                Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (the model switches on the next embed)", category: .embedding)
+            }
         #endif
     }
 
     func disableIngestionMode() {
         #if canImport(CoreML)
-            modelLock.lock()
-            defer { modelLock.unlock() }
-            guard isIngestionMode else { return }
-            isIngestionMode = false
-            // Only restore a model that was actually loaded. If nothing has embedded yet there is
-            // nothing to restore, and loading 43 MiB here would reintroduce the cost this change
-            // exists to remove, on a path the user cannot see.
-            guard !models.isEmpty || wantedComputeUnits != nil else { return }
-            wantedComputeUnits = DeviceCapabilityService.shared.preferredComputeUnits
-            Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF (default compute units on the next embed)", category: .embedding)
+            let units = DeviceCapabilityService.shared.preferredComputeUnits
+            let switched = modeLock.withLock { () -> Bool in
+                guard isIngestionMode else { return false }
+                isIngestionMode = false
+                ingestionForegroundUnits = nil
+                ingestionBackgroundUnits = nil
+                failedIngestionUnits = nil
+                // Only restore a model that was actually loaded. If nothing has embedded yet there is
+                // nothing to restore, and loading 43 MiB here would reintroduce the cost this change
+                // exists to remove, on a path the user cannot see.
+                guard hasLoadedModel || wantedComputeUnits != nil else { return false }
+                wantedComputeUnits = units
+                return true
+            }
+            if switched {
+                Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF (default compute units on the next embed)", category: .embedding)
+            }
         #endif
     }
 
@@ -150,12 +180,41 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         modelLock.lock()
         defer { modelLock.unlock() }
 
+        var afterCPU: MLComputeUnits?
         if let moved = movedToCPUAt, Date().timeIntervalSince(moved) > 120 {
             movedToCPUAt = nil
-            wantedComputeUnits = DeviceCapabilityService.shared.preferredComputeUnits
+            afterCPU = DeviceCapabilityService.shared.preferredComputeUnits
         }
-        if let wanted = wantedComputeUnits {
-            wantedComputeUnits = nil
+        // An import's units follow where the app is (5.8, 2026-11-18). They were chosen once, when the import began: on
+        // the owner's iPhone an import started in front loaded the model for all units, the app was left, iOS took the
+        // GPU away (`backgroundGPU=disabled`), and the first prediction 2 minutes later waited 2 min 20 s with no answer
+        // until the background task expired and cancelled it; coming back, the import sat queued behind that wait. The
+        // background profile (`isBackgroundCPUSafeIngestionProfileActive`, set on every scene-phase change) is read on
+        // each embed, and a change reloads the model before it predicts.
+        let loaded = loadedComputeUnits
+        let onCPUAfterFailure = movedToCPUAt != nil
+        let inBackground = DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive
+        // During an import the units are decided here, where the app is now, and they override a switch still
+        // pending from when the import began: an import left before its first embed would otherwise load the units
+        // chosen in front (review, 2026-11-18). After a failed prediction moved the model to the CPU it stays there
+        // for the import; units whose load failed are not tried again in it.
+        let wantedNow: MLComputeUnits? = modeLock.withLock {
+            defer { wantedComputeUnits = nil }
+            if isIngestionMode {
+                guard !onCPUAfterFailure,
+                    let live = inBackground ? ingestionBackgroundUnits : ingestionForegroundUnits,
+                    live != failedIngestionUnits
+                else { return nil }
+                if let loaded, live != loaded {
+                    Log.info(
+                        "[CoreMLSentenceEmbeddingProvider] Import \(inBackground ? "in the background" : "in front"); loading the model for compute units \(live.rawValue)",
+                        category: .embedding)
+                }
+                return live
+            }
+            return afterCPU ?? wantedComputeUnits
+        }
+        if let wanted = wantedNow {
             if models.isEmpty || loadedComputeUnits != wanted {
                 let reloaded = Self.makeModels(computeUnits: wanted)
                 if !reloaded.isEmpty {
@@ -164,17 +223,24 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                     modelLoadAttempted = true
                     Log.info("[CoreMLSentenceEmbeddingProvider] Model loaded for compute units \(wanted.rawValue)", category: .embedding)
                 } else {
+                    modeLock.withLock { if isIngestionMode { failedIngestionUnits = wanted } }
                     Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load the model for compute units \(wanted.rawValue); keeping the one loaded", category: .embedding)
                 }
             }
         }
-        if !models.isEmpty { return models }
+        if !models.isEmpty {
+            modeLock.withLock { hasLoadedModel = true }
+            return models
+        }
         if modelLoadAttempted { return [] }
         modelLoadAttempted = true
 
         let units = DeviceCapabilityService.shared.preferredComputeUnits
         models = Self.makeModels(computeUnits: units)
-        if !models.isEmpty { loadedComputeUnits = units }
+        if !models.isEmpty {
+            loadedComputeUnits = units
+            modeLock.withLock { hasLoadedModel = true }
+        }
         return models
     }
 

@@ -938,6 +938,27 @@ final class DeviceCapabilityService: @unchecked Sendable {
     }
 
     /// Embedding compute preference used when an ingestion session loads its model.
+    /// The embedding units an import uses while the app is in front, whatever the background profile says now (5.8):
+    /// `CoreMLSentenceEmbeddingProvider` keeps them to go back to when the app returns.
+    var embeddingComputeUnitsInFront: MLComputeUnits {
+        #if targetEnvironment(simulator)
+        return Self.simulatorComputeUnits
+        #else
+        guard cachedTier != .unsupported else { return .cpuAndNeuralEngine }
+        return Self.embeddingComputeUnits(for: activeGPUExecutionProfile)
+        #endif
+    }
+
+    /// The embedding units an import uses while the app is in the background without a GPU grant (5.8): the CPU and
+    /// the Neural Engine on a device, the CPU alone in the Simulator, as `embeddingComputeUnitsDuringIngestion` gives.
+    nonisolated static var embeddingComputeUnitsInBackground: MLComputeUnits {
+        #if targetEnvironment(simulator)
+        return simulatorComputeUnits
+        #else
+        return backgroundComputeUnits
+        #endif
+    }
+
     var embeddingComputeUnitsDuringIngestion: MLComputeUnits {
         #if targetEnvironment(simulator)
         return Self.simulatorComputeUnits

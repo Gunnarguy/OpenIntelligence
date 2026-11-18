@@ -314,7 +314,8 @@ extension DocumentLibraryView {
 
     @MainActor
     func deleteConflictedLocalLibraries(_ conflict: WorkspaceSyncService.PendingBootstrapConflict) {
-        let targetContainerIDs = Set(conflict.localOnlyLibraryIDs)
+        // Never the guide library (5.8): it is on this device only by design and can't be deleted.
+        let targetContainerIDs = Set(conflict.localOnlyLibraryIDs.filter { !containerService.isGuideLibrary($0) })
         guard !targetContainerIDs.isEmpty else { return }
 
         Task {

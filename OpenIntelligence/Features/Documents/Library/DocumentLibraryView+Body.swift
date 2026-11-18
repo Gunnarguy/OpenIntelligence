@@ -498,9 +498,11 @@ extension DocumentLibraryView {
         content()
             .contentShape(Rectangle())
             .dropDestination(for: URL.self) { urls, _ in
-                handleDroppedFiles(urls)
+                // The guide library takes no files (5.8, `isGuideLibraryOpen`).
+                guard !isGuideLibraryOpen else { return false }
+                return handleDroppedFiles(urls)
             } isTargeted: { targeted in
-                if targeted {
+                if targeted, !isGuideLibraryOpen {
                     dropTargetedParts.insert(part)
                 } else {
                     dropTargetedParts.remove(part)

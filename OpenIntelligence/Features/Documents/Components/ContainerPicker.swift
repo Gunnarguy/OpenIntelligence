@@ -103,7 +103,7 @@ struct ContainerPickerStrip: View {
                 container: container,
                 displayName: disambiguatedName(for: container),
                 isSelected: containerService.activeContainerId == container.id,
-                canDelete: onDeleteLibrary != nil && containerService.containers.count > 1,
+                canDelete: onDeleteLibrary != nil && containerService.mayDelete(id: container.id),
                 badgeText: documentCountText(for: container),
                 badgeStyle: .count,
                 onSelect: {
@@ -124,7 +124,8 @@ struct ContainerPickerStrip: View {
                 // Search, which passes no callbacks at all, that meant "Make Local Only" and
                 // "Make iCloud Sync" were visible and silently did nothing. The nil-ness is now
                 // read directly by the context menu, which omits the whole section.
-                onSetLibraryStorage: onSetLibraryStorage.map { setStorage in
+                // Not for the guide library, which stays on each device (5.8).
+                onSetLibraryStorage: containerService.isGuideLibrary(container.id) ? nil : onSetLibraryStorage.map { setStorage in
                     { syncMode in
                         setStorage(container, syncMode)
                     }

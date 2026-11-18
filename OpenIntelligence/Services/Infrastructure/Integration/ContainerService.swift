@@ -109,7 +109,8 @@ final class ContainerService: ObservableObject {
                 return Int(name.dropFirst("library ".count))
             }
             .max()
-            .map { $0 + 1 } ?? (containers.count + 1)
+            // Own libraries only (5.8): counted with the guide library, a new install's second library was "Library 3".
+            .map { $0 + 1 } ?? (countedLibraryCount + 1)
 
         while taken.contains("library \(candidate)") {
             candidate += 1
@@ -219,11 +220,13 @@ final class ContainerService: ObservableObject {
     }
 
     /// Whether a library may be deleted: one not in the list always may (5.8), so what it left behind is cleaned up
-    /// and its id remembered; a listed one only while another library remains and, unless it is the guide library,
-    /// while the person keeps an own library besides it. `LibraryDeletion` asks the same, so a library is never
-    /// emptied and then kept.
+    /// and its id remembered; a listed one only while the person keeps another own library besides it. The guide
+    /// library never may (5.8, 2026-11-18): it is a permanent part of the app for every person, so nothing deletes it,
+    /// not the Documents screen, its menu, Library Settings, Siri, Shortcuts or the SDK (all come here through
+    /// `deleteContainer` or `LibraryDeletion`). `LibraryDeletion` asks the same, so a library is never emptied and
+    /// then kept.
     nonisolated static func mayDelete(listed: Bool, libraries: Int, isGuide: Bool, ownLibraries: Int) -> Bool {
-        !listed || (libraries > 1 && (isGuide || ownLibraries > 1))
+        !listed || (!isGuide && libraries > 1 && ownLibraries > 1)
     }
 
     func mayDelete(id: UUID) -> Bool {
@@ -490,6 +493,13 @@ final class ContainerService: ObservableObject {
                 }
             }
 
+            let renamed = withFirstLibraryRenamed(decoded)
+            if renamed.map(\.name) != decoded.map(\.name) || renamed.map(\.description) != decoded.map(\.description) {
+                Log.info("[ContainerService] Renamed the first library from General to \(firstLibraryName)", category: .initialization)
+                decoded = renamed
+                needsSave = true
+            }
+
             if needsSave {
                 saveContainers(decoded)
                 Log.info("[ContainerService] Migration complete - saved corrected containers", category: .initialization)
@@ -660,14 +670,42 @@ final class ContainerService: ObservableObject {
         containers.first(where: { $0.id == containerId })?.totalChunks ?? 0
     }
 
+    /// The first own library's name (5.8, 2026-11-18): "Library 1", so it reads as the first of the person's numbered
+    /// libraries (the owner: "General" beside "Library 2" looked odd, now that the guides have their own library).
+    nonisolated static let firstLibraryName = "Library 1"
+
+    /// The default library's description before and after the rename (5.8). The old one marks the library the app made
+    /// as "General"; the rename changes it, so the rename happens once, travels with the library through iCloud, and a
+    /// library the person names "General" later keeps that name.
+    nonisolated static let oldDefaultDescription = "Default library"
+    nonisolated static let firstLibraryDescription = "Your first library"
+
+    /// The app's own default library, still named "General", renamed "Library 1" (5.8), unless a library is already
+    /// called that. Applied where the list is read (`loadContainers`) and where two devices' lists are merged
+    /// (`WorkspaceSyncService.mergeContainers`), so both copies carry the same name and a sync pass has nothing to undo.
+    nonisolated static func withFirstLibraryRenamed(_ libraries: [KnowledgeContainer]) -> [KnowledgeContainer] {
+        let taken = libraries.contains {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == firstLibraryName.lowercased()
+        }
+        guard !taken else { return libraries }
+        var renamed = libraries
+        if let index = renamed.firstIndex(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines) == "General" && $0.description == oldDefaultDescription
+        }) {
+            renamed[index].name = firstLibraryName
+            renamed[index].description = firstLibraryDescription
+        }
+        return renamed
+    }
+
     private static func defaultContainer() -> KnowledgeContainer {
         let defaultProviderId = EmbeddingProviderDefaults.preferredSentenceProviderId
 
         return KnowledgeContainer(
-            name: "General",
+            name: firstLibraryName,
             icon: "folder.fill",
             colorHex: "#4F46E5",
-            description: "Default library",
+            description: firstLibraryDescription,
             embeddingProviderId: defaultProviderId,
             embeddingDim: 384,
             vectorDBKind: .persistentJSON,

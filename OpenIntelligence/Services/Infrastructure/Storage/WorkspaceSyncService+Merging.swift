@@ -158,7 +158,10 @@ extension WorkspaceSyncService {
         }
 
         return ContainerMergeResult(
-            containers: sortedContainers(orderedCanonicalIDs.compactMap { canonicalById[$0] }),
+            // "General" is "Library 1" on every copy (5.8, `ContainerService.withFirstLibraryRenamed`): the shared copy's
+            // name wins a merge, so without this the old name came back on each pass.
+            containers: ContainerService.withFirstLibraryRenamed(
+                sortedContainers(orderedCanonicalIDs.compactMap { canonicalById[$0] })),
             sourceToCanonical: sourceToCanonical,
             canonicalToSources: canonicalToSources.mapValues(uniqueContainerIDs)
         )

@@ -586,8 +586,63 @@ OpenIntelligence never sends your documents to a developer-operated backend.
         return nil
     }
 
+    /// Where the guides go back in when the guide library or one of its guides is missing, or nil when nothing is
+    /// (5.8, 2026-11-18). The guide library is a permanent part of the app for every person: it can't be deleted
+    /// (`ContainerService.mayDelete`) and its guides can't be removed (`RAGService.isProtectedGuideDocument`), but a
+    /// device may have lost it before that, as the owner's did by Delete Library. A guide still in a library of the
+    /// person's own (imported before 5.8, in General) counts as present, so it is not copied a second time.
+    nonisolated static func guideRestoreTarget(
+        guideLibrary: UUID?, guidesPresent: Int, guideCount: Int
+    ) -> GuideRestore? {
+        guard guidesPresent < guideCount else { return nil }
+        return guideLibrary.map(GuideRestore.into) ?? (guidesPresent == 0 ? .makeLibrary : nil)
+    }
+
+    enum GuideRestore: Equatable {
+        case into(UUID)
+        case makeLibrary
+    }
+
+    /// Set while a restore runs, so two screens appearing at once (two Mac windows) don't both import.
+    @MainActor private static var restoring = false
+
+    /// Puts the guide library and its guides back when either is missing (`guideRestoreTarget`), without opening it.
+    /// Only once the documents are read from disk (before that every guide looks missing), and not in UI test or
+    /// screenshot runs, which set up their own libraries.
+    func restoreGuideLibraryIfMissing(in ragService: RAGService) async {
+        let target = await MainActor.run { () -> UUID? in
+            guard ragService.hasLoadedDocumentsFromDisk, !Self.restoring, !ScreenshotMockLLMService.isScreenshotMode,
+                !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--uitest") })
+            else { return nil }
+            let services = ragService.containerService
+            let live = Set(services.containers.map(\.id))
+            let present = samples.filter { sample in
+                ragService.documents.contains { document in
+                    sample.matchesStoredCopy(document.filename) && (document.containerId.map(live.contains) ?? true)
+                }
+            }.count
+            let target: UUID?
+            switch Self.guideRestoreTarget(guideLibrary: services.guideLibraryId, guidesPresent: present, guideCount: samples.count) {
+            case .into(let id): target = id
+            case .makeLibrary: target = services.ensureGuideLibrary()
+            case nil: target = nil
+            }
+            if target != nil { Self.restoring = true }
+            return target
+        }
+        guard let target else { return }
+        defer { Task { @MainActor in Self.restoring = false } }
+        VerificationJournal.record("guide.restore", ["library": VerificationJournal.anon(target)])
+        do {
+            try await importSamples(into: ragService, containerId: target)
+        } catch {
+            Log.error("[SampleDocumentManager] Restoring the guide library failed: \(error.localizedDescription)", category: .ingestion)
+        }
+    }
+
     @discardableResult
     func refreshStaleSamples(in ragService: RAGService) async -> [String] {
+        await restoreGuideLibraryIfMissing(in: ragService)
         await removeNumberedSampleCopies(in: ragService)
         let stale = staleImportedSamples(in: ragService)
         guard !stale.isEmpty else { return [] }

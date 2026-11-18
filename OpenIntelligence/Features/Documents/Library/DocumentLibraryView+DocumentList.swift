@@ -286,7 +286,7 @@ extension DocumentLibraryView {
         if containerService.isGuideLibrary(containerService.activeContainerId) {
             Label {
                 Text(
-                    "OpenIntelligence's own guides, free and outside your plan's limits. Ask this library how the app works. Its guides come with the app and stay as they are; files you add go to \(containerService.containers.first { !containerService.isGuideLibrary($0.id) }?.name ?? "your library")."
+                    "OpenIntelligence's own guides, free and outside your plan's limits. Ask this library how the app works. It comes with the app and stays as it is: its guides can't be changed, removed or added to, and the library can't be deleted. To add your own files, open \(containerService.containers.first { !containerService.isGuideLibrary($0.id) }?.name ?? "one of your libraries")."
                 )
                 .font(DSTypography.body)
                 .foregroundStyle(DSColors.secondaryText)
@@ -414,11 +414,19 @@ extension DocumentLibraryView {
     /// `ContentView` sets `selectedTab = .visualizations`, passing no scope and no deep link, and
     /// that tab renders `AdaptiveVisualizationsView()` which takes no parameters. The chip was a
     /// second button for the Atlas tab sitting two inches above the Atlas tab.
+    /// The guide library is open: it holds the app's own guides only, so nothing is added to it (5.8). Add Document,
+    /// Paste and dropping files are off there; through 5.8's first builds they took the file and put it in the next
+    /// library over (`libraryForOwnFiles`), which surprised the owner.
+    var isGuideLibraryOpen: Bool {
+        containerService.isGuideLibrary(containerService.activeContainerId)
+    }
+
     private var documentActionStrip: some View {
         HStack(spacing: DSSpacing.md) {
             DocumentActionChip(
                 title: "Add Document",
                 systemImage: "plus",
+                isEnabled: !isGuideLibraryOpen,
                 iconOnly: true
             ) {
                 Tour.used(.addDocument)
@@ -438,10 +446,11 @@ extension DocumentLibraryView {
                 DocumentActionChipLabel(
                     title: "Paste",
                     systemImage: isWorking ? "hourglass" : "doc.on.clipboard",
-                    isEnabled: !isWorking,
+                    isEnabled: !isWorking && !isGuideLibraryOpen,
                     iconOnly: true
                 )
             }
+            .disabled(isGuideLibraryOpen)
             .tour(.paste, in: Tour.documents)
 
             DocumentActionChip(
@@ -511,7 +520,7 @@ extension DocumentLibraryView {
             // library. The old binding left the destructive action live on a library that is
             // visibly empty, because some other library had documents in it.
             // Not in the guide library, whose documents come with the app (5.8).
-            if !containerService.isGuideLibrary(activeLibrary?.id) {
+            if !isGuideLibraryOpen {
                 DocumentActionChip(
                     title: activeLibrary.map { "Remove All Documents from \($0.name)" } ?? "Remove All Documents",
                     systemImage: "doc.badge.ellipsis",
@@ -525,20 +534,23 @@ extension DocumentLibraryView {
                 .tour(.removeAll, in: Tour.documents)
             }
 
-            DocumentActionChip(
-                title: activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",
-                systemImage: "folder.badge.minus",
-                tint: .red,
-                isEnabled: activeLibrary != nil && containerService.containers.count > 1,
-                iconOnly: true
-            ) {
-                Tour.used(.deleteLibrary)
-                DSHaptics.medium()
-                if let activeLibrary {
-                    handleDeleteLibrary(activeLibrary)
+            // Not for the guide library, a permanent part of the app (5.8, `ContainerService.mayDelete`).
+            if !isGuideLibraryOpen {
+                DocumentActionChip(
+                    title: activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",
+                    systemImage: "folder.badge.minus",
+                    tint: .red,
+                    isEnabled: activeLibrary.map { containerService.mayDelete(id: $0.id) } ?? false,
+                    iconOnly: true
+                ) {
+                    Tour.used(.deleteLibrary)
+                    DSHaptics.medium()
+                    if let activeLibrary {
+                        handleDeleteLibrary(activeLibrary)
+                    }
                 }
+                .tour(.deleteLibrary, in: Tour.documents)
             }
-            .tour(.deleteLibrary, in: Tour.documents)
         }
         .padding(.horizontal, DSSpacing.lg)
         .padding(.vertical, DSSpacing.sm)

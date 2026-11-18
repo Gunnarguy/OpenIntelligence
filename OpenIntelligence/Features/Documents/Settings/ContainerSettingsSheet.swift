@@ -195,46 +195,61 @@ struct ContainerSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                // Each section is built in its own update (`SeparatelyBuilt`): built together in this body they ran
-                // the main thread out of stack on an iPhone (5.8 build 150, Technical Details on).
-                SeparatelyBuilt { identitySection }
-                SeparatelyBuilt { storageSection }
-                WatchedFolderSection(
-                    library: activeContainer,
-                    ragService: ragService,
-                    hasAccess: hasICloudSyncAccess,
-                    showPlans: {
-                        planEntryPoint = .watchedFolder
-                        showingPlanSheet = true
+                if isGuideLibrary {
+                    // The guide library is a permanent part of the app (5.8, 2026-11-18): nothing here changes it. What
+                    // it is, and with Technical Details on, its diagnostics to read.
+                    SeparatelyBuilt { guideLibrarySection }
+                    if settings.showTechnicalDetails {
+                        SeparatelyBuilt { libraryNerdStatsSection }
                     }
-                )
-                // What a person can change first, each with what it means; the library's analysis, its embedding model
-                // and its diagnostics only with Technical Details on (Settings, Appearance), as the Settings pages do
-                // (5.8 premium pass). They sat between the everyday settings, with developer rows among them.
-                SeparatelyBuilt { searchSection }
-                SeparatelyBuilt { chunkingSection }
-                SeparatelyBuilt { aiFeatureOverridesSection }
-                SeparatelyBuilt { privateCloudComputeSection }
-                if settings.showTechnicalDetails {
-                    SeparatelyBuilt { intelligenceSection }
-                    SeparatelyBuilt { accuracyDefaultsSection }
-                    SeparatelyBuilt { embeddingProviderSection }
-                    SeparatelyBuilt { libraryNerdStatsSection }
+                } else {
+                    // Each section is built in its own update (`SeparatelyBuilt`): built together in this body they ran
+                    // the main thread out of stack on an iPhone (5.8 build 150, Technical Details on).
+                    SeparatelyBuilt { identitySection }
+                    SeparatelyBuilt { storageSection }
+                    WatchedFolderSection(
+                        library: activeContainer,
+                        ragService: ragService,
+                        hasAccess: hasICloudSyncAccess,
+                        showPlans: {
+                            planEntryPoint = .watchedFolder
+                            showingPlanSheet = true
+                        }
+                    )
+                    // What a person can change first, each with what it means; the library's analysis, its embedding model
+                    // and its diagnostics only with Technical Details on (Settings, Appearance), as the Settings pages do
+                    // (5.8 premium pass). They sat between the everyday settings, with developer rows among them.
+                    SeparatelyBuilt { searchSection }
+                    SeparatelyBuilt { chunkingSection }
+                    SeparatelyBuilt { aiFeatureOverridesSection }
+                    SeparatelyBuilt { privateCloudComputeSection }
+                    if settings.showTechnicalDetails {
+                        SeparatelyBuilt { intelligenceSection }
+                        SeparatelyBuilt { accuracyDefaultsSection }
+                        SeparatelyBuilt { embeddingProviderSection }
+                        SeparatelyBuilt { libraryNerdStatsSection }
+                    }
+                    SeparatelyBuilt { deleteLibrarySection }
                 }
-                SeparatelyBuilt { deleteLibrarySection }
             }
             .macGroupedForm()
             .navigationTitle("Library Settings")
             .iOSNavigationBarInline()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        handleSave()
+                if isGuideLibrary {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
                     }
-                    .disabled(isReembedding)
+                } else {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            handleSave()
+                        }
+                        .disabled(isReembedding)
+                    }
                 }
             }
             .onAppear {
@@ -1532,4 +1547,31 @@ struct ReembedStatusBanner: View {
         ragService: RAGService()
     )
     .environmentObject(SettingsStore(ragService: RAGService()))
+}
+
+// MARK: - The guide library (5.8)
+
+extension ContainerSettingsSheet {
+    /// The guide library, a permanent part of the app (5.8, 2026-11-18): its settings show what it is and change nothing.
+    var isGuideLibrary: Bool {
+        containerService.isGuideLibrary(activeContainer?.id)
+    }
+
+    var guideLibrarySection: some View {
+        Section {
+            Label {
+                Text(
+                    "The OpenIntelligence Guide comes with the app and stays as it is. Its guides can't be changed, removed or added to, and the library can't be deleted. Ask it how the app works; your own files go in your own libraries."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "book.closed.fill")
+                    .foregroundStyle(Color.accentColor)
+            }
+        } header: {
+            Text(activeContainer?.name ?? ContainerService.guideLibraryName)
+        }
+    }
 }

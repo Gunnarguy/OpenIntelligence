@@ -649,7 +649,7 @@ public final class OIEngine {
             }
 
             do {
-                return try containerService.createContainer(name: "General")
+                return try containerService.createContainer(name: ContainerService.firstLibraryName)
             } catch let error as LibraryQuotaError {
                 throw OpenIntelligenceEngineError.invalidRequest(error.errorDescription ?? "Library limit reached.")
             }
