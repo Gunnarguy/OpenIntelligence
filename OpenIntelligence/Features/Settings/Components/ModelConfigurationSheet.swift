@@ -5,6 +5,8 @@
 //  The model parameters that change a Standard answer, plus Adaptive Profiles and the reasoning profile.
 //  Since 5.8 (2026-11-18) it holds only controls something reads: the presets, Reset to Defaults, the three
 //  penalties, the System Prompt and Max Tokens were removed, and the Context Length picker became a read-only line.
+//  Later the same day: the Active Model card reads the chat's route (`SettingsStore.chatAnswerRouting`), the reasoning
+//  profile has examples, and "Restore recommended settings" puts the answer style back to `RecommendedAnswerStyle`.
 //
 
 import SwiftUI
@@ -30,13 +32,28 @@ struct ModelConfigurationSheet: View {
     /// "use Apple's named levels", which is what every existing install has.
     @AppStorage("customReasoningProfile") private var customReasoningProfile = ""
 
+    /// Standard's own temperature cap, and the slider's top (`RAGService+QueryAnswer.swift`,
+    /// `composeStandardGenerationConfig`).
+    private static let temperatureCap = 0.4
+
+    /// The recommended temperature as Standard applies it and this sheet shows it: 0.7 is stored, 0.40 is used.
+    private static var recommendedTemperature: Double { min(RecommendedAnswerStyle.temperature, temperatureCap) }
+
+    /// Example reasoning profiles, each about what this app does with documents (5.8). Tapping one fills the field.
+    private static let reasoningExamples = [
+        "Check every number against the table it came from before stating it.",
+        "Prefer the document's exact wording; say when two documents disagree.",
+        "Answer in plain language, then list the sources.",
+        "If the documents don't say, say so instead of inferring.",
+    ]
+
     init() {
-        // Initialize with placeholder values - actual values loaded in onAppear
-        _temperature = State(initialValue: 0.4)
-        _topP = State(initialValue: 0.9)
-        _topK = State(initialValue: 40)
-        _samplingStrategy = State(initialValue: .topK)
-        _useFixedSeed = State(initialValue: false)
+        // Placeholder values until onAppear loads the saved ones.
+        _temperature = State(initialValue: Self.recommendedTemperature)
+        _topP = State(initialValue: RecommendedAnswerStyle.topP)
+        _topK = State(initialValue: RecommendedAnswerStyle.topK)
+        _samplingStrategy = State(initialValue: RecommendedAnswerStyle.samplingStrategy)
+        _useFixedSeed = State(initialValue: RecommendedAnswerStyle.seed != nil)
         _seedValue = State(initialValue: 42)
     }
 
@@ -129,9 +146,18 @@ struct ModelConfigurationSheet: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// The route the chat uses, from `SettingsStore.chatAnswerRouting`, the value `ChatScreen+Sending` builds each answer
+    /// with (5.8). It read `mayTransmitData` when that judged the route from the Private Cloud Compute permission alone
+    /// (`executionContext`, `.automatic` under Ask and Allow), so it said "Cloud" while On-Device was picked in the chat.
     @ViewBuilder
     private var currentModelSection: some View {
-        parameterCard(icon: "cpu", title: "Active Model") {
+        parameterCard(
+            icon: "cpu", title: "Active Model",
+            // Quotes only has no route to pick: it is what runs when Apple's model is not writing answers here.
+            footer: settings.selectedModel == .onDeviceAnalysis
+                ? "Settings, Model & Privacy shows whether Apple's model can write answers on this device."
+                : "Set with the chat's model button, or in Settings, Model & Privacy."
+        ) {
             HStack(spacing: DSSpacing.md) {
                 Image(systemName: settings.selectedModel.iconName)
                     .font(.title3)
@@ -140,20 +166,50 @@ struct ModelConfigurationSheet: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(settings.selectedModel.displayName)
+                    Text(activeModelName)
                         .font(.subheadline.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(settings.executionPathDescription)
                         .font(.caption)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: DSSpacing.xs)
 
-                // Where it runs, as a symbol and a word (`privacyBadge.emoji` was a lock or cloud emoji).
-                Label(settings.mayTransmitData ? "Cloud" : "Local", systemImage: settings.mayTransmitData ? "cloud" : "lock")
+                // The chat button's own name and icon for the route (`ModelStatusIndicator`), green when nothing can
+                // leave this device.
+                Label(activeRouteName, systemImage: activeRouteIcon)
                     .chipStyle(tint: settings.mayTransmitData ? .accentColor : .green)
+                    .fixedSize()
             }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// Who writes the answer: Apple's name for this device's model where it reports one, Private Cloud Compute where the
+    /// chat sends every answer there and the permission allows it.
+    private var activeModelName: String {
+        if settings.selectedModel == .onDeviceAnalysis { return "Quotes only" }
+        let onDevice = FoundationModelTokenBudget.reportedOnDeviceModelName ?? "Apple's on-device model"
+        guard !settings.chatAnswerRouting.staysOnDevice else { return onDevice }
+        switch settings.fmPreference.canonical {
+        case .privateCloudCompute: return "Private Cloud Compute"
+        case .automatic: return "\(onDevice) and Private Cloud Compute"
+        case .core3B, .advanced20B: return onDevice
+        }
+    }
+
+    private var activeRouteName: String {
+        settings.selectedModel == .onDeviceAnalysis ? "Local" : settings.fmPreference.canonical.pickerDisplayName
+    }
+
+    private var activeRouteIcon: String {
+        if settings.selectedModel == .onDeviceAnalysis { return "lock" }
+        switch settings.fmPreference.canonical {
+        case .automatic: return "arrow.triangle.branch"
+        case .core3B, .advanced20B: return "iphone.gen3"
+        case .privateCloudCompute: return "cloud.fill"
         }
     }
 
@@ -188,40 +244,81 @@ struct ModelConfigurationSheet: View {
         // Says where it does and does not apply, because a setting that silently does nothing
         // in the mode someone happens to be using is the failure the penalty sliders (removed in 5.8)
         // demonstrated on this same screen.
-        // Two different things are called reasoning and conflating them produced a footer
-        // saying this app does not reason on device, which is the opposite of what it does.
-        // Deep Think and Maximum run their own multi-session reasoning and four of those call
-        // sites pass `forceOnDevice: true`. What is PCC-only is Apple's *model-internal*
-        // reasoning setting, which is the thing this field writes.
+        //
+        // Where it is sent (`FoundationModelRoute.reasoningLevel`): only on the Private Cloud Compute route, and only where
+        // that route's level is not `.none`. `FoundationModelRoutePolicy` gives Standard and exact lookups `.none`, Deep
+        // Think `.moderate` and Maximum `.deep`, so this reaches Deep Think and Maximum answers written there and nothing
+        // else. Deep Think and Maximum also run their own multi-step reasoning, much of it pinned to the device
+        // (`forceOnDevice: true`), which this field does not change.
+        //
+        // No promise of an effect (5.8): the 2026-11-18 probe (`DebugPCCReasoningProbe.swift`, CHANGELOG 5.8) measured
+        // 0 reasoning tokens at every level on Private Cloud Compute, so the copy calls it a description, not a dial.
         parameterCard(
             icon: "brain", title: "Your Own Reasoning Profile",
-            footer: "Apple's model has a reasoning setting with three fixed levels, or a description you "
-                + "write yourself. Write one here and it replaces the level: for example, "
-                + "\"work backwards from the conclusion and say which step is weakest\", or "
-                + "\"check every number against the source before using it\".\n\n"
-                + "This is separate from the app's own reasoning. Deep Think and Maximum think "
-                + "across many steps on this device, and that is unaffected by what you write here. "
-                + "What this changes is how hard Apple's model works inside a single answer, which "
-                + "Apple only allows on Private Cloud Compute, so it applies to answers written "
-                + "there and not to ones written on the device."
+            footer: "Not used for Standard answers or for anything written on this device. Deep Think and Maximum "
+                + "also reason across many steps on this device, and what you write here doesn't change that. "
+                + "Treat it as guidance: in a test on a Mac, Private Cloud Compute reported no reasoning at any "
+                + "level, so the app can't yet measure what a profile changes."
         ) {
+            note(
+                "A description of how Apple's model should approach the question. It's sent with Deep Think and "
+                    + "Maximum answers written on Private Cloud Compute, in place of the level those modes ask for."
+            )
+
             TextField(
-                "How should it think through a problem?",
+                "Describe how it should approach a question",
                 text: $customReasoningProfile,
                 axis: .vertical
             )
             .textFieldStyle(.roundedBorder)
             .lineLimit(3...8)
             .font(.subheadline)
+            .accessibilityLabel("Your own reasoning profile")
 
-            if !customReasoningProfile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            HStack {
+                Text("Examples")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
+                Spacer()
                 Button("Clear", role: .destructive) {
                     customReasoningProfile = ""
                 }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
+                .disabled(trimmedReasoningProfile.isEmpty)
+            }
+
+            WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
+                ForEach(Self.reasoningExamples, id: \.self) { example in
+                    reasoningExampleChip(example)
+                }
             }
         }
+    }
+
+    private var trimmedReasoningProfile: String {
+        customReasoningProfile.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// One example in the chip style the cards use, filling the field when tapped; the one in the field carries a check.
+    private func reasoningExampleChip(_ example: String) -> some View {
+        let inUse = trimmedReasoningProfile == example
+        return Button {
+            customReasoningProfile = example
+            DSHaptics.selection()
+        } label: {
+            Label {
+                Text(example)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: inUse ? "checkmark" : "text.insert")
+            }
+            .chipStyle(tint: inUse ? .green : .accentColor)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(example)
+        .accessibilityHint(inUse ? "In use" : "Fills your reasoning profile with this example")
     }
 
     @ViewBuilder
@@ -236,7 +333,7 @@ struct ModelConfigurationSheet: View {
     @ViewBuilder
     private var coreParametersSection: some View {
         parameterCard(
-            icon: "slider.horizontal.3", title: "Core Parameters",
+            icon: "slider.horizontal.3", title: "Answer style (Standard)",
             footer: "Used by Standard answers. Deep Think and Maximum choose their own for each step."
         ) {
             // Temperature
@@ -245,22 +342,24 @@ struct ModelConfigurationSheet: View {
 
                 // 0 to 0.4 since 5.8: Standard caps its temperature at 0.4, or 0.2 for Evidence-First and High
                 // Precision (`RAGService+QueryAnswer.swift:597`, `:602`, `:607`), so the old 0.4 to 2 did nothing.
-                Slider(value: $temperature, in: 0...0.4, step: 0.05) {
+                Slider(value: $temperature, in: 0...Self.temperatureCap, step: 0.05) {
                     Text("Temperature")
                 }
                 .disabled(samplingStrategy == .greedy)
 
                 // Greedy always takes the single highest-probability token, so
                 // temperature has no effect on it at all. Every other parameter on this
-                // sheet is already gated on the strategy it belongs to — Top-K, Top-P and
-                // the seed each appear only where they apply — and temperature was the
+                // sheet is already gated on the strategy it belongs to: Top-K, Top-P and
+                // the seed each appear only where they apply, and temperature was the
                 // one that was not, so it stayed live and adjustable while doing nothing.
-                // Dimmed rather than hidden: it is a Core Parameter, and a control that
+                // Dimmed rather than hidden: it is the card's main control, and a control that
                 // vanishes is harder to understand than one that explains itself.
                 note(
                     samplingStrategy == .greedy
                         ? "No effect on Predictable sampling, which always takes the most likely next word. Choose Balanced or Adaptive below to use this."
-                        : "Standard answers only, up to 0.4. Deep Think and Maximum set their own."
+                        // Definitional, not measured: a lower temperature makes the likelier words likelier still.
+                        : "How much the wording varies. Lower picks the most likely words more often; higher allows "
+                            + "more variety. Up to 0.4, Standard's own limit."
                 )
             }
             .opacity(samplingStrategy == .greedy ? 0.55 : 1)
@@ -324,7 +423,7 @@ struct ModelConfigurationSheet: View {
             if samplingStrategy != .greedy {
                 Divider()
                 Toggle(isOn: $useFixedSeed) {
-                    Label("Reproducible answers", systemImage: "lock.rotation")
+                    Label("Same wording each time", systemImage: "lock.rotation")
                         .font(.subheadline.weight(.medium))
                 }
                 .tint(.accentColor)
@@ -340,13 +439,76 @@ struct ModelConfigurationSheet: View {
                         }
                     }
                 }
+                // Apple calls a seed best effort, not fully deterministic (`GenerationOptions.SamplingMode.random(top:seed:)`,
+                // developer.apple.com, read 2026-11-18), so the copy says "should".
                 note(
                     useFixedSeed
-                        ? "Fixes the model's word choices for Standard answers. The passages found can still differ between runs."
-                        : "Answers vary slightly between runs."
+                        ? "Asked again with the same question, passages and settings, a Standard answer should come out "
+                            + "in the same words. Apple calls this best effort, and the passages found can still differ "
+                            + "between runs."
+                        : "Answers vary slightly in wording between runs."
                 )
             }
+
+            Divider()
+            restoreRecommendedRow
         }
+    }
+
+    /// Puts temperature, sampling, Top-K, Top-P and the seed back to `RecommendedAnswerStyle`, the values a new install
+    /// starts with (5.8). The owner: Sampling and Top-K "seem REALLY like they'd fuck up someone's app". It stages them
+    /// like every control here, so Cancel still keeps what was saved.
+    @ViewBuilder
+    private var restoreRecommendedRow: some View {
+        let changed = changedFromRecommended(
+            temperature: temperature, strategy: samplingStrategy, topK: topK, topP: topP, seeded: useFixedSeed)
+        let savedChanged = changedFromRecommended(
+            temperature: min(max(settings.temperature, 0), Self.temperatureCap), strategy: settings.samplingStrategy,
+            topK: settings.topK, topP: settings.topP, seeded: settings.seed != nil)
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            if !changed.isEmpty {
+                Label("Changed from recommended: \(changed.joined(separator: ", ")).", systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                note(savedChanged.isEmpty
+                    ? "These are the recommended settings."
+                    : "Back to the recommended settings. Apply saves them.")
+            }
+            Button {
+                withAnimation(DSAnimations.fastEase) { restoreRecommended() }
+                DSHaptics.selection()
+            } label: {
+                Label("Restore recommended settings", systemImage: "arrow.counterclockwise")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .disabled(changed.isEmpty)
+            .accessibilityHint("Sets temperature, sampling and the seed back to what a new install starts with. Apply saves them.")
+        }
+    }
+
+    /// The names of the staged values that differ from `RecommendedAnswerStyle`. Top-K and Top-P count even in builds
+    /// that hide their sliders, because a saved value still reaches Standard answers there.
+    private func changedFromRecommended(
+        temperature: Double, strategy: SamplingStrategy, topK: Int, topP: Double, seeded: Bool
+    ) -> [String] {
+        var changed: [String] = []
+        if abs(temperature - Self.recommendedTemperature) > 0.001 { changed.append("temperature") }
+        if strategy != RecommendedAnswerStyle.samplingStrategy { changed.append("sampling") }
+        if topK != RecommendedAnswerStyle.topK { changed.append("Top-K") }
+        if abs(topP - RecommendedAnswerStyle.topP) > 0.001 { changed.append("Top-P") }
+        if seeded != (RecommendedAnswerStyle.seed != nil) { changed.append("same wording each time") }
+        return changed
+    }
+
+    private func restoreRecommended() {
+        temperature = Self.recommendedTemperature
+        samplingStrategy = RecommendedAnswerStyle.samplingStrategy
+        topK = RecommendedAnswerStyle.topK
+        topP = RecommendedAnswerStyle.topP
+        useFixedSeed = RecommendedAnswerStyle.seed != nil
     }
 
     /// Hidden where the device reports no window (`reportedOnDeviceContextSize` is nil when the model is unavailable),
@@ -375,7 +537,7 @@ struct ModelConfigurationSheet: View {
 
     private func loadCurrentSettings() {
         // Shown within the slider's 0 to 0.4; Standard applied no more than 0.4 to a higher saved value anyway.
-        temperature = min(max(settings.temperature, 0), 0.4)
+        temperature = min(max(settings.temperature, 0), Self.temperatureCap)
         topP = settings.topP
         samplingStrategy = settings.samplingStrategy
         topK = settings.topK

@@ -312,24 +312,13 @@ extension ChatScreen {
         let capturedRepetitionPenalty = repetitionPenalty
         let capturedSystemPrompt = systemPrompt
         let capturedContextLength = contextLength
-        let baseExecutionContext = settings.executionContext
         let capturedFmPreference = settings.fmPreference.canonical
-        let capturedExecutionContext: ExecutionContext
-        let capturedAllowPCC: Bool
-        switch capturedFmPreference {
-        case .automatic:
-            capturedExecutionContext =
-                baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
-            capturedAllowPCC = baseExecutionContext != .onDeviceOnly
-        case .core3B, .advanced20B:
-            capturedExecutionContext = .onDeviceOnly
-            capturedAllowPCC = false
-        case .privateCloudCompute:
-            capturedExecutionContext = .cloudOnly
-            // The privacy setting remains authoritative. If PCC is disabled,
-            // the planner records the requested cloud route and completes locally.
-            capturedAllowPCC = baseExecutionContext != .onDeviceOnly
-        }
+        // The model button inside the Private Cloud Compute permission, from the one place Model Parameters' Active
+        // Model card also reads (`SettingsStore.chatAnswerRouting`, 5.8). The same switch was written out here, and the
+        // card judged the route from the permission alone, so it said "Cloud" with On-Device picked.
+        let routing = settings.chatAnswerRouting
+        let capturedExecutionContext = routing.executionContext
+        let capturedAllowPCC = routing.allowPrivateCloudCompute
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
         currentQueryContainerId = usedContainerId

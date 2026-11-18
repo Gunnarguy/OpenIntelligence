@@ -34,6 +34,8 @@ Two of the auxiliary calls named above run on no answer path today (added 2026-1
 
 ## Post-retrieval decision flow
 
+**Where the chat's route is composed (2026-11-18).** The chat's model button (`fmPreference`) and the Private Cloud Compute permission (`executionContext`) are combined in one place, `SettingsStore.chatAnswerRouting`; `ChatScreen+Sending` builds each answer's `InferenceConfig` from it and Model Parameters' Active Model card reads the same property, so the card cannot name a different route from the one the chat uses. Behaviour is unchanged: the property holds the switch that was inside `ChatScreen+Sending`, case for case. `[evidence_level: code_verified, confidence: high, evidence_source: refuting review of the diff, 12 button and permission pairings]`
+
 ```mermaid
 flowchart TD
   Q[Query] --> R[Local retrieval and evidence assembly]

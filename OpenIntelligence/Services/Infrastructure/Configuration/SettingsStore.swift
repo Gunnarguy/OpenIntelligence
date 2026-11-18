@@ -485,20 +485,22 @@ final class SettingsStore: ObservableObject {
             fmPreference = .automatic
         }
 
-        temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? 0.7
+        temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? RecommendedAnswerStyle.temperature
         maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 2048
         contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 4096
-        topP = (defaults.object(forKey: Keys.topP) as? Double) ?? 0.9
+        topP = (defaults.object(forKey: Keys.topP) as? Double) ?? RecommendedAnswerStyle.topP
         // Defaults to .topK so behaviour is unchanged for anyone upgrading: the old
         // inference path always resolved to `.random(top: 40)` for chat queries.
-        samplingStrategy = SamplingStrategy(rawValue: defaults.string(forKey: Keys.samplingStrategy) ?? "") ?? .topK
+        samplingStrategy =
+            SamplingStrategy(rawValue: defaults.string(forKey: Keys.samplingStrategy) ?? "")
+            ?? RecommendedAnswerStyle.samplingStrategy
         // 40 matches the value `ChatScreen` used to hardcode, so an upgrading user's
         // generation behaviour is unchanged until they move the slider.
-        topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 40
+        topK = (defaults.object(forKey: Keys.topK) as? Int) ?? RecommendedAnswerStyle.topK
         if let stored = defaults.object(forKey: Keys.seed) as? Int, stored >= 0 {
             seed = UInt64(stored)
         } else {
-            seed = nil
+            seed = RecommendedAnswerStyle.seed
         }
         frequencyPenalty = (defaults.object(forKey: Keys.frequencyPenalty) as? Double) ?? 0.0
         presencePenalty = (defaults.object(forKey: Keys.presencePenalty) as? Double) ?? 0.0
@@ -1119,9 +1121,57 @@ private extension SettingsStore {
     }
 }
 
+// MARK: - Recommended answer style
+
+/// The answer-style values a new install starts with, and what Model Parameters' "Restore recommended settings" puts
+/// back (5.8). One home for them: `SettingsStore.init` and `ChatScreen`'s `@AppStorage` fallbacks read these, so the
+/// button restores what a new install uses (a temperature of 0.7 is shown and stored as 0.4, Standard's cap). Standard caps the temperature at its mode's 0.4, or 0.2
+/// for Evidence-First and High Precision (`RAGService+QueryAnswer.swift`, `composeStandardGenerationConfig`), so a
+/// Standard answer with 0.7 saved runs at 0.4, and Model Parameters shows it as 0.40.
+enum RecommendedAnswerStyle {
+    static let temperature: Double = 0.7
+    static let topP: Double = 0.9
+    static let samplingStrategy: SamplingStrategy = .topK
+    static let topK: Int = 40
+    /// No fixed seed: answers vary slightly between runs.
+    static let seed: UInt64? = nil
+}
+
+// MARK: - Chat answer route
+
+/// Where the chat's next answer may be written: the chat's model button (`fmPreference`) inside the Private Cloud
+/// Compute permission (`executionContext`, which `pccSetting` and `applePCCConsent` set: `.onDeviceOnly` for Never,
+/// `.automatic` otherwise). `ChatScreen+Sending` builds each answer's `InferenceConfig` from this, and Model Parameters'
+/// Active Model card reads it, so the two cannot disagree (5.8). The card read `executionContext` alone, which is
+/// `.automatic` under Ask and Allow whatever the model button says, so it showed "Cloud" with On-Device picked.
+struct ChatAnswerRouting: Equatable, Sendable {
+    let executionContext: ExecutionContext
+    let allowPrivateCloudCompute: Bool
+
+    /// True when this route never sends an answer's work to Private Cloud Compute.
+    var staysOnDevice: Bool { executionContext == .onDeviceOnly || !allowPrivateCloudCompute }
+}
+
 // MARK: - Model Clarity Properties
 
 extension SettingsStore {
+    /// The route the chat's next answer takes. See `ChatAnswerRouting`.
+    var chatAnswerRouting: ChatAnswerRouting {
+        switch fmPreference.canonical {
+        case .automatic:
+            return ChatAnswerRouting(
+                executionContext: executionContext == .automatic ? .preferCloud : executionContext,
+                allowPrivateCloudCompute: executionContext != .onDeviceOnly)
+        case .core3B, .advanced20B:
+            return ChatAnswerRouting(executionContext: .onDeviceOnly, allowPrivateCloudCompute: false)
+        case .privateCloudCompute:
+            // The permission stays authoritative: with Never the planner records the requested cloud route and
+            // completes the answer on this device.
+            return ChatAnswerRouting(
+                executionContext: .cloudOnly, allowPrivateCloudCompute: executionContext != .onDeviceOnly)
+        }
+    }
+
     /// Human-readable description of why this model is active
     var modelSelectionReason: String {
         if hasUserPrimaryOverride {
@@ -1136,55 +1186,44 @@ extension SettingsStore {
         }
     }
 
-    /// Description of where inference will run
+    /// Where the chat's next answer is written, in the words Settings' answer-route ladder uses
+    /// (`SettingsView+ModelAndCloud.answerRouteDescription`), with the permission's effect said where it changes the
+    /// route. Since 5.8 it switches on the same two settings `chatAnswerRouting` reads (the model button and the permission); it
+    /// read `executionContext` alone, which ignored the model button. Keep the two in step when routing changes.
+    /// Hybrid sends an answer too large for this device's model, or a Deep Think or Maximum answer drawn from more than
+    /// one document (`ModelExecutionPlanner.complexityRequestsPCC`).
     var executionPathDescription: String {
         switch selectedModel {
+        case .onDeviceAnalysis:
+            return "Answers with sentences from your documents. No model writes them, and nothing leaves this device."
         case .appleIntelligence:
-            switch executionContext {
+            let neverAllowed = executionContext == .onDeviceOnly
+            switch fmPreference.canonical {
+            case .core3B, .advanced20B:
+                return "Every answer is written on this device."
             case .automatic:
-                // Was "prefers PCC for library queries; falls back on-device", which had
-                // the direction backwards: the device is the default. Corrected again
-                // 2026-10-15: `ModelExecutionPlanner`, which routes answers, also sends a
-                // Deep Think or Maximum answer drawn from more than one document
-                // (`complexityRequestsPCC`), not only one too large for the device.
-                return "On-device first; Private Cloud Compute, with your permission, for an answer too large for this device or a Deep Think or Maximum answer from more than one document"
-            case .onDeviceOnly:
-                return "On-device only (may fail for complex queries)"
-            case .preferCloud:
-                // The planner reads no preference for the cloud, so this routes as Automatic.
-                return "On-device first; Private Cloud Compute, with your permission, for an answer too large for this device or a Deep Think or Maximum answer from more than one document"
-            case .cloudOnly:
-                return "Private Cloud Compute only (requires network)"
+                return neverAllowed
+                    ? "Every answer is written on this device, because Private Cloud Compute is set to Never."
+                    : "On this device, and on Private Cloud Compute, as your permission allows, for an answer too large "
+                        + "for this device's model or a Deep Think or Maximum answer drawn from more than one document."
+            case .privateCloudCompute:
+                return neverAllowed
+                    ? "Private Cloud Compute is set to Never, so every answer is written on this device."
+                    : "Private Cloud Compute writes answers drawn from your documents when you are online and within its allowance; otherwise this device writes them."
             }
-
-        case .onDeviceAnalysis:
-            return "Fully on-device (never leaves your device)"
-            
         }
     }
 
-    /// Privacy badge for the current configuration
-    var privacyBadge: (emoji: String, text: String) {
-        switch selectedModel {
-        case .onDeviceAnalysis:
-            return ("🔒", "Data stays on device")
-
-        case .appleIntelligence:
-            if executionContext == .onDeviceOnly {
-                return ("🔒", "Data stays on device")
-            }
-            return ("🔐", "E2E encrypted, zero retention")
-            
-        }
-    }
-
-    /// Whether the current config may send data off-device
+    /// Whether the chat's next answer may leave this device. Read from `chatAnswerRouting` since 5.8.
+    ///
+    /// `privacyBadge` sat beside this until 5.8: it had no reader and judged the route from `executionContext` alone,
+    /// the same mistake, so it was removed rather than corrected.
     var mayTransmitData: Bool {
         switch selectedModel {
         case .onDeviceAnalysis:
             return false
         case .appleIntelligence:
-            return executionContext != .onDeviceOnly
+            return !chatAnswerRouting.staysOnDevice
         }
     }
 }

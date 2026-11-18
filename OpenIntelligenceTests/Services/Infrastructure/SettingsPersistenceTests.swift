@@ -130,4 +130,50 @@ final class SettingsPersistenceTests: XCTestCase {
             }
         }
     }
+
+    /// A new install starts on the recommended answer style, the values Model Parameters' "Restore recommended settings"
+    /// puts back (5.8), so the button and a new install cannot disagree.
+    func testANewInstallStartsOnTheRecommendedAnswerStyle() throws {
+        let suite = "SettingsPersistenceTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults, ragService: RAGService())
+
+        XCTAssertEqual(store.temperature, RecommendedAnswerStyle.temperature)
+        XCTAssertEqual(store.topP, RecommendedAnswerStyle.topP)
+        XCTAssertEqual(store.samplingStrategy, RecommendedAnswerStyle.samplingStrategy)
+        XCTAssertEqual(store.topK, RecommendedAnswerStyle.topK)
+        XCTAssertEqual(store.seed, RecommendedAnswerStyle.seed)
+    }
+
+    /// The route Model Parameters' Active Model card shows is the chat model button's, inside the Private Cloud Compute
+    /// permission (5.8). The card read the permission alone, so with On-Device picked and the permission on Ask it said
+    /// "Cloud".
+    func testTheActiveRouteFollowsTheChatsModelButtonInsideThePermission() throws {
+        let cases: [(FoundationModelPreference, CloudConsentState?, ExecutionContext, Bool)] = [
+            (.core3B, nil, .onDeviceOnly, true),
+            (.core3B, .allowed, .onDeviceOnly, true),
+            (.automatic, nil, .preferCloud, false),
+            (.automatic, .allowed, .preferCloud, false),
+            (.automatic, .denied, .onDeviceOnly, true),
+            (.privateCloudCompute, .allowed, .cloudOnly, false),
+            (.privateCloudCompute, .denied, .cloudOnly, true),
+        ]
+        for (preference, consent, context, staysOnDevice) in cases {
+            let suite = "SettingsPersistenceTests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.set(preference.rawValue, forKey: "foundationModelPreference")
+            if let consent { defaults.set(consent.rawValue, forKey: "cloudConsent.applePCC") }
+            defaults.set(LLMModelType.appleIntelligence.rawValue, forKey: "selectedLLMModel")
+            let store = SettingsStore(defaults: defaults, ragService: RAGService())
+
+            let label = "\(preference), consent \(String(describing: consent))"
+            XCTAssertEqual(store.chatAnswerRouting.executionContext, context, label)
+            XCTAssertEqual(store.chatAnswerRouting.staysOnDevice, staysOnDevice, label)
+            if store.selectedModel == .appleIntelligence {
+                XCTAssertEqual(store.mayTransmitData, !staysOnDevice, label)
+            }
+        }
+    }
 }

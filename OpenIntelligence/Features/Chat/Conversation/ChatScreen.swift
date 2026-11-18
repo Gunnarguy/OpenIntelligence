@@ -253,14 +253,14 @@ struct ChatScreen: View {
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
 
     // Settings (synchronized with SettingsView via @AppStorage)
-    @AppStorage("llmTemperature") var temperature: Double = 0.7
+    @AppStorage("llmTemperature") var temperature: Double = RecommendedAnswerStyle.temperature
     @AppStorage("llmMaxTokens") var maxTokens: Int = 512
-    @AppStorage("llmTopP") var topP: Double = 0.9
+    @AppStorage("llmTopP") var topP: Double = RecommendedAnswerStyle.topP
     // Defaults to "topK" so an upgrading user keeps the previous behaviour: the old
     // inference path in LLMService always resolved to .random(top: 40) for chat.
-    @AppStorage("llmSamplingStrategy") var samplingStrategyRaw: String = SamplingStrategy.topK.rawValue
+    @AppStorage("llmSamplingStrategy") var samplingStrategyRaw: String = RecommendedAnswerStyle.samplingStrategy.rawValue
     /// Sampling shortlist size. Distinct from the retrieval top-K passed to `query(_:topK:)`.
-    @AppStorage("llmTopK") var samplingTopK: Int = 40
+    @AppStorage("llmTopK") var samplingTopK: Int = RecommendedAnswerStyle.topK
     @AppStorage("llmSamplingSeed") var seedStorage: Int = -1
     @AppStorage("llmFrequencyPenalty") var frequencyPenalty: Double = 0.0
     @AppStorage("llmPresencePenalty") var presencePenalty: Double = 0.0
