@@ -251,6 +251,24 @@ final class WhatsNewStore: ObservableObject {
                     detail:
                         "The app's guides sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Rating the app is now Apple's own sheet, and the plans screen says what each plan adds."
                 ),
+                .init(
+                    symbol: "lock.doc",
+                    title: "The Guide library stays as it came, and yours starts at Library 1",
+                    detail:
+                        "The Guide library can't be deleted, emptied or added to, and comes back if it goes missing; a file sent to it goes to your own first library. That library is now Library 1, not General, on every device, and a name you gave it yourself stays."
+                ),
+                .init(
+                    symbol: "number",
+                    title: "A number stays with what it belongs to",
+                    detail:
+                        "A list's numbers reach the model with the names they belong to, so Standard no longer gives one mode's figure for another, and Fact Check marks a number unsupported when the passage gives it to something else. A \"no\" in a passage about something the answer doesn't mention no longer reads as a contradiction."
+                ),
+                .init(
+                    symbol: "speedometer",
+                    title: "Tokens per second is the answer's own speed",
+                    detail:
+                        "The speed under an answer counts only the answer being written, from its first words to its last, not the time spent finding and reading passages. On Deep Think and Maximum it is the final answer's speed."
+                ),
             ]
         ),
         "5.7": WhatsNewRelease(
