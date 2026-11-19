@@ -799,24 +799,16 @@ extension ChatScreen {
                 .onReceive(macShellCommands.map { $0.$answerDetails.eraseToAnyPublisher() } ?? Just(nil).eraseToAnyPublisher()) {
                     macAnswerDetails = $0
                 }
-                // An answer's details beside the chat, in the window's inspector, instead of a sheet over it.
-                .inspector(
-                    isPresented: Binding(
-                        get: { macAnswerDetails != nil && macAreaIsActive },
-                        set: { if !$0, macAreaIsActive { macShellCommands?.answerDetails = nil } })
-                ) {
-                    if let details = macAnswerDetails {
-                        ChatResponseDetailsView(
-                            metadata: details.metadata,
-                            retrievedChunks: details.retrievedChunks,
-                            structuredAnswer: details.structuredAnswer,
-                            onClose: { macShellCommands?.answerDetails = nil }
-                        )
-                        .environment(\.libraryDocumentLookup, details.lookup)
-                        .id(details.id)
-                        .inspectorColumnWidth(min: 340, ideal: 420, max: 640)
-                    }
-                }
+                // An answer's details beside the chat, as a pane of this area, instead of a sheet over it (5.8, 2026-11-19).
+                // They were the window's `.inspector`, and Chat stays alive behind the other areas (`MacShell`), so the
+                // window always carried that inspector's column. While an answer ran, Chat redrew 5 times a second and
+                // the window's constraints pass restarted until AppKit threw ("Update Constraints in Window", crash
+                // report 2026-11-19 10:46:58, a Standard answer in Chat), the loop Documents' inspector made at 07:40
+                // and 07:50 (`DocumentLibraryView+Mac`).
+                .modifier(
+                    MacAnswerDetailsPane(
+                        details: macAreaIsActive ? macAnswerDetails : nil,
+                        onClose: { macShellCommands?.answerDetails = nil }))
                 .onChange(of: ragService.containerService.activeContainerId) { _, _ in
                     macShellCommands?.answerDetails = nil
                 }
@@ -1725,3 +1717,29 @@ extension ChatScreen {
     }
 
 }
+
+#if os(macOS)
+    /// An answer's details in a pane beside the chat, the way Documents shows a document's (5.8 Mac redesign).
+    private struct MacAnswerDetailsPane: ViewModifier {
+        let details: MacAnswerDetails?
+        let onClose: () -> Void
+
+        func body(content: Content) -> some View {
+            HSplitView {
+                content
+                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                if let details {
+                    ChatResponseDetailsView(
+                        metadata: details.metadata,
+                        retrievedChunks: details.retrievedChunks,
+                        structuredAnswer: details.structuredAnswer,
+                        onClose: onClose
+                    )
+                    .environment(\.libraryDocumentLookup, details.lookup)
+                    .id(details.id)
+                    .frame(minWidth: 340, idealWidth: 420, maxWidth: 640, maxHeight: .infinity)
+                }
+            }
+        }
+    }
+#endif

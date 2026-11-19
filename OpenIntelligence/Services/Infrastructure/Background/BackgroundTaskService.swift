@@ -177,6 +177,10 @@ final class BackgroundTaskService: Sendable {
 #endif
     @MainActor private var activeContinuedQueryWorker: Task<Void, Never>?
     @MainActor private var continuedQueryRequestSubmitted = false
+    /// Whether iOS holds this answer's continued-processing task, whose own progress card is on the Lock Screen (5.8).
+    /// The app's Live Activity stands aside then: with every answer asking for the task (2026-11-19) both cards showed,
+    /// one above the other, on the owner's iPhone.
+    @MainActor var holdsContinuedQueryTask: Bool { activeContinuedQueryTask != nil || continuedQueryRequestSubmitted }
     @MainActor private var activeContinuedQueryRequestContext: ContinuedQueryRequestContext?
     @MainActor private var continuedQueryStatus = ContinuedQueryStatusSnapshot.idle
     @MainActor private var lastPersistedQueryProgressBucket = -1

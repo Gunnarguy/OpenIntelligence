@@ -151,6 +151,11 @@
         private func startIfStillRunning(leaving: Bool) {
             guard isRunning, activity == nil else { return }
             guard leaving || UIApplication.shared.applicationState == .active else { return }
+            // iOS shows its own card for an answer that holds a continued-processing task (5.8, 2026-11-19).
+            guard !BackgroundTaskService.shared.holdsContinuedQueryTask else {
+                VerificationJournal.record("liveactivity.answer.start", ["skipped": "systemCard"])
+                return
+            }
             guard ActivityAuthorizationInfo().areActivitiesEnabled,
                 !ProcessInfo.processInfo.isiOSAppOnMac
             else { return }
