@@ -14,6 +14,22 @@ import Foundation
 import UIKit
 #endif
 
+/// Completes a background task once, from any thread (5.8, 2026-11-19). Apple: "Not calling setTaskCompleted(success:)
+/// before the time for the task expires may result in the system killing your app." Every expiration handler here
+/// handed the completion to the main actor, which can be busy mid-answer, and on the owner's iPhone the app was ended
+/// four times that day with an answer's task expiring (12:00:50, 13:06:34, 13:43:37, and a Deep Think answer at 13:47),
+/// with no crash or memory report and the expiry's own log line never written; reopening asked the question again.
+/// Each handler now completes its task before it returns, and the later bookkeeping finds it done.
+nonisolated enum BGTaskCompletion {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var completed = Set<ObjectIdentifier>()
+
+    static func complete(_ task: BGTask, success: Bool) {
+        let first = lock.withLock { completed.insert(ObjectIdentifier(task)).inserted }
+        if first { BGTaskCompletion.complete(task, success: success) }
+    }
+}
+
 private enum ContinuedIngestionPhase: String, Codable, Sendable {
     case idle
     case submitted
@@ -358,7 +374,7 @@ final class BackgroundTaskService: Sendable {
             forTaskWithIdentifier: requestIdentifier, using: DispatchQueue.main
         ) { task in
             guard let continuedTask = task as? BGContinuedProcessingTask else {
-                task.setTaskCompleted(success: false)
+                BGTaskCompletion.complete(task, success: false)
                 return
             }
             MainActor.assumeIsolated {
@@ -460,7 +476,7 @@ final class BackgroundTaskService: Sendable {
             forTaskWithIdentifier: requestIdentifier, using: DispatchQueue.main
         ) { task in
             guard let continuedTask = task as? BGContinuedProcessingTask else {
-                task.setTaskCompleted(success: false)
+                BGTaskCompletion.complete(task, success: false)
                 return
             }
             MainActor.assumeIsolated {
@@ -713,6 +729,7 @@ final class BackgroundTaskService: Sendable {
             // when the app is opened (`Back in front: continuing ...`). The system's banner said "Task failed" on the
             // owner's iPhone (2026-10-21), so the task says what happened before it ends (5.7).
             task.updateTitle(task.title, subtitle: "Paused. It continues where it left off when you open the app.")
+            BGTaskCompletion.complete(task, success: false)
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 // What the device was like when the system took the task back, kept with the
@@ -842,6 +859,11 @@ final class BackgroundTaskService: Sendable {
         )
 
         task.expirationHandler = { [weak self] in
+            // Said and completed here, before the handler returns (`BGTaskCompletion`): ended as done, not failed.
+            task.updateTitle(
+                task.title,
+                subtitle: DeviceCapabilityService.isAppInBackground ? "Paused. Tap to resume." : "Finishing in the app.")
+            BGTaskCompletion.complete(task, success: true)
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 #if canImport(UIKit)
@@ -863,8 +885,6 @@ final class BackgroundTaskService: Sendable {
                 // owner's iPhone on 2026-11-04 every model call was refused from 09:14:30 to 09:19:39 with the app
                 // in the background, and cancelling at the expiry threw away a Deep Think answer each time.
                 let fraction = self.continuedQueryStatus.progressFraction
-                // Said before the task ends, so the system's own banner does not read as a failure.
-                task.updateTitle(task.title, subtitle: inBackground ? Self.pausedQuerySubtitle : "Finishing in the app.")
                 // Ended as done, not failed: nothing failed, and the system's card said "Failed" on the owner's
                 // iPhone for an answer that was only waiting for him (2026-11-04).
                 self.finishContinuedQuery(
@@ -1048,7 +1068,7 @@ final class BackgroundTaskService: Sendable {
         continuedIngestionRequestSubmitted = false
         endForegroundFallbackIngestionExtension()
         task.expirationHandler = nil
-        task.setTaskCompleted(success: success)
+        BGTaskCompletion.complete(task, success: success)
         recordContinuedIngestionStatus(
             phase: phase,
             title: context?.title,
@@ -1089,7 +1109,7 @@ final class BackgroundTaskService: Sendable {
         continuedQueryRequestSubmitted = false
         endForegroundFallbackQueryExtension()
         task.expirationHandler = nil
-        task.setTaskCompleted(success: success)
+        BGTaskCompletion.complete(task, success: success)
         recordContinuedQueryStatus(
             phase: phase,
             title: context?.title,
@@ -1474,12 +1494,13 @@ final class BackgroundTaskService: Sendable {
             HardwareTelemetryReporter.reportCPUOperation()
             Log.info("[BackgroundTasks] Index maintenance completed", category: .initialization)
             VerificationJournal.record("bgtask.maintenance", .ok)
-            task.setTaskCompleted(success: true)
+            BGTaskCompletion.complete(task, success: true)
         }
 
         // Handle task expiration
         task.expirationHandler = {
             maintenanceTask.cancel()
+            BGTaskCompletion.complete(task, success: false)
             VerificationJournal.record("bgtask.maintenance", .cancelled, ["reason": "expired"])
             Log.warning("[BackgroundTasks] Index maintenance expired", category: .initialization)
         }
@@ -1499,11 +1520,12 @@ final class BackgroundTaskService: Sendable {
         let reindexTask = Task {
             await SpotlightIndexService.shared.reindexFromStoredRecords(asUpdate: true)
             VerificationJournal.record("bgtask.spotlight", Task.isCancelled ? .cancelled : .ok)
-            task.setTaskCompleted(success: !Task.isCancelled)
+            BGTaskCompletion.complete(task, success: !Task.isCancelled)
         }
 
         task.expirationHandler = {
             reindexTask.cancel()
+            BGTaskCompletion.complete(task, success: false)
         }
     }
 
@@ -1523,11 +1545,12 @@ final class BackgroundTaskService: Sendable {
             // 2. Record refresh timestamp
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastAppRefreshTimestamp")
 
-            task.setTaskCompleted(success: true)
+            BGTaskCompletion.complete(task, success: true)
         }
 
         task.expirationHandler = {
             refreshTask.cancel()
+            BGTaskCompletion.complete(task, success: false)
         }
     }
 }
