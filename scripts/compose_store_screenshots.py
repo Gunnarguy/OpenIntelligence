@@ -206,20 +206,14 @@ def compose(raw, size, title, sub, callout, phone, opts=None):
 # and layered here. Boxes are in the capture's pixels; "mag" is the callout's size against the
 # capture's own pixels, "bottom" seats it low (to cover what should not be featured).
 MAC_SCENES = [
-    # 5.8 (2026-11-18): staged chat scenes and Settings pages only. The Atlas and Database scenes would show the
-    # owner's own library on the listing, because the Mac capture runs against his real container.
+    # 5.8 Mac redesign (2026-11-19): the sidebar window, captured from the installed redesign build. Boxes moved right
+    # of the sidebar. The Settings window opens as its own window and was not captured, so the Settings pages are out.
     ("answer", "Ask your own documents anything", "Every claim checked against the page it came from",
-     (43, 533, 2722, 1037), {}),
+     (518, 475, 2729, 979), {}),
     ("refusal", "It tells you when your files don't say it", "No guessing. No made-up answers.",
-     (43, 1224, 1980, 1433), {}),
+     (518, 1152, 2462, 1368), {}),
     ("consent", "Built on Apple Intelligence", "On your Mac. Private Cloud Compute only when you approve it.",
-     (972, 415, 1908, 1385), {"mag": 1.1}),
-    ("intelligenceMode", "Think harder when it matters", "Standard, Deep Think or Maximum. You choose how deep it reads.",
-     (886, 173, 1994, 670), {"mag": 1.25}),
-    ("modelPrivacy", "You decide where answers are written", "Apple's model on your Mac, or Private Cloud Compute with your permission",
-     (886, 170, 1994, 756), {"mag": 1.2}),
-    ("settings", "Everything in plain sight", "Your model, mode, plan and libraries at a glance",
-     (36, 216, 2844, 475), {}),
+     (970, 413, 1909, 1385), {"mag": 1.1}),
 ]
 
 

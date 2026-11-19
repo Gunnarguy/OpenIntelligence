@@ -1,1 +1,1 @@
-New in 5.8: better search, whole tables, citations on their exact words, and long answers with room to finish.  Needs Apple Intelligence.
+New in 5.8, the biggest update yet: a Mac app that works like one, and Standard right on 15 of 17 test questions where 5.7 got 9.  Needs Apple Intelligence.

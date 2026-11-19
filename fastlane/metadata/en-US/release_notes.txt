@@ -1,58 +1,56 @@
-5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
+5.8 is the biggest update since launch, about answers you can trust and an app that gets out of your way.  On the Mac, it now works like a Mac app.
 
 
 MEASURED AGAINST 5.7
 
-• On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9.  One run each, in the iOS 27 Simulator.
+• On 17 mixed test questions asked the same way in both, Standard got 15 right against 5.7's 9, Deep Think 14 against 11 and Maximum 14 against 9.  One run each.  Answer and search figures are from the iOS 27 Simulator unless a Mac is named.
+
+
+ON THE MAC
+
+• A sidebar holds Chat, Documents, Atlas, Database, your libraries and the open library's conversations, and each area keeps its place, so an answer keeps going as you read.  Settings is its own window.  Documents is a sortable table with details beside it, answer details open beside the chat, Share uses the Mac's share menu, Export a Save panel, and the Atlas map has its own window.
+
+• iCloud files are no longer rewritten when nothing changed, which reloaded my Mac's libraries 470 to 715 times an hour.  Two windows share one engine, the menu bar item asks any library, and a bigger Mac reads more scanned pages at once.
 
 
 A ONE-TIME REBUILD
 
-• Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while, and the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.
+• Search uses IBM's Granite embedding model in place of MiniLM, whose training data was licensed for research only, and found the right document in the top five on 15 of 19 test questions, up from 10.  Each library rebuilds its index once when opened and keeps its text, so nothing is imported again; the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.
+
+• IBM's Granite reranker put the passage holding the answer in the top five on 119 of 246 research-paper questions, up from 103, on a Mac.
 
 
 ANSWERS
 
-• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac.
+• Deep Think writes from the passages its searches cited, up to about 6,000 tokens at an 8K window: 49 of 53 table questions right, up from 47.  It opens with the answer, about 14 seconds sooner at the median, checks every claim it lists, and finishes when you come back if you leave.
 
-• Apple says its on-device model holds 4K to 8K tokens, and its larger one 8K on M3 or later Macs.  My M3 Pro Mac runs the larger one at 8,192.  A continued answer used to stop after 1,600 more characters and now runs on into the room the window leaves, and Model & Privacy names the model it runs.
+• Maximum reads the source passages themselves: 25 of 30 table values right, up from 8, in 79 seconds at the median against 117.
 
-• Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
+• A continued answer no longer stops after 1,600 more characters.  Apple gives its larger model 8K tokens on M3 or later Macs; my M3 Pro Mac runs it at 8,192, and Model & Privacy names the model.
 
-• Deep Think writes its answer from the passages its searches cited (up to about 6,000 tokens where the window is 8K), opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back.
+• A citation opens any document highlighted on its exact words; on 44 PDFs on a Mac, passages marked over most of their length went from 58% to 89%.  Every answer keeps its citations.
 
-• Maximum now reads the source passages themselves at its last step.  On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change (iOS 27 Simulator).
+• A list item's number stays with its subject, a "no" about something else no longer counts against an answer, Needs Verification means a claim failed, and the badge agrees with Fact Check.
 
-• Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
-
-• No more blank answers.  If Apple's model stops after a stray number in a Standard answer, the app writes the answer again, and if that fails too it says it couldn't find the answer.
+• Quotes only quotes your documents word for word, "which document" gets the file's name, a follow-up answers your latest question, no answer is blank, and tokens per second is the answer's own writing speed.
 
 
 YOUR DOCUMENTS
 
-• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and far fewer numbers are misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
+• My eight test papers now pass 439 of 515 import checks, up from 344: tables stay whole under their column names, faded scans, fine print and other scripts are read, and numbers kept went from 90% to 94%.
 
-• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks every few minutes while the app is open.
+• On Pro and Lifetime a library can watch a folder, checked every few minutes while the app is open, and never changes your originals.
 
-• A rebuild keeps every document as it is, so your other devices no longer clear and rebuild the same library, and finished imports no longer keep a library's search index from syncing.
+• The guides have their own Guide library, which stays as it came and doesn't count toward your plan, and your first library is now Library 1.
 
-
-STEADIER
-
-• "Getting search ready" happens once after an update.
-
-• The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
-
-• Small tips point out what isn't plain from the screen, and Settings › How This Works › Show Me Around brings them back.
+• Several files no longer wait on each other, an import reads Complete once you can search it, a rebuild leaves your other devices alone, and sync never deletes a document it can't place.
 
 
 ALSO
 
-• Settings has fewer, fuller pages, and On-Device, Hybrid and PCC are one click in the chat's model menu.
+• No launch freeze from a watched folder or iCloud, the Atlas no longer spends 24 to 61 seconds on every open, and "Getting search ready" happens once and says which step it's on.
 
-• Device & Performance shows your Mac's model name, and a bigger Mac reads more scanned pages at once.
-
-• The Atlas shows only what's real, two windows share one engine, the guides don't count toward your plan, and rating the app is Apple's own sheet.
+• Settings has fewer, fuller pages, On-Device, Hybrid and PCC are one click, small tips show you around, plans are compared side by side, and rating is Apple's own sheet.
 
 
 Everything still runs on your device, unless you approve Apple's Private Cloud Compute.

@@ -191,143 +191,148 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Platforms:** iOS, macOS
 - **Description, 2026-11-06:** the closing privacy line is `Privacy Policy: gunndamental.com/openintelligence/privacy/` (was `https://gunzino.me/...`; the scheme dropped to stay under 4,000 characters, since store text is not a link; which now 301-forwards after the domain move). App Store Connect's privacy URL field already reads gunndamental.com.
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created 2026-11-02, release AFTER_APPROVAL), build 488 (`fb225053`) VALID on both and attached to neither
-- **Final release notes commit:** not yet committed; the text below is the working tree of 2026-11-17 (the previous text was the 2026-11-14 `bf05a753` notes and the 2026-11-13 `52993b71` promotional text)
+- **Final release notes commit:** not yet committed; the text below is the working tree of 2026-11-19 (the previous text was the 2026-11-18 `8f63d7f8` notes and the 2026-11-17 promotional text)
 - **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,535 characters for the Mac and 2,616 for iPhone and iPad, after the launch-freeze, rebuild, Atlas and two-window lines were added the same day; promotional text 159. Not pushed to App Store Connect.
 - **Release notes, 2026-11-14:** a MEASURED AGAINST 5.7 block after the opening (15, 14 and 14 right of 17 like-for-like questions against 9, 11 and 9). 3,761 characters for the Mac, 3,631 for iPhone and iPad. Not pushed to App Store Connect.
 - **Description, 2026-11-14:** the plans sentence now names watched folders and conversations for Pro and Lifetime, both gated in 5.8 and missing from it; "monthly or yearly" and "no renewal" were cut to fit. 3,993 of 4,000 characters, the same text for both platforms. Not pushed to App Store Connect.
 - **Release notes, promotional text and description, 2026-11-17:** written again for what landed from 2026-11-15 to 2026-11-17 and for the context-window findings. ANSWERS gains one bullet per platform: Apple's two on-device models as its "Detecting available Apple Foundation Models" page gives them (AFM 3 Core 4K to 8K, AFM 3 Core Advanced 8K; fetched 2026-11-17), the hardware each copy names its measured window on (macOS: the owner's M3 Pro Mac, AFM 3 Core Advanced, 8,192; iOS: his iPhone 16 Pro Max, 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1, with no claim about which release changed it), continuation past the old 1,600-character cap (`3fb31070`), the passage-shortening estimate that assumed 4,096 (`63ad336b`) and Model & Privacy naming the model (`9bd8c53a`). The iOS copy adds the resumed or flagged answer after iOS pauses the model (`3fb31070`) and the background sync close (`641c7aa9`); ALSO now carries the Settings regrouping (`fa81bf58`, `1231ab96`), the Mac's one-click route menu (`6ff765fa`) and its model name and page reading (`566241c3`, `3fb31070`) on macOS, and the left-edge swipe for Evidence Threads (`0e2a5bdc`) on iOS. To stay under 4,000, three clauses were shortened (the tips' "one at a time and only when they're useful", "not on every launch", and on iOS the citation line's three outcomes) and smaller ALSO items were merged; the facts behind them are unchanged in `Docs/USER_CHANGELOG.md`. A ONE-TIME REBUILD now has two blank lines before it, as the template asks. Nothing in Deep Think's final-step evidence budget is described, because that measurement is still running. 3,963 characters for the Mac and 3,970 for iPhone and iPad. Promotional text 158: "long answers that no longer stop at 1,600 characters" replaces the citations-only ending. Description 3,997: the device sentence reads "like iPhone 15 Pro or later or an M1-or-later iPad or Mac", because Apple's list (support.apple.com/en-us/121115, as `AppleIntelligenceCopy.supportedDevices` quotes it) also has the MacBook Neo and the A17 Pro and A20 Pro iPad mini, which the old wording ruled out. Not pushed to App Store Connect.
 - **Notes, 2026-11-17:** several small changes share an ALSO bullet on each platform to keep the release notes under 4,000 characters; the facts behind each are in `Docs/USER_CHANGELOG.md`.
 - **Corrected 2026-11-17, after review:** the passage-shortening estimate is gone from the release notes, because it changes only a log line (the count compressed is `min(candidates, 5)` on every window, and the step runs only in Deep Think). The 1,600 sentence now says a continuation used to stop after 1,600 more characters and now runs on into the room the window leaves, since the cap limited what a continuation added, never the whole answer. On the Mac, ALSO says Device & Performance "shows your Mac's model name". Promotional text, both platforms: "long answers with room to finish" replaces "long answers that no longer stop at 1,600 characters". The ALSO bullets stay merged. 3,919 characters for the Mac and 3,924 for iPhone and iPad; promotional text 138 (`wc -m` in a UTF-8 locale, as above). Not pushed to App Store Connect.
+- **Rewritten 2026-11-19, for submission:** at the owner's word that 5.8 is the biggest update since launch and its copy must show everything that changed with the measured numbers, both release notes were made dense rather than cut: each bullet carries several changes from `WHATS_NEW.md`'s `## 5.8`, and every figure is a count from `WHATS_NEW.md`, `CHANGELOG.md` or `BenchmarkRuns/LEDGER.md`. The reranker's 48% and 42% are now 119 and 103 of 246 (the ledger's 48.4% Core ML and 41.9% MiniLM with TinyBERT on QASPER 80, `2026-11-09-reranker-swap`). New figures: search's right document in the top five on 15 of 19 against 10; Deep Think 49 of 53 against 47 at an 8K window, and about 14 seconds sooner at the median from opening with the answer; Maximum's median 79 s against 117; citations marked over most of the passage 58% to 89% on 44 PDFs (Mac); numbers kept 90% to 94%; the Atlas's 24 to 61 s per open. The macOS copy adds ON THE MAC (the sidebar, the Settings window, the Documents table with its details pane, answer details beside the chat, the share menu, the Save panel, the Atlas window, from `CHANGELOG.md`'s "[UI] The Mac app is laid out as a Mac app" entry) and the Mac's 470 to 715 iCloud reloads an hour, two windows on one engine and the menu bar library picker; it drops "Chat no longer turns white when you tap its tab", since the Mac has no tabs now. The iOS copy adds ON IPHONE AND IPAD (an answer iOS pauses resumes, 23 s on his iPhone; imports keep going in the background; not closed while iCloud syncs; the Lock Screen and Watch card; the left-edge swipe; the X-Ray outline; portrait on iPhone) and 8 of 28 answers that had lost their citations on his iPhone. Both add the Guide library and Library 1, tokens per second, a list item's number staying with its subject, and Fact Check's "no". One line after MEASURED AGAINST 5.7 says the answer and search figures are from the iOS 27 Simulator unless a Mac (or, on iOS, his iPhone) is named. Promotional text now differs by platform: the Mac's names the Mac layout. 3,962 characters for the Mac and 3,957 for iPhone and iPad (`LC_ALL=en_US.UTF-8 wc -m`; in the C locale `wc -m` counts bytes, 3,996 and 3,991, which is where the 4,009 and 4,012 reported for the 2026-11-18 text came from: that text was 3,969 and 3,974 characters); promotional text 157 for the Mac and 156 for iPhone and iPad (`wc -m`, newline included). Description and keywords unchanged. `fastlane/review_notes/5.8.txt` written (1,120 characters); the dry run of `scripts/asc_listing_extras.rb 5.8` on 2026-11-19 said the notes on both records would be 5,111 characters against Apple's 4,000, so older versions' additions must come out of the notes on the record first. Not pushed to App Store Connect.
 - **Rewritten 2026-11-13:** the 11-03 copy (55366647) left out everything since: the new search model and its one-time rebuild, the Granite reranker, table and number fidelity, citations on their exact words, Deep Think's changes, Quotes only, no blank answers, and the launch, Chat and sync fixes. The notes, promotional text and What's New below were written again from `Docs/USER_CHANGELOG.md` and `CHANGELOG.md`, every figure from a run record (the reranker's 49% against 42% on 246 questions, `BenchmarkRuns/2026-11-09-reranker-swap`; import checks 439 against 344 of 515, `BenchmarkRuns/2026-11-12-tables/tab-fin` and `2026-11-08-extraction-fidelity/before`). Checked with `gunnar-voice/lint.py --register notes`: no errors or warnings. Not pushed to App Store Connect.
 
 **Release notes (`fastlane/metadata/`, the macOS copy):**
 
 ```text
-5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
+5.8 is the biggest update since launch, about answers you can trust and an app that gets out of your way.  On the Mac, it now works like a Mac app.
 
 
 MEASURED AGAINST 5.7
 
-• On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9.  One run each, in the iOS 27 Simulator.
+• On 17 mixed test questions asked the same way in both, Standard got 15 right against 5.7's 9, Deep Think 14 against 11 and Maximum 14 against 9.  One run each.  Answer and search figures are from the iOS 27 Simulator unless a Mac is named.
+
+
+ON THE MAC
+
+• A sidebar holds Chat, Documents, Atlas, Database, your libraries and the open library's conversations, and each area keeps its place, so an answer keeps going as you read.  Settings is its own window.  Documents is a sortable table with details beside it, answer details open beside the chat, Share uses the Mac's share menu, Export a Save panel, and the Atlas map has its own window.
+
+• iCloud files are no longer rewritten when nothing changed, which reloaded my Mac's libraries 470 to 715 times an hour.  Two windows share one engine, the menu bar item asks any library, and a bigger Mac reads more scanned pages at once.
 
 
 A ONE-TIME REBUILD
 
-• Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while, and the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.
+• Search uses IBM's Granite embedding model in place of MiniLM, whose training data was licensed for research only, and found the right document in the top five on 15 of 19 test questions, up from 10.  Each library rebuilds its index once when opened and keeps its text, so nothing is imported again; the rebuild keeps your Mac awake.  If you share libraries over iCloud, update every device.
+
+• IBM's Granite reranker put the passage holding the answer in the top five on 119 of 246 research-paper questions, up from 103, on a Mac.
 
 
 ANSWERS
 
-• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac.
+• Deep Think writes from the passages its searches cited, up to about 6,000 tokens at an 8K window: 49 of 53 table questions right, up from 47.  It opens with the answer, about 14 seconds sooner at the median, checks every claim it lists, and finishes when you come back if you leave.
 
-• Apple says its on-device model holds 4K to 8K tokens, and its larger one 8K on M3 or later Macs.  My M3 Pro Mac runs the larger one at 8,192.  A continued answer used to stop after 1,600 more characters and now runs on into the room the window leaves, and Model & Privacy names the model it runs.
+• Maximum reads the source passages themselves: 25 of 30 table values right, up from 8, in 79 seconds at the median against 117.
 
-• Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found word for word, found in part, or not found.
+• A continued answer no longer stops after 1,600 more characters.  Apple gives its larger model 8K tokens on M3 or later Macs; my M3 Pro Mac runs it at 8,192, and Model & Privacy names the model.
 
-• Deep Think writes its answer from the passages its searches cited (up to about 6,000 tokens where the window is 8K), opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back.
+• A citation opens any document highlighted on its exact words; on 44 PDFs on a Mac, passages marked over most of their length went from 58% to 89%.  Every answer keeps its citations.
 
-• Maximum now reads the source passages themselves at its last step.  On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change (iOS 27 Simulator).
+• A list item's number stays with its subject, a "no" about something else no longer counts against an answer, Needs Verification means a claim failed, and the badge agrees with Fact Check.
 
-• Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
-
-• No more blank answers.  If Apple's model stops after a stray number in a Standard answer, the app writes the answer again, and if that fails too it says it couldn't find the answer.
+• Quotes only quotes your documents word for word, "which document" gets the file's name, a follow-up answers your latest question, no answer is blank, and tokens per second is the answer's own writing speed.
 
 
 YOUR DOCUMENTS
 
-• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and far fewer numbers are misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
+• My eight test papers now pass 439 of 515 import checks, up from 344: tables stay whole under their column names, faded scans, fine print and other scripts are read, and numbers kept went from 90% to 94%.
 
-• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks every few minutes while the app is open.
+• On Pro and Lifetime a library can watch a folder, checked every few minutes while the app is open, and never changes your originals.
 
-• A rebuild keeps every document as it is, so your other devices no longer clear and rebuild the same library, and finished imports no longer keep a library's search index from syncing.
+• The guides have their own Guide library, which stays as it came and doesn't count toward your plan, and your first library is now Library 1.
 
-
-STEADIER
-
-• "Getting search ready" happens once after an update.
-
-• The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
-
-• Small tips point out what isn't plain from the screen, and Settings › How This Works › Show Me Around brings them back.
+• Several files no longer wait on each other, an import reads Complete once you can search it, a rebuild leaves your other devices alone, and sync never deletes a document it can't place.
 
 
 ALSO
 
-• Settings has fewer, fuller pages, and On-Device, Hybrid and PCC are one click in the chat's model menu.
+• No launch freeze from a watched folder or iCloud, the Atlas no longer spends 24 to 61 seconds on every open, and "Getting search ready" happens once and says which step it's on.
 
-• Device & Performance shows your Mac's model name, and a bigger Mac reads more scanned pages at once.
-
-• The Atlas shows only what's real, two windows share one engine, the guides don't count toward your plan, and rating the app is Apple's own sheet.
+• Settings has fewer, fuller pages, On-Device, Hybrid and PCC are one click, small tips show you around, plans are compared side by side, and rating is Apple's own sheet.
 
 
 Everything still runs on your device, unless you approve Apple's Private Cloud Compute.
 ```
 
-**Release notes (`fastlane/metadata-ios/`, the same working tree):**
+**Release notes (`fastlane/metadata-ios/`, the same working tree of 2026-11-19):**
 
 ```text
-5.8 is about answers you can trust and an app that gets out of your way.  A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
+5.8 is the biggest update since launch, about answers you can trust and an app that gets out of your way.
 
 
 MEASURED AGAINST 5.7
 
-• On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9.  One run each, in the iOS 27 Simulator.
+• On 17 mixed test questions asked the same way in both, Standard got 15 right against 5.7's 9, Deep Think 14 against 11 and Maximum 14 against 9.  One run each.  Answer and search figures are from the iOS 27 Simulator unless a Mac or my iPhone is named.
 
 
 A ONE-TIME REBUILD
 
-• Search now uses IBM's Granite embedding model, licensed for commercial use, in place of MiniLM, whose training data was licensed for research only.  Each library rebuilds its search index once, by itself, when you open it after the update.  It keeps the text it already read, so nothing is imported again, but a large library takes a while.  If you share libraries over iCloud, update every device.
+• Search uses IBM's Granite embedding model in place of MiniLM, whose training data was licensed for research only, and found the right document in the top five on 15 of 19 test questions, up from 10.  Each library rebuilds its index once when opened and keeps its text, so nothing is imported again; a large library takes a while and carries on in the background.  If you share libraries over iCloud, update every device.
+
+• IBM's Granite reranker put the passage holding the answer in the top five on 119 of 246 research-paper questions, up from 103, on a Mac.
 
 
 ANSWERS
 
-• The step that re-scores each search's best candidates now uses IBM's Granite reranker.  On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac.
+• Deep Think writes from the passages its searches cited, up to about 6,000 tokens at an 8K window: 49 of 53 table questions right, up from 47.  It opens with the answer, about 14 seconds sooner at the median, and checks every claim it lists.
 
-• Apple says its on-device model holds 4K to 8K tokens, and its larger one 8K on iPhone Air, iPhone 17 Pro and 18 Pro, iPhone Duo and M4 or later iPads.  My iPhone 16 Pro Max read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1.  A continued answer used to stop after 1,600 more characters and now runs on into the room the window leaves, and Model & Privacy names the model it runs.
+• Maximum reads the source passages themselves: 25 of 30 table values right, up from 8, in 79 seconds at the median against 117.
 
-• Tapping a citation opens any document at the passage, highlighted on its exact words, with a line saying whether it was found.
+• Apple gives its on-device model 4K to 8K tokens, and its larger one 8K on iPhone Air, iPhone 17 Pro and 18 Pro, iPhone Duo and M4 or later iPads.  My iPhone 16 Pro Max read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1.  A continued answer no longer stops after 1,600 more characters, and Model & Privacy names the model.
 
-• Deep Think writes its answer from the passages its searches cited (up to about 6,000 tokens where the window is 8K), opens with the answer, and checks every claim it lists.  If you leave while it's working, it finishes when you come back, and an answer iOS pauses now resumes then or says it stopped early.
+• A citation opens any document highlighted on its exact words; on 44 PDFs on a Mac, passages marked over most of their length went from 58% to 89%.  Every answer keeps its citations, where 8 of 28 on my iPhone had lost them.
 
-• Maximum now reads the source passages themselves at its last step.  On 30 questions asking for a value from a research paper's table it gave the right value on 25, up from 8 without the change (iOS 27 Simulator).
+• A list item's number stays with its subject, a "no" about something else no longer counts against an answer, Needs Verification means a claim failed, and the badge agrees with Fact Check.
 
-• Quotes only now really quotes: the answer is the sentences from your documents, word for word, and no model writes anything.
+• Quotes only quotes your documents word for word, "which document" gets the file's name, a follow-up answers your latest question, no answer is blank, and tokens per second is the answer's own writing speed.
 
-• No more blank answers.  If Apple's model stops after a stray number in a Standard answer, the app writes the answer again, and if that fails too it says it couldn't find the answer.
+
+ON IPHONE AND IPAD
+
+• An answer iOS pauses when you leave resumes when you come back, or says it stopped early; on my iPhone a Standard answer had stalled 23 seconds after I left.  Imports keep going in the background, and the app is no longer closed there while iCloud syncs.
+
+• A finished import's card leaves the Lock Screen and your Watch when you open the app, a swipe in from the left opens Evidence Threads, the X-Ray outlines your chip itself on recent models, and iPhone stays upright.
 
 
 YOUR DOCUMENTS
 
-• PDFs are read from their own text wherever they have it, so a table keeps every cell under its column name and far fewer numbers are misread.  On the eight research papers I test import with, it now passes 439 of 515 checks, up from 344 when this work began.
+• My eight test papers now pass 439 of 515 import checks, up from 344: tables stay whole under their column names, faded scans, fine print and other scripts are read, and numbers kept went from 90% to 94%.
 
-• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.
+• On Pro and Lifetime a library can watch a folder, checked each time you open the app, and it never changes your originals.
 
-• A rebuild keeps every document as it is, so your other devices no longer clear and rebuild the same library, and finished imports no longer keep a library's search index from syncing.
+• The guides have their own Guide library, which stays as it came and doesn't count toward your plan, and your first library is now Library 1.
 
-
-STEADIER
-
-• "Getting search ready" happens once after an update, and the app is no longer closed in the background while iCloud syncs.
-
-• The app no longer freezes at launch while it checks a watched folder or waits for iCloud, and Chat no longer turns white when you tap its tab again.
-
-• Small tips point out what isn't plain from the screen, and Settings › How This Works › Show Me Around brings them back.
+• Several files no longer wait on each other, an import reads Complete once you can search it, a rebuild leaves your other devices alone, and sync never deletes a document it can't place.
 
 
 ALSO
 
-• Settings has fewer, fuller pages, and a swipe in from the left edge opens Evidence Threads.
+• No launch freeze from a watched folder or iCloud, the Atlas no longer spends 24 to 61 seconds on every open, Chat no longer turns white, and "Getting search ready" happens once and says which step it's on.
 
-• The X-Ray outlines your chip itself on recent iPhones and iPads, the Atlas shows only what's real, the guides don't count toward your plan, and rating the app is Apple's own sheet.
+• Settings has fewer, fuller pages, small tips show you around, two iPad windows share one engine, plans are compared side by side, and rating is Apple's own sheet.
 
 
 Everything still runs on your device, unless you approve Apple's Private Cloud Compute.
 ```
 
-**Promotional text** (both platforms):
+**Promotional text** (`fastlane/metadata/`, the macOS copy):
 
 ```text
-New in 5.8: better search, whole tables, citations on their exact words, and long answers with room to finish.  Needs Apple Intelligence.
+New in 5.8, the biggest update yet: a Mac app that works like one, and Standard right on 15 of 17 test questions where 5.7 got 9.  Needs Apple Intelligence.
+```
+
+**Promotional text** (`fastlane/metadata-ios/`):
+
+```text
+New in 5.8, the biggest update yet: Standard right on 15 of 17 test questions where 5.7 got 9, whole tables and exact citations.  Needs Apple Intelligence.
 ```
 
 **Description** (both platforms; `fastlane/metadata-ios/en-US/description.txt` is a link to the macOS file):
