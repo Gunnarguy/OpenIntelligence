@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-19 13:58
+Updated: 2026-11-19 15:50
 Branch/worktree: `main`, primary checkout
-Last verified commit: c4ae4673
+Last verified commit: 8e148387
 
 ## Objective
 
@@ -13,10 +13,12 @@ square this stuff away": no Xcode Cloud build until his tests pass. Submitting i
 
 ## Status
 
-**5.8 is in review on both platforms with build 506** (from 950def34), submitted at the owner's word ~13:55 PT,
-release AFTER_APPROVAL (each platform goes live when Apple approves it). `Docs/SHIPPED_VERSION.json` says in_review.
-Builds 504 and 505 exist but carry two bugs found on the owner's devices after them (a Mac stats-panel layout crash,
-b9219793; Deep Think research replacing its answer, 950def34). iPhone (13:14) and Mac (13:17) run Debug builds of 950def34.
+**5.8 is in review on both platforms with build 509** (from 8e148387), release AFTER_APPROVAL. Build 506 was
+submitted first and pulled at the owner's word for four fixes found on his iPhone afterwards: "[S#]" in Deep Think
+answers (1ce0902b), the app killed when an answer's background task expired (ac4c0cd8, every expiration handler now
+completes its task synchronously), and two 0x8BADF00D scene-update watchdog kills drawing long answers (c3e31d40 parse
+cache, 8e148387 plain streaming for a rewrite). The background-expiry fix was seen holding on the phone (14:55 Deep
+Think run: no kill on leaving). Builds 504, 505, 507 and 508 are unused.
 
 ## Completed on 2026-11-19 (pushed)
 
