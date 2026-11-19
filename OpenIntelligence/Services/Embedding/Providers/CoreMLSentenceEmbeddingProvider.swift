@@ -413,6 +413,24 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
         static let functionLengths = [256, 512]
     #endif
 
+    /// Compiles the model's background form (CPU and Neural Engine) while the app is in front, and lets it go (5.8,
+    /// 2026-11-19). Core ML keeps what it compiled, so the switch on leaving the app loads in a fraction of a second.
+    /// Without it the first switch after an install compiled from nothing: on the owner's iPhone a question asked as he
+    /// left (10:36:31) waited 41.3 s for that compile, iOS ended the app's background time at 10:36:58, and the answer
+    /// paused until he came back. Returns the seconds it took, or nil when there was nothing to prepare (macOS, the
+    /// Simulator, or a device whose front units are already the background ones).
+    func prepareBackgroundForm() -> TimeInterval? {
+        #if os(iOS) && !targetEnvironment(simulator) && canImport(CoreML)
+            let background = DeviceCapabilityService.embeddingComputeUnitsInBackground
+            guard background != DeviceCapabilityService.shared.preferredComputeUnits else { return nil }
+            let started = Date()
+            let models = Self.makeModels(computeUnits: background)
+            return models.isEmpty ? nil : Date().timeIntervalSince(started)
+        #else
+            return nil
+        #endif
+    }
+
     private func loadTokenizer() {
         // Load Tokenizer
         if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: "bundle") {

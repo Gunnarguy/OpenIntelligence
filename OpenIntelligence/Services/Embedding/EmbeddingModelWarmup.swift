@@ -52,6 +52,14 @@ nonisolated enum EmbeddingModelWarmup {
                 VerificationJournal.record(
                     "embedding.warmup", .ok, durationMs: Date().timeIntervalSince(started) * 1000,
                     ["result": "prepared"])
+                // The form the model switches to when the app leaves, compiled now so leaving never waits for it.
+                if let seconds = await EmbeddingService.sharedCoreMLProvider.prepareBackgroundForm() {
+                    Log.info(
+                        "[EmbeddingWarmup] Prepared the background form (CPU and Neural Engine) in "
+                            + "\(String(format: "%.2f", seconds))s", category: .embedding)
+                    VerificationJournal.record(
+                        "embedding.warmup", .ok, durationMs: seconds * 1000, ["result": "backgroundForm"])
+                }
             } catch {
                 // The provider's own load reports its failure; the first embed tries again.
                 Log.warning("[EmbeddingWarmup] Not prepared: \(error.localizedDescription)", category: .embedding)
