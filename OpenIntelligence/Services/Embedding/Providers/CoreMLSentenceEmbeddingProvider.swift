@@ -300,6 +300,15 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             from inputs: MLFeatureProvider, length: Int, model: MLModel
         ) async throws -> MLFeatureProvider {
             do {
+                // Checked here, where the prediction starts (5.8, 2026-11-19): the first load after an install takes about
+                // 21 s, so a model loaded for all units in front can be asked to predict after the person has left. On the
+                // owner's iPhone the load began in front at 09:28:14, he left at 09:28:17, and the prediction then waited on
+                // a GPU iOS does not give a background app. In the background a model on the GPU goes straight to the
+                // reload below, which loads the background units first.
+                let current = modelLock.withLock { loadedComputeUnits }
+                if DeviceCapabilityService.isAppInBackground, current == .all || current == .cpuAndGPU {
+                    throw CocoaError(.featureUnsupported)
+                }
                 return try await model.prediction(from: inputs)
             } catch {
                 Log.warning(
