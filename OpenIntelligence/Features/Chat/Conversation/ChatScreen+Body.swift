@@ -311,6 +311,11 @@ extension ChatScreen {
         #endif
         // On a Mac every area shows the title of the area in front (5.8 Mac redesign, `macWindowTitle`).
         .areaNavigationTitle("Chat")
+        #if os(macOS)
+            // The library this chat asks, under the window's title (5.8 Mac redesign, 2026-11-19): the iPhone's library
+            // strip is the window's sidebar on a Mac, where only a bold row said which one was open.
+            .navigationSubtitle(macAreaIsActive ? (ragService.containerService.activeContainer?.name ?? "") : "")
+        #endif
         .imagePlaygroundSupport()
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

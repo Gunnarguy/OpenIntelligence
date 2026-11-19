@@ -101,8 +101,15 @@ struct QualityModeQuickPicker: View {
             // indicators, so the colour belongs mostly in the content.
             .glassEffect(.regular.tint(modeColor.opacity(0.18)).interactive(), in: Capsule())
         }
-        .menuStyle(.borderlessButton)
-        .buttonStyle(.plain)
+        #if os(macOS)
+            // A Mac draws a borderless-button menu as its title and icon only, so the pill lost its capsule, color and
+            // tagline (5.8 Mac redesign, the owner's screenshot, 2026-11-19). A plain button style draws the label as
+            // built, as the model pill beside it does (`ModelStatusIndicator`).
+            .buttonStyle(.plain)
+        #else
+            .menuStyle(.borderlessButton)
+            .buttonStyle(.plain)
+        #endif
         .fixedSize()
         .accessibilityLabel("Answer quality")
         .accessibilityValue("\(selectedMode.canonical.displayName), \(modeTagline)")
