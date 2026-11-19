@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-19 10:35
+Updated: 2026-11-19 12:35
 Branch/worktree: `main`, primary checkout
-Last verified commit: bcb9f12e
+Last verified commit: 7abf10eb
 
 ## Objective
 
@@ -13,14 +13,14 @@ square this stuff away": no Xcode Cloud build until his tests pass. Submitting i
 
 ## Status
 
-Main is at bcb9f12e, pushed, every commit `[ci skip]`. iPhone runs a Debug build of bcb9f12e (installed 10:24:37, first
-launch 10:27:34; first-load compile 47 s embedder, 66 s reranker, as after every install). Mac /Applications runs the same
-code (Debug, `/private/tmp/oi-mac-dd`). The Mac redesign (6122d185, 19f31f53) is on main. The Maximum A/B ended: the
-18/20 was variance and the fix stays (a982716c, ledger).
+Main is at 7abf10eb, pushed. The owner said "Start the build" at 12:30: Xcode Cloud build **504** (workflow "Default",
+main) started PENDING; watch it with `zsh -ic 'python3 -u /private/tmp/claude-501/xc_watch504.py'`. iPhone (12:23) and
+Mac (12:25) run Debug builds of 7abf10eb. Device-pass page: 15 ticked (version 10), mac-4-1 added from the Mac sidebar
+showing iPhone threads.
 
 App Store Connect is staged for 5.8 on both platforms (PREPARE_FOR_SUBMISSION; iOS version 36314c13-d814-479f-8f11-95c2d8ea6794,
-Mac 387cf5c0-eee7-41a5-8e4f-bd562435b1e0): per-platform release notes, promo text, description, keywords, screenshots and
-review notes (1,822 characters) were written and read back. No build is attached yet.
+Mac 387cf5c0-eee7-41a5-8e4f-bd562435b1e0). Release notes are at 3,991 / 3,996 characters of 4,000 and do not mention
+the afternoon's fixes; their iPhone bullet still says an answer "resumes when you come back". Rewording is the owner's call.
 
 ## Completed on 2026-11-19 (pushed)
 
@@ -32,6 +32,14 @@ review notes (1,822 characters) were written and read back. No build is attached
 | 0a2e346a | Siri and Shortcuts no longer wait forever after a rate limit: only a Chat answer waits for the app to return; an action asks once to come forward, then retries and reports failure |
 | e99bd165 | Search model and reranker warm up one second after each return to the front, once per launch |
 | bcb9f12e | The on-device window keeps its last positive reading when `contextSize` reads 0 in the background (`FoundationModelTokenBudget.lastOnDeviceContext`); an answer resumed there had been packed to 800 characters and wrongly said the guide had no chicken temperature (165°F in front). 84 tests passed |
+| 23eed636 | Fact Check ignores words a claim repeats from the question ("Chicken should reach 165°F" no longer Partial) |
+| 6e6ba674 | The embedder's background form compiles during the warm-up, in front |
+| 4bf4fb5e | Every answer holds a continued-processing task; no planner model call in the background; a rate-limited Chat answer retries in the background for ~52 s before waiting |
+| ea8c5c03 | Mac: answer details are an HSplitView pane (crash at 10:46:58 in Chat); one Lock Screen card (no Live Activity while iOS shows the task's card) |
+| 64f80816, 7d0be463 | Mac: colored mode pill, library name under "Chat", a library click keeps the area in front |
+| 895597fe | `LiveFoundationModelCapabilityProvider` uses the kept window, so the plan no longer re-packs background answers into 800 characters (bags answered "$200") |
+| 6ff02031 | `joiningContinuation` for continuations and resumes ("itemThe document"); Mac sidebar says Evidence Threads |
+| 7abf10eb | `PendingAnswerStore.keepAnswer`: the written answer is saved when the stream ends; a relaunch shows it instead of asking again |
 
 ## Known and not fixed
 
@@ -75,11 +83,8 @@ MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F
 
 ## Exact Next Action
 
-Read his trace (`xcrun devicectl device copy from --device 00008140-001130DA1863C01C --domain-type appDataContainer
---domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log --destination <file>`, then grep
-after 10:27) for two tests: a Standard question in Library 11 left mid-answer (its `Context budget:` line must not read
-`base=0`, and the answer must cite evidence), and "ask OpenIntelligence ..." from Siri (it must come forward or fail fast).
-If both pass and he says go: `zsh -ic 'python3 /private/tmp/claude-501/xc_start_default.py'` (Xcode Cloud workflow
-"Default", main), attach the build to both 5.8 versions (`PATCH appStoreVersions/<id>/relationships/build`; never
-`scripts/asc_prepare_release.rb` for text, it writes the Mac notes to both platforms), read back text and screenshots,
-then ask him once before submitting. After submission set `Docs/SHIPPED_VERSION.json` to in_review.
+When build 504 completes and shows in App Store Connect, attach it to both 5.8 versions (`PATCH
+appStoreVersions/<id>/relationships/build`; never `scripts/asc_prepare_release.rb` for text), read back the release notes,
+screenshots and review notes, then ask the owner once whether to submit. After submission set `Docs/SHIPPED_VERSION.json`
+to in_review. Open after 5.8: the continuation trigger on a final list item without a period (an extra model call), Siri
+scope and open-document, the DHA named-document row, the planner model call in Standard.
