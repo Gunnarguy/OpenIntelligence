@@ -204,7 +204,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             // each embed, and a change reloads the model before it predicts.
             let loaded = loadedComputeUnits
             let onCPUAfterFailure = movedToCPUAt != nil
-            let inBackground = DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive
+            let inBackground =
+                DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive
+                || DeviceCapabilityService.isAppInBackground
             // During an import the units are decided here, where the app is now, and they override a switch still
             // pending from when the import began: an import left before its first embed would otherwise load the units
             // chosen in front (review, 2026-11-18). After a failed prediction moved the model to the CPU it stays there
@@ -223,7 +225,11 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                     }
                     return live
                 }
-                if let pending = afterCPU ?? wantedComputeUnits { return pending }
+                if let pending = afterCPU ?? wantedComputeUnits {
+                    // A switch asked for in front (an import ending, the CPU fallback expiring) waits for the front.
+                    return DeviceCapabilityService.isAppInBackground
+                        ? DeviceCapabilityService.embeddingComputeUnitsInBackground : pending
+                }
                 // Outside an import the model follows the app too (5.8, 2026-11-19). On the owner's iPhone a Standard
                 // answer finished writing just after he left the app (08:17:44), and the source check's embedding, on the
                 // model loaded in front for all units, waited 2 min 10 s with no answer until iOS ended the background
@@ -266,7 +272,13 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             if modelLoadAttempted { return [] }
             modelLoadAttempted = true
 
-            let units = DeviceCapabilityService.shared.preferredComputeUnits
+            // The first load follows the app too (5.8, 2026-11-19): on the owner's iPhone a question asked just before he
+            // left was the first embed after an install, the model loaded for all units in the background (09:25:41, 21 s),
+            // and its prediction waited on a GPU iOS does not give a background app.
+            let units =
+                DeviceCapabilityService.isAppInBackground
+                ? DeviceCapabilityService.embeddingComputeUnitsInBackground
+                : DeviceCapabilityService.shared.preferredComputeUnits
             models = Self.makeModels(computeUnits: units)
             if !models.isEmpty {
                 loadedComputeUnits = units
