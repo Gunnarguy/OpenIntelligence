@@ -5,11 +5,10 @@
 //  Silicon-native embedding engine backed by Core ML and swift-transformers.
 //
 
-import Foundation
-import CoreML
 import Accelerate
+import CoreML
+import Foundation
 import Tokenizers
-
 
 nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unchecked Sendable {
     // MARK: - Properties
@@ -85,8 +84,16 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
     private var _tokenizer: Tokenizer?
     private let tokenizerLock = NSLock()
     private var tokenizer: Tokenizer? {
-        get { tokenizerLock.lock(); defer { tokenizerLock.unlock() }; return _tokenizer }
-        set { tokenizerLock.lock(); _tokenizer = newValue; tokenizerLock.unlock() }
+        get {
+            tokenizerLock.lock()
+            defer { tokenizerLock.unlock() }
+            return _tokenizer
+        }
+        set {
+            tokenizerLock.lock()
+            _tokenizer = newValue
+            tokenizerLock.unlock()
+        }
     }
     private let clsId: Int
     private let sepId: Int
@@ -140,7 +147,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 return true
             }
             if switched {
-                Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (the model switches on the next embed)", category: .embedding)
+                Log.info(
+                    "[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (the model switches on the next embed)",
+                    category: .embedding)
             }
         #endif
     }
@@ -162,7 +171,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 return true
             }
             if switched {
-                Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF (default compute units on the next embed)", category: .embedding)
+                Log.info(
+                    "[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF (default compute units on the next embed)",
+                    category: .embedding)
             }
         #endif
     }
@@ -176,172 +187,203 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
 
     /// Load the model's two functions on first use, shortest first. Empty if they cannot be loaded.
     #if canImport(CoreML)
-    private func loadedModels() -> [(length: Int, model: MLModel)] {
-        modelLock.lock()
-        defer { modelLock.unlock() }
+        private func loadedModels() -> [(length: Int, model: MLModel)] {
+            modelLock.lock()
+            defer { modelLock.unlock() }
 
-        var afterCPU: MLComputeUnits?
-        if let moved = movedToCPUAt, Date().timeIntervalSince(moved) > 120 {
-            movedToCPUAt = nil
-            afterCPU = DeviceCapabilityService.shared.preferredComputeUnits
-        }
-        // An import's units follow where the app is (5.8, 2026-11-18). They were chosen once, when the import began: on
-        // the owner's iPhone an import started in front loaded the model for all units, the app was left, iOS took the
-        // GPU away (`backgroundGPU=disabled`), and the first prediction 2 minutes later waited 2 min 20 s with no answer
-        // until the background task expired and cancelled it; coming back, the import sat queued behind that wait. The
-        // background profile (`isBackgroundCPUSafeIngestionProfileActive`, set on every scene-phase change) is read on
-        // each embed, and a change reloads the model before it predicts.
-        let loaded = loadedComputeUnits
-        let onCPUAfterFailure = movedToCPUAt != nil
-        let inBackground = DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive
-        // During an import the units are decided here, where the app is now, and they override a switch still
-        // pending from when the import began: an import left before its first embed would otherwise load the units
-        // chosen in front (review, 2026-11-18). After a failed prediction moved the model to the CPU it stays there
-        // for the import; units whose load failed are not tried again in it.
-        let wantedNow: MLComputeUnits? = modeLock.withLock {
-            defer { wantedComputeUnits = nil }
-            if isIngestionMode {
-                guard !onCPUAfterFailure,
-                    let live = inBackground ? ingestionBackgroundUnits : ingestionForegroundUnits,
-                    live != failedIngestionUnits
-                else { return nil }
-                if let loaded, live != loaded {
-                    Log.info(
-                        "[CoreMLSentenceEmbeddingProvider] Import \(inBackground ? "in the background" : "in front"); loading the model for compute units \(live.rawValue)",
-                        category: .embedding)
-                }
-                return live
+            var afterCPU: MLComputeUnits?
+            if let moved = movedToCPUAt, Date().timeIntervalSince(moved) > 120 {
+                movedToCPUAt = nil
+                afterCPU = DeviceCapabilityService.shared.preferredComputeUnits
             }
-            return afterCPU ?? wantedComputeUnits
-        }
-        if let wanted = wantedNow {
-            if models.isEmpty || loadedComputeUnits != wanted {
-                let reloaded = Self.makeModels(computeUnits: wanted)
-                if !reloaded.isEmpty {
-                    models = reloaded
-                    loadedComputeUnits = wanted
-                    modelLoadAttempted = true
-                    Log.info("[CoreMLSentenceEmbeddingProvider] Model loaded for compute units \(wanted.rawValue)", category: .embedding)
-                } else {
-                    modeLock.withLock { if isIngestionMode { failedIngestionUnits = wanted } }
-                    Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load the model for compute units \(wanted.rawValue); keeping the one loaded", category: .embedding)
+            // An import's units follow where the app is (5.8, 2026-11-18). They were chosen once, when the import began: on
+            // the owner's iPhone an import started in front loaded the model for all units, the app was left, iOS took the
+            // GPU away (`backgroundGPU=disabled`), and the first prediction 2 minutes later waited 2 min 20 s with no answer
+            // until the background task expired and cancelled it; coming back, the import sat queued behind that wait. The
+            // background profile (`isBackgroundCPUSafeIngestionProfileActive`, set on every scene-phase change) is read on
+            // each embed, and a change reloads the model before it predicts.
+            let loaded = loadedComputeUnits
+            let onCPUAfterFailure = movedToCPUAt != nil
+            let inBackground = DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive
+            // During an import the units are decided here, where the app is now, and they override a switch still
+            // pending from when the import began: an import left before its first embed would otherwise load the units
+            // chosen in front (review, 2026-11-18). After a failed prediction moved the model to the CPU it stays there
+            // for the import; units whose load failed are not tried again in it.
+            let wantedNow: MLComputeUnits? = modeLock.withLock {
+                defer { wantedComputeUnits = nil }
+                if isIngestionMode {
+                    guard !onCPUAfterFailure,
+                        let live = inBackground ? ingestionBackgroundUnits : ingestionForegroundUnits,
+                        live != failedIngestionUnits
+                    else { return nil }
+                    if let loaded, live != loaded {
+                        Log.info(
+                            "[CoreMLSentenceEmbeddingProvider] Import \(inBackground ? "in the background" : "in front"); loading the model for compute units \(live.rawValue)",
+                            category: .embedding)
+                    }
+                    return live
+                }
+                if let pending = afterCPU ?? wantedComputeUnits { return pending }
+                // Outside an import the model follows the app too (5.8, 2026-11-19). On the owner's iPhone a Standard
+                // answer finished writing just after he left the app (08:17:44), and the source check's embedding, on the
+                // model loaded in front for all units, waited 2 min 10 s with no answer until iOS ended the background
+                // time (08:19:54, "Unable to compute the asynchronous prediction"); the chat said "Checking sources..."
+                // even after he came back. The same wait happened at 08:12:40. In the background the GPU is not
+                // available (`backgroundGPU=disabled`), so an embed there loads the background units first, and the next
+                // embed in front loads the device's own units again.
+                guard !onCPUAfterFailure, let loaded else { return nil }
+                let background = DeviceCapabilityService.embeddingComputeUnitsInBackground
+                if inBackground, loaded != background { return background }
+                if !inBackground, loaded == background {
+                    let inFront = DeviceCapabilityService.shared.preferredComputeUnits
+                    return inFront == background ? nil : inFront
+                }
+                return nil
+            }
+            if let wanted = wantedNow {
+                if models.isEmpty || loadedComputeUnits != wanted {
+                    let reloaded = Self.makeModels(computeUnits: wanted)
+                    if !reloaded.isEmpty {
+                        models = reloaded
+                        loadedComputeUnits = wanted
+                        modelLoadAttempted = true
+                        Log.info(
+                            "[CoreMLSentenceEmbeddingProvider] Model loaded for compute units \(wanted.rawValue)",
+                            category: .embedding)
+                    } else {
+                        modeLock.withLock { if isIngestionMode { failedIngestionUnits = wanted } }
+                        Log.error(
+                            "[CoreMLSentenceEmbeddingProvider] Failed to load the model for compute units \(wanted.rawValue); keeping the one loaded",
+                            category: .embedding)
+                    }
                 }
             }
-        }
-        if !models.isEmpty {
-            modeLock.withLock { hasLoadedModel = true }
+            if !models.isEmpty {
+                modeLock.withLock { hasLoadedModel = true }
+                return models
+            }
+            if modelLoadAttempted { return [] }
+            modelLoadAttempted = true
+
+            let units = DeviceCapabilityService.shared.preferredComputeUnits
+            models = Self.makeModels(computeUnits: units)
+            if !models.isEmpty {
+                loadedComputeUnits = units
+                modeLock.withLock { hasLoadedModel = true }
+            }
             return models
         }
-        if modelLoadAttempted { return [] }
-        modelLoadAttempted = true
 
-        let units = DeviceCapabilityService.shared.preferredComputeUnits
-        models = Self.makeModels(computeUnits: units)
-        if !models.isEmpty {
-            loadedComputeUnits = units
-            modeLock.withLock { hasLoadedModel = true }
-        }
-        return models
-    }
-
-    /// One prediction that survives the model's handle going bad (5.8, 2026-11-13).
-    ///
-    /// On the owner's iPhone a Maximum question asked while the app was left and reopened three times failed whole
-    /// with "Unable to compute the asynchronous prediction using ML Program" from this model, 12 s after the app came
-    /// back, and Chat said "Something went wrong". The loaded model was held from before the app was suspended; a
-    /// prediction on the Neural Engine can fail after that, or while the app is in the background. An embedding is
-    /// too small a thing to lose an answer over: the model is loaded again and the prediction retried, and if that
-    /// fails too it runs on the CPU, where nothing can be taken away (the same vectors to float rounding). Each step
-    /// is journaled (`embedding.predictionRetry`).
-    private func prediction(from inputs: MLFeatureProvider, length: Int, model: MLModel) async throws -> MLFeatureProvider {
-        do {
-            return try await model.prediction(from: inputs)
-        } catch {
-            Log.warning(
-                "[CoreMLSentenceEmbeddingProvider] Prediction failed (\(error.localizedDescription)); loading the model again",
-                category: .embedding)
-            let units = modelLock.withLock { loadedComputeUnits } ?? DeviceCapabilityService.shared.preferredComputeUnits
-            for (attempt, computeUnits) in [units, MLComputeUnits.cpuOnly].enumerated() {
-                let reloaded = Self.makeModels(computeUnits: computeUnits)
-                guard let fresh = reloaded.first(where: { $0.length == length })?.model else { continue }
-                do {
-                    let output = try await fresh.prediction(from: inputs)
-                    modelLock.withLock {
-                        models = reloaded
-                        loadedComputeUnits = computeUnits
-                        movedToCPUAt = computeUnits == .cpuOnly && units != .cpuOnly ? Date() : nil
+        /// One prediction that survives the model's handle going bad (5.8, 2026-11-13).
+        ///
+        /// On the owner's iPhone a Maximum question asked while the app was left and reopened three times failed whole
+        /// with "Unable to compute the asynchronous prediction using ML Program" from this model, 12 s after the app came
+        /// back, and Chat said "Something went wrong". The loaded model was held from before the app was suspended; a
+        /// prediction on the Neural Engine can fail after that, or while the app is in the background. An embedding is
+        /// too small a thing to lose an answer over: the model is loaded again and the prediction retried, and if that
+        /// fails too it runs on the CPU, where nothing can be taken away (the same vectors to float rounding). Each step
+        /// is journaled (`embedding.predictionRetry`).
+        private func prediction(
+            from inputs: MLFeatureProvider, length: Int, model: MLModel
+        ) async throws -> MLFeatureProvider {
+            do {
+                return try await model.prediction(from: inputs)
+            } catch {
+                Log.warning(
+                    "[CoreMLSentenceEmbeddingProvider] Prediction failed (\(error.localizedDescription)); loading the model again",
+                    category: .embedding)
+                let units =
+                    modelLock.withLock { loadedComputeUnits } ?? DeviceCapabilityService.shared.preferredComputeUnits
+                for (attempt, computeUnits) in [units, MLComputeUnits.cpuOnly].enumerated() {
+                    let reloaded = Self.makeModels(computeUnits: computeUnits)
+                    guard let fresh = reloaded.first(where: { $0.length == length })?.model else { continue }
+                    do {
+                        let output = try await fresh.prediction(from: inputs)
+                        modelLock.withLock {
+                            models = reloaded
+                            loadedComputeUnits = computeUnits
+                            movedToCPUAt = computeUnits == .cpuOnly && units != .cpuOnly ? Date() : nil
+                        }
+                        VerificationJournal.record(
+                            "embedding.predictionRetry", .ok,
+                            ["attempt": "\(attempt + 1)", "cpu": "\(computeUnits == .cpuOnly)"])
+                        return output
+                    } catch {
+                        Log.warning(
+                            "[CoreMLSentenceEmbeddingProvider] Retry \(attempt + 1) failed: \(error.localizedDescription)",
+                            category: .embedding)
                     }
-                    VerificationJournal.record(
-                        "embedding.predictionRetry", .ok, ["attempt": "\(attempt + 1)", "cpu": "\(computeUnits == .cpuOnly)"])
-                    return output
+                }
+                VerificationJournal.record("embedding.predictionRetry", .failed, ["error": error.localizedDescription])
+                throw error
+            }
+        }
+
+        /// The model's functions, `len256` and `len512`, at the given compute units, or empty.
+        ///
+        /// Loaded from one fixed copy (`RerankerModelLocation`, 5.8): Core ML finds the form it compiled for the Neural
+        /// Engine by the model's location, and loading from the app bundle compiled again on most launches on the owner's
+        /// iPhone (measured for the reranker, 2026-11-12).
+        private static func makeModels(computeUnits: MLComputeUnits) -> [(length: Int, model: MLModel)] {
+            let modelName = "EmbeddingModel"
+            let computeDesc: String
+            switch computeUnits {
+            case .cpuAndGPU: computeDesc = "GPU+CPU"
+            case .cpuAndNeuralEngine: computeDesc = "ANE+CPU"
+            case .all: computeDesc = "All (system choice)"
+            default: computeDesc = "default"
+            }
+            guard
+                let bundled = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc")
+                    ?? OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage")
+            else {
+                Log.error(
+                    "[CoreMLSentenceEmbeddingProvider] ❌ Model not found. Looked for '\(modelName).mlmodelc' and '.mlpackage'",
+                    category: .embedding)
+                VerificationJournal.record("embedding.load", .failed, ["error": "notFound"])
+                return []
+            }
+            let location = RerankerModelLocation.loadURL(for: bundled)
+            let started = Date()
+            var loaded: [(length: Int, model: MLModel)] = []
+            for length in Self.functionLengths {
+                do {
+                    let config = MLModelConfiguration()
+                    config.computeUnits = computeUnits
+                    config.functionName = "len\(length)"
+                    // Maximum favours prediction speed over load time, memory and disk (5.8).
+                    if DeviceCapabilityService.maximumProfileSelected {
+                        config.optimizationHints.specializationStrategy = .fastPrediction
+                    }
+                    loaded.append((length, try MLModel(contentsOf: location.url, configuration: config)))
                 } catch {
-                    Log.warning(
-                        "[CoreMLSentenceEmbeddingProvider] Retry \(attempt + 1) failed: \(error.localizedDescription)",
+                    Log.error(
+                        "[CoreMLSentenceEmbeddingProvider] Failed to load function len\(length): \(error)",
                         category: .embedding)
                 }
             }
-            VerificationJournal.record("embedding.predictionRetry", .failed, ["error": error.localizedDescription])
-            throw error
-        }
-    }
-
-    /// The model's functions, `len256` and `len512`, at the given compute units, or empty.
-    ///
-    /// Loaded from one fixed copy (`RerankerModelLocation`, 5.8): Core ML finds the form it compiled for the Neural
-    /// Engine by the model's location, and loading from the app bundle compiled again on most launches on the owner's
-    /// iPhone (measured for the reranker, 2026-11-12).
-    private static func makeModels(computeUnits: MLComputeUnits) -> [(length: Int, model: MLModel)] {
-        let modelName = "EmbeddingModel"
-        let computeDesc: String
-        switch computeUnits {
-        case .cpuAndGPU: computeDesc = "GPU+CPU"
-        case .cpuAndNeuralEngine: computeDesc = "ANE+CPU"
-        case .all: computeDesc = "All (system choice)"
-        default: computeDesc = "default"
-        }
-        guard let bundled = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc")
-            ?? OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage")
-        else {
-            Log.error("[CoreMLSentenceEmbeddingProvider] ❌ Model not found. Looked for '\(modelName).mlmodelc' and '.mlpackage'", category: .embedding)
-            VerificationJournal.record("embedding.load", .failed, ["error": "notFound"])
-            return []
-        }
-        let location = RerankerModelLocation.loadURL(for: bundled)
-        let started = Date()
-        var loaded: [(length: Int, model: MLModel)] = []
-        for length in Self.functionLengths {
-            do {
-                let config = MLModelConfiguration()
-                config.computeUnits = computeUnits
-                config.functionName = "len\(length)"
-                // Maximum favours prediction speed over load time, memory and disk (5.8).
-                if DeviceCapabilityService.maximumProfileSelected {
-                    config.optimizationHints.specializationStrategy = .fastPrediction
-                }
-                loaded.append((length, try MLModel(contentsOf: location.url, configuration: config)))
-            } catch {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load function len\(length): \(error)", category: .embedding)
+            let seconds = Date().timeIntervalSince(started)
+            guard loaded.count == Self.functionLengths.count else {
+                VerificationJournal.record(
+                    "embedding.load", .failed, ["error": "function", "loaded": "\(loaded.count)"])
+                return []
             }
+            Log.info(
+                "[CoreMLSentenceEmbeddingProvider] Loaded \(location.url.lastPathComponent) (\(location.fixedPath ? "fixed path" : "bundle")) in \(String(format: "%.2f", seconds)) s"
+                    + " - compute: \(computeDesc)", category: .embedding)
+            VerificationJournal.record(
+                "embedding.load", .ok, durationMs: seconds * 1000,
+                [
+                    "compute": computeDesc, "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
+                    "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)",
+                    "fixedPath": "\(location.fixedPath)",
+                ])
+            return loaded
         }
-        let seconds = Date().timeIntervalSince(started)
-        guard loaded.count == Self.functionLengths.count else {
-            VerificationJournal.record("embedding.load", .failed, ["error": "function", "loaded": "\(loaded.count)"])
-            return []
-        }
-        Log.info(
-            "[CoreMLSentenceEmbeddingProvider] Loaded \(location.url.lastPathComponent) (\(location.fixedPath ? "fixed path" : "bundle")) in \(String(format: "%.2f", seconds)) s"
-                + " - compute: \(computeDesc)", category: .embedding)
-        VerificationJournal.record(
-            "embedding.load", .ok, durationMs: seconds * 1000,
-            ["compute": computeDesc, "newInstall": "\(VerificationJournal.firstLaunchOfThisInstall)",
-                "fastPrediction": "\(DeviceCapabilityService.maximumProfileSelected)",
-                "fixedPath": "\(location.fixedPath)"])
-        return loaded
-    }
 
-    /// The model's fixed input lengths: a fixed shape is what the Neural Engine runs, and most passages fit 256
-    /// (median 210 tokens with their prefix, 90th percentile 390; 2026-11-08), which runs faster than 512.
-    static let functionLengths = [256, 512]
+        /// The model's fixed input lengths: a fixed shape is what the Neural Engine runs, and most passages fit 256
+        /// (median 210 tokens with their prefix, 90th percentile 390; 2026-11-08), which runs faster than 512.
+        static let functionLengths = [256, 512]
     #endif
 
     private func loadTokenizer() {
@@ -352,11 +394,13 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                     tokenizer = try await AutoTokenizer.from(directory: url)
                     Log.info("[CoreMLSentenceEmbeddingProvider] Loaded Rust-backed tokenizer", category: .embedding)
                 } catch {
-                    Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
+                    Log.error(
+                        "[CoreMLSentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
                 }
             }
         } else {
-            Log.warning("[CoreMLSentenceEmbeddingProvider] embedding_tokenizer not found in Bundle", category: .embedding)
+            Log.warning(
+                "[CoreMLSentenceEmbeddingProvider] embedding_tokenizer not found in Bundle", category: .embedding)
         }
     }
 
@@ -373,15 +417,19 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             // Resource presence is the honest test and costs a bundle lookup, not 43 MiB.
             // `model` is not read here: since 2026-11-04 it is written off the main thread under `modelLock`, and
             // taking that lock could wait out a 43 MiB load. A loaded model implies its resource is present.
-            let available = OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlmodelc") != nil
+            let available =
+                OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlmodelc") != nil
                 || OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlpackage") != nil
             if !available {
-                Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: EmbeddingModel not present in bundle", category: .embedding)
+                Log.warning(
+                    "[CoreMLSentenceEmbeddingProvider] Provider unavailable: EmbeddingModel not present in bundle",
+                    category: .embedding)
             }
 
             return available
         #else
-            Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: CoreML not imported", category: .embedding)
+            Log.warning(
+                "[CoreMLSentenceEmbeddingProvider] Provider unavailable: CoreML not imported", category: .embedding)
             return false
         #endif
     }
@@ -417,7 +465,7 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             // Wait up to 1 second for tokenizer to finish loading if it's nil (rare initialization race)
             var count = 0
             while tokenizer == nil && count < 20 {
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms
                 count += 1
             }
 
@@ -548,9 +596,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
             // Log as ERROR because this indicates a bug in the chunking pipeline
             // Every word should be accounted for - truncation = data loss
             Log.error(
-                "[CoreMLSentenceEmbedding] ❌ TRUNCATION: \(originalCount)→\(maxSequenceLength) tokens " +
-                "(losing \(lostTokens) tokens = \(lossPercent)% of content!). " +
-                "BUG: Chunk escaped size limits. Text preview: \"\(text.prefix(100))...\"",
+                "[CoreMLSentenceEmbedding] ❌ TRUNCATION: \(originalCount)→\(maxSequenceLength) tokens "
+                    + "(losing \(lostTokens) tokens = \(lossPercent)% of content!). "
+                    + "BUG: Chunk escaped size limits. Text preview: \"\(text.prefix(100))...\"",
                 category: .embedding
             )
         }
