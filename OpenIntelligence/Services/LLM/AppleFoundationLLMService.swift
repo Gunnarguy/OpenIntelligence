@@ -898,7 +898,7 @@ import os
                 else {
                     throw LLMError.rateLimited(message)
                 }
-                responseText += resumed
+                responseText = Self.joiningContinuation(responseText, resumed)
                 // The wait for the app to come back is inside any window from here, so this answer has no writing
                 // speed to report (5.8).
                 resumedAfterPause = true
@@ -959,7 +959,7 @@ import os
                     config: config
                 )
                 if !continuedText.isEmpty {
-                    responseText += continuedText
+                    responseText = Self.joiningContinuation(responseText, continuedText)
                     Log.info("[FM] Continuation added \(continuedText.count) chars", category: .llm)
                 }
             }
@@ -1207,6 +1207,34 @@ import os
             )
         }
         /// Detects if a response was cut off mid-sentence or mid-thought
+        /// The answer with its continuation after it (5.8, 2026-11-19). The two were concatenated, so a continuation that
+        /// opened a new sentence ran into the last word: on the owner's iPhone an answer ending on the list item
+        /// "- 1 personal item" was continued with "The document lists the same allowance for each traveler." and showed
+        /// "1 personal itemThe document lists". A continuation that starts a new sentence (a capital letter or a digit
+        /// right after a letter, digit or closing mark) gets a space, or a paragraph break after a list item; one that
+        /// carries on a word (a lowercase letter) or starts with punctuation or white space is joined as it was.
+        nonisolated static func joiningContinuation(_ text: String, _ continuation: String) -> String {
+            guard let last = text.last, let first = continuation.first else { return text + continuation }
+            guard !last.isWhitespace, !first.isWhitespace else { return text + continuation }
+            let afterSentenceEnd = ".!?:;)]\"'*".contains(last)
+            // A digit or a capital right after a digit or a capital can be one number or one acronym split in two
+            // ("$1,6" and "75", "PC" and "C"), and a number must never gain a space; those are joined as they were.
+            let startsSentence =
+                (first.isUppercase && !(last.isUppercase || last.isNumber))
+                || (first.isNumber && afterSentenceEnd)
+                || first == "*" || first == "-" || first == "•"
+            guard startsSentence, last.isLetter || last.isNumber || afterSentenceEnd else { return text + continuation }
+            let lastLine = text.split(separator: "\n", omittingEmptySubsequences: false).last.map(String.init) ?? text
+            let trimmedLine = lastLine.trimmingCharacters(in: .whitespaces)
+            let endsOnListItem =
+                ["- ", "* ", "• "].contains(where: { trimmedLine.hasPrefix($0) })
+                || trimmedLine.range(of: #"^\d+[.)] "#, options: .regularExpression) != nil
+            let startsListItem = first == "-" || first == "•" || (first == "*" && continuation.dropFirst().first == " ")
+            if startsListItem { return text + "\n" + continuation }
+            if endsOnListItem { return text + "\n\n" + continuation }
+            return text + " " + continuation
+        }
+
         private func responseNeedsContinuation(_ text: String) -> Bool {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return false }
@@ -1403,7 +1431,7 @@ import os
                         break
                     }
 
-                    continuedText += chunkText
+                    continuedText = Self.joiningContinuation(continuedText, chunkText)
 
                     // Check if this continuation is complete
                     if !responseNeedsContinuation(continuedText) {
@@ -1419,7 +1447,7 @@ import os
                     // dropping it left the answer shorter than what the person had just read.
                     let combinedSoFar = currentResponse + continuedText
                     if !chunkText.isEmpty, !isRepetitiveContent(newText: chunkText, existingText: combinedSoFar) {
-                        continuedText += chunkText
+                        continuedText = Self.joiningContinuation(continuedText, chunkText)
                     }
                     Log.warning("[FM] Continuation failed: \(error)", category: .llm)
                     break

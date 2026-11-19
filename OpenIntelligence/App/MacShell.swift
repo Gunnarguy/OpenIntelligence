@@ -152,7 +152,7 @@ private struct AreaNavigationTitle: ViewModifier {
 
                 Section {
                     if threads.isEmpty {
-                        Text("No conversations in this library yet")
+                        Text("No evidence threads in this library yet")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .selectionDisabled()
@@ -161,7 +161,7 @@ private struct AreaNavigationTitle: ViewModifier {
                         threadRow(thread)
                     }
                 } header: {
-                    Text("Conversations")
+                    Text("Evidence Threads")
                 }
             }
             .listStyle(.sidebar)
@@ -252,7 +252,7 @@ private struct AreaNavigationTitle: ViewModifier {
             }
             .tag(MacSidebarItem.thread(thread.id))
             .contextMenu {
-                Button("Delete Conversation", role: .destructive) {
+                Button("Delete Evidence Thread", role: .destructive) {
                     delete(thread)
                 }
             }
