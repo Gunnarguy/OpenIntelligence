@@ -438,6 +438,12 @@ extension ChatScreen {
                                 forQuestion: self.messages.last(where: { $0.role == .user })?.id)
                             // DO NOT flush - let the pump finish naturally for a smooth end
                         } else {
+                            // New words after a final event are a second write (Deep Think writes its synthesis again
+                            // when the first is cut off), so the bubble goes back to plain streaming text (5.8,
+                            // 2026-11-19). It stayed in its checking state, which draws the whole answer as markdown,
+                            // and parsed it again on every word: on the owner's iPhone 90 s of main-thread regex work
+                            // and a scene-update watchdog kill (0x8BADF00D, 14:59:13).
+                            if self.isStreamFinished, !event.text.isEmpty { self.isStreamFinished = false }
                             self.continuedQueryCoordinator.markFirstToken()
                             self.enqueueStreamingText(event.text)
                         }
