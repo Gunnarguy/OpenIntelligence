@@ -568,7 +568,15 @@ struct ContentView: View {
                         NavigationTiming.begin("library")
                         containerService.setActive(id)
                     }
-                    selectedTab = .documents
+                    if macCommands.libraryCommand != nil {
+                        // A library action from the row's menu (settings, storage, delete) runs on the Documents screen.
+                        selectedTab = .documents
+                    } else {
+                        // A click opens the library in the area in front (5.8, 2026-11-19): Chat asks it, Documents lists
+                        // it. It always went to Documents, so asking another library took a click on it and then on Chat,
+                        // which the owner found clunky. The area's row stays selected; the open library's row is bold.
+                        macSidebarSelection = .area(selectedTab)
+                    }
                 case .thread(let id):
                     selectedTab = .chat
                     if ragService.activeThreadId != id {
