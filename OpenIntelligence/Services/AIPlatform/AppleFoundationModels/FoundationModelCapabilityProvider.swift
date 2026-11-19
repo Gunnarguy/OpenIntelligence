@@ -12,6 +12,13 @@ protocol FoundationModelCapabilityProviding: Sendable {
 struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding {
     func snapshot() async -> FoundationModelCapabilitySnapshot {
         let localModel = SystemLanguageModel.default
+        // The window the answer is planned against keeps its last real reading (5.8, 2026-11-19). `contextSize` reads 0
+        // while the model is unavailable, which it is for an app in the background, and the plan then sized the answer
+        // for no window at all: on the owner's iPhone "How many bags are allowed per person?" asked as he left was
+        // written from a cut-down context through the one-value path and answered "$200 per person" (the insurance
+        // table's baggage-delay row), where the same question in front answered "one checked bag per person, plus one
+        // carry-on and one personal item" from the same 13 passages (11:23:48 and 11:25:55).
+        let onDeviceContextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
         let localAvailable: Bool
         if case .available = localModel.availability {
             localAvailable = true
@@ -23,7 +30,7 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
         return FoundationModelCapabilitySnapshot(
             supportsOnDevice: true,
             onDeviceAvailable: localAvailable,
-            onDeviceContextSize: localModel.contextSize,
+            onDeviceContextSize: onDeviceContextSize,
             supportsPCC: false,
             hasPCCEntitlement: false,
             pccAvailable: false,
@@ -40,7 +47,7 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
                 return FoundationModelCapabilitySnapshot(
                     supportsOnDevice: true,
                     onDeviceAvailable: localAvailable,
-                    onDeviceContextSize: localModel.contextSize,
+                    onDeviceContextSize: onDeviceContextSize,
                     supportsPCC: true,
                     hasPCCEntitlement: false,
                     pccAvailable: false,
@@ -75,7 +82,7 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
             return FoundationModelCapabilitySnapshot(
                 supportsOnDevice: true,
                 onDeviceAvailable: localAvailable,
-                onDeviceContextSize: localModel.contextSize,
+                onDeviceContextSize: onDeviceContextSize,
                 supportsPCC: true,
                 hasPCCEntitlement: true,
                 pccAvailable: available,
@@ -100,7 +107,7 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
         return FoundationModelCapabilitySnapshot(
             supportsOnDevice: true,
             onDeviceAvailable: localAvailable,
-            onDeviceContextSize: localModel.contextSize,
+            onDeviceContextSize: onDeviceContextSize,
             supportsPCC: false,
             hasPCCEntitlement: false,
             pccAvailable: false,
