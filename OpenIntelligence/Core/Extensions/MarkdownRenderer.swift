@@ -200,7 +200,30 @@ private struct MarkdownParser {
     /// `promotesLabelBullets` (answers only, 5.8): a list item that is only a bold label, such as
     /// `- **What stays on the device:**`, becomes a `###` heading, so the bullets under it read as its
     /// section. See `labelBullet(_:)` and `listBlocks(_:promotesLabelBullets:)`.
+    /// Each text is parsed once (5.8, 2026-11-19). `MarkdownText.body` parsed its whole text on every redraw, and a chat
+    /// redraws every answer while one is written (the elapsed clock ticks 5 times a second); on the owner's iPhone the
+    /// main thread spent over 10 s in `MarkdownParser.parse` / `isNumberedLine` as the app changed scene state, and iOS
+    /// killed it (0x8BADF00D, scene-update watchdog, 14:48:51), with a chat holding an answer of hundreds of lines.
+    private final class ParsedBlocks {
+        let blocks: [MarkdownBlock]
+        init(_ blocks: [MarkdownBlock]) { self.blocks = blocks }
+    }
+    private static let parseCache: NSCache<NSString, ParsedBlocks> = {
+        let cache = NSCache<NSString, ParsedBlocks>()
+        cache.countLimit = 400
+        cache.totalCostLimit = 8_000_000
+        return cache
+    }()
+
     static func parse(_ text: String, promotesLabelBullets: Bool = false) -> [MarkdownBlock] {
+        let key = ((promotesLabelBullets ? "1|" : "0|") + text) as NSString
+        if let hit = parseCache.object(forKey: key) { return hit.blocks }
+        let blocks = parseUncached(text, promotesLabelBullets: promotesLabelBullets)
+        parseCache.setObject(ParsedBlocks(blocks), forKey: key, cost: text.utf16.count)
+        return blocks
+    }
+
+    private static func parseUncached(_ text: String, promotesLabelBullets: Bool) -> [MarkdownBlock] {
         let normalized = normalizeInlineMarkdown(text)
         let lines = normalized.components(separatedBy: "\n")
         var blocks: [MarkdownBlock] = []
@@ -467,8 +490,18 @@ private struct MarkdownParser {
         return line
     }
 
+    /// "12. " or "3) " at the start: digits, then "." or ")", then white space. A character check, not a regular
+    /// expression: it runs on every line of every answer (5.8, 2026-11-19, see `parse`).
     private static func isNumberedLine(_ line: String) -> Bool {
-        line.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) != nil
+        var index = line.startIndex
+        var sawDigit = false
+        while index < line.endIndex, line[index].isASCII, line[index].isNumber {
+            sawDigit = true
+            index = line.index(after: index)
+        }
+        guard sawDigit, index < line.endIndex, line[index] == "." || line[index] == ")" else { return false }
+        let next = line.index(after: index)
+        return next < line.endIndex && line[next].isWhitespace
     }
 
     private static func parseNumberedLine(_ line: String) -> (Int, String)? {
