@@ -19,12 +19,29 @@ import Foundation
 nonisolated enum EmbeddingModelWarmup {
     static let delay: Duration = .seconds(4)
 
-    static func scheduleAfterLaunch() {
+    static func scheduleAfterLaunch() { schedule(after: delay) }
+
+    /// On every return to the front, once per launch (5.8, 2026-11-19), as `RerankerWarmup.scheduleOnForeground`: a
+    /// launch into the background skipped the warm-up and the first question paid the model's 18 to 21 s first load.
+    static func scheduleOnForeground() { schedule(after: .seconds(1)) }
+
+    private static let startLock = NSLock()
+    private nonisolated(unsafe) static var scheduled = false
+
+    private static func schedule(after wait: Duration) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let go = startLock.withLock { () -> Bool in
+            if scheduled { return false }
+            scheduled = true
+            return true
+        }
+        guard go else { return }
         Task.detached(priority: .utility) {
-            try? await Task.sleep(for: delay)
-            guard !SystemResourceAdvice.prefersReducedUsage else { return }
-            guard await appIsInFront() else { return }
+            try? await Task.sleep(for: wait)
+            guard !SystemResourceAdvice.prefersReducedUsage, await appIsInFront() else {
+                startLock.withLock { scheduled = false }
+                return
+            }
             let started = Date()
             do {
                 _ = try await EmbeddingService.sharedCoreMLProvider.embed(text: "OpenIntelligence")
@@ -38,6 +55,7 @@ nonisolated enum EmbeddingModelWarmup {
             } catch {
                 // The provider's own load reports its failure; the first embed tries again.
                 Log.warning("[EmbeddingWarmup] Not prepared: \(error.localizedDescription)", category: .embedding)
+                startLock.withLock { scheduled = false }
                 VerificationJournal.record("embedding.warmup", .failed, ["error": String(describing: type(of: error))])
             }
         }

@@ -121,12 +121,30 @@ final class RerankerSetupStatus: ObservableObject {
 nonisolated enum RerankerWarmup {
     static let delay: Duration = .seconds(4)
 
-    static func scheduleAfterLaunch() {
+    static func scheduleAfterLaunch() { schedule(after: delay) }
+
+    /// On every return to the front, once per launch (5.8, 2026-11-19). A launch into the background (iOS relaunching the
+    /// app after an install, a background task) skipped the warm-up, and opening the app later never started it, so the
+    /// owner's first question paid the reranker's 16 to 29 s first load. Started a second after the app is in front.
+    static func scheduleOnForeground() { schedule(after: .seconds(1)) }
+
+    private static let startLock = NSLock()
+    private nonisolated(unsafe) static var scheduled = false
+
+    private static func schedule(after wait: Duration) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let go = startLock.withLock { () -> Bool in
+            if scheduled { return false }
+            scheduled = true
+            return true
+        }
+        guard go else { return }
         Task.detached(priority: .utility) {
-            try? await Task.sleep(for: delay)
-            guard !SystemResourceAdvice.prefersReducedUsage else { return }
-            guard await appIsInFront() else { return }
+            try? await Task.sleep(for: wait)
+            guard !SystemResourceAdvice.prefersReducedUsage, await appIsInFront() else {
+                startLock.withLock { scheduled = false }
+                return
+            }
             #if canImport(UIKit)
                 // Leaving the app during the first load would suspend it mid-compile. Ask iOS for the background time
                 // it gives any app (about 30 s, not guaranteed; the Neural Engine is allowed in the background under

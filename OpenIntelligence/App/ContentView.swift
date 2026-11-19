@@ -846,6 +846,17 @@ struct ContentView: View {
         case .active:
             entitlementStore.refreshTransientState()
             DeviceCapabilityService.setAppInBackground(false)
+            // The search models get ready as soon as the app is in front, once per launch (5.8): a launch into the
+            // background skipped them, and the first question paid about a minute after an install.
+            #if DEBUG
+                if !DebugRAGValidationHarness.isEnabled {
+                    EmbeddingModelWarmup.scheduleOnForeground()
+                    RerankerWarmup.scheduleOnForeground()
+                }
+            #else
+                EmbeddingModelWarmup.scheduleOnForeground()
+                RerankerWarmup.scheduleOnForeground()
+            #endif
             BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
             // What finished while the app was away is on screen now (5.7): its notifications and the Lock Screen's
             // card for a finished import or answer go, where they stayed for up to ten minutes after the person was back.
