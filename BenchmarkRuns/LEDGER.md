@@ -1730,3 +1730,69 @@ Mac reinstall's `pkill -x OpenIntelligence`, which also ended the Simulator's te
 
 **Not settled.** One run per arm (retrieval is nondeterministic); no iPhone run; 4,096 windows are unchanged by
 construction (1,890 free) and were not re-run.
+
+### 2026-11-18 A "no" counts only when it denies what the claim names (`2026-11-18-no-named-only`, `2026-11-19-0620-answer-modes-bind-base-ans`, `2026-11-19-0629-answer-modes-bind-fix-ans`)
+
+The owner's right "The similarity floor in Standard mode is 0.28 [S2]" showed "0 of 1 Verified": Gate B's negation
+test read the guide's "no query expansion" as the passage saying the opposite. One build of `/private/tmp/oi-neg-wt`
+(39425ef8, the entity-binding change, `ClaimCheck.resolvingNo`), each part run with `RetrievalAblation.noNamedOnly`
+off ("base") and on ("fix"). iOS 27.0 Simulator, iPhone 17 Pro, Apple's model, patched copy.
+`[evidence_level: measured, confidence: medium: one library's questions, one answer-test run per arm]`
+
+| Set | Base (every "no" counts) | Fix |
+|---|---|---|
+| Entity set, right claims marked "says the opposite" | 4 | 0 |
+| Entity set, right claims Supported | 21 | 22 |
+| Entity set, answers right (2 runs) | 24/24 | 23/24 (one Maximum answer gave Deep Think's 8 variants; its Fact Check verdict was none) |
+| Entity set, wrong-entity claims Supported | 0 | 1, a grading miss ("...higher than in Standard mode, which has a 0.50 threshold." is true) |
+| Answer test, Standard, right by rule | 18/20 | 18/20 (won lost_in_middle_middle, lost retrieval_nfcorpus_epsilon) |
+| Fact Check unit tests (7 classes, 83) | 2 failures, the new cases, as expected with the rule off | 0 failures |
+
+The first base and fix answer tests (23:34, 23:45) and four Maximum runs stopped on the 15 GB disk guard after another
+session's clean build; the reruns above started 06:20 after the queue waited on that session's build lock until 06:19.
+
+### 2026-11-18 Entity binding: a list item's number stays with its subject (`2026-11-18-entity-binding`, `2026-11-18-1307-answer-modes-bind-before`, `2026-11-18-1555-answer-modes-bind-after`, `2026-11-18-1749-answer-modes-bind-after`)
+
+The owner's "The similarity floor in Standard mode is 0.20 [S2]" (Maximum's value, Supported 90%, Verified). Worktree
+`/private/tmp/oi-bind-wt` at f5759e4d; "before" is HEAD plus the evaluation test only, "after" the patch (sentence
+extraction keeps a list item's lead, `EntityBinding` in Fact Check, the citation page's note). iOS 27.0 Simulator,
+iPhone 17 Pro, Apple's model through the Mac, patched copy (`scripts/sim_model_copy.py`). `run.sh <label>` builds and
+runs `EntityBindingEvaluationTests`: the three guides imported into a library of their own, 12 questions (similarity
+floor, candidates per step, query variants and verification threshold, each for Standard, Deep Think and Maximum)
+asked in Standard through `RAGService.query`, twice in one process, and from `before-probe` on, Fact Check on each
+answer's own passages for a claim stating each mode's value (`probes`). Scored with `tools/score_entity.py`.
+`[evidence_level: measured, confidence: high for the counts; retrieval and generation are not deterministic]`
+
+| Set | Before | After |
+|---|---|---|
+| Entity answers right | 45/48 (four runs: `before` ×2, `before-probe` ×2) | 23/24 (`after` ×2) |
+| Answers with another mode's value | 2 (Maximum given Deep Think's "8 variants", both Verified at 97%) | 0 |
+| Probe, wrong value for the mode (44) | 36 Supported, 8 Partial, 0 Unsupported | 0 Supported, 0 Partial, 44 Unsupported |
+| Probe, right value (22) | 18 Supported, 4 Partial | 18 Supported, 4 Partial |
+| Answer test, Standard, right by rule | 18/20 | 18/20 (won `retrieval_nfcorpus_epsilon`, lost `exact_temperature_limit`: both runs answered "not specified"; before's passed on its Needs Verification note naming 45 C) |
+| Answer test, Deep Think | 17/20 | 16/20 by rule, 17 read by hand (`2143-answer-modes-bind-after-2`): missing_unreleased_battery declines in its first sentence and fails the rule on an unrelated "$1,577 million" it lists after |
+| Answer test, Maximum | 19/20 (74 min) | 18/20 (`2143-answer-modes-bind-after-2`, 36 min): lost exact_payload ("14.3 US gal", the 1,240 lb table ranked first) and retrieval_covid_gamma, won missing_confidential_price; one run each, paired runs in `2026-11-18-maximum-ab` |
+| Table questions, Standard answers (53, `tables.sh`, paired on the after build) | 47/53 without the lead (`itemLeadInSentences` off) | 49/53 with it (2 better, 0 worse, p=0.50; with a citation 52 and 50) |
+
+The owner's 13:24 phone trace (`phone-trace-1324.txt`) located the first layer: Standard packed chosen sentences
+("Sentence extraction: 30 sentences from 4 sources", compact, focused_window), which cut "- **Standard.**" from its
+"30 candidate passages, a similarity floor of 0.28"; the extractor declined (0.52 below 0.65). The Simulator logs show
+the same path (`Sentence extraction: 36 sentences from 7 sources`, compact). Offline, `tools/harness` (macOS command-line
+build of `EntityBinding`) replayed the check on the passages of all 72 recorded answers (`before`, `before-probe`,
+`after`): 0 of 66 right-value claims flagged, 132 of 132 wrong-value claims flagged, and of the model's own 113 listed
+claims with a number, its 3 wrong ones flagged and none of the other 110; a probe of 7,850
+statements from `Docs/*.md` and `Docs/ai/*.md`, each read against its own passage, flagged none. A refuting review
+found four false-positive shapes in the first version (a "Note:" remark, a wrapped line under the list's heading, a
+general claim read against the question, a comparison naming other modes); each is a unit test now and passes.
+`after-v1/` is the first after build (claim-only subject; superseded, kept); `after-aborted-1/` stopped before building; `2026-11-18-1207-`, `1547-` and `1608-answer-modes-bind-*` are runs the answer script refused for disk space, with nothing in them.
+Unit tests on the after build: 147 in 11 classes (`after/unit.log`) and 42 in 6 more (`after/unit2.log`), 0 failures.
+
+The table slice (`tables.sh`, 16:42 to 17:49) re-staged the PDFs of the 2026-11-17 set, whose `/private/tmp` copies macOS
+had removed, from the owner's library copies (the PAHs paper from the app's imported copy, by title; not checked byte
+for byte against the earlier fixture); "imported 5 of 7 when the call returned", the same for both arms. The internal
+disk fell to 2 GB free at 15:47 (other sessions) and the after answer test waited for it; a watchdog in `answers.sh`
+and `tables.sh` stops a run under 10 GB.
+
+**Not settled.** The Deep Think and Maximum answer tests after (the decision rule needs them). One run per mode of the answer test. No iPhone run; the phone's 3B model was not reproduced word for
+word by the Simulator. The lead's effect on Deep Think and Maximum alone (it changes their sentence windows too) is
+inside the answer-test rows, not measured apart.

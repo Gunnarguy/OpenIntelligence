@@ -83,6 +83,35 @@ nonisolated enum CitationLinker {
         return retrievedChunks.first { $0.chunk.id == id }
     }
 
+    /// The answer sentences that cite the passage `url` opens, in `linkedMarkdown` (the text `linkedMarkdown(_:evidence:
+    /// retrievedChunks:)` made), without their links (5.8). A tap gives the passage's link only, and two sentences can
+    /// cite one passage, so each is returned; the page that opens says what the passage holds for their values.
+    static func sentencesCiting(_ url: URL, inLinked linkedMarkdown: String) -> [String] {
+        let target = "](\(url.absoluteString))"
+        guard let link = try? NSRegularExpression(pattern: #"\[\[[^\]\n]*\]\]\(\#(scheme)://[^)\s]*\)"#) else { return [] }
+        var sentences: [String] = []
+        var rest = linkedMarkdown[...]
+        while let hit = rest.range(of: target) {
+            let before = String(linkedMarkdown[..<hit.lowerBound])
+            // Back to the start of this link's "[[", then every other link taken out.
+            let opening = before.range(of: "[[", options: .backwards)?.lowerBound ?? before.endIndex
+            let head = String(before[..<opening])
+            let plain = link.stringByReplacingMatches(
+                in: head, range: NSRange(head.startIndex..., in: head), withTemplate: "")
+            var text = plain as NSString
+            var sentence = Self.sentence(endingAt: text.length, in: text).trimmingCharacters(in: .whitespaces)
+            // A label after the full stop ("... is 0.20. [S2]") closes the sentence before it.
+            if sentence.isEmpty {
+                let trimmed = plain.trimmingCharacters(in: .whitespaces)
+                text = String(trimmed.dropLast()) as NSString
+                sentence = Self.sentence(endingAt: text.length, in: text).trimmingCharacters(in: .whitespaces)
+            }
+            if !sentence.isEmpty, !sentences.contains(sentence) { sentences.append(sentence) }
+            rest = linkedMarkdown[hit.upperBound...]
+        }
+        return sentences
+    }
+
     // MARK: - Labels
 
     struct Label: Equatable {

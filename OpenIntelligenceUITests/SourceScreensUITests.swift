@@ -58,7 +58,7 @@ final class SourceScreensUITests: XCTestCase {
     func testACitationOpensItsPassageHighlighted() throws {
         let app = launch(["--uitest-show-source"])
         XCTAssertTrue(
-            app.staticTexts["Found word for word in this document."].waitForExistence(timeout: 90),
+            app.staticTexts["Passage found word for word in this document."].waitForExistence(timeout: 90),
             "the status line did not appear")
         XCTAssertTrue(app.buttons["Done"].exists)
         keepScreenshot(app, "Source passage")
@@ -70,7 +70,7 @@ final class SourceScreensUITests: XCTestCase {
         let app = launch([
             "--uitest-show-source", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
         ])
-        XCTAssertTrue(app.staticTexts["Found word for word in this document."].waitForExistence(timeout: 90))
+        XCTAssertTrue(app.staticTexts["Passage found word for word in this document."].waitForExistence(timeout: 90))
         keepScreenshot(app, "Source passage, largest text")
     }
 

@@ -409,6 +409,8 @@ actor VerificationGateService {
         let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.contextText })
         var claimResults: [RAGVerificationResult.ClaimResult] = []
         let passageTexts = chunks.map { $0.chunk.contextText }
+        // The passages' list items, labelled lines and sections, read once for every claim (`EntityBinding`).
+        let binding = EntityBinding.Reading(passages: passageTexts)
         for claimInput in claimInputs {
             let contradiction = await DetectedValueCheck.contradictions(
                 in: cleanClaimText(claimInput.claim), evidence: detectedEvidence
@@ -416,7 +418,8 @@ actor VerificationGateService {
             let result = evaluateClaim(
                 claimInput, in: chunks, corpus: corpus, numericEvidence: numericEvidence,
                 detectedContradiction: contradiction, query: query)
-            claimResults.append(Self.markingValuesFromOtherRows(result, query: query, passages: passageTexts))
+            claimResults.append(
+                Self.markingValuesFromOtherRows(result, query: query, passages: passageTexts, binding: binding))
         }
 
         let supportedCount = claimResults.filter { $0.verdict == .supported }.count
@@ -458,13 +461,28 @@ actor VerificationGateService {
     /// matches (5.8): Fact Check marked "100-200 mg/15-30 g" Supported for "How much DHA is recommended?" because the
     /// string is in the table, on the PhyCB/Spirulina row.
     nonisolated static func markingValuesFromOtherRows(
-        _ result: RAGVerificationResult.ClaimResult, query: String, passages: [String]
+        _ result: RAGVerificationResult.ClaimResult, query: String, passages: [String],
+        binding: EntityBinding.Reading? = nil
     ) -> RAGVerificationResult.ClaimResult {
         guard result.verdict != .unsupported else { return result }
         let values = NumericValueExtractor.mentions(inAnswer: result.claim).filter(NumericValueExtractor.isCountedByGate)
         guard !values.isEmpty else { return result }
         let misplaced = valuesFromOtherRows(question: query, answerValues: values, passages: passages)
-        guard !misplaced.isEmpty else { return result }
+        guard !misplaced.isEmpty else {
+            guard !RetrievalAblation.isOff(.entityBindingGate) else { return result }
+            // Nor when the passages give its value for another list item, labelled line or section than the one it
+            // names (5.8, `EntityBinding`): "The similarity floor in Standard mode is 0.20" was Supported at 90% by
+            // the guide's list of modes, whose Maximum item says 0.20 and whose Standard item says 0.28.
+            let elsewhere = EntityBinding.misplacedValues(
+                claim: result.claim, question: query, values: values,
+                in: binding ?? EntityBinding.Reading(passages: passages))
+            guard let first = elsewhere.first else { return result }
+            let written = elsewhere.prefix(3).map(\.value).joined(separator: ", ")
+            return RAGVerificationResult.ClaimResult(
+                claim: result.claim, verdict: .unsupported, confidence: min(result.confidence, 0.2),
+                details: "The passages give \(written) for \(first.owner), not for what this claim names",
+                citations: result.citations, resolvedEvidenceIds: result.resolvedEvidenceIds)
+        }
         return RAGVerificationResult.ClaimResult(
             claim: result.claim, verdict: .unsupported, confidence: min(result.confidence, 0.2),
             details: "The passages give \(misplaced.prefix(3).joined(separator: ", ")) for another table row, not for what was asked",

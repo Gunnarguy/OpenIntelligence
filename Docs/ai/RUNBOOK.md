@@ -922,7 +922,7 @@ iPhone 18 Pro Max and iPad Pro 13-inch (M4) simulators, iOS 27.0, contact sheet 
   cloud window left to the app's fallback), and leaves Developer & Diagnostics out of the list. Container prefs
   `entitlement.activeTier pro` and `entitlement.legacyProtectionState historicalPaidPurchase` show the plan as Lifetime
   with 1 of 20 libraries instead of Free with "0 left".
-- **The page scene** (`--screenshot-store page`) now opens with "Found word for word in this document." (DEBUG override
+- **The page scene** (`--screenshot-store page`) now opens with "Found word for word in this document." (since 2026-11-18 "Passage found word for word in this document.") (DEBUG override
   in `SourcePageView`: the drawn lease is in no library, so the lookup found no text and the banner said the text was
   not on the device). It was left out of the 5.8 set: the page is drawn at full width and its highlighted lines read
   too small in a callout.

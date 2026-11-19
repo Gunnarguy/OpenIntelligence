@@ -23,7 +23,7 @@ nonisolated enum SourceMatch: Hashable, Sendable {
 
     var title: String {
         switch self {
-        case .exact: "Found word for word in this document."
+        case .exact: "Passage found word for word in this document."
         case .partial: "Found in part. The rest doesn't match the document's text exactly."
         case .notFound: "Couldn't find this exact passage in the document's text."
         case .noText: "This document's text isn't available on this device."
@@ -134,11 +134,15 @@ nonisolated struct SourceLookup: Equatable, Sendable {
 struct SourceMatchBanner: View {
     let match: SourceMatch
     var detail: String?
+    /// The detail is a warning (5.8): the passage gives the answer's value to something else, or doesn't hold it, so
+    /// the seal is not shown even when the passage itself was found word for word.
+    var detailIsWarning = false
 
     var body: some View {
+        let confirmed = match.isConfirmed && !detailIsWarning
         HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
-            Image(systemName: match.isConfirmed ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(DSColors.readable(match.isConfirmed ? .green : DSColors.warning))
+            Image(systemName: confirmed ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(DSColors.readable(confirmed ? .green : DSColors.warning))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(match.title)
@@ -173,6 +177,9 @@ struct SourceTextView: View {
     let passage: String
     let chunk: RetrievedChunk?
     let lookup: LibraryDocumentLookup?
+    /// The answer sentences that cite this passage, when a citation opened it (5.8): the banner says what the passage
+    /// holds for their values (`EntityBinding.citationNote`).
+    var citingSentences: [String] = []
 
     private static let firstRadius = 3_000
     private static let moreRadius = 12_000
@@ -247,7 +254,8 @@ struct SourceTextView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    SourceMatchBanner(match: result.match)
+                    let note = EntityBinding.citationNote(claims: citingSentences, passage: shownPassage ?? passage)
+                    SourceMatchBanner(match: result.match, detail: note?.text, detailIsWarning: note?.isWarning ?? false)
                         .tour(.matchBanner, in: Tour.source, arrow: .top)
                 }
                 .onAppear { reader.scrollTo(Self.passageAnchor, anchor: .center) }

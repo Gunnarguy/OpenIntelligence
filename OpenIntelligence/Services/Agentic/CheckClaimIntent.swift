@@ -126,7 +126,8 @@ nonisolated enum ClaimCheck {
             guard let page = chunk.pageNumber ?? chunk.chunk.metadata.pageNumber else { return name }
             return "\(name), page \(page)"
         }
-        return Outcome(verdict: verdict, source: source, numberMismatch: numberMismatch, negationDiffers: negationDiffers)
+        return Outcome(
+            verdict: verdict, source: source, numberMismatch: numberMismatch, negationDiffers: negationDiffers)
     }
 
     /// The share of the claim's content words that the passages hold, as whole words.
@@ -187,11 +188,13 @@ nonisolated enum ClaimCheck {
     static func negationDiffers(_ claim: String, _ sentence: String) -> Bool {
         let claimSide = resolvingWithout(claim, against: sentence)
         let sentenceSide = resolvingWithout(sentence, against: claim)
-        let claimNegative = hasNegation(claimSide.text)
-        if claimNegative != hasNegation(sentenceSide.text) { return true }
+        let claimText = resolvingNo(claimSide.text, against: sentence)
+        let sentenceText = resolvingNo(sentenceSide.text, against: claim)
+        let claimNegative = hasNegation(claimText)
+        if claimNegative != hasNegation(sentenceText) { return true }
         guard claimNegative, claimSide.keepsNamedWithout, sentenceSide.keepsNamedWithout,
-            let claimClause = clauseHoldingWithout(claimSide.text),
-            let sentenceClause = clauseHoldingWithout(sentenceSide.text)
+            let claimClause = clauseHoldingWithout(claimText),
+            let sentenceClause = clauseHoldingWithout(sentenceText)
         else { return false }
         return hasNegation(withoutAsWith(claimClause)) != hasNegation(withoutAsWith(sentenceClause))
     }
@@ -201,7 +204,8 @@ nonisolated enum ClaimCheck {
     static func clauseHoldingWithout(_ text: String) -> String? {
         let clauses = text.lowercased()
             .replacingOccurrences(
-                of: #"\b(?:but|however|although|though|whereas|while)\b"#, with: ".", options: .regularExpression)
+                of: #"\b(?:but|however|although|though|whereas|while)\b"#, with: ".", options: .regularExpression
+            )
             .split(whereSeparator: { ".,;:!?()\n".contains($0) })
         for clause in clauses {
             let words = clause.split { !$0.isLetter && !$0.isNumber && $0 != "'" }.map(String.init)
@@ -218,7 +222,58 @@ nonisolated enum ClaimCheck {
     /// notice still reads as the opposite, because notice is named in both. What follows "without" is read up to the
     /// end of its clause or a joining word, leaving out a leading article, and its last word is the one looked for.
     static func hasNegation(_ text: String, against other: String) -> Bool {
-        hasNegation(resolvingWithout(text, against: other).text)
+        hasNegation(resolvingNo(resolvingWithout(text, against: other).text, against: other))
+    }
+
+    /// `text`, lowercased, with each "no" taken out (written as two spaces) when nothing it denies is named in
+    /// `other` (5.8), the rule "without" has had since 5.7. The guide's list item "30 candidate passages, a
+    /// similarity floor of 0.28, no query expansion, ..." denies query expansion and nothing else, and Fact Check
+    /// marked the right answer "The similarity floor in Standard mode is 0.28." as "The passage it rests on says the
+    /// opposite" (owner's iPhone, 2026-11-18 20:45, "0 of 1 Verified"; 4 of the entity set's 23 right claims, before
+    /// and after the entity-binding change). What "no" denies is read up to the end of its clause, a joining word or
+    /// a verb, at most four words; a word counts as named when the other text holds it, singular or plural. A "no"
+    /// with nothing after it ("The answer is no."), or one that denies the whole clause ("no longer", "under no
+    /// circumstances", "no one"), stays.
+    static func resolvingNo(_ text: String, against other: String) -> String {
+        let lowered = text.lowercased()
+        guard !RetrievalAblation.isOff(.noNamedOnly),
+            lowered.range(of: #"\bno\b"#, options: .regularExpression) != nil,
+            let no = try? NSRegularExpression(pattern: #"\bno\b([^.,;:!?()\n]*)"#)
+        else { return lowered }
+        func stem(_ word: String) -> String {
+            if word.count > 4, word.hasSuffix("es") { return String(word.dropLast(2)) }
+            if word.count > 3, word.hasSuffix("s"), !word.hasSuffix("ss") { return String(word.dropLast()) }
+            return word
+        }
+        let named = Set(contentWords(other).map(stem))
+        let wholeClause: Set<String> = [
+            "longer", "one", "circumstance", "circumstances", "case", "means", "time", "account", "way", "event",
+            "point", "matter", "doubt",
+        ]
+        let ending: Set<String> = [
+            "for", "and", "or", "but", "in", "on", "at", "to", "until", "unless", "if", "before", "after", "while",
+            "when", "from", "by", "of", "with", "without", "is", "are", "was", "were", "be", "been", "will", "shall",
+            "may", "can", "must", "should", "would", "could", "do", "does", "applies", "apply",
+        ]
+        let source = lowered as NSString
+        var kept = lowered as NSString
+        for match in no.matches(in: lowered, range: NSRange(location: 0, length: source.length)) {
+            var object: [String] = []
+            for word in source.substring(with: match.range(at: 1)).split(whereSeparator: {
+                !$0.isLetter && !$0.isNumber
+            }).map(String.init) {
+                if ending.contains(word) { break }
+                object.append(word)
+                if object.count == 4 { break }
+            }
+            guard let first = object.first, !wholeClause.contains(first) else { continue }
+            let denied = contentWords(object.joined(separator: " ")).map(stem)
+            guard !denied.isEmpty, named.isDisjoint(with: denied) else { continue }
+            kept =
+                kept.replacingCharacters(in: NSRange(location: match.range.location, length: 2), with: "  ")
+                as NSString
+        }
+        return kept as String
     }
 
     /// `text`, lowercased, with each "without" whose object `other` does not name written as "with", and
@@ -246,15 +301,18 @@ nonisolated enum ClaimCheck {
                 object.append(word)
                 if object.count == 4 { break }
             }
-            let isNamed = object.last.map { head in
-                named.contains(head) || named.contains(head + "s")
-                    || (head.hasSuffix("s") && named.contains(String(head.dropLast())))
-            } ?? false
+            let isNamed =
+                object.last.map { head in
+                    named.contains(head) || named.contains(head + "s")
+                        || (head.hasSuffix("s") && named.contains(String(head.dropLast())))
+                } ?? false
             // The same length, so the ranges of the matches after this one still hold.
             if isNamed {
                 keepsNamed = true
             } else {
-                kept = kept.replacingCharacters(in: NSRange(location: match.range.location, length: 7), with: "with   ") as NSString
+                kept =
+                    kept.replacingCharacters(in: NSRange(location: match.range.location, length: 7), with: "with   ")
+                    as NSString
             }
         }
         return (kept as String, keepsNamed)

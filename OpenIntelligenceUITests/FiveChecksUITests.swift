@@ -652,7 +652,7 @@ final class FiveChecksUITests: XCTestCase {
             }
         }
         let opened = app.buttons["Done"].waitForExistence(timeout: 15)
-        let status = app.staticTexts["Found word for word in this document."].waitForExistence(timeout: 30)
+        let status = app.staticTexts["Passage found word for word in this document."].waitForExistence(timeout: 30)
         keep(app, "check1-passage")
         note(
             "check1-passage",

@@ -348,6 +348,9 @@ extension RAGService {
         struct ScoredSentence {
             let text: String  // The sentence/line itself
             let headingContext: String  // The heading above this line (if any)
+            /// The lead of the list item or line it was cut from, when the sentence does not hold it ("Standard" for
+            /// "30 candidate passages, a similarity floor of 0.28" from "- **Standard.** One retrieval pass. 30 ...").
+            let itemLead: String
             let score: Double
             let sourceIndex: Int  // which chunk it came from
             let sourceDoc: String
@@ -408,6 +411,21 @@ extension RAGService {
                     currentHeading = rawLine
                 }
 
+                // The subject of a list item or labelled line, which its later sentences don't repeat (5.8). Cut into
+                // sentences, "- **Standard.** One retrieval pass. 30 candidate passages, a similarity floor of 0.28"
+                // and "- **Maximum.** The same loop with the widest net: 50 candidates per step, a similarity floor of
+                // 0.20" reached the model as two floors with no mode, and on the owner's iPhone (2026-11-18) it
+                // answered Standard's floor with Maximum's 0.20. Such a sentence is scored with its lead and packed
+                // as "Standard > 30 candidate passages, ...". A table row is kept whole and holds its own label.
+                let itemLead: String? = {
+                    guard !RetrievalAblation.isOff(.itemLeadInSentences), !isHeading, !rawLine.contains(" | "),
+                        rawLine.range(of: #"^(?:ROW \d+|HEADERS|\[Part \d+\])"#, options: .regularExpression) == nil
+                    else { return nil }
+                    let body = rawLine.replacingOccurrences(
+                        of: #"^\s*(?:[-*•–]|\d{1,3}[.)])\s+"#, with: "", options: .regularExpression)
+                    return EntityBinding.lead(of: body)
+                }()
+
                 // Split line into sub-sentences if it's prose (not table/spec data). Table rows stay
                 // whole, and a sentence is never cut inside "p.m." or an amount.
                 let subLines = EvidenceLineSplitter.units(in: rawLine)
@@ -427,11 +445,14 @@ extension RAGService {
                             headingContext = rawLines[lineIdx - 1]
                         }
                     }
+                    let missingLead = itemLead.flatMap { lead in
+                        subLine.lowercased().contains(lead.lowercased()) ? nil : lead
+                    } ?? ""
 
                     guard
                         let totalScore = sentenceScore(
                             line: subLine,
-                            headingContext: headingContext,
+                            headingContext: missingLead.isEmpty ? headingContext : "\(headingContext) \(missingLead)",
                             chunkIndex: chunkIdx,
                             isExtractiveFirst: isExtractiveFirst
                         )
@@ -459,6 +480,7 @@ extension RAGService {
                         ScoredSentence(
                             text: subLine,
                             headingContext: effectiveHeading,
+                            itemLead: missingLead,
                             score: totalScore,
                             sourceIndex: chunkIdx,
                             sourceDoc: source,
@@ -474,8 +496,9 @@ extension RAGService {
         // Deduplicate: remove near-identical sentences (same text, different chunks)
         // Phase 1: Exact-match dedup (fast, O(n))
         var seen: Set<String> = []
+        // A sentence's item lead is part of it here: "Includes 5 GB." under Pro and under Free are two facts.
         scoredSentences = scoredSentences.filter { s in
-            let key = s.text.lowercased().filter { $0.isLetter || $0.isNumber }
+            let key = (s.itemLead + " " + s.text).lowercased().filter { $0.isLetter || $0.isNumber }
             if seen.contains(key) { return false }
             seen.insert(key)
             return true
@@ -496,7 +519,7 @@ extension RAGService {
                 }
 
                 let words = Set(
-                    sentence.text.lowercased()
+                    (sentence.itemLead + " " + sentence.text).lowercased()
                         .components(separatedBy: CharacterSet.alphanumerics.inverted)
                         .filter { $0.count > 2 && !lexicalStopWords.contains($0) }
                 )
@@ -564,10 +587,8 @@ extension RAGService {
                 return .empty
             }
 
-            let displayText =
-                sentence.headingContext.isEmpty
-                ? sentence.text
-                : "\(sentence.headingContext) > \(sentence.text)"
+            let displayText = [sentence.headingContext, sentence.itemLead, sentence.text]
+                .filter { !$0.isEmpty }.joined(separator: " > ")
 
             if sourceBuffers[sentence.sourceIndex] == nil {
                 sourceOrder.append(sentence.sourceIndex)

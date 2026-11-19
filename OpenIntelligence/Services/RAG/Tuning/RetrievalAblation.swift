@@ -72,6 +72,19 @@ nonisolated enum RetrievalAblation {
         /// before it. Measured 2026-11-17 as `synthesisReadingCeiling` (the opposite sense): 49 against 47 of 53 table
         /// questions right at an 8,192 window (`BenchmarkRuns/2026-11-17-synthesis-ceiling`).
         case synthesisFullWindow
+        /// A sentence that sentence extraction cuts from a list item or a labelled line carries the item's lead ("Standard
+        /// > 30 candidate passages, a similarity floor of 0.28") (5.8, 2026-11-18); off, it is packed without it, the path
+        /// before it, where "What is the similarity floor in Standard mode?" was answered with Maximum's 0.20 on the
+        /// owner's iPhone (`BenchmarkRuns/2026-11-18-entity-binding`).
+        case itemLeadInSentences
+        /// Fact Check counts a "no" against a claim only when what it denies is named in the claim (5.8, 2026-11-18,
+        /// `ClaimCheck.resolvingNo`); off, every "no" counts, the path before it, where the guide's "no query expansion"
+        /// marked the right "The similarity floor in Standard mode is 0.28." as "says the opposite".
+        case noNamedOnly
+        /// Fact Check marks a claim Unsupported when the passages give its value for another list item, labelled line
+        /// or section than the one it names (5.8, 2026-11-18, `EntityBinding.misplacedValues` in
+        /// `VerificationGateService.markingValuesFromOtherRows`); off, that check is skipped, the path before it.
+        case entityBindingGate
     }
 
     /// The rules switched off for this process, read once.

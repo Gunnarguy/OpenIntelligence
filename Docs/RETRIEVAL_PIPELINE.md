@@ -401,6 +401,51 @@ label and its column's name ("ROW 2: Adults | DHA: 1-2 g" holds the DHA value), 
 as "Daily Dose" does not make every row about a question that says "daily dose" (2026-11-08).
 `[evidence_level: test_verified, confidence: medium: the rate on correct answers is not measured]`
 
+## A value from another list item or section is not supported (added 2026-11-18, for 5.8)
+
+The table-row test above reads only table rows; a value stated in a list, a run of "Name: value" lines or a set of
+sections counted as support wherever its digits were. On the owner's iPhone on 2026-11-18 "The similarity floor in
+Standard mode is 0.20 [S2]." read Supported at 90% under a Verified badge: the cited passage is the guide's "Quality
+modes" list, one item per mode, and 0.20 is in Maximum's item. `EntityBinding` (`Services/RAG/Safety/EntityBinding.swift`)
+reads each passage as units with labels: a list item or line with a bold lead or a short "Name:" lead (at most five
+words) is labelled by its lead; a line under a Markdown heading, or under a bold line that stands alone, by that
+heading; anything else is an unlabelled sentence. The subject a claim names is the name words of every label it names in
+full (more than half of a label of three or more words), item leads before headings, the claim's own words before the
+question's, the passages that hold the value before the rest. A value is placed "elsewhere" when every unit that holds
+it and shares a word of what the claim says about its subject (the claim's words less the subject's, function words
+and `RAGService.genericValueWords`) is labelled with another subject, while the subject's own unit is in the passages.
+A unit that names the subject in its text, or an unlabelled sentence that names no label of its passage, leaves the
+value alone, except at the start of a passage before any label (the rest of an item the previous passage began),
+which is read as the item whose labelled text contains it in another retrieved passage, or as not the subject's when the
+subject's own item follows it. Table rows stay with `valuesFromOtherRows`. Fact Check applies it to every claim
+(`VerificationGateService.markingValuesFromOtherRows`, after the row test): such a claim reads Unsupported, with the
+subject the passage gives the value to, so Gate B fails and Standard's source-only check runs. Gate C (numeric sanity,
+over the whole answer) is unchanged. A citation's page now says "Passage found word for word in this document." and,
+when it was opened from an answer sentence that states a value, what the passage holds for it
+(`EntityBinding.citationNote`, `CitationLinker.sentencesCiting`). Measured in
+`BenchmarkRuns/2026-11-18-entity-binding/`. `[evidence_level: test_verified (EntityBindingTests), measured
+(the run folder); confidence: medium: one library's twelve questions and a self-consistency probe, not a corpus of
+real answers]`
+
+**What misled the model: sentence extraction cut items from their subjects (2026-11-18).** The owner's 13:24 trace
+of the same question on his iPhone (build e4a191cd) shows the Standard path packing chosen sentences, not passages:
+"Context budget: base=8192 ... compact=true", "Sentence extraction: 30 sentences from 4 sources (3513 chars)", "Using 4/7
+chunks [compact] • focused_window", then "The similarity floor in Standard mode is 0.20 [S2]" in 1.05 s, gates passed
+at 0.96 and the source-only check skipped. `extractRelevantSentencesOffMain` (`RAGService+SentenceExtraction.swift`)
+splits each line into sentences (`EvidenceLineSplitter.units`), scores them by the question's words and packs them by
+score, so "- **Standard.** One retrieval pass. 30 candidate passages, a similarity floor of 0.28, ..." and "- **Maximum.**
+The same loop with the widest net: 50 candidates per step, a similarity floor of 0.20 ..." reached the model as two floors
+with no mode: the lead is its own sentence ("- **Standard.**"). Every mode uses this function (Standard's compact
+context and needle rescue, Deep Think's windows and reasoning chain, Maximum). A sentence cut from a list item or a
+labelled line that does not hold the line's lead (`EntityBinding.lead`) is now scored with the lead as heading words
+and packed as "Standard > 30 candidate passages, ...", and its lead is part of its de-duplication key, so "Includes 5
+GB." under two plans is two facts. Table rows, `HEADERS:` and `[Part n]` lines are whole and unchanged.
+`RetrievalAblation.itemLeadInSentences` off restores the old packing (development builds). On the 53 table questions
+of 2026-11-17 (slice 0 of 3), Standard answers with Apple's model, paired in one process: 49 right with the lead, 47
+without (2 better, 0 worse). `[evidence_level: code_verified (the trace), test_verified
+(EntityBindingTests.testSentenceExtractionKeepsEachItemsSubject), measured (BenchmarkRuns/2026-11-18-entity-binding/tables);
+confidence: high for the mechanism, medium for the effect: one run]`
+
 ## A retrieved table summary brings its table (added 2026-11-07, for 5.8)
 
 A table is stored as its full passage (`tableStructural`, split into parts when long), a summary (`tableSemantic`) and,

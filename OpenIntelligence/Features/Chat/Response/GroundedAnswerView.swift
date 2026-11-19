@@ -15,6 +15,8 @@ struct GroundedAnswerView: View {
     
     @State private var expandedClaimIndex: Int? = nil
     @State private var selectedCitationChunk: RetrievedChunk? = nil
+    /// The answer sentences that cite the opened passage (5.8), for the line its page shows about their values.
+    @State private var selectedCitationSentences: [String] = []
     @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
     @Environment(\.tourIsLatestAnswer) private var tourIsLatestAnswer
     
@@ -74,6 +76,7 @@ struct GroundedAnswerView: View {
                 }
                 if let chunk = CitationLinker.chunk(for: url, in: retrievedChunks) {
                     Tour.used(.citation)
+                    selectedCitationSentences = CitationLinker.sentencesCiting(url, inLinked: linkedAnswer)
                     selectedCitationChunk = chunk
                     return .handled
                 }
@@ -93,10 +96,11 @@ struct GroundedAnswerView: View {
                 if let page = CitationSourceDocument.page(of: chunk, in: document) {
                     SourcePageView(
                         document: document, pageNumber: page, passage: chunk.chunk.content, chunk: chunk,
-                        lookup: libraryDocumentLookup)
+                        lookup: libraryDocumentLookup, citingSentences: selectedCitationSentences)
                 } else {
                     SourceTextView(
-                        document: document, passage: chunk.chunk.content, chunk: chunk, lookup: libraryDocumentLookup)
+                        document: document, passage: chunk.chunk.content, chunk: chunk, lookup: libraryDocumentLookup,
+                        citingSentences: selectedCitationSentences)
                 }
             }
 
@@ -116,6 +120,7 @@ struct GroundedAnswerView: View {
                     }).first
             {
                 TourCard(step: .citation, group: Tour.chat) {
+                    selectedCitationSentences = []
                     selectedCitationChunk = firstCited
                 }
             }
@@ -156,6 +161,8 @@ struct GroundedAnswerView: View {
                             evidence: answer.evidence,
                             evidenceDestinations: destinations,
                             onOpenEvidence: { evidence in
+                                // The claim it was opened from is the sentence whose values the page reads (5.8).
+                                selectedCitationSentences = [claim.claim]
                                 selectedCitationChunk = retrievedChunks.first { $0.chunk.id.uuidString == evidence.evidenceId }
                             },
                             isExpanded: expandedClaimIndex == index,

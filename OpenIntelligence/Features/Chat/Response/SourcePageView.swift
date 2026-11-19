@@ -22,6 +22,8 @@ struct SourcePageView: View {
     let chunk: RetrievedChunk?
     /// The library, which holds the passage's whole text.
     let lookup: LibraryDocumentLookup?
+    /// The answer sentences that cite this passage, when a citation opened it (5.8, `EntityBinding.citationNote`).
+    let citingSentences: [String]
 
     /// The passage's text as the answer holds it, and then the library's whole copy: a saved conversation keeps each
     /// passage cut to 600 characters (`ChatMessage`), so after a relaunch the saved copy would highlight only its start.
@@ -31,7 +33,11 @@ struct SourcePageView: View {
     @State private var pageIsScan = false
     @Environment(\.dismiss) private var dismiss
 
-    init(document: Document, pageNumber: Int, passage: String, chunk: RetrievedChunk?, lookup: LibraryDocumentLookup? = nil) {
+    init(
+        document: Document, pageNumber: Int, passage: String, chunk: RetrievedChunk?, lookup: LibraryDocumentLookup? = nil,
+        citingSentences: [String] = []
+    ) {
+        self.citingSentences = citingSentences
         self.document = document
         self.pageNumber = pageNumber
         self.chunk = chunk
@@ -45,9 +51,13 @@ struct SourcePageView: View {
                 .ignoresSafeArea(edges: .bottom)
                 .safeAreaInset(edge: .top, spacing: 0) {
                     if let match {
+                        let note = EntityBinding.citationNote(claims: citingSentences, passage: passage)
+                        let details = [
+                            pageIsScan ? "This page is a scan, so the passage can't be highlighted on it." : nil, note?.text,
+                        ].compactMap { $0 }
                         SourceMatchBanner(
-                            match: match,
-                            detail: pageIsScan ? "This page is a scan, so the passage can't be highlighted on it." : nil)
+                            match: match, detail: details.isEmpty ? nil : details.joined(separator: " "),
+                            detailIsWarning: note?.isWarning ?? false)
                         .tour(.matchBanner, in: Tour.source, arrow: .top)
                     }
                 }
