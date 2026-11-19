@@ -318,10 +318,19 @@ extension AgenticOrchestrator {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Check for [ANSWER] token
+        // An answer that still asks for a search is not an answer (5.8, 2026-11-19). On the owner's iPhone the decision
+        // call replied "[ANSWER] All three quality modes are: Maximum, Free, and Pro. [SEARCH: quality modes]", it was
+        // taken as the final answer, and it replaced a 3,268-character Deep Think synthesis that named Standard, Deep
+        // Think and Maximum. A reply that carries both is read as the search it asks for.
         if let answerRange = trimmed.range(of: "[ANSWER]", options: .caseInsensitive) {
             let answer = String(trimmed[answerRange.upperBound...])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return (.answer(text: answer), answer)
+            if !AgenticOrchestrator.containsResearchDirective(answer) {
+                return (.answer(text: answer), answer)
+            }
+            Log.warning(
+                "[RecursiveResearch] The answer also asks for a search; reading it as the search, not as the answer",
+                category: .llm)
         }
 
         // Check for [SEARCH: query] token

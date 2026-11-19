@@ -437,7 +437,23 @@ extension AgenticOrchestrator {
         "including", "like",
     ]
 
+    /// Whether text carries one of the research loop's own instructions, "[SEARCH: ...]" or "[ANSWER]" (5.8, 2026-11-19).
+    /// Text that does is a step of the loop, never an answer to show.
+    nonisolated static func containsResearchDirective(_ text: String) -> Bool {
+        text.range(of: #"\[(SEARCH:[^\]]*|ANSWER)\]"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     nonisolated static func shouldAcceptReplacement(previous: String, replacement: String) -> Bool {
+        // Never an answer that still carries the loop's instructions, whatever the previous one cites (5.8,
+        // 2026-11-19): an uncited synthesis had nothing to protect it, and "Maximum, Free, and Pro. [SEARCH: quality
+        // modes]" replaced it on the owner's iPhone.
+        if containsResearchDirective(replacement), !previous.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Log.warning(
+                "[Agentic] Rejected replacement: it carries a research instruction "
+                    + "(\(previous.count) chars -> \(replacement.count) chars). Keeping the answer.",
+                category: .llm)
+            return false
+        }
         let previousCitations = citationCount(in: previous)
         let replacementCitations = citationCount(in: replacement)
 

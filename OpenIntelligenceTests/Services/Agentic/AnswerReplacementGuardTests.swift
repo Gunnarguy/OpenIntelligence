@@ -150,4 +150,17 @@ final class AnswerReplacementGuardTests: XCTestCase {
         XCTAssertEqual(AgenticOrchestrator.answerWords(in: "Nine checks"), ["9", "checks"])
         XCTAssertTrue(AgenticOrchestrator.answerWords(in: "It runs 9 checks").contains("9"))
     }
+
+    /// The owner's iPhone, 2026-11-19: research's decision reply "Maximum, Free, and Pro. [SEARCH: quality modes]"
+    /// replaced an uncited 3,268-character Deep Think synthesis that named Standard, Deep Think and Maximum.
+    func testAnAnswerCarryingAResearchInstructionNeverReplacesTheAnswer() {
+        let synthesis = "The three quality modes are Standard, Deep Think and Maximum, each searching more widely than the last."
+        XCTAssertFalse(
+            AgenticOrchestrator.shouldAcceptReplacement(
+                previous: synthesis,
+                replacement: "All three quality modes are: Maximum, Free, and Pro.\n\n[SEARCH: quality modes]"))
+        XCTAssertTrue(AgenticOrchestrator.containsResearchDirective("[ANSWER] Standard"))
+        XCTAssertTrue(AgenticOrchestrator.containsResearchDirective("text [search: plans]"))
+        XCTAssertFalse(AgenticOrchestrator.containsResearchDirective("Standard, Deep Think and Maximum [S1]."))
+    }
 }
