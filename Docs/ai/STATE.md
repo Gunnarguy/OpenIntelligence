@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-18 16:20
+Updated: 2026-11-19 06:50
 Branch/worktree: `main`, primary checkout
-Last verified commit: 43b06f3c
+Last verified commit: 5052c221
 
 ## Objective
 
@@ -13,11 +13,16 @@ closes rows from the logs, and only at his word starts Xcode Cloud and pushes st
 
 ## Status
 
-All of today's work is committed and pushed (`[ci skip]`, no Xcode Cloud build). Both devices run a Debug build of
-HEAD's code (iPhone installed 16:08, Mac 16:09, 2026-11-18). Tests run today on an iOS 27 simulator, all passing:
-GuideLibraryTests 7, DeletedLibraryLeftoversTests 11, EmbeddingConcurrencyIdentityTests 4, IngestionModeSwitchTests 2,
-AnswerWritingSpeedTests 12, AtlasLabelingTests 29 (3 skipped), AtlasLabelSizeTests 20, MarkdownLabelBulletTests 18.
-Full suite not run today.
+Main is at 5052c221, pushed (`[ci skip]`, no Xcode Cloud build). The iPhone runs a Debug build of that code (installed
+2026-11-18 22:55 from `/private/tmp/oi-neg-wt`). The Mac's /Applications app is the Mac redesign's Debug build (branch
+`mac-redesign`, a98dc001, worktree `/private/tmp/oi-mac-wt`, session local_b5d860ee), which does not yet have 5052c221;
+that session rebases onto main after 5052c221 and pushes. Device-pass page: 7 ticked (prompt-0-0, 0-1, 0-2, 3-0;
+mac-2-2, 3-0, 3-1). Library 11 (iCloud) on the Mac holds the six check files for the lease, Lisbon, DHA and notes prompts.
+
+Running: the Maximum A/B for the entity-binding change, four runs alternating ablation off/on
+(`/private/tmp/oi-neg-wt/BenchmarkRuns/2026-11-18-maximum-ab/chain2.sh`, labels base1-r, fix1-r, base2-r, fix2-r,
+from 06:38, about 36 min each). It decides whether 5052c221's entity binding stays: the change stays only if the
+two fix runs together are not below the two base runs.
 
 ## Completed on 2026-11-18 (pushed)
 
@@ -28,17 +33,15 @@ Full suite not run today.
 | dc6cc426 | A bold label bullet in an answer draws as a heading |
 | f141eee8 | Semantic Atlas: cluster names draw again (chamfered `SCNText` draws nothing on iOS 27), no lines to nowhere, short names, label-size words, no overlap |
 | 43b06f3c | Tokens per second is the final answer's writing speed, live and saved, in every mode |
+| 5052c221 (2026-11-19) | A list item's number stays with its subject (sentence extraction keeps the lead, `EntityBinding` in Fact Check, citation note), and a "no" counts in Fact Check only when it denies what the claim names (`ClaimCheck.resolvingNo`); ledger entries for both |
 
 Earlier today: 1453b194 (guide first in every row), 75bf6d3f and 46b9055a (Model Parameters), f5759e4d and e4a191cd (sync).
 
 ## Not verified on a device
 
-All of the above. The closing checks: Library Settings with Technical Details on opens on the iPhone; an import left
-in the background finishes or resumes at once on return; the Guide library shows no Delete, Add, Paste or settings
-edits, and returns if missing; the first library reads "Library 1" on both devices with no sync churn; the Atlas card on
-the iPhone; tokens per second during a Deep Think answer. Still open from this morning: the wrong-entity "0.20" answer
-fix (agent worktree `/private/tmp/oi-bind-wt`, patch due at `/private/tmp/oi-bind.diff`, measurements in
-`BenchmarkRuns/2026-11-18-entity-binding`).
+The 0.28 answer was seen right on the iPhone (trace 2026-11-18 20:45), before the "no" fix; "1 of 1 Verified" for it
+on the 22:55 build is not yet seen. Earlier rows: Library Settings with Technical Details on; an import resuming on
+return; the Guide library locks; "Library 1" on both devices; the Atlas card; tokens per second in Deep Think.
 
 ## Standing approvals (owner, 2026-11-18)
 
@@ -57,6 +60,14 @@ internals out of bounds; b3f83ec8 edited them for the proven hang, and he has no
 - Before any device-dependent constant, run the `scale-to-the-device` skill (read Apple's page first).
 
 ## Known and not fixed
+
+- Identical files under two names import as one ("Already imported"), so the device pass's Kestrel prompt (the same PDF
+  twice) cannot be set up as written; the queue card said "Paused after app restart" though the app had not restarted.
+- Mac: Services Ask fills the other window's field with two windows open; Finder Add on an iCloud file not downloaded
+  shows nothing for about 2 minutes (the Mac session lists both as follow-ups).
+- The answer scorer (`scripts/score_answer_eval.py`) fails a right refusal that later lists any dollar amount.
+- Held for after 5.8, Future Backlog rows, patches in `BenchmarkRuns/2026-11-18-held-after-5.8/`: Standard's planner
+  model call (2.5 to 12 s before every question), and the case-insensitive Code/Standard spec patterns.
 
 - Search setup after an install took 55 to 99 s (embedding) and 87 to 131 s (reranker) on his iPhone at thermal state serious.
 - Main-thread stalls on Chat during rebuilds (worst 1,658 ms); the `@concurrent` fix (641c7aa9) is not yet seen on the
@@ -85,7 +96,8 @@ MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F
 
 ## Exact Next Action
 
-Read the entity-binding agent's result (`/private/tmp/oi-bind.diff` and `BenchmarkRuns/2026-11-18-entity-binding`),
-get a refuting review, and if Standard answers "What is the similarity floor in Standard mode?" with 0.28 in its
-measurements, commit it with docs and install on both devices. Then wait for the owner's "done" on the device pass and
-run `python3 scripts/phone_evidence.py --since <16:08 local, 2026-11-18> --json` (and `--mac --since 16:09`).
+When `chain2.sh` finishes, score the four runs with `python3 scripts/score_answer_eval.py <run>/maximum-app.xcresult`
+for each `2026-11-19-*-answer-modes-bind-{base1-r,fix1-r,base2-r,fix2-r}` folder in `/private/tmp/oi-neg-wt/BenchmarkRuns`.
+If fix1+fix2 >= base1+base2, record it in `BenchmarkRuns/LEDGER.md` (copy the folders in) and keep 5052c221; if
+lower, revert only the entity-binding half with `RetrievalAblation`-guided code changes, measure, commit. Then the owner
+runs the remaining prompts in Library 11, and the agent reads his trace to tick them.
