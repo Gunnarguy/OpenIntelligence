@@ -1725,7 +1725,7 @@ actor VerificationGateService {
         let citedCoverage = !citedChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: citedCorpus, query: query)
         let supportingCoverage = !supportingChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: supportingCorpus, query: query)
         let corpusCoverage = isClaimCovered(claim: claimText, inCorpus: corpus, query: query)
-        let supportConfidence = claimSupportConfidence(for: claimText, evidence: supportingChunks)
+        let supportConfidence = claimSupportConfidence(for: claimText, evidence: supportingChunks, query: query)
         let resolvedEvidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
 
         var verdict: RAGVerificationResult.ClaimResult.Verdict
@@ -1976,14 +1976,30 @@ actor VerificationGateService {
         }
     }
 
-    private func claimSupportConfidence(for claim: String, evidence: [RetrievedChunk]) -> Float {
+    private func claimSupportConfidence(for claim: String, evidence: [RetrievedChunk], query: String) -> Float {
         guard !evidence.isEmpty else { return 0.0 }
         let topEvidence = evidence[0]
         let content = topEvidence.chunk.contextText
-        let claimTokens = keywordTokens(from: claim)
         let contentTokens = keywordTokens(from: content)
+        let claimTokens = Self.claimTokensToScore(
+            keywordTokens(from: claim), contentTokens: contentTokens, queryTokens: keywordTokens(from: query))
         let overlap = claimTokens.isEmpty ? 0 : Float(claimTokens.intersection(contentTokens).count) / Float(max(claimTokens.count, 1))
         return min(1.0, max(0.2, (topEvidence.similarityScore * 0.5) + (overlap * 0.5)))
+    }
+
+    /// The claim's words that the overlap is scored on. A word the claim repeats from the question and
+    /// the passage does not hold is left out: "Chicken should reach 165°F." asked as "What temperature
+    /// should chicken reach?" scored half its words against "Internal temperatures: chicken 165°F", so a
+    /// right, cited answer read Partial at 56% (the owner's iPhone, 2026-11-19). Only question words
+    /// leave; a figure or a name the question did not ask about still has to be in the passage, so
+    /// "Chicken should reach 145°F." keeps "145" and still scores half. If every word would leave, all
+    /// of them are scored.
+    nonisolated static func claimTokensToScore(
+        _ claimTokens: Set<String>, contentTokens: Set<String>, queryTokens: Set<String>
+    ) -> Set<String> {
+        let echoed = claimTokens.intersection(queryTokens).subtracting(contentTokens)
+        let scored = claimTokens.subtracting(echoed)
+        return scored.isEmpty ? claimTokens : scored
     }
 
     private func keywordTokens(from text: String) -> Set<String> {

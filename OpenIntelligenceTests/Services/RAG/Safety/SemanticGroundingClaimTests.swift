@@ -178,4 +178,54 @@ final class SemanticGroundingClaimTests: XCTestCase {
         XCTAssertFalse(gate.passed, gate.details)
         XCTAssertTrue(gate.details.hasPrefix("UNGROUNDED (respMax=0.240 < floor 0.25"), gate.details)
     }
+
+    // MARK: - Words the claim repeats from the question (2026-11-19)
+
+    private func chickenClaim(_ claim: String) async -> RAGVerificationResult.ClaimResult? {
+        let text = "Internal temperatures: chicken 165°F, fish 145°F. Let food rest for three minutes before serving."
+        let metadata = ChunkMetadata(chunkIndex: 0, pageNumber: 1, wordCount: 15, characterCount: text.count)
+        let chunk = RetrievedChunk(
+            chunk: DocumentChunk(documentId: UUID(), content: text, embedding: [], metadata: metadata),
+            similarityScore: 0.62,
+            rank: 1,
+            sourceDocument: "Air Fryer Manual.pdf",
+            pageNumber: 1
+        )
+        let result = await VerificationGateService().verify(
+            response: claim,
+            query: "What temperature should chicken reach?",
+            retrievedChunks: [chunk],
+            topScores: [0.62],
+            responseEmbedding: [1, 0, 0],
+            queryEmbedding: [1, 0, 0],
+            chunkEmbeddings: [[1, 0, 0]],
+            structuredClaims: [StructuredRAGClaim(claim: claim, citations: ["S1"], isExtracted: true)]
+        )
+        return result.claimResults.first
+    }
+
+    /// The owner's iPhone, 2026-11-19: "Chicken should reach 165°F [S3]." read Partial at 56% because
+    /// "should" and "reach" came from the question and are not in the passage.
+    func testARightAnswerInTheQuestionsWordsIsSupported() async throws {
+        let result = await chickenClaim("Chicken should reach 165°F.")
+        let claim = try XCTUnwrap(result)
+        XCTAssertEqual(claim.verdict, .supported, claim.details)
+    }
+
+    func testAWrongFigureInTheQuestionsWordsIsStillNotSupported() async throws {
+        let result = await chickenClaim("Chicken should reach 175°F.")
+        let claim = try XCTUnwrap(result)
+        XCTAssertNotEqual(claim.verdict, .supported, claim.details)
+    }
+
+    func testOnlyQuestionWordsMissingFromThePassageLeaveTheScore() {
+        let scored = VerificationGateService.claimTokensToScore(
+            ["chicken", "should", "reach", "165"],
+            contentTokens: ["internal", "temperatures", "chicken", "165", "fish", "145"],
+            queryTokens: ["what", "temperature", "should", "chicken", "reach"])
+        XCTAssertEqual(scored, ["chicken", "165"])
+        let allEchoed = VerificationGateService.claimTokensToScore(
+            ["should", "reach"], contentTokens: ["fish"], queryTokens: ["should", "reach"])
+        XCTAssertEqual(allEchoed, ["should", "reach"])
+    }
 }
