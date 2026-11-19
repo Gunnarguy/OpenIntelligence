@@ -571,6 +571,11 @@ import os
             var responseText = ""
             var tokenCount = 0
             var firstTokenTime: TimeInterval?
+            // The answer's writing window (5.8, `AnswerWritingSpeed`): when its first and latest visible text arrived,
+            // in seconds from `startTime`. `firstTokenTime` is the first snapshot of any kind, reasoning included.
+            var firstTextTime: TimeInterval?
+            var lastTextTime: TimeInterval?
+            var resumedAfterPause = false
 
             let actualExecutionLocation: String
 
@@ -762,6 +767,9 @@ import os
                                 if newChars > 0 {
                                     let chunk = String(responseText.suffix(newChars))
                                     LLMStreamingContext.emit(text: chunk, isFinal: false)
+                                    let textTime = Date().timeIntervalSince(startTime)
+                                    if firstTextTime == nil { firstTextTime = textTime }
+                                    lastTextTime = textTime
                                 }
 
                             default:
@@ -891,6 +899,9 @@ import os
                     throw LLMError.rateLimited(message)
                 }
                 responseText += resumed
+                // The wait for the app to come back is inside any window from here, so this answer has no writing
+                // speed to report (5.8).
+                resumedAfterPause = true
             }
 
             // Stop Neural Engine activity indicator
@@ -915,6 +926,8 @@ import os
 
             let totalTime = Date().timeIntervalSince(startTime)
             var finalTokenCount = responseText.split(separator: " ").count
+            // The text the writing window covers, before any continuation pass adds to it.
+            let streamedAnswerText = responseText
 
             Log.info(
                 "[FM] Generation complete: \(finalTokenCount) words in \(String(format: "%.2f", totalTime))s (\(actualExecutionLocation))",
@@ -1024,6 +1037,21 @@ import os
                         ) { $1 }
                         .merging(["continued": "\(needsContinuation)"]) { $1 })
             }
+            // How fast the answer's text was written (5.8): its tokens from its first visible text to its last.
+            // Apple's count when it covers only that text (no tool calls, continuation or resumed tail).
+            let onDeviceRoute: Bool = {
+                if case .privateCloudCompute = actualRoute { return false }
+                return true
+            }()
+            let writtenTokens = AnswerWritingSpeed.writtenTokens(
+                usage: usage, usageCoversText: !needsContinuation && toolCalls == 0, text: streamedAnswerText,
+                onDevice: onDeviceRoute)
+            let writingSpeed: LLMResponse.WritingSpeed =
+                resumedAfterPause
+                ? .measured(nil)
+                : .measured(
+                    AnswerWritingSpeed.tokensPerSecond(
+                        writtenTokens: writtenTokens, firstTextAt: firstTextTime, lastTextAt: lastTextTime))
             return LLMResponse(
                 text: responseText,
                 tokensGenerated: finalTokenCount,
@@ -1032,7 +1060,8 @@ import os
                 modelName: executionBasedModelName,
                 toolCallsMade: toolCalls,
                 executionReceipt: executionReceipt,
-                usage: usage
+                usage: usage,
+                writingSpeed: writingSpeed
             )
         }
 
@@ -1173,7 +1202,8 @@ import os
                 toolCallsMade: response.toolCallsMade,
                 structuredRAGGeneration: response.structuredRAGGeneration,
                 executionReceipt: executionReceipt,
-                usage: usage
+                usage: usage,
+                writingSpeed: response.writingSpeed
             )
         }
         /// Detects if a response was cut off mid-sentence or mid-thought

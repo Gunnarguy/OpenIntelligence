@@ -89,6 +89,9 @@ extension ChatScreen {
         streamingBuffer.removeAll(keepingCapacity: true)
         streamingText = ""
         hasReceivedStreamToken = false
+        answerFirstTextAt = nil
+        answerLastTextAt = nil
+        answerCharactersAfterFirstPiece = 0
         isStreamFinished = false
     }
 
@@ -111,6 +114,15 @@ extension ChatScreen {
             ), !sanitized.isEmpty
         else { return }
         streamingBuffer.append(sanitized)
+        // The writing window starts at the answer's first text, as it arrives from the model rather than as the pump
+        // shows it (5.8).
+        let arrived = Date()
+        if answerFirstTextAt == nil {
+            answerFirstTextAt = arrived
+        } else {
+            answerCharactersAfterFirstPiece += sanitized.count
+        }
+        answerLastTextAt = arrived
         hasReceivedStreamToken = true
         if streamingPumpTask == nil {
             streamingPumpTask = Task { await pumpStreamingBuffer() }

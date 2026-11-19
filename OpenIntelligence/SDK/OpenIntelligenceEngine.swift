@@ -235,6 +235,8 @@ public struct OIQueryDiagnostics: Sendable {
     public let generationTime: TimeInterval
     public let timeToFirstToken: TimeInterval?
     public let tokensGenerated: Int
+    /// How fast the answer's text was written: its tokens from its first text to its last (5.8). Nil when the answer
+    /// arrived whole and has no writing time to measure.
     public let tokensPerSecond: Float?
     public let contextStrategy: String?
     public let featureFlags: [String]

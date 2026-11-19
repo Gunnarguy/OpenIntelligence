@@ -188,6 +188,10 @@ question, an answer or a file name; a notification can be read on a locked scree
 
 ## Route telemetry
 
+### The answer's writing speed is measured on the device and changes no route (added 2026-11-18, for 5.8)
+
+The tokens per second under an answer is its writing speed: the answer's output tokens over the time from its first visible text to its last (`LLMResponse.writingSpeed`, `AnswerWritingSpeed`). On device it counts Apple's reported output tokens less reasoning tokens when they cover only the answer text, otherwise the app's estimate (`FoundationModelTokenBudget.estimateTokens`); Deep Think and Maximum read the call that wrote the final answer (`AgenticAnswerWritingMeter`). It is computed from timings and counts the app already had, is stored with the answer on the device, and changes no call, prompt, consent step or route. `[evidence_level: code_verified, test_verified (AnswerWritingSpeedTests); confidence: high]`
+
 ### What Apple reports, as distinct from what the app decided
 
 `LanguageModelSession.usage` (iOS/macOS 27) is the only outcome-based evidence available about a

@@ -115,6 +115,11 @@ import Foundation
 
             /// Characters of the `answer` field already sent to the chat as it was generated.
             var streamedAnswerCount = 0
+            /// When the `answer` field's first and latest text arrived, in seconds from `startTime` (5.8,
+            /// `AnswerWritingSpeed`): the window its writing speed is measured over. The other fields are written
+            /// after it and are not shown as written, so they are outside it.
+            var answerFirstTextTime: TimeInterval?
+            var answerLastTextTime: TimeInterval?
 
             /// Streams `DirectRAGAnswer`, sending its `answer` field to the chat as it grows.
             ///
@@ -153,6 +158,9 @@ import Foundation
                         LLMStreamingContext.emit(text: String(partial.dropFirst(streamed.count)), isFinal: false)
                         streamed = partial
                         streamedAnswerCount = streamed.count
+                        let textTime = Date().timeIntervalSince(startTime)
+                        if answerFirstTextTime == nil { answerFirstTextTime = textTime }
+                        answerLastTextTime = textTime
                     }
                     guard let finalContent else {
                         throw LLMError.generationFailed("Structured answer stream ended without content")
@@ -324,6 +332,18 @@ import Foundation
             let totalTime = Date().timeIntervalSince(startTime)
             let estimatedTokens = max(1, Int(ceil(Double(finalText.count) / 1.4)))
 
+            // The answer field's writing speed (5.8): its text, by the app's estimator, over the window it streamed in.
+            // Apple's count covers every field of the schema, so it is not used here. A reasoned answer arrives whole
+            // and has no window.
+            let onDeviceRoute: Bool = {
+                if case .privateCloudCompute = route { return false }
+                return true
+            }()
+            let answerWritingSpeed = AnswerWritingSpeed.tokensPerSecond(
+                writtenTokens: AnswerWritingSpeed.writtenTokens(
+                    usage: nil, usageCoversText: false, text: answerText, onDevice: onDeviceRoute),
+                firstTextAt: answerFirstTextTime, lastTextAt: answerLastTextTime)
+
             return LLMResponse(
                 text: finalText,
                 tokensGenerated: estimatedTokens,
@@ -338,7 +358,8 @@ import Foundation
                     citations: normalizedCitations,
                     matchedTerms: matchedTerms,
                     claims: effectiveClaims
-                )
+                ),
+                writingSpeed: .measured(answerWritingSpeed)
             )
         }
 

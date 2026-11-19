@@ -1607,7 +1607,9 @@ extension RAGService {
                                 modelName: response.modelName ?? service.modelName,
                                 toolCallsMade: response.toolCallsMade,
                                 structuredRAGGeneration: response.structuredRAGGeneration,
-                                executionReceipt: response.executionReceipt
+                                executionReceipt: response.executionReceipt,
+                                // The writing speed of the response the text came from (review, 2026-11-18).
+                                writingSpeed: response.writingSpeed
                             )
                         }
                         // If clean prefix is too short, fall through to normal response
@@ -1630,7 +1632,8 @@ extension RAGService {
                             modelName: response.modelName ?? service.modelName,
                             toolCallsMade: response.toolCallsMade,
                             structuredRAGGeneration: response.structuredRAGGeneration,
-                            executionReceipt: response.executionReceipt
+                            executionReceipt: response.executionReceipt,
+                            writingSpeed: response.writingSpeed
                         )
                     }
 
@@ -1690,7 +1693,9 @@ extension RAGService {
                             toolCallsMade: 0,
                             executionReceipt: partialReceipt,
                             streamCutOff: true,
-                            cutOffByGuardrail: ModelErrorClassifier.kind(of: error) == .contentFiltered
+                            cutOffByGuardrail: ModelErrorClassifier.kind(of: error) == .contentFiltered,
+                            // A stream that broke off has no writing time to measure (review, 2026-11-18).
+                            writingSpeed: .measured(nil)
                         )
                     }
                     throw error
@@ -1788,7 +1793,8 @@ extension RAGService {
                         executionReceipt: receipt,
                         // A cut-off local answer stays marked as one (5.8): the rebuild dropped both.
                         streamCutOff: localResponse.streamCutOff,
-                        cutOffByGuardrail: localResponse.cutOffByGuardrail
+                        cutOffByGuardrail: localResponse.cutOffByGuardrail,
+                        writingSpeed: localResponse.writingSpeed
                     )
                 } catch let fallbackError {
                     Log.warning(

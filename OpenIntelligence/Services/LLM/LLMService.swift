@@ -212,6 +212,109 @@ nonisolated final class AnswerUsageTally: @unchecked Sendable {
     }
 }
 
+/// What "tokens per second" means everywhere in the app (5.8, 2026-11-18): how fast the answer's text was written.
+///
+/// It is the answer's output tokens over the time from its first visible text to its last, so reading the prompt
+/// (prefill, up to about 6,000 tokens on device), retrieval and every Deep Think step before the answer are left out.
+/// Until 5.8 the saved figure divided by the whole call, prefill included, and Deep Think and Maximum divided every
+/// call's tokens by the whole run, so the bar read 1 to 5 while the answer was visibly written faster.
+nonisolated enum AnswerWritingSpeed {
+    /// A writing window shorter than this gives no rate: an answer that arrives in one or two pieces has no measurable
+    /// writing time, and dividing by a few milliseconds reads as thousands of tokens per second.
+    static let minimumWindow: TimeInterval = 0.25
+
+    /// Tokens over the writing window, `lastTextAt - firstTextAt` (seconds from any common origin). Nil when the
+    /// window is unknown or shorter than `minimumWindow`, or when no tokens were written.
+    static func tokensPerSecond(writtenTokens: Int, firstTextAt: TimeInterval?, lastTextAt: TimeInterval?) -> Float? {
+        guard let firstTextAt, let lastTextAt, writtenTokens > 0 else { return nil }
+        let window = lastTextAt - firstTextAt
+        guard window >= minimumWindow else { return nil }
+        return Float(Double(writtenTokens) / window)
+    }
+
+    /// The answer's written tokens. Apple's count (`GenerationUsage`, iOS and macOS 27) less its reasoning tokens when
+    /// that count covers only the answer's text; otherwise the app's estimator on the text
+    /// (`FoundationModelTokenBudget.estimateTokens`, 1.4 characters a token on device, 2.5 in the cloud).
+    /// `usageCoversText` is false when the call also wrote tool calls, a continuation or a resumed tail, which
+    /// Apple's count includes and the writing window does not.
+    static func writtenTokens(usage: GenerationUsage?, usageCoversText: Bool, text: String, onDevice: Bool) -> Int {
+        if usageCoversText, let usage {
+            let written = usage.outputTokens - usage.reasoningTokens
+            if written > 0 { return written }
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+        return FoundationModelTokenBudget.estimateTokens(for: trimmed, isAppleFMOnDevice: onDevice)
+    }
+
+    /// The live figure while an answer streams into the chat: tokens received after the first piece over the time
+    /// since that piece arrived. The first piece is left out of the count because it arrived at the window's start.
+    /// Zero (the bar shows "–") until text has been written for `minimumWindow`.
+    static func liveTokensPerSecond(
+        charactersAfterFirstPiece: Int, elapsedSinceFirstPiece: TimeInterval, onDevice: Bool
+    )
+        -> Double
+    {
+        guard elapsedSinceFirstPiece >= minimumWindow, charactersAfterFirstPiece > 0 else { return 0 }
+        let tokens = FoundationModelTokenBudget.estimateTokens(
+            charsCount: charactersAfterFirstPiece, isAppleFMOnDevice: onDevice)
+        return Double(tokens) / elapsedSinceFirstPiece
+    }
+
+    /// One model call made during a Deep Think or Maximum run: its text, its writing speed, and whether it streamed
+    /// into the chat (`LLMStreamingContext.answerHandler`, the calls that write the final answer).
+    struct Call: Sendable, Equatable {
+        let text: String
+        let tokensPerSecond: Float?
+        let streamedToChat: Bool
+    }
+
+    /// The writing speed of the call whose text became the final answer: the latest call of at least 60 characters
+    /// whose text the answer contains (matched on a 60-character slice from the call's middle, which the answer's
+    /// cleanup of openings, endings and links leaves alone), else the latest call that streamed into the chat, else
+    /// nil. A shorter call (a check's "supported", a value) is never taken: its text can sit inside any answer.
+    static func finalAnswerSpeed(finalAnswer: String, calls: [Call]) -> Float? {
+        let answer = normalized(finalAnswer)
+        if !answer.isEmpty {
+            for call in calls.reversed() {
+                let text = normalized(call.text)
+                guard text.count >= 60 else { continue }
+                let probeLength = 60
+                let start = text.index(text.startIndex, offsetBy: (text.count - probeLength) / 2)
+                let probe = text[start..<text.index(start, offsetBy: probeLength)]
+                if answer.contains(probe) { return call.tokensPerSecond }
+            }
+        }
+        return calls.last(where: \.streamedToChat)?.tokensPerSecond
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).joined(separator: " ")
+    }
+}
+
+/// Collects the model calls of one Deep Think or Maximum run (5.8), so the answer's tokens per second is the final
+/// answer's own writing speed (`AnswerWritingSpeed.finalAnswerSpeed`). Bound by `executeAgenticQuery` around the
+/// orchestrator; `generateWithProperConsent`, which every synthesis goes through, records each call.
+nonisolated final class AgenticAnswerWritingMeter: @unchecked Sendable {
+    @TaskLocal static var current: AgenticAnswerWritingMeter?
+    private let lock = NSLock()
+    private var recorded: [AnswerWritingSpeed.Call] = []
+
+    func record(text: String, tokensPerSecond: Float?, streamedToChat: Bool) {
+        let call = AnswerWritingSpeed.Call(text: text, tokensPerSecond: tokensPerSecond, streamedToChat: streamedToChat)
+        lock.lock()
+        recorded.append(call)
+        lock.unlock()
+    }
+
+    var calls: [AnswerWritingSpeed.Call] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+}
+
 struct LLMResponse {
     let text: String
     let tokensGenerated: Int
@@ -244,8 +347,10 @@ struct LLMResponse {
         executionReceipt: ModelExecutionReceipt? = nil,
         usage: GenerationUsage? = nil,
         streamCutOff: Bool = false,
-        cutOffByGuardrail: Bool = false
+        cutOffByGuardrail: Bool = false,
+        writingSpeed: WritingSpeed = .notMeasured
     ) {
+        self.writingSpeed = writingSpeed
         self.streamCutOff = streamCutOff
         self.cutOffByGuardrail = cutOffByGuardrail
         self.text = text
@@ -259,12 +364,29 @@ struct LLMResponse {
         self.usage = usage
     }
 
+    /// The answer's writing speed as the generating call measured it (5.8, `AnswerWritingSpeed`): `.measured(nil)`
+    /// when it watched the text arrive and found no writing window to measure, `.notMeasured` on paths that did not
+    /// watch the stream.
+    nonisolated enum WritingSpeed: Sendable, Equatable {
+        case notMeasured
+        case measured(Float?)
+    }
+    let writingSpeed: WritingSpeed
+
+    /// How fast this response's text was written (5.8, `AnswerWritingSpeed`): output tokens over the time from the
+    /// first text to the last, never over the whole call. Until 5.8 this was `tokensGenerated / totalTime`, which
+    /// counted reading the prompt as writing time. Where the call measured it, that figure; otherwise
+    /// `tokensGenerated` over `totalTime - timeToFirstToken`, nil without a time to first token.
     var tokensPerSecond: Float? {
-        guard totalTime > 0 else { return nil }
-        return Float(tokensGenerated) / Float(totalTime)
+        switch writingSpeed {
+        case .measured(let speed):
+            return speed
+        case .notMeasured:
+            return AnswerWritingSpeed.tokensPerSecond(
+                writtenTokens: tokensGenerated, firstTextAt: timeToFirstToken, lastTextAt: totalTime)
+        }
     }
 }
-
 
 // MARK: - Screenshot Mode Mock LLM
 

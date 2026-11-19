@@ -525,102 +525,111 @@ extension RAGService {
             try Task.checkCancellation()
             guard let self else { throw CancellationError() }
 
-            let result = try await orchestrator.execute(
-                query: question,
-                initialContext: "",
-                onStep: { [weak self] step in
-                    // Stream thinking steps to UI AND update live counters
-                    await MainActor.run {
-                        // Update live token counter for real-time UI (reset when this answer started, below)
-                        self?.deepThinkLiveTokens += step.tokensUsed
+            // Every synthesis call's writing speed, so the answer reports its final answer's (5.8).
+            let writingMeter = AgenticAnswerWritingMeter()
+            let result = try await AgenticAnswerWritingMeter.$current.withValue(writingMeter) {
+                try await orchestrator.execute(
+                    query: question,
+                    initialContext: "",
+                    onStep: { [weak self] step in
+                        // Stream thinking steps to UI AND update live counters
+                        await MainActor.run {
+                            // Update live token counter for real-time UI (reset when this answer started, below)
+                            self?.deepThinkLiveTokens += step.tokensUsed
 
-                        // Only count actual LLM reasoning sessions, NOT pipeline events
-                        // Pipeline events have tokensUsed == 0 (they're just status updates)
-                        // Retrieval steps (.searching, .expanding) don't count as reasoning sessions
-                        let isLLMReasoningSession: Bool = {
-                            switch step.type {
-                            case .planning, .analyzing, .synthesizing, .refining, .reformulating, .verifying:
-                                return step.tokensUsed > 0  // Must have actual tokens to count
-                            case .searching, .expanding:
-                                return false  // Retrieval, not reasoning
+                            // Only count actual LLM reasoning sessions, NOT pipeline events
+                            // Pipeline events have tokensUsed == 0 (they're just status updates)
+                            // Retrieval steps (.searching, .expanding) don't count as reasoning sessions
+                            let isLLMReasoningSession: Bool = {
+                                switch step.type {
+                                case .planning, .analyzing, .synthesizing, .refining, .reformulating, .verifying:
+                                    return step.tokensUsed > 0  // Must have actual tokens to count
+                                case .searching, .expanding:
+                                    return false  // Retrieval, not reasoning
+                                }
+                            }()
+
+                            if isLLMReasoningSession {
+                                self?.deepThinkLiveSteps += 1
                             }
-                        }()
 
-                        if isLLMReasoningSession {
-                            self?.deepThinkLiveSteps += 1
-                        }
+                            // Update live confidence for Maximum mode
+                            if let confidence = step.confidence {
+                                self?.deepThinkLiveConfidence = confidence
+                            }
 
-                        // Update live confidence for Maximum mode
-                        if let confidence = step.confidence {
-                            self?.deepThinkLiveConfidence = confidence
-                        }
+                            // Check if this is a detailed sub-step (pipeline internals)
+                            // Detailed steps from makeDetailedEventForwarder use format: "KIND|Title: Detail"
+                            // This preserves the original ThinkingEvent.Kind (e.g., .vectorSearch, .bm25, .mmr)
+                            if step.output.contains("|") {
+                                // Parse the encoded format: "kindRawValue|Title: Detail"
+                                guard let pipeIndex = step.output.firstIndex(of: "|") else { return }
+                                let kindRaw = String(step.output[..<pipeIndex])
+                                let rest = String(step.output[step.output.index(after: pipeIndex)...])
 
-                        // Check if this is a detailed sub-step (pipeline internals)
-                        // Detailed steps from makeDetailedEventForwarder use format: "KIND|Title: Detail"
-                        // This preserves the original ThinkingEvent.Kind (e.g., .vectorSearch, .bm25, .mmr)
-                        if step.output.contains("|") {
-                            // Parse the encoded format: "kindRawValue|Title: Detail"
-                            guard let pipeIndex = step.output.firstIndex(of: "|") else { return }
-                            let kindRaw = String(step.output[..<pipeIndex])
-                            let rest = String(step.output[step.output.index(after: pipeIndex)...])
+                                // Parse title and detail from "Title: Detail" format
+                                let parts = rest.split(separator: ":", maxSplits: 1)
+                                let title = String(parts.first ?? "Processing")
+                                let detail =
+                                    parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
 
-                            // Parse title and detail from "Title: Detail" format
-                            let parts = rest.split(separator: ":", maxSplits: 1)
-                            let title = String(parts.first ?? "Processing")
-                            let detail = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
+                                // Recover the original ThinkingEvent.Kind for proper UI display
+                                let eventKind = ThinkingEvent.Kind(rawValue: kindRaw) ?? step.type.thinkingKind
+                                self?.emitThinkingEvent(eventKind, title: title, detail: detail)
+                            } else if step.tokensUsed == 0 && step.output.contains(": ") {
+                                // Legacy format without kind encoding (fallback)
+                                let parts = step.output.split(separator: ":", maxSplits: 1)
+                                let title = String(parts.first ?? "Processing")
+                                let detail =
+                                    parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
+                                self?.emitThinkingEvent(
+                                    step.type.thinkingKind,
+                                    title: title,
+                                    detail: detail
+                                )
+                            } else if step.input.hasPrefix("Session ") {
+                                // This is a reasoning session from Maximum mode - show session details
+                                let sessionInfo = step.input  // e.g., "Session 5/25"
+                                let confidence = step.confidence ?? 0
+                                // The session's own words and how sure it is; its token count and a "deep"/"scanning"
+                                // word from that count were internal values (owner, 2026-11-13).
+                                let metricsString = "\(Int(confidence * 100))% confident"
+                                let cleanOutput = Self.plainStatusText(step.output)
+                                let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
 
-                            // Recover the original ThinkingEvent.Kind for proper UI display
-                            let eventKind = ThinkingEvent.Kind(rawValue: kindRaw) ?? step.type.thinkingKind
-                            self?.emitThinkingEvent(eventKind, title: title, detail: detail)
-                        } else if step.tokensUsed == 0 && step.output.contains(": ") {
-                            // Legacy format without kind encoding (fallback)
-                            let parts = step.output.split(separator: ":", maxSplits: 1)
-                            let title = String(parts.first ?? "Processing")
-                            let detail = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
-                            self?.emitThinkingEvent(
-                                step.type.thinkingKind,
-                                title: title,
-                                detail: detail
-                            )
-                        } else if step.input.hasPrefix("Session ") {
-                            // This is a reasoning session from Maximum mode - show session details
-                            let sessionInfo = step.input  // e.g., "Session 5/25"
-                            let confidence = step.confidence ?? 0
-                            // The session's own words and how sure it is; its token count and a "deep"/"scanning"
-                            // word from that count were internal values (owner, 2026-11-13).
-                            let metricsString = "\(Int(confidence * 100))% confident"
-                            let cleanOutput = Self.plainStatusText(step.output)
-                            let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
+                                self?.emitThinkingEvent(
+                                    step.type.thinkingKind,
+                                    title: sessionInfo,
+                                    detail: detail
+                                )
+                            } else {
+                                // Regular reasoning step - use standard format
+                                // Plain words only (5.8): "Tokens: 4, Duration: 0.2s" read as internal values, and the
+                                // durations were constants the steps set (0.2 s, 0.5 s), never measured.
+                                var metrics: [String] = []
+                                // No token count: "Chose 5 of 25 sections to read • 5 tokens" was the size of the model's
+                                // reply, which tells the person nothing (owner, 2026-11-13).
+                                if let confidence = step.confidence {
+                                    metrics.append("\(Int(confidence * 100))% confident")
+                                }
+                                let metricsString = metrics.joined(separator: " • ")
 
-                            self?.emitThinkingEvent(
-                                step.type.thinkingKind,
-                                title: sessionInfo,
-                                detail: detail
-                            )
-                        } else {
-                            // Regular reasoning step - use standard format
-                            // Plain words only (5.8): "Tokens: 4, Duration: 0.2s" read as internal values, and the
-                            // durations were constants the steps set (0.2 s, 0.5 s), never measured.
-                            var metrics: [String] = []
-                            // No token count: "Chose 5 of 25 sections to read • 5 tokens" was the size of the model's
-                            // reply, which tells the person nothing (owner, 2026-11-13).
-                            if let confidence = step.confidence { metrics.append("\(Int(confidence * 100))% confident") }
-                            let metricsString = metrics.joined(separator: " • ")
+                                let cleanOutput = Self.plainStatusText(step.output)
+                                let detail =
+                                    metricsString.isEmpty
+                                    ? cleanOutput
+                                    : (cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)")
 
-                            let cleanOutput = Self.plainStatusText(step.output)
-                            let detail =
-                                metricsString.isEmpty
-                                ? cleanOutput : (cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)")
-
-                            self?.emitThinkingEvent(
-                                step.type.thinkingKind,
-                                title: step.type.displayName,
-                                detail: detail
-                            )
+                                self?.emitThinkingEvent(
+                                    step.type.thinkingKind,
+                                    title: step.type.displayName,
+                                    detail: detail
+                                )
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
 
             let totalTime = Date().timeIntervalSince(startTime)
 
@@ -815,7 +824,9 @@ extension RAGService {
                 await judgeResponsiveness(question: question, answer: extracted, stage: "extracted")?.verdict
                     == AnswerResponsiveness.none
             {
-                Log.info("[Responsiveness] The extracted value does not answer the question; keeping the run's answer", category: .llm)
+                Log.info(
+                    "[Responsiveness] The extracted value does not answer the question; keeping the run's answer",
+                    category: .llm)
                 extractiveAgenticAnswer = nil
             }
             let baseAgenticAnswer = extractiveAgenticAnswer ?? generatedAgenticAnswer
@@ -891,7 +902,8 @@ extension RAGService {
             )
             // Whether the answer shown answers the question (5.8, `AnswerResponsivenessJudge`). Deep Think and Maximum
             // are labelled and not rewritten: their answer took minutes, and the verdict goes on the badge and warnings.
-            if let judgment = await judgeResponsiveness(question: question, answer: displayResponseText, stage: "final") {
+            if let judgment = await judgeResponsiveness(question: question, answer: displayResponseText, stage: "final")
+            {
                 // With no check behind the answer, only a "none" is written: "answers:full" alone would turn an
                 // answer that `ReviewPromptService` counts as verified (no string, sources found) into Not Checked.
                 if gatingDecision != nil || judgment.verdict == .none {
@@ -921,7 +933,10 @@ extension RAGService {
                     timeToFirstToken: totalTime / Double(max(1, result.steps.count)),  // Estimate TTFT per step
                     totalGenerationTime: totalTime,
                     tokensGenerated: result.totalTokens,
-                    tokensPerSecond: Float(result.totalTokens) / Float(totalTime),
+                    // The final answer's writing speed (5.8): its tokens from its first text to its last. Until 5.8
+                    // every call's tokens over the whole run, which read 1 to 5 tokens a second.
+                    tokensPerSecond: AnswerWritingSpeed.finalAnswerSpeed(
+                        finalAnswer: result.finalAnswer, calls: writingMeter.calls),
                     modelUsed: "Apple Foundation Model (Agentic)",
                     retrievalTime: 0,
                     retrievalConfigSummary: "Agentic",

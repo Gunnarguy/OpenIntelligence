@@ -370,12 +370,19 @@ extension RAGService {
             )
         }
 
-        return try await generateWithFallback(
+        let response = try await generateWithFallback(
             prompt: prompt,
             context: routedContext,
             config: config,
             sourceChunks: routedSourceChunks.map(\.chunk),
             allowStructuredRAG: false
         )
+        // Each call's text and writing speed, so a Deep Think or Maximum answer reports its final answer's own speed
+        // (5.8, `AgenticAnswerWritingMeter`). Inside a run the chat's stream is bound only for the calls that write the
+        // final answer (`LLMStreamingContext.answerHandler`).
+        AgenticAnswerWritingMeter.current?.record(
+            text: response.text, tokensPerSecond: response.tokensPerSecond,
+            streamedToChat: LLMStreamingContext.handler != nil)
+        return response
     }
 }

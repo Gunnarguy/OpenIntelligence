@@ -96,6 +96,11 @@ struct ChatScreen: View {
     @State var questionAfterCheck: String? = nil
     @State var queryStart: Date? = nil
     @State var hasReceivedStreamToken: Bool = false
+    /// The answer's live writing window (5.8, `AnswerWritingSpeed.liveTokensPerSecond`): when its first and latest
+    /// streamed text arrived, and the characters that came after the first piece.
+    @State var answerFirstTextAt: Date? = nil
+    @State var answerLastTextAt: Date? = nil
+    @State var answerCharactersAfterFirstPiece: Int = 0
     @State var generationStart: Date? = nil
     // Per-stage timing
     @State var embeddingStart: Date? = nil

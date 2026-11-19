@@ -864,10 +864,20 @@ extension ChatScreen {
         return max(0, nowTick.timeIntervalSince(start))
     }
 
+    /// How fast the answer's text is being written (5.8, `AnswerWritingSpeed`): its estimated tokens since its first
+    /// streamed text over the time since then, frozen at its last text once the stream ends. Zero, shown as "–", until
+    /// answer text has arrived, so retrieval and Deep Think's steps never count. Until 5.8 this divided whitespace
+    /// words by the time since `generationStart`, which is set before the prompt is read.
     private var streamingTokensPerSecond: Double {
-        let elapsed = streamingElapsedTime
-        guard elapsed > 0.1 else { return 0 }
-        return Double(streamingTokensApprox) / elapsed
+        let _ = nowTick
+        guard let first = answerFirstTextAt else { return 0 }
+        // The clock now, not `nowTick` (5 a second): read against every piece received so far, the tick's lag made the
+        // first second read up to 1.8 times high (review, 2026-11-18).
+        let end = isStreamFinished || !isProcessing ? (answerLastTextAt ?? first) : Date()
+        return AnswerWritingSpeed.liveTokensPerSecond(
+            charactersAfterFirstPiece: answerCharactersAfterFirstPiece,
+            elapsedSinceFirstPiece: max(0, end.timeIntervalSince(first)),
+            onDevice: execution != .privateCloudCompute)
     }
 
     /// Live elapsed time for the unified bar while a query is in any active stage.
@@ -906,10 +916,10 @@ extension ChatScreen {
         return 0
     }
 
+    /// The bar's live tokens per second in every stage (5.8): the answer's writing speed, never the run's tokens over
+    /// the run's time. Deep Think read 1 to 5 while its answer was written faster.
     private var liveTokensPerSecondForMetrics: Double {
-        let elapsed = liveProcessingElapsedTime
-        guard elapsed > 0.1 else { return 0 }
-        return Double(liveOutputTokensForMetrics) / elapsed
+        streamingTokensPerSecond
     }
 
     /// Infer model name from settings when metadata isn't available yet

@@ -75,6 +75,9 @@ struct ResponseMetadata: Codable, Sendable {
     let timeToFirstToken: TimeInterval?
     let totalGenerationTime: TimeInterval
     let tokensGenerated: Int
+    /// How fast the final answer's text was written (5.8, `AnswerWritingSpeed`): its tokens from its first text to its
+    /// last, for Deep Think and Maximum the final answer's call only. Answers saved before 5.8 hold the old figure,
+    /// tokens over the whole call or run.
     let tokensPerSecond: Float?
     let modelUsed: String
     let retrievalTime: TimeInterval
