@@ -38,12 +38,17 @@ public struct FoundationModelTokenBudget: Sendable {
         if isAppleFMOnDevice, let forced = onDeviceContextSizeOverrideForTesting { return forced }
         #endif
         if isAppleFMOnDevice {
-            #if canImport(FoundationModels)
-            if #available(iOS 26.0, macOS 26.0, *) {
-                return SystemLanguageModel.default.contextSize
+            // The model reads 0 while it is unavailable to the app, which includes the app being in the background
+            // (5.8, 2026-11-19): on the owner's iPhone an answer resumed after he left the app was packed with
+            // "base=0 ... 800 chars", its lead passage cut to 412 of 1,137 characters, and it said the manual gave no
+            // temperature for chicken; asked again in front it read 8,192 and answered 165°F. Packing uses the last
+            // real reading in this launch, or Apple's documented 4,096 before there is one.
+            let live = liveOnDeviceContextSize
+            if live > 0 {
+                lastOnDeviceContextLock.withLock { lastOnDeviceContext = live }
+                return live
             }
-            #endif
-            return baseContextLength
+            return lastOnDeviceContextLock.withLock { lastOnDeviceContext } ?? baseContextLength
         }
         // PCC contextSize is async on iOS/macOS 27. Callers performing a
         // routing decision must prefer `LiveFoundationModelCapabilityProvider`.
@@ -54,9 +59,25 @@ public struct FoundationModelTokenBudget: Sendable {
     /// is unavailable, where `SystemLanguageModel.default.contextSize` reads 0 (5.7). Apple documents 4,096 tokens
     /// (TN3193); a Mac (M3 Pro) on macOS 27 reported 8,192 (measured 2026-10-05).
     public nonisolated static var reportedOnDeviceContextSize: Int? {
-        let size = contextSize(isAppleFMOnDevice: true)
+        #if DEBUG
+        if let forced = onDeviceContextSizeOverrideForTesting { return forced }
+        #endif
+        let size = liveOnDeviceContextSize
         return size > 0 ? size : nil
     }
+
+    /// `SystemLanguageModel.default.contextSize` as the model reports it now: 0 while it is unavailable to the app.
+    nonisolated static var liveOnDeviceContextSize: Int {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            return SystemLanguageModel.default.contextSize
+        }
+        #endif
+        return baseContextLength
+    }
+
+    private nonisolated static let lastOnDeviceContextLock = NSLock()
+    private nonisolated(unsafe) static var lastOnDeviceContext: Int?
 
     /// Apple's name for the on-device model this device runs ("AFM 3 Core" or "AFM 3 Core Advanced",
     /// `SystemLanguageModel.variant.displayName`, iOS and macOS 27), or nil before 27 or where the model isn't
