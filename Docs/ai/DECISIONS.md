@@ -2297,3 +2297,22 @@ A window change shows in the trace (`Context budget: base=`) and can be dated fr
 "Reading a device's window history"). The continuation change was seen on the Mac (continuation room 3,113 tokens,
 an answer finished across two calls) and is not yet seen on the iPhone; the paused-answer resume is build-verified
 only. The Mac GPU cache measured 53 MB on the M3 Pro, where it was 32 MB. Nothing is measured on M4 or later.
+
+## 2026-11-18 - The Mac window is a split view with its own root, not the iPhone's tab view restyled
+
+**Context.** The owner asked for the whole Mac app to be "macosified" (2026-11-18) and approved all six steps for
+5.8. `TabViewStyle.sidebarAdaptable` (macOS 15+) turns the tabs into a sidebar with one modifier, but a tab sidebar
+lists tabs only: the libraries and the open library's conversations, which Apple's Sidebars guidance puts in a
+sidebar as top-level collections, could not join it without making every library a tab of its own.
+
+**Decision.** On macOS `ContentView` draws `macWindowContent`, a `NavigationSplitView` with `MacSidebar`; the iPhone
+and iPad keep the `TabView` unchanged. Chat, Documents and Database are built the first time they are chosen and kept
+in a `ZStack`, with only the area in front visible, hit-testable, focusable, read by VoiceOver and contributing toolbar
+items (`macAreaIsActive`), because rebuilding Chat on every switch would end an answer being written, which a tab never
+did; the Atlas is rebuilt each time so its 3D map stops drawing when hidden. Requests between sidebar, menu bar and
+screens go through a per-window `MacShellCommands`, cleared on the next main-loop turn. Settings is a `Settings` scene;
+screens that push a page on iPhone open an inspector on the Mac.
+
+**Consequence.** A screen that adds toolbar items, a `navigationSubtitle`, an inspector or `onAppear` work must gate
+them on `macAreaIsActive` on the Mac, or a hidden area shows them, and sets its title with `areaNavigationTitle`. `.searchable` cannot be gated, so no Mac area uses it.
+

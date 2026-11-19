@@ -169,6 +169,8 @@ struct DocumentPreviewSheet: View {
                 #endif
             }
         }
+        // A Mac sheet with no size takes its content's narrowest width (5.8 Mac redesign).
+        .macSheetFrame(width: 640, height: 720)
         .task {
             isLoading = true
             let docId = documentId

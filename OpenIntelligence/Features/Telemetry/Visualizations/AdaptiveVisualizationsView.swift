@@ -133,6 +133,9 @@ enum AtlasSceneLabels {
 }
 
 struct AdaptiveVisualizationsView: View {
+    #if os(macOS)
+        @Environment(\.openWindow) private var openWindow
+    #endif
     @EnvironmentObject private var ragService: RAGService
     @EnvironmentObject private var containerService: ContainerService
     @EnvironmentObject private var settings: SettingsStore
@@ -272,7 +275,7 @@ struct AdaptiveVisualizationsView: View {
             .padding(DSSpacing.lg)
         }
         .background(DSColors.background)
-        .navigationTitle("Knowledge Atlas")
+        .areaNavigationTitle("Knowledge Atlas")
         // Inline, as every root tab is (5.8, see `DSTypography`).
         .navigationBarTitleDisplayMode(.inline)
         #if os(iOS)
@@ -282,11 +285,11 @@ struct AdaptiveVisualizationsView: View {
                 .environmentObject(containerService)
         }
         #else
-        .sheet(isPresented: $show3DFullscreen) {
-            Fullscreen3DAtlasView()
-                .environmentObject(ragService)
-                .environmentObject(containerService)
-                .frame(minWidth: 800, minHeight: 600)
+        // Its own window on a Mac (5.8 Mac redesign, `MacAtlasWindowRoot`), not a sheet over this one.
+        .onChange(of: show3DFullscreen) { _, entering in
+            guard entering else { return }
+            show3DFullscreen = false
+            openWindow(id: MacAtlasWindowRoot.windowID)
         }
         #endif
         .sheet(isPresented: $showAllInsights) {

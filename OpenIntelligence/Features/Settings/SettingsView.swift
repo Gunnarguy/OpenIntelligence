@@ -42,6 +42,9 @@ struct SettingsView: View {
     #if os(macOS)
         /// Whether the menu bar item shows (`MenuBarAsk`); the app reads the same key.
         @AppStorage(MenuBarAsk.visibilityKey) var showsMenuBarItem = true
+        /// The Settings window's page (5.8 Mac redesign), kept so the window opens where it was left, as Apple's
+        /// guidance for a Mac settings window asks. A `SettingsEntryID` raw value, or "overview".
+        @AppStorage("MacSettings.page") var macSettingsPage = "overview"
     #endif
 
     static let sharedWorkspaceRelativeFormatter: RelativeDateTimeFormatter = {

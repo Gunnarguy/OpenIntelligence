@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 #if os(iOS)
     import PhotosUI
@@ -154,12 +155,25 @@ struct ChatComposerV2: View {
                         AttachmentMenuButton(
                             onSelectDocument: {
                                 Tour.used(.attach)
-                                showDocumentPicker = true
+                                #if os(macOS)
+                                    // The open panel over the window, not a blank sheet holding it (5.8 Mac redesign).
+                                    ExtendedDocumentPicker.presentPanel { urls in
+                                        handlePickedFiles(urls, type: .document)
+                                    }
+                                #else
+                                    showDocumentPicker = true
+                                #endif
                                 DSHaptics.selection()
                             },
                             onSelectPhoto: {
                                 Tour.used(.attach)
-                                showPhotoPicker = true
+                                #if os(macOS)
+                                    MacAttachmentPanel.present(contentTypes: [.image]) { urls in
+                                        if !urls.isEmpty { handlePickedFiles(urls, type: .photo) }
+                                    }
+                                #else
+                                    showPhotoPicker = true
+                                #endif
                                 DSHaptics.selection()
                             },
                             onTakePhoto: {

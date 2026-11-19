@@ -92,6 +92,12 @@ struct OpenIntelligenceApp: App {
         }
         .commands {
             OpenIntelligenceCommands()
+            #if os(macOS)
+                // View > Show/Hide Sidebar and the toolbar's commands, as every Mac app with a sidebar has them (5.8).
+                SidebarCommands()
+                ToolbarCommands()
+                InspectorCommands()
+            #endif
         }
         #if os(macOS)
             // A new window opens at 70% of the screen's width and 75% of its usable height, centred (5.8). With
@@ -104,6 +110,18 @@ struct OpenIntelligenceApp: App {
                 return WindowPlacement(
                     CGPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2), size: size)
             }
+        #endif
+        #if os(macOS)
+        // Settings is its own window on the Mac, opened from the app menu or with Command-comma (5.8 Mac redesign;
+        // Human Interface Guidelines, "Settings", read 2026-11-18). It was a tab of the main window.
+        Settings {
+            MacSettingsWindowRoot()
+        }
+        .windowResizability(.contentMinSize)
+        Window("Semantic Atlas", id: MacAtlasWindowRoot.windowID) {
+            MacAtlasWindowRoot()
+        }
+        .defaultSize(width: 1100, height: 760)
         #endif
         #if os(macOS)
         MenuBarExtra(isInserted: $showsMenuBarItem) {

@@ -13,13 +13,19 @@ struct WhatsNewView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        whatsNewStack
+            // A Mac sheet with no size takes its content's narrowest width (5.8 Mac redesign).
+            .macSheetFrame(width: 560, height: 640)
+    }
+
+    private var whatsNewStack: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     header
 
                     VStack(alignment: .leading, spacing: DSSpacing.md) {
-                        ForEach(release.items) { item in
+                        ForEach(release.shownItems) { item in
                             row(for: item)
                         }
                     }

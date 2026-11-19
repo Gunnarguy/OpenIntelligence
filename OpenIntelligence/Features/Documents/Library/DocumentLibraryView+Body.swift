@@ -373,8 +373,17 @@ extension DocumentLibraryView {
         openedDocumentID = id
     }
 
+    @ViewBuilder
+    private var librarySheetViewBase: some View {
+        #if os(macOS)
+            macDocumentsChrome(libraryChromeView)
+        #else
+            libraryChromeView
+        #endif
+    }
+
     private var librarySheetView: some View {
-        libraryChromeView
+        librarySheetViewBase
             .onReceive(AppNavigationRequest.shared.changes) { _ in
                 // Files other apps handed over: every waiting batch at once, so several files sent
                 // together get one plan check and one import review.
@@ -435,6 +444,8 @@ extension DocumentLibraryView {
             .onChange(of: ragService.documents.isEmpty) { _, isEmpty in
                 if !isEmpty { takeDocumentRequest() }
             }
+            #if !os(macOS)
+            // On a Mac the document opens in the inspector beside the table (`macDocumentsChrome`).
             .navigationDestination(item: $openedDocumentID) { id in
                 if let document = ragService.documents.first(where: { $0.id == id }) {
                     DocumentDetailsView(
@@ -442,6 +453,7 @@ extension DocumentLibraryView {
                         embeddingProviderId: containerService.activeContainer?.embeddingProviderId)
                 }
             }
+            #endif
             .sheet(isPresented: $showingFilePicker) {
                 DocumentPicker { urls in
                     reviewAndEnqueueDocuments(urls)
@@ -534,7 +546,7 @@ extension DocumentLibraryView {
                 }
             }
             .animation(DSAnimations.fastEase, value: isDropTargeted)
-            .navigationTitle("Documents")
+            .areaNavigationTitle("Documents")
             #if os(iOS)
             // Inline, as every root tab is (5.8, see `DSTypography`). It was large except at accessibility text sizes,
             // where the large title wrapped to "Docu-" and "ments" (5.7); the header below carries the same name.

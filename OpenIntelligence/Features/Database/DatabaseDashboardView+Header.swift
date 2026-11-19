@@ -95,9 +95,40 @@ extension DatabaseDashboardView {
             // The per-library numbers were already being fetched: `FTS5Statistics`
             // carries `containerStats`, so scoping needs no new query and no change to
             // `SQLiteFullTextService`, which is a hard-boundary file.
-            scopePicker
+            #if !os(macOS)
+                // On a Mac the scope is a menu in the window's toolbar (`macScopeMenu`).
+                scopePicker
+            #endif
         }
     }
+
+    #if os(macOS)
+        /// The statistics' scope, in the window's toolbar (5.8 Mac redesign): every library, or one.
+        var macScopeMenu: some View {
+            Menu {
+                Picker("Statistics Scope", selection: $databaseScope) {
+                    Label("All Libraries", systemImage: "square.stack.3d.up").tag(DatabaseScope.allLibraries)
+                    Divider()
+                    ForEach(containerService.orderedContainers) { container in
+                        Label(container.name, systemImage: container.icon).tag(DatabaseScope.library(container.id))
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label(macScopeName, systemImage: "square.stack.3d.up")
+                    .labelStyle(.titleAndIcon)
+            }
+            .help("Count every library, or one")
+        }
+
+        /// The scope's name for the toolbar menu's label.
+        private var macScopeName: String {
+            switch databaseScope {
+            case .allLibraries: return "All Libraries"
+            case .library(let id): return containerService.containers.first { $0.id == id }?.name ?? "Library"
+            }
+        }
+    #endif
 
     /// Documents and words for the scope chosen below the panel; size and terms for the whole file, and the captions
     /// say so. Size, terms and every other file-level figure are properties of the SQLite file itself and cannot be
@@ -315,7 +346,28 @@ extension DatabaseDashboardView {
 
     /// The sections, as chips like the scope row's (2026-11-15). A segmented control was the other choice; with six
     /// sections, eight with Technical Details on, its segments would have been too narrow for their names on a phone.
+    @ViewBuilder
     var sectionPicker: some View {
+        #if os(macOS)
+            // A Mac's segmented control (5.8 Mac redesign): the window is wide enough for every section's name.
+            Picker("Section", selection: Binding(get: { shownSection }, set: { section in
+                Tour.used(.databaseSections)
+                selectedSection = section
+            })) {
+                ForEach(DatabaseSection.allCases.filter { settings.showTechnicalDetails || !$0.isTechnical }) { section in
+                    Label(section.label, systemImage: section.icon)
+                        .tag(section)
+                        .accessibilityIdentifier("database.section.\(section.rawValue)")
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        #else
+            sectionChips
+        #endif
+    }
+
+    private var sectionChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DSSpacing.sm) {
                 ForEach(DatabaseSection.allCases.filter { settings.showTechnicalDetails || !$0.isTechnical }) { section in

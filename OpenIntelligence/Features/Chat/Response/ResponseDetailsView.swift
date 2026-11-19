@@ -15,17 +15,32 @@ struct ChatResponseDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPerformance = false
 
+    /// Closes the details where they are not a sheet: the Mac's inspector (5.8 Mac redesign). Nil in a sheet.
+    var onClose: (() -> Void)? = nil
+
     init(
         metadata: ResponseMetadata,
         retrievedChunks: [RetrievedChunk],
-        structuredAnswer: StructuredAnswer? = nil
+        structuredAnswer: StructuredAnswer? = nil,
+        onClose: (() -> Void)? = nil
     ) {
         self.metadata = metadata
         self.retrievedChunks = retrievedChunks
         self.structuredAnswer = structuredAnswer
+        self.onClose = onClose
     }
 
     var body: some View {
+        if onClose == nil {
+            // A Mac sheet with no size takes its content's narrowest width (5.8 Mac redesign); the inspector sizes
+            // its own column.
+            detailsStack.macSheetFrame(width: 600, height: 720)
+        } else {
+            detailsStack
+        }
+    }
+
+    private var detailsStack: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: DSSpacing.lg) {
@@ -80,7 +95,7 @@ struct ChatResponseDetailsView: View {
                 #else
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        dismiss()
+                        if let onClose { onClose() } else { dismiss() }
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .scaledFont(size: 24)

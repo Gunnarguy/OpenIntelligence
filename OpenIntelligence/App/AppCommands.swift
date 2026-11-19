@@ -12,6 +12,11 @@ import SwiftUI
 /// Every command posts a destination to `AppNavigationRequest`, the same queue links and actions
 /// use, so a command can do nothing a link cannot.
 struct OpenIntelligenceCommands: Commands {
+    #if os(macOS)
+        /// The window in front's requests (5.8 Mac redesign, `MacShellCommands`).
+        @FocusedObject private var macCommands: MacShellCommands?
+    #endif
+
     var body: some Commands {
         CommandGroup(after: .newItem) {
             Button("New Conversation") {
@@ -27,13 +32,16 @@ struct OpenIntelligenceCommands: Commands {
             .keyboardShortcut("o", modifiers: .command)
         }
 
-        CommandGroup(replacing: .appSettings) {
-            Button("Settings\u{2026}") {
-                MenuCommandJournal.record("settings")
-                AppNavigationRequest.post(.settings)
+        #if !os(macOS)
+            // On the Mac the `Settings` scene gives the app menu its Settings… item and Command-comma (5.8).
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings\u{2026}") {
+                    MenuCommandJournal.record("settings")
+                    AppNavigationRequest.post(.settings)
+                }
+                .keyboardShortcut(",", modifiers: .command)
             }
-            .keyboardShortcut(",", modifiers: .command)
-        }
+        #endif
 
         CommandMenu("Go") {
             Button("Chat") {
@@ -48,11 +56,35 @@ struct OpenIntelligenceCommands: Commands {
             }
             .keyboardShortcut("2", modifiers: .command)
 
-            Button("Import Queue") {
-                MenuCommandJournal.record("importQueue")
-                AppNavigationRequest.post(.importQueue)
-            }
-            .keyboardShortcut("3", modifiers: .command)
+            #if os(macOS)
+                // The Mac window's four areas are Command-1 to Command-4, in the sidebar's order (5.8 Mac redesign);
+                // the Import Queue moves to Option-Command-3 there.
+                Button("Atlas") {
+                    MenuCommandJournal.record("atlas")
+                    macCommands?.areaRequest = .visualizations
+                }
+                .keyboardShortcut("3", modifiers: .command)
+                .disabled(macCommands == nil)
+
+                Button("Database") {
+                    MenuCommandJournal.record("database")
+                    macCommands?.areaRequest = .database
+                }
+                .keyboardShortcut("4", modifiers: .command)
+                .disabled(macCommands == nil)
+
+                Button("Import Queue") {
+                    MenuCommandJournal.record("importQueue")
+                    AppNavigationRequest.post(.importQueue)
+                }
+                .keyboardShortcut("3", modifiers: [.command, .option])
+            #else
+                Button("Import Queue") {
+                    MenuCommandJournal.record("importQueue")
+                    AppNavigationRequest.post(.importQueue)
+                }
+                .keyboardShortcut("3", modifiers: .command)
+            #endif
 
             Divider()
 

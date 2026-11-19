@@ -50,7 +50,24 @@ extension DocumentLibraryView {
 
     /// Content shown below the persistent `documentHeader`, for a library with documents.
     /// See `emptyStateContent` for why `documentHeader` no longer lives in here.
+    @ViewBuilder
     var documentListContent: some View {
+        #if os(macOS)
+            DocumentTableMac(
+                documents: filteredDocuments,
+                ragService: ragService,
+                selection: $macSelection,
+                onShowDetails: { id in
+                    macSelection = [id]
+                    macShowsInspector = true
+                }
+            )
+        #else
+            documentListCards
+        #endif
+    }
+
+    private var documentListCards: some View {
         Group {
             // Document list with modern styling
             withSwipeDeleteAlert(
@@ -141,10 +158,14 @@ extension DocumentLibraryView {
     /// files, and the row of libraries below it does not (`takingDroppedFiles(as:)`).
     var documentHeader: some View {
         VStack(spacing: DSSpacing.md) {
-            documentSectionHeader
-                .padding(.horizontal, DSSpacing.lg)
+            #if !os(macOS)
+                documentSectionHeader
+                    .padding(.horizontal, DSSpacing.lg)
+            #endif
 
-            documentActionStrip
+            // On a Mac the actions are in the window's toolbar (`macDocumentToolbar`, 5.8 Mac redesign); the strip's
+            // place keeps only the confirmations those actions ask for.
+            documentActionStripOrCarrier
                 // This action empties a library and keeps the library itself, which is exactly
                 // the "wipe" operation the app was missing, so it is named that now.
                 //
@@ -205,8 +226,16 @@ extension DocumentLibraryView {
         }
     }
 
-    /// The row of libraries, in none of the library area's file drop targets (`takingDroppedFiles(as:)`, 5.7).
+    /// The row of libraries, in none of the library area's file drop targets (`takingDroppedFiles(as:)`, 5.7). Not on a
+    /// Mac, where the libraries are in the window's sidebar (5.8 Mac redesign, `MacSidebar`).
+    @ViewBuilder
     var libraryPicker: some View {
+        #if !os(macOS)
+            libraryPickerStrip
+        #endif
+    }
+
+    private var libraryPickerStrip: some View {
         ContainerPickerStrip(
             containerService: containerService,
             allowsCreation: true,
@@ -314,7 +343,7 @@ extension DocumentLibraryView {
         }
     }
 
-    private var syncModeBinding: Binding<LibrarySyncMode> {
+    var syncModeBinding: Binding<LibrarySyncMode> {
         Binding(
             get: {
                 activeLibrary?.syncMode ?? .localOnly
@@ -391,7 +420,16 @@ extension DocumentLibraryView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var documentSectionSubtitle: String {
+    @ViewBuilder
+    private var documentActionStripOrCarrier: some View {
+        #if os(macOS)
+            Color.clear.frame(height: 0)
+        #else
+            documentActionStrip
+        #endif
+    }
+
+    var documentSectionSubtitle: String {
         if let activeLibrary {
             let documentLabel = filteredDocuments.count == 1 ? "document" : "documents"
             return "\(filteredDocuments.count) \(documentLabel) in \(activeLibrary.name)"

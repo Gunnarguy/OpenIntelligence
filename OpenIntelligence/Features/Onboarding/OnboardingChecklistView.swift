@@ -95,14 +95,27 @@ struct OnboardingChecklistView: View {
                 .padding(.trailing, DSSpacing.sm)
 
                 // Page content
-                TabView(selection: $currentPage) {
-                    welcomePage.tag(0)
-                    pipelineTheaterPage.tag(1)
-                }
-                #if os(iOS)
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                #if os(macOS)
+                    // A Mac's `TabView` has no page style, so there the two pages were tabs with no names (5.8 Mac
+                    // redesign); the buttons below turn the page, as they do on iPhone.
+                    Group {
+                        if currentPage == 0 {
+                            welcomePage
+                        } else {
+                            pipelineTheaterPage
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                    .animation(DSAnimations.fastEase, value: currentPage)
+                #else
+                    TabView(selection: $currentPage) {
+                        welcomePage.tag(0)
+                        pipelineTheaterPage.tag(1)
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .animation(DSAnimations.fastEase, value: currentPage)
                 #endif
-                .animation(DSAnimations.fastEase, value: currentPage)
 
                 // Bottom navigation
                 bottomNavigation

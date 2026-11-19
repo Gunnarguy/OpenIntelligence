@@ -59,6 +59,22 @@ struct ConsolidatedMetrics {
 struct ChatScreen: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.openURL) var openURL
+    /// On a Mac, whether Chat is the window's area in front (5.8 Mac redesign, `MacShell`); always true elsewhere.
+    @Environment(\.macAreaIsActive) var macAreaIsActive
+    #if os(macOS)
+        /// The window's sidebar and inspector requests (5.8 Mac redesign, `MacShellCommands`).
+        @Environment(\.macShellCommands) var macShellCommands
+        /// The answer whose details the window's inspector shows.
+        @State var macAnswerDetails: MacAnswerDetails?
+    #endif
+    /// The Mac shows the conversations in the window's sidebar, not in the slide-over panel.
+    static let isMac: Bool = {
+        #if os(macOS)
+            true
+        #else
+            false
+        #endif
+    }()
     @EnvironmentObject var onboardingStore: OnboardingStateStore
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var entitlementStore: EntitlementStore
@@ -354,7 +370,10 @@ struct CompactChatHeader: View {
     var body: some View {
         VStack(spacing: DSSpacing.sm) {
             // Top row: Library picker strip (scrollable)
-            libraryPickerStrip
+            // On a Mac the libraries are in the window's sidebar (5.8 Mac redesign, `MacSidebar`).
+            #if !os(macOS)
+                libraryPickerStrip
+            #endif
 
             // Bottom row: Quality mode picker + Model status + Stats, on as few lines as fit (see `bottomRowPills`)
             WrappingRowLayout(spacing: DSSpacing.sm, lineSpacing: DSSpacing.sm, lastAtTrailingEdge: true) {

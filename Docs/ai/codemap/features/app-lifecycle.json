@@ -8,6 +8,8 @@
   "verified_on": "2026-11-17",
   "entry_points": ["OpenIntelligenceApp", "ContentView", "NavigationTiming", "LaunchArguments", "NetworkMonitor"],
   "files": [
+    {"path": "OpenIntelligence/App/MacShell.swift", "role": "primary", "blob": "33cb7824d097a4e1f86f3a911df801be42a75439"},
+    {"path": "OpenIntelligence/App/MacSettingsWindowRoot.swift", "role": "primary", "blob": "5c709a514adaa2378b5c3aa50e000a155f3c3bd4"},
     {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "0715b5aee76a9a639847ffc0dbda81642732a2bc"},
     {"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "role": "primary", "blob": "43c06f9e93ec98e85162d08135b48c1015a13fa6"},
     {"path": "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "role": "primary", "blob": "ddfbea68300cf090c33a83d8a5f2b8b7927e0154"},
@@ -115,7 +117,7 @@
   "entries": ["OpenIntelligence/App/OpenIntelligenceApp.swift::OpenIntelligenceApp", "OpenIntelligence/App/ContentView.swift::ContentView", "OpenIntelligence/Core/Support/NavigationTiming.swift::NavigationTiming", "OpenIntelligence/Core/Extensions/LaunchArguments.swift::LaunchArguments", "OpenIntelligence/Core/Extensions/NetworkMonitor.swift::NetworkMonitor"],
   "owns": ["OpenIntelligence/App/OpenIntelligenceApp.swift", "OpenIntelligence/App/ContentView.swift", "OpenIntelligence/Core/Support/NavigationTiming.swift", "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "OpenIntelligence/Core/Extensions/NetworkMonitor.swift"],
   "decisions": [],
-  "traps": ["Info.plist capability and background keys are Tier 1 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: edit only with the owner's named authorization."],
+  "traps": ["On a Mac the window is ContentView.macWindowContent (5.8): areas stay alive behind each other, so anything an area adds to the toolbar, an inspector or appear-time work is gated on macAreaIsActive, and titles go through areaNavigationTitle.", "Info.plist capability and background keys are Tier 1 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: edit only with the owner's named authorization."],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [

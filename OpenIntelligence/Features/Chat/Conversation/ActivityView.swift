@@ -3,6 +3,9 @@ import SwiftUI
 #if canImport(UIKit)
     import UIKit
 #endif
+#if os(macOS)
+    import AppKit
+#endif
 
 /// SwiftUI wrapper around `UIActivityViewController` (Share Sheet).
 ///
@@ -95,4 +98,75 @@ import SwiftUI
 
 #Preview {
     ActivityView(activityItems: ["Sample shared text from OpenIntelligence"])
+}
+
+#if os(macOS)
+    /// Apple's share menu at the pointer, in the window in front (5.8 Mac redesign). A Mac shares from a menu next to
+    /// what is shared; the app opened a sheet holding one large Share button, so sharing took a sheet, a click and a
+    /// dismissal.
+    @MainActor
+    enum MacSharing {
+        static func present(_ items: [Any]) {
+            guard let window = NSApp.keyWindow, let view = window.contentView, !items.isEmpty else { return }
+            let point = view.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            let picker = NSSharingServicePicker(items: items)
+            picker.show(relativeTo: NSRect(origin: point, size: CGSize(width: 1, height: 1)), of: view, preferredEdge: .minY)
+            VerificationJournal.record("share.sheet", ["mac": "picker", "items": "\(items.count)"])
+        }
+    }
+
+    /// A Save panel over the window for a file the app wrote, such as an exported conversation (5.8 Mac redesign): a
+    /// Mac app saves an export where the person picks, where the app showed a sheet with a Share File button.
+    @MainActor
+    enum MacSavePanel {
+        static func save(_ file: URL) {
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = file.lastPathComponent
+            panel.canCreateDirectories = true
+            panel.isExtensionHidden = false
+            let finish: (NSApplication.ModalResponse) -> Void = { response in
+                guard response == .OK, let destination = panel.url else {
+                    VerificationJournal.record("export.saved", .cancelled, [:])
+                    return
+                }
+                do {
+                    if FileManager.default.fileExists(atPath: destination.path) {
+                        try FileManager.default.removeItem(at: destination)
+                    }
+                    try FileManager.default.copyItem(at: file, to: destination)
+                    VerificationJournal.record("export.saved", .ok, ["ext": destination.pathExtension])
+                } catch {
+                    Log.error("[MacSavePanel] Save failed: \(error.localizedDescription)", category: .ui)
+                    VerificationJournal.record("export.saved", .failed, ["ext": destination.pathExtension])
+                }
+            }
+            if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+                panel.beginSheetModal(for: window) { response in MainActor.assumeIsolated { finish(response) } }
+            } else {
+                panel.begin { response in MainActor.assumeIsolated { finish(response) } }
+            }
+        }
+    }
+#endif
+
+extension View {
+    /// The share sheet on iPhone and iPad, and Apple's share menu at the pointer on a Mac (5.8), for whatever `item`
+    /// is set to.
+    func shareSheet<Item: Identifiable>(
+        item: Binding<Item?>,
+        items: @escaping (Item) -> [Any],
+        preview: @escaping (Item) -> ShareSheetPreview? = { _ in nil }
+    ) -> some View {
+        #if os(macOS)
+            onChange(of: item.wrappedValue?.id) { _, _ in
+                guard let value = item.wrappedValue else { return }
+                item.wrappedValue = nil
+                MacSharing.present(items(value))
+            }
+        #else
+            sheet(item: item) { value in
+                ActivityView(activityItems: items(value), preview: preview(value))
+            }
+        #endif
+    }
 }

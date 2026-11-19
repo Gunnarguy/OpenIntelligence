@@ -254,7 +254,7 @@ extension ChatScreen {
                 }
             #endif
 
-            if showThreadSidebar {
+            if showThreadSidebar, !Self.isMac {
                 ThreadSidebarView(
                     ragService: ragService,
                     isPresented: $showThreadSidebar,
@@ -309,7 +309,8 @@ extension ChatScreen {
                 .ignoresSafeArea()
             }
         #endif
-        .navigationTitle("Chat")
+        // On a Mac every area shows the title of the area in front (5.8 Mac redesign, `macWindowTitle`).
+        .areaNavigationTitle("Chat")
         .imagePlaygroundSupport()
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -542,17 +543,18 @@ extension ChatScreen {
                         .animation(nil, value: messages.count)
                     }
                 #else
-                    ToolbarItem(placement: .navigation) {
+                    // The conversations are in the window's sidebar on a Mac (5.8 Mac redesign), so there is no
+                    // panel to open; the toolbar's items show only while Chat is the area in front.
+                    if macAreaIsActive {
+                    ToolbarItem {
                         Button {
-                            withAnimation(DSAnimations.snappySpring) {
-                                Tour.used(.sidebar)
-                                showThreadSidebar.toggle()
-                            }
+                            guard !isProcessing else { return }
+                            newChat()
                         } label: {
-                            Image(systemName: "sidebar.left")
-                                .imageScale(.large)
-                                .tourAnchor(.sidebar)
+                            Label("New Conversation", systemImage: "square.and.pencil")
                         }
+                        .help("New Conversation (Shift-Command-N)")
+                        .disabled(messages.isEmpty || isProcessing)
                     }
 
                     ToolbarItem {
@@ -596,6 +598,7 @@ extension ChatScreen {
                                 .imageScale(.large)
                         }
                         .animation(nil, value: messages.count)
+                    }
                     }
                 #endif
             }
@@ -767,6 +770,57 @@ extension ChatScreen {
                 isAppeared = false
                 VerificationJournal.record("chat.disappear", ["nav": NavigationProbe.summary()])
             }
+            #if os(macOS)
+                // A Mac keeps Chat alive behind the other areas (`MacShell`), so it neither appears nor disappears
+                // when another area is chosen; the area's being in front stands for both.
+                .onChange(of: macAreaIsActive) { _, active in
+                    isAppeared = active
+                    VerificationJournal.record(active ? "chat.appear" : "chat.disappear", ["mac": "area"])
+                    guard active else { return }
+                    ChatAnswerNotice.shared.chatAppeared()
+                    entitlementStore.refreshTransientState()
+                    if isProcessing { startProcessingClock() }
+                    // As `onAppear` does: another library may have been opened while Chat was behind.
+                    if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
+                        needsSuggestedQuestionsRefresh = false
+                        refreshDynamicQuestions()
+                    }
+                }
+                // A conversation chosen in the window's sidebar, as the iPhone's conversation list opens one.
+                .onReceive(macShellCommands.map { $0.$threadToOpen.eraseToAnyPublisher() } ?? Just(nil).eraseToAnyPublisher()) {
+                    threadId in
+                    guard let threadId else { return }
+                    macShellCommands?.clear(\.threadToOpen)
+                    guard !isProcessing else { return }
+                    let containerId = ragService.containerService.activeContainerId
+                    messages = ragService.loadThread(threadId, for: containerId)
+                    macShellCommands?.answerDetails = nil
+                }
+                .onReceive(macShellCommands.map { $0.$answerDetails.eraseToAnyPublisher() } ?? Just(nil).eraseToAnyPublisher()) {
+                    macAnswerDetails = $0
+                }
+                // An answer's details beside the chat, in the window's inspector, instead of a sheet over it.
+                .inspector(
+                    isPresented: Binding(
+                        get: { macAnswerDetails != nil && macAreaIsActive },
+                        set: { if !$0, macAreaIsActive { macShellCommands?.answerDetails = nil } })
+                ) {
+                    if let details = macAnswerDetails {
+                        ChatResponseDetailsView(
+                            metadata: details.metadata,
+                            retrievedChunks: details.retrievedChunks,
+                            structuredAnswer: details.structuredAnswer,
+                            onClose: { macShellCommands?.answerDetails = nil }
+                        )
+                        .environment(\.libraryDocumentLookup, details.lookup)
+                        .id(details.id)
+                        .inspectorColumnWidth(min: 340, ideal: 420, max: 640)
+                    }
+                }
+                .onChange(of: ragService.containerService.activeContainerId) { _, _ in
+                    macShellCommands?.answerDetails = nil
+                }
+            #endif
             // The Stop button on the answer's Live Activity (5.7, `StopLongAnswerIntent`): stops the
             // answer like the chat's own stop button, only if the Live Activity is the running one's.
             .onReceive(NotificationCenter.default.publisher(for: .stopLongAnswer)) { notification in
@@ -849,9 +903,16 @@ extension ChatScreen {
                 )
                 .presentationDetents([.medium, .large])
             }
-            .sheet(item: $conversationExport) { file in
-                ActivityView(activityItems: [file.url])
-            }
+            #if os(macOS)
+                // A Save panel on the Mac (5.8 Mac redesign, `MacSavePanel`).
+                .onChange(of: conversationExport?.id) { _, _ in
+                    guard let file = conversationExport else { return }
+                    conversationExport = nil
+                    MacSavePanel.save(file.url)
+                }
+            #else
+                .shareSheet(item: $conversationExport, items: { [$0.url] })
+            #endif
     }
 
     private var streamingTokensApprox: Int {

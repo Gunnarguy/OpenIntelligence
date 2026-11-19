@@ -520,6 +520,14 @@ struct AttachmentMenuButton: View {
                 }
         }
 
+        /// The open panel straight over the window, with no empty sheet under it (5.8 Mac redesign); the chat's
+        /// composer calls this.
+        static func presentPanel(onDocumentsPicked: @escaping ([URL]) -> Void) {
+            MacAttachmentPanel.present(contentTypes: acceptedContentTypes) { urls in
+                if !urls.isEmpty { onDocumentsPicked(copyIntoAttachments(urls)) }
+            }
+        }
+
         /// Chat attachments live beside the conversation rather than in the document
         /// workspace, so this keeps its own destination instead of reusing
         /// `ImportedFileStaging`.

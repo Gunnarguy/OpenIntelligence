@@ -8,6 +8,8 @@
   "verified_on": "2026-11-17",
   "entry_points": ["DocumentLibraryView", "LibraryDeletion.delete", "RAGService.removeDocument", "WorkspaceSyncService.deleteSharedLibrary", "ContainerService", "KnowledgeContainer", "DocumentDetailsView", "SemanticSearchView"],
   "files": [
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentTableMac.swift", "role": "primary", "blob": "12ec5ca9dbb597d2f70107f76bcff90e4a95b039"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Mac.swift", "role": "primary", "blob": "657d0cd5778c66e7207777adaecde3370e296dbd"},
     {"path": "OpenIntelligence/Features/Documents/Components/OpenedFilesSheet.swift", "role": "primary", "blob": "9907a844e7f2965d105e5fb969648cd77db1700d"},
     {"path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "role": "primary", "blob": "33c315785d291cb6a829ec2e5ff725df89db74da"},
     {"path": "OpenIntelligence/Features/Documents/Components/ContainerPicker.swift", "role": "primary", "blob": "03c9fadfce686e39a358317d8bc45c292b362f61"},
@@ -262,7 +264,7 @@
       {"from": "DocumentLibraryView", "type": "depends_on", "to": "StatsFooter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 97, "match": "StatsFooter("}]},
       {"from": "DocumentLibraryView", "type": "depends_on", "to": "ContainerPickerStrip", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 210, "match": "ContainerPickerStrip("}]},
       {"from": "DocumentLibraryView", "type": "depends_on", "to": "DocumentQuotaBanner", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 306, "match": "DocumentQuotaBanner("}]},
-      {"from": "DocumentLibraryView", "type": "depends_on", "to": "LibrarySyncMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 317, "match": "private var syncModeBinding: Binding<LibrarySyncMode> {"}]},
+      {"from": "DocumentLibraryView", "type": "depends_on", "to": "LibrarySyncMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 317, "match": "var syncModeBinding: Binding<LibrarySyncMode> {"}]},
       {"from": "DocumentLibraryView", "type": "depends_on", "to": "DocumentActionChip", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 419, "match": "DocumentActionChip("}]},
       {"from": "DocumentLibraryView", "type": "depends_on", "to": "LibraryPasteButton", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 433, "match": "LibraryPasteButton { staged in"}]},
       {"from": "DocumentLibraryView", "type": "depends_on", "to": "DocumentActionChipLabel", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+DocumentList.swift", "line": 438, "match": "DocumentActionChipLabel("}]},

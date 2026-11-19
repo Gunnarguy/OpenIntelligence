@@ -48,6 +48,17 @@ struct ContentView: View {
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
     @State private var showOnboardingPlans = false
+    #if os(macOS)
+        /// The Mac window's sidebar row (5.8 Mac redesign, `macWindowContent`).
+        @State private var macSidebarSelection: MacSidebarItem? = .area(.chat)
+        /// The areas built so far; each is kept once built.
+        @State private var macBuiltAreas: Set<Tab> = [.chat]
+        /// The area to return to when Settings is asked for (it opens its own window).
+        @State private var previousMacArea: Tab = .chat
+        @Environment(\.openSettings) private var openSettings
+        /// This window's requests between the sidebar, the menu bar and the screens (`MacShellCommands`).
+        @StateObject private var macCommands = MacShellCommands()
+    #endif
     private let screenshotMode: ScreenshotMode
 
     init() {
@@ -116,7 +127,11 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            tabViewContent
+            #if os(macOS)
+                macWindowContent
+            #else
+                tabViewContent
+            #endif
 
             if onboardingStore.isChecklistVisible, !screenshotMode.isEnabled {
                 OnboardingChecklistView(
@@ -478,44 +493,20 @@ struct ContentView: View {
     private var tabViewContent: some View {
         TabView(selection: $selectedTab) {
             SwiftUI.Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: Tab.chat) {
-                NavigationStack {
-                    ChatScreen(ragService: ragService)
-                        .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
-                        .onAppear { chatOnScreen = true }
-                        .onDisappear {
-                            chatOnScreen = false
-                            checkChatStillShown()
-                        }
-                }
-                .id(chatStackID)
+                chatArea
             }
             .badge(chatAnswerNotice.unseenAnswers)
 
             SwiftUI.Tab("Documents", systemImage: "doc.text.magnifyingglass", value: Tab.documents) {
-                NavigationStack {
-                    DocumentLibraryView(
-                        ragService: ragService,
-                        containerService: containerService,
-                        onViewVisualizations: { selectedTab = .visualizations }
-                    )
-                    .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
-                }
+                documentsArea
             }
 
             SwiftUI.Tab("Atlas", systemImage: "globe.americas", value: Tab.visualizations) {
-                NavigationStack {
-                    AdaptiveVisualizationsView()
-                        .environmentObject(ragService)
-                        .environmentObject(containerService)
-                }
+                atlasArea
             }
 
             SwiftUI.Tab("Database", systemImage: "cylinder.split.1x2", value: Tab.database) {
-                NavigationStack {
-                    DatabaseDashboardView()
-                        .environmentObject(ragService)
-                        .environmentObject(containerService)
-                }
+                databaseArea
             }
 
             SwiftUI.Tab("Settings", systemImage: "gearshape", value: Tab.settings) {
@@ -529,6 +520,160 @@ struct ContentView: View {
         #if os(iOS)
             .tabBarMinimizeBehavior(.onScrollDown)
         #endif
+    }
+
+    #if os(macOS)
+        /// The Mac window (5.8 Mac redesign): a sidebar of the four areas, the libraries and the open library's
+        /// conversations (`MacSidebar`), and the chosen area beside it. Settings is a window of its own, opened with
+        /// Command-comma (`OpenIntelligenceApp`). Each area is built the first time it is chosen and then kept, as a
+        /// tab is: rebuilding Chat on every switch would end an answer being written. Only the area in front is
+        /// drawn, takes clicks, is read by VoiceOver and gives the window its toolbar items (`macAreaIsActive`).
+        private var macWindowContent: some View {
+            NavigationSplitView {
+                MacSidebar(
+                    selection: $macSidebarSelection,
+                    commands: macCommands,
+                    ragService: ragService,
+                    containerService: containerService,
+                    unseenAnswers: chatAnswerNotice.unseenAnswers
+                )
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
+            } detail: {
+                ZStack {
+                    ForEach(Self.macAreas, id: \.self) { area in
+                        if macBuiltAreas.contains(area) {
+                            macArea(area)
+                                .opacity(selectedTab == area ? 1 : 0)
+                                .allowsHitTesting(selectedTab == area)
+                                // Nor keyboard focus: Delete in a hidden document table removed documents unseen.
+                                .disabled(selectedTab != area)
+                                .accessibilityHidden(selectedTab != area)
+                                .environment(\.macAreaIsActive, selectedTab == area)
+                                .zIndex(selectedTab == area ? 1 : 0)
+                        }
+                    }
+                }
+            }
+            .frame(minWidth: 760, minHeight: 480)
+            .environment(\.macWindowTitle, Self.macAreaTitle(selectedTab))
+            .environment(\.macShellCommands, macCommands)
+            .focusedSceneObject(macCommands)
+            .onChange(of: macSidebarSelection) { _, item in
+                guard let item else { return }
+                switch item {
+                case .area(let area):
+                    selectedTab = area
+                case .library(let id):
+                    if containerService.activeContainerId != id {
+                        NavigationTiming.begin("library")
+                        containerService.setActive(id)
+                    }
+                    selectedTab = .documents
+                case .thread(let id):
+                    selectedTab = .chat
+                    if ragService.activeThreadId != id {
+                        macCommands.threadToOpen = id
+                    }
+                }
+            }
+            // A menu command, a link or an action moved to another area: the sidebar follows, unless its row already
+            // shows that area (a library row is Documents, a conversation row is Chat).
+            .onChange(of: selectedTab, initial: true) { _, area in
+                if area == .settings {
+                    // Settings is not an area on the Mac; a request for it opens the Settings window.
+                    selectedTab = Self.macAreas.contains(previousMacArea) ? previousMacArea : .chat
+                    openSettings()
+                    return
+                }
+                previousMacArea = area
+                macBuiltAreas.insert(area)
+                // The Atlas is the one area not kept: its 3D map would go on drawing behind the others. Its analysis is
+                // kept on disk, so building it again is quick.
+                if area != .visualizations { macBuiltAreas.remove(.visualizations) }
+                switch macSidebarSelection {
+                case .area(let shown) where shown == area: break
+                case .library where area == .documents: break
+                case .thread where area == .chat: break
+                default: macSidebarSelection = .area(area)
+                }
+            }
+            .onChange(of: containerService.activeContainerId) { _, id in
+                if case .library = macSidebarSelection { macSidebarSelection = .library(id) }
+            }
+            .onReceive(macCommands.$areaRequest) { area in
+                guard let area else { return }
+                macCommands.clear(\.areaRequest)
+                selectedTab = area
+            }
+            // The open conversation changed (a new one, or one deleted): a conversation row follows it.
+            .onChange(of: ragService.activeThreadId) { _, id in
+                guard case .thread = macSidebarSelection else { return }
+                macSidebarSelection = id.map { .thread($0) } ?? .area(.chat)
+            }
+        }
+
+        private static let macAreas: [Tab] = [.chat, .documents, .visualizations, .database]
+
+        private static func macAreaTitle(_ area: Tab) -> String {
+            switch area {
+            case .chat, .settings: return "Chat"
+            case .documents: return "Documents"
+            case .visualizations: return "Atlas"
+            case .database: return "Database"
+            }
+        }
+
+        @ViewBuilder
+        private func macArea(_ area: Tab) -> some View {
+            switch area {
+            case .chat: chatArea
+            case .documents: documentsArea
+            case .visualizations: atlasArea
+            case .database, .settings: databaseArea
+            }
+        }
+    #endif
+
+    // MARK: - Areas (each tab's content, and on the Mac each sidebar area's)
+
+    private var chatArea: some View {
+        NavigationStack {
+            ChatScreen(ragService: ragService)
+                .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
+                .onAppear { chatOnScreen = true }
+                .onDisappear {
+                    chatOnScreen = false
+                    checkChatStillShown()
+                }
+        }
+        .id(chatStackID)
+    }
+
+    private var documentsArea: some View {
+        NavigationStack {
+            DocumentLibraryView(
+                ragService: ragService,
+                containerService: containerService,
+                onViewVisualizations: { selectedTab = .visualizations }
+            )
+            .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
+        }
+    }
+
+    private var atlasArea: some View {
+        NavigationStack {
+            AdaptiveVisualizationsView()
+                .environmentObject(ragService)
+                .environmentObject(containerService)
+        }
+    }
+
+    private var databaseArea: some View {
+        NavigationStack {
+            DatabaseDashboardView()
+                .environmentObject(ragService)
+                .environmentObject(containerService)
+        }
     }
 
     /// Chat went blank under its own tab on the owner's iPhone on 2026-11-05 and twice on 2026-11-07: a back chevron in

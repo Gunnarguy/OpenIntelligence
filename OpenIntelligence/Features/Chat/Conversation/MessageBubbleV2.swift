@@ -36,6 +36,10 @@ struct MessageBubbleV2: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// The library's documents, for the response details' sources (5.7).
     @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
+    #if os(macOS)
+        /// The window's inspector requests (5.8 Mac redesign).
+        @Environment(\.macShellCommands) private var macShellCommands
+    #endif
     @Environment(\.showsTechnicalDetails) private var showsTechnicalDetails
 
     /// Supplies the library's index state for the shared trace. Optional on purpose.
@@ -207,6 +211,10 @@ struct MessageBubbleV2: View {
                 .tour(.answerBubble, in: Tour.chat, when: isLatestAnswer && !isUser) {
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { showActions = true }
                 }
+                #if os(macOS)
+                    // A Mac app's object answers a right-click (5.8 Mac redesign); the bar under the bubble stays.
+                    .contextMenu { macBubbleMenu }
+                #endif
 
                 if !isUser { Spacer(minLength: bubbleSpacerMinLength) }
             }
@@ -228,7 +236,7 @@ struct MessageBubbleV2: View {
                         // Already handled in bar
                     },
                     onRegenerate: isUser ? nil : onRegenerate,
-                    onShowDetails: message.metadata != nil ? { showDetails = true } : nil,
+                    onShowDetails: message.metadata != nil ? { openDetails() } : nil,
                     onShare: { shareMessage() },
                     onToggleHidden: (!isUser ? { toggleHidden() } : nil),
                     onReport: (!isUser ? { showReportSheet = true } : nil),
@@ -255,7 +263,7 @@ struct MessageBubbleV2: View {
                     if let descriptor = responseRouteBadge {
                         Button {
                             Tour.used(.routeBadge)
-                            showDetails = true
+                            openDetails()
                         } label: {
                             // 44 points tall to tap, Apple's minimum, with the chip drawn as before (5.7).
                             ResponseRouteBadge(descriptor: descriptor)
@@ -341,10 +349,46 @@ struct MessageBubbleV2: View {
                 }
             )
         }
-        .sheet(item: $sharePayload) { payload in
-            ActivityView(activityItems: payload.items, preview: payload.preview)
-        }
+        .shareSheet(item: $sharePayload, items: \.items, preview: \.preview)
     }
+
+    /// The answer's details: in the window's inspector on a Mac, in a sheet elsewhere (5.8).
+    private func openDetails() {
+        #if os(macOS)
+            if let meta = message.metadata {
+                macShellCommands?.answerDetails = MacAnswerDetails(
+                    metadata: meta,
+                    retrievedChunks: message.retrievedChunks ?? [],
+                    structuredAnswer: message.structuredAnswer,
+                    lookup: libraryDocumentLookup)
+            }
+        #else
+            showDetails = true
+        #endif
+    }
+
+    #if os(macOS)
+        /// The bar's actions, for a right-click on the bubble.
+        @ViewBuilder
+        private var macBubbleMenu: some View {
+            Button("Copy") { SystemClipboard.copy(message.content) }
+            Button("Share\u{2026}") { shareMessage() }
+            if !isUser {
+                if message.metadata != nil {
+                    Button("Show Details") { openDetails() }
+                }
+                if let onRegenerate {
+                    Button("Ask Again") { onRegenerate() }
+                }
+                if let onGoDeeper {
+                    Button("Go Deeper") { onGoDeeper() }
+                }
+                Divider()
+                Button("Export Pipeline Trace\u{2026}") { exportPipelineTrace() }
+                Button("Report\u{2026}") { showReportSheet = true }
+            }
+        }
+    #endif
 
     @ViewBuilder
     private var hiddenMessageView: some View {

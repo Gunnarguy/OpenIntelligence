@@ -20,6 +20,18 @@ struct DocumentLibraryView: View {
     @State var showingFilePicker = false
     @Environment(\.undoManager) var undoManager
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    /// On a Mac, whether Documents is the window's area in front (5.8 Mac redesign); always true elsewhere.
+    @Environment(\.macAreaIsActive) var macAreaIsActive
+    /// The Mac table's selected documents and whether the inspector beside it shows the selected one (5.8).
+    @State var macSelection: Set<Document.ID> = []
+    @AppStorage("MacDocuments.inspector") var macShowsInspector = true
+    #if os(macOS)
+        /// The window's sidebar requests (5.8 Mac redesign).
+        @Environment(\.macShellCommands) var macShellCommands
+        /// Whether Documents is in front now, and when the inspector was last closed (`macDocumentsChrome`).
+        @State var macAreaFlag = MacAreaFlag()
+        @State var macInspectorClosedAt: Date?
+    #endif
     /// A document in an iCloud library that a swipe asked to delete, waiting for the answer (5.7).
     @State var swipeDeleteCandidate: Document?
     /// The parts of the library area a Finder drag is over, driving the drop outline (`takingDroppedFiles(as:)`).

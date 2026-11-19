@@ -16,6 +16,16 @@ struct DatabaseDashboardView: View {
     @EnvironmentObject var settings: SettingsStore
 
     @State var selectedSection: DatabaseSection = .overview
+    /// On a Mac, whether Database is the window's area in front (5.8 Mac redesign); always true elsewhere.
+    @Environment(\.macAreaIsActive) var macAreaIsActive
+    /// The column the dashboard's cards sit in.
+    static var columnWidth: CGFloat {
+        #if os(macOS)
+            900
+        #else
+            SettingsView.detailColumnWidth
+        #endif
+    }
     /// Which library the per-library figures on this screen cover.
     ///
     /// `.library(UUID)` rather than `.activeLibrary`. The old pair could not express "a library
@@ -205,8 +215,9 @@ struct DatabaseDashboardView: View {
                     }
                 }
                 .padding(DSSpacing.lg)
-                // The Settings pages' column (5.8, 2026-11-15), so on a Mac or an iPad the cards keep a phone's width.
-                .frame(maxWidth: SettingsView.detailColumnWidth)
+                // The Settings pages' column (5.8, 2026-11-15), so on an iPad the cards keep a phone's width. A Mac window
+                // is wider and its grids take more columns (5.8 Mac redesign).
+                .frame(maxWidth: Self.columnWidth)
                 .frame(maxWidth: .infinity)
             }
             .background(DSColors.background.ignoresSafeArea())
@@ -220,7 +231,30 @@ struct DatabaseDashboardView: View {
                     .transition(.opacity)
             }
         }
-        .navigationTitle("Database")
+        .areaNavigationTitle("Database")
+        #if os(macOS)
+            .toolbar {
+                if macAreaIsActive {
+                    ToolbarItem(placement: .primaryAction) { macScopeMenu }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            Task { await loadAllData() }
+                        } label: {
+                            Label("Reload", systemImage: "arrow.clockwise")
+                        }
+                        .help("Read the statistics again")
+                    }
+                }
+            }
+            // Kept alive behind the other areas on a Mac, it reads the statistics again each time it comes to the front.
+            .onChange(of: macAreaIsActive) { _, active in
+                if active { Task { await loadAllData() } }
+            }
+            // The library chosen in the window's sidebar is the one counted, unless every library is.
+            .onChange(of: containerService.activeContainerId) { _, id in
+                if case .library = databaseScope { databaseScope = .library(id) }
+            }
+        #endif
         #if os(iOS)
         // Inline, as every root tab is (5.8, see `DSTypography`): the panel opens the page, not a 34-point title.
         .navigationBarTitleDisplayMode(.inline)

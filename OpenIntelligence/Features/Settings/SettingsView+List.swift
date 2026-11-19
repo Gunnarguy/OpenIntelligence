@@ -258,7 +258,9 @@ extension SettingsView {
     /// the app at launch, so the page stands in for the list instead of being pushed over it.
     @ViewBuilder
     var settingsRoot: some View {
-        #if DEBUG
+        #if os(macOS)
+            macSettingsWindow
+        #elseif DEBUG
             if let entry = Self.screenshotPage {
                 destination(for: entry)
                     .navigationTitle(entry.title)
@@ -370,6 +372,89 @@ extension SettingsView {
             }
         }
     }
+
+    #if os(macOS)
+        /// The Settings window (5.8 Mac redesign): the pages in a sidebar under the list's group headings, as System
+        /// Settings lays them out, and the chosen page beside it. On iPhone and iPad the same pages are pushed from the
+        /// list. Plan & Usage and Advanced open their sheets over the window, as their rows do on the list, and leave
+        /// the page that was showing. The window opens on the page it was left at.
+        var macSettingsWindow: some View {
+            NavigationSplitView {
+                List(selection: macSettingsSelection) {
+                    if trimmedSearch.isEmpty {
+                        Label("Overview", systemImage: "brain.head.profile")
+                            .tag("overview")
+                    }
+                    ForEach(SettingsGroup.allCases) { group in
+                        let entries = visibleEntries(in: group)
+                        if !entries.isEmpty {
+                            Section(group.title) {
+                                ForEach(entries) { entry in
+                                    Label(entry.title, systemImage: entry.icon)
+                                        .help(entry.subtitle)
+                                        .tag(entry.id.rawValue)
+                                }
+                            }
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
+                .searchable(text: $settingsSearch, placement: .sidebar, prompt: "Search settings")
+                .overlay {
+                    if !trimmedSearch.isEmpty, SettingsGroup.allCases.allSatisfy({ visibleEntries(in: $0).isEmpty }) {
+                        ContentUnavailableView.search(text: trimmedSearch)
+                    }
+                }
+                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+            } detail: {
+                NavigationStack {
+                    macSettingsDetail
+                }
+            }
+            .sheet(isPresented: $showModelConfiguration) {
+                ModelConfigurationSheet()
+            }
+        }
+
+        /// The sidebar's selection. A row that opens a sheet opens it and leaves the selection where it was.
+        private var macSettingsSelection: Binding<String?> {
+            Binding(
+                get: { macSettingsPage },
+                set: { newValue in
+                    guard let newValue else { return }
+                    if let id = SettingsEntryID(rawValue: newValue), let opensSheet = sheetAction(for: id) {
+                        opensSheet()
+                        return
+                    }
+                    macSettingsPage = newValue
+                    if let id = SettingsEntryID(rawValue: newValue) { Self.tourStep(for: id).map(Tour.used) }
+                }
+            )
+        }
+
+        @ViewBuilder
+        private var macSettingsDetail: some View {
+            if let entry = SettingsEntry.all.first(where: { $0.id.rawValue == macSettingsPage }),
+                sheetAction(for: entry.id) == nil
+            {
+                destination(for: entry)
+                    .navigationTitle(entry.title)
+            } else {
+                // The list's status panel and Support & Feedback card, which the list showed above and below its rows.
+                ScrollView {
+                    VStack(spacing: DSSpacing.lg) {
+                        statusPanelRow
+                        supportCard
+                    }
+                    .padding(DSSpacing.lg)
+                    .frame(maxWidth: Self.detailColumnWidth)
+                    .frame(maxWidth: .infinity)
+                }
+                .background(DSColors.background.ignoresSafeArea())
+                .navigationTitle("Overview")
+            }
+        }
+    #endif
 
     /// What a row that opens a sheet instead of pushing a page does when tapped, or nil for a row that pushes.
     private func sheetAction(for id: SettingsEntryID) -> (() -> Void)? {

@@ -21,9 +21,20 @@ struct WhatsNewRelease: Identifiable, Sendable {
         let symbol: String
         let title: String
         let detail: String
+        /// Shown on a Mac only (5.8): an item about the Mac app means nothing on an iPhone.
+        var macOnly: Bool = false
     }
 
     var id: String { version }
+
+    /// The items this device shows.
+    var shownItems: [Item] {
+        #if os(macOS)
+            items
+        #else
+            items.filter { !$0.macOnly }
+        #endif
+    }
     let version: String
     /// One line that says why this update matters. Shown under the title.
     let headline: String
@@ -118,6 +129,13 @@ final class WhatsNewStore: ObservableObject {
                     title: "Measured against 5.7",
                     detail:
                         "On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9. One run each, in the iOS 27 Simulator with Apple's model."
+                ),
+                .init(
+                    symbol: "macwindow",
+                    title: "The Mac app works like a Mac app",
+                    detail:
+                        "A sidebar holds Chat, Documents, Atlas and Database, your libraries and the open library's conversations. Settings is its own window (Command-comma), Documents is a sortable table with details beside it, an answer's details open beside the chat, and Share, Export and Attach use the Mac's own menus and panels.",
+                    macOnly: true
                 ),
                 .init(
                     symbol: "magnifyingglass",
