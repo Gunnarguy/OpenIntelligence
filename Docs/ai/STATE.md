@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-19 12:35
+Updated: 2026-11-19 13:58
 Branch/worktree: `main`, primary checkout
-Last verified commit: 7abf10eb
+Last verified commit: c4ae4673
 
 ## Objective
 
@@ -13,14 +13,10 @@ square this stuff away": no Xcode Cloud build until his tests pass. Submitting i
 
 ## Status
 
-Main is at 7abf10eb, pushed. The owner said "Start the build" at 12:30: Xcode Cloud build **504** (workflow "Default",
-main) started PENDING; watch it with `zsh -ic 'python3 -u /private/tmp/claude-501/xc_watch504.py'`. iPhone (12:23) and
-Mac (12:25) run Debug builds of 7abf10eb. Device-pass page: 15 ticked (version 10), mac-4-1 added from the Mac sidebar
-showing iPhone threads.
-
-App Store Connect is staged for 5.8 on both platforms (PREPARE_FOR_SUBMISSION; iOS version 36314c13-d814-479f-8f11-95c2d8ea6794,
-Mac 387cf5c0-eee7-41a5-8e4f-bd562435b1e0). Release notes are at 3,991 / 3,996 characters of 4,000 and do not mention
-the afternoon's fixes; their iPhone bullet still says an answer "resumes when you come back". Rewording is the owner's call.
+**5.8 is in review on both platforms with build 506** (from 950def34), submitted at the owner's word ~13:55 PT,
+release AFTER_APPROVAL (each platform goes live when Apple approves it). `Docs/SHIPPED_VERSION.json` says in_review.
+Builds 504 and 505 exist but carry two bugs found on the owner's devices after them (a Mac stats-panel layout crash,
+b9219793; Deep Think research replacing its answer, 950def34). iPhone (13:14) and Mac (13:17) run Debug builds of 950def34.
 
 ## Completed on 2026-11-19 (pushed)
 
@@ -40,6 +36,9 @@ the afternoon's fixes; their iPhone bullet still says an answer "resumes when yo
 | 895597fe | `LiveFoundationModelCapabilityProvider` uses the kept window, so the plan no longer re-packs background answers into 800 characters (bags answered "$200") |
 | 6ff02031 | `joiningContinuation` for continuations and resumes ("itemThe document"); Mac sidebar says Evidence Threads |
 | 7abf10eb | `PendingAnswerStore.keepAnswer`: the written answer is saved when the stream ends; a relaunch shows it instead of asking again |
+| b9219793 | Mac stats panel opens at a set height and answer details open in a fixed-size sheet (crashes 12:44 and 12:48) |
+| 950def34 | A research decision that asks for a search is not an answer; no text with [SEARCH:]/[ANSWER] replaces an answer |
+| bd0c556e, c4ae4673 | iPhone release-notes bullet swapped at the owner's word; 5.8 recorded in review |
 
 ## Known and not fixed
 
@@ -83,8 +82,8 @@ MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F
 
 ## Exact Next Action
 
-When build 504 completes and shows in App Store Connect, attach it to both 5.8 versions (`PATCH
-appStoreVersions/<id>/relationships/build`; never `scripts/asc_prepare_release.rb` for text), read back the release notes,
-screenshots and review notes, then ask the owner once whether to submit. After submission set `Docs/SHIPPED_VERSION.json`
-to in_review. Open after 5.8: the continuation trigger on a final list item without a period (an extra model call), Siri
-scope and open-document, the DHA named-document row, the planner model call in Standard.
+Read App Store Connect for the 5.8 records (`zsh -ic 'python3 /private/tmp/claude-501/asc_submit.py'` prints each
+platform's state). When a platform reads READY_FOR_SALE, move `app_store_by_platform` for it (and `app_store` when both
+are live), empty `in_review`, push. Then file Notion rows for after 5.8: the continuation trigger on a final list item
+without a period, Apple's background rate limit (answers wait for the app), Siri scope and open-document, the DHA
+named-document row, Standard's planner model call, and the Mac Dock/Space behaviour of the details sheet.
