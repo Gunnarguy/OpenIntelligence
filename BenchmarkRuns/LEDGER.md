@@ -1731,6 +1731,22 @@ Mac reinstall's `pkill -x OpenIntelligence`, which also ended the Simulator's te
 **Not settled.** One run per arm (retrieval is nondeterministic); no iPhone run; 4,096 windows are unchanged by
 construction (1,890 free) and were not re-run.
 
+### 2026-11-19 Maximum with and without the 2026-11-18 changes (`2026-11-18-maximum-ab`, `2026-11-19-0638-answer-modes-bind-base1-r`, `2026-11-19-0726-answer-modes-bind-fix1-r`)
+
+The entity-binding run had Maximum at 18/20 against 19/20 before, losing exact_payload ("14.3 US gal") and
+retrieval_covid_gamma. One build of `/private/tmp/oi-neg-wt`, Maximum, alternating "base" (`itemLeadInSentences`,
+`entityBindingGate`, `noNamedOnly` off) and "fix". Planned four runs; stopped after one and a half to free the
+machine for the 5.8 release, because the half-run had already answered both disputed questions.
+`[evidence_level: measured, confidence: medium: one base run, 11 of 20 fix answers]`
+
+| Run | Right by rule | exact_payload | retrieval_covid_gamma |
+|---|---|---|---|
+| base1-r (changes off) | 16/20 (lost exact_payload, lost_in_middle_middle, lost_in_middle_end, missing_unreleased_battery) | wrong | right |
+| fix1-r (changes on), stopped at 11 of 20 | not scored | "1,240 lb. [S1]", right | names its source document, right |
+
+Read: the two losses of 2026-11-18 21:43 are run-to-run variation in Maximum's final writing (the 1,240 lb table
+ranked first in both), not the change; base missed exact_payload too. The change stays (5052c221).
+
 ### 2026-11-18 A "no" counts only when it denies what the claim names (`2026-11-18-no-named-only`, `2026-11-19-0620-answer-modes-bind-base-ans`, `2026-11-19-0629-answer-modes-bind-fix-ans`)
 
 The owner's right "The similarity floor in Standard mode is 0.28 [S2]" showed "0 of 1 Verified": Gate B's negation
