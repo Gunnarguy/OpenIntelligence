@@ -373,6 +373,14 @@ private extension QueryExecutionPlannerService {
         guard !DirectModelCallsForTesting.isOn, SystemLanguageModel.default.availability == .available else {
             return nil
         }
+        // In the background the plan comes from the rules (5.8, 2026-11-19). Apple's model has a small budget for an
+        // app in the background, and the planner spent it before the answer could: on the owner's iPhone the planning
+        // call was refused at 10:39:14, which already left the rules' plan, and the answer's own call was refused next.
+        // Skipping the call gives the plan a refusal gave, and leaves the budget to the call that writes the answer.
+        if DeviceCapabilityService.isAppInBackground {
+            Log.info("[QueryPlanner] In the background: the rules plan this question (no model call)", category: .retrieval)
+            return nil
+        }
 
         let instructions = Instructions(
             "You are a retrieval execution planner for a document QA engine. Return a compact, retrieval-first plan. Only skip retrieval for obvious greetings or assistant-meta requests. Keep entities, colors, units, model numbers, and codes literal."

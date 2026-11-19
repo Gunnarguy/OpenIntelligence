@@ -1847,7 +1847,15 @@ extension RAGService {
                 // Worst case adds 19 seconds to a query that already spent minutes in the chain.
                 // An unreadable response is retried once: if it is not a throttle clearing, three
                 // more generations would only delay the fallback.
-                let backoffSeconds: [Int] = primaryFailureKind == .rateLimited ? [2, 5, 12] : [2]
+                // A Chat answer refused in the background retries there for about a minute before it waits for the
+                // app (5.8, 2026-11-19). It waited at the first refusal, and the system's budget for an app in the
+                // background is small but not empty: on the owner's iPhone the answer's call was refused at 10:39:19
+                // and the same call went through at 10:39:26 with the app still away. Every answer now holds a
+                // continued-processing task, so the process is not suspended while it tries.
+                let refusedInBackground = await MainActor.run { Self.appIsInBackground } && Self.answerAskedInChat
+                let backgroundLadder = primaryFailureKind == .rateLimited && refusedInBackground
+                let backoffSeconds: [Int] =
+                    primaryFailureKind == .rateLimited ? (backgroundLadder ? [2, 5, 10, 15, 20] : [2, 5, 12]) : [2]
                 for (index, delay) in backoffSeconds.enumerated() {
                     Log.info(
                         "[RAG] Primary LLM \(primaryFailureKind == .rateLimited ? "rate-limited" : "returned nothing readable"): "
@@ -1876,7 +1884,8 @@ extension RAGService {
                         }
                         if let bringForward { try? await bringForward() }
                     }
-                    let waited = askedInChat ? await Self.waitWhileAppIsInBackground() : 0
+                    let mayWaitForFront = askedInChat && (!backgroundLadder || index == backoffSeconds.count - 1)
+                    let waited = mayWaitForFront ? await Self.waitWhileAppIsInBackground() : 0
                     if waited >= 1 {
                         Log.info(
                             "[RAG] Waited \(String(format: "%.0f", waited))s for the app to come back before retry \(index + 1)",
