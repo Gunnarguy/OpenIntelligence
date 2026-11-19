@@ -1187,6 +1187,25 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
     }
 
+    /// Whether the app is in the background on iPhone or iPad (5.8, 2026-11-19), set from `ContentView` on every
+    /// scene-phase change. `isBackgroundCPUSafeIngestionProfileActive` is true only while a background import runs, so
+    /// an answer still being checked when the person left the app kept the embedding model on all units and waited
+    /// 2 min 10 s for a GPU iOS does not give a background app (owner's iPhone, 2026-11-19 08:17:44). Always false on
+    /// the Mac, whose apps keep the GPU in the background.
+    nonisolated static var isAppInBackground: Bool {
+        ingestionExecutionProfileLock.lock()
+        defer { ingestionExecutionProfileLock.unlock() }
+        return appInBackgroundStorage
+    }
+
+    private nonisolated(unsafe) static var appInBackgroundStorage = false
+
+    nonisolated static func setAppInBackground(_ inBackground: Bool) {
+        ingestionExecutionProfileLock.lock()
+        appInBackgroundStorage = inBackground
+        ingestionExecutionProfileLock.unlock()
+    }
+
     nonisolated var isBackgroundCPUSafeIngestionActive: Bool {
         Self.isBackgroundCPUSafeIngestionProfileActive
     }

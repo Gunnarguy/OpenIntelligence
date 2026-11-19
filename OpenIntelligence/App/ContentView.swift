@@ -821,6 +821,10 @@ struct ContentView: View {
                 IngestionRuntimeBridge.shared.beginForegroundFallbackIngestion(reason: "Active Ingestion Handoff")
             }
 
+            #if os(iOS)
+                // Any embed from here runs without the GPU (`CoreMLSentenceEmbeddingProvider.loadedModels()`).
+                DeviceCapabilityService.setAppInBackground(true)
+            #endif
             // An import the system is carrying in the background runs on the reduced profile
             // from here, and on the full one again when the app is back in front.
             BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
@@ -841,6 +845,7 @@ struct ContentView: View {
 
         case .active:
             entitlementStore.refreshTransientState()
+            DeviceCapabilityService.setAppInBackground(false)
             BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
             // What finished while the app was away is on screen now (5.7): its notifications and the Lock Screen's
             // card for a finished import or answer go, where they stayed for up to ten minutes after the person was back.

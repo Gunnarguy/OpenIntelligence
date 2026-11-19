@@ -233,8 +233,9 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 // embed in front loads the device's own units again.
                 guard !onCPUAfterFailure, let loaded else { return nil }
                 let background = DeviceCapabilityService.embeddingComputeUnitsInBackground
-                if inBackground, loaded != background { return background }
-                if !inBackground, loaded == background {
+                let appInBackground = DeviceCapabilityService.isAppInBackground
+                if appInBackground, loaded != background { return background }
+                if !appInBackground, loaded == background {
                     let inFront = DeviceCapabilityService.shared.preferredComputeUnits
                     return inFront == background ? nil : inFront
                 }
@@ -292,8 +293,13 @@ nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unc
                 Log.warning(
                     "[CoreMLSentenceEmbeddingProvider] Prediction failed (\(error.localizedDescription)); loading the model again",
                     category: .embedding)
+                // In the background the retry loads the units iOS allows there (5.8, 2026-11-19): retrying on the units that
+                // just failed reloaded the model for all units, GPU included, and waited another 4 min 27 s before the CPU
+                // attempt answered (owner's iPhone, 08:19:54 to 08:24:22).
                 let units =
-                    modelLock.withLock { loadedComputeUnits } ?? DeviceCapabilityService.shared.preferredComputeUnits
+                    DeviceCapabilityService.isAppInBackground
+                    ? DeviceCapabilityService.embeddingComputeUnitsInBackground
+                    : (modelLock.withLock { loadedComputeUnits } ?? DeviceCapabilityService.shared.preferredComputeUnits)
                 for (attempt, computeUnits) in [units, MLComputeUnits.cpuOnly].enumerated() {
                     let reloaded = Self.makeModels(computeUnits: computeUnits)
                     guard let fresh = reloaded.first(where: { $0.length == length })?.model else { continue }
