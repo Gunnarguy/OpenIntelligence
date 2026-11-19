@@ -1,63 +1,37 @@
 # Current State
 
-Updated: 2026-11-19 06:50
+Updated: 2026-11-19 10:35
 Branch/worktree: `main`, primary checkout
-Last verified commit: 5052c221
+Last verified commit: bcb9f12e
 
 ## Objective
 
-**Ship 5.8.** The owner runs his device pass on the checklist page https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT
-(12 prompts; every file they need is in iCloud Drive › "OpenIntelligence 5.8 check"; ticks now sync across devices
-through the page's shared store, readable with ArtifactData collection `pass`, doc `checks`), says "done", the agent
-closes rows from the logs, and only at his word starts Xcode Cloud and pushes store text; he submits. No rating reset on 5.8.
+**Ship 5.8 to App Review today** (owner, 2026-11-19: "in review in the next like 3 hours"). He tests on his iPhone; the
+agent reads his trace, fixes what it shows, and keeps the device-pass page https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT
+ticked (ArtifactData collection `pass`, doc `checks`, version 9, 14 ticked). He said "stop submitting archives until we
+square this stuff away": no Xcode Cloud build until his tests pass. Submitting is his word alone; ask once.
 
 ## Status
 
-Main is at 5052c221, pushed (`[ci skip]`, no Xcode Cloud build). The iPhone runs a Debug build of that code (installed
-2026-11-18 22:55 from `/private/tmp/oi-neg-wt`). The Mac's /Applications app is the Mac redesign's Debug build (branch
-`mac-redesign`, a98dc001, worktree `/private/tmp/oi-mac-wt`, session local_b5d860ee), which does not yet have 5052c221;
-that session rebases onto main after 5052c221 and pushes. Device-pass page: 7 ticked (prompt-0-0, 0-1, 0-2, 3-0;
-mac-2-2, 3-0, 3-1). Library 11 (iCloud) on the Mac holds the six check files for the lease, Lisbon, DHA and notes prompts.
+Main is at bcb9f12e, pushed, every commit `[ci skip]`. iPhone runs a Debug build of bcb9f12e (installed 10:24:37, first
+launch 10:27:34; first-load compile 47 s embedder, 66 s reranker, as after every install). Mac /Applications runs the same
+code (Debug, `/private/tmp/oi-mac-dd`). The Mac redesign (6122d185, 19f31f53) is on main. The Maximum A/B ended: the
+18/20 was variance and the fix stays (a982716c, ledger).
 
-Running: the Maximum A/B for the entity-binding change, four runs alternating ablation off/on
-(`/private/tmp/oi-neg-wt/BenchmarkRuns/2026-11-18-maximum-ab/chain2.sh`, labels base1-r, fix1-r, base2-r, fix2-r,
-from 06:38, about 36 min each). It decides whether 5052c221's entity binding stays: the change stays only if the
-two fix runs together are not below the two base runs.
+App Store Connect is staged for 5.8 on both platforms (PREPARE_FOR_SUBMISSION; iOS version 36314c13-d814-479f-8f11-95c2d8ea6794,
+Mac 387cf5c0-eee7-41a5-8e4f-bd562435b1e0): per-platform release notes, promo text, description, keywords, screenshots and
+review notes (1,822 characters) were written and read back. No build is attached yet.
 
-## Completed on 2026-11-18 (pushed)
+## Completed on 2026-11-19 (pushed)
 
 | Commit | What |
 |---|---|
-| 5934c8e8 | Library Settings no longer overflows the main thread's stack in a Debug build (`SeparatelyBuilt`); Guide library documents can't be deleted |
-| b3f83ec8 | Guide library permanent (no delete, read-only settings, takes no files, restored at Documents open); "General" renamed "Library 1" once (description marker) at load and in `WorkspaceSyncService.mergeContainers`; Core ML embedder follows the app into the background (CPU and Neural Engine) and the mode switch has its own lock (fixed a 2 min 20 s background hang and a 0x8BADF00D watchdog kill on his iPhone) |
-| dc6cc426 | A bold label bullet in an answer draws as a heading |
-| f141eee8 | Semantic Atlas: cluster names draw again (chamfered `SCNText` draws nothing on iOS 27), no lines to nowhere, short names, label-size words, no overlap |
-| 43b06f3c | Tokens per second is the final answer's writing speed, live and saved, in every mode |
-| 5052c221 (2026-11-19) | A list item's number stays with its subject (sentence extraction keeps the lead, `EntityBinding` in Fact Check, citation note), and a "no" counts in Fact Check only when it denies what the claim names (`ClaimCheck.resolvingNo`); ledger entries for both |
-
-Earlier today: 1453b194 (guide first in every row), 75bf6d3f and 46b9055a (Model Parameters), f5759e4d and e4a191cd (sync).
-
-## Not verified on a device
-
-The 0.28 answer was seen right on the iPhone (trace 2026-11-18 20:45), before the "no" fix; "1 of 1 Verified" for it
-on the 22:55 build is not yet seen. Earlier rows: Library Settings with Technical Details on; an import resuming on
-return; the Guide library locks; "Library 1" on both devices; the Atlas card; tokens per second in Deep Think.
-
-## Standing approvals (owner, 2026-11-18)
-
-For 5.8: hard-boundary edits with a test or trace proving the defect and a refuting review, named in the commit; push
-`main` as commits land. Install builds on both devices. Still his alone: submitting, starting Xcode Cloud, outward
-messages, spending money. The path rule ".claude/rules/ingestion-and-indexing.md" puts `CoreMLSentenceEmbeddingProvider`
-internals out of bounds; b3f83ec8 edited them for the proven hang, and he has not yet been told that explicitly.
-
-## Active Constraints
-
-- Commits `[ci skip]`, no attribution lines, never `git add .`; never stage `scripts/run_quality_matrix.py` or
-  `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` (another session's changes), nor the untracked `.agents/skills/` and `.codex/` files.
-- One xcodebuild and one booted simulator at a time; never the whole macOS hosted suite (his real library).
-- `Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` stay byte-identical.
-- The phone trace, journal and Mac prefs hold his file names: grep them, never print them whole or commit them.
-- Before any device-dependent constant, run the `scale-to-the-device` skill (read Apple's page first).
+| 6122d185, 19f31f53 | Mac redesign: sidebar window, Settings window, Documents details as an `HSplitView` pane (two inspectors crashed AppKit), Chat row selectable (`.badge` before `.tag`) |
+| d43158e5, ec78e1de | In-app What's New for 5.8; App Store copy for both platforms, review notes, metadata history, Mac screenshot boxes |
+| a292e89d, 00c2f8cc, 62b5dad7, 7ed65fec | Core ML embedder uses CPU and Neural Engine whenever the app is in the background (`DeviceCapabilityService.isAppInBackground`, set by ContentView): first load, pending switch, retry, and a prediction that starts in the background on GPU units. Seen on the phone 09:40 and 10:00 |
+| 0a2e346a | Siri and Shortcuts no longer wait forever after a rate limit: only a Chat answer waits for the app to return; an action asks once to come forward, then retries and reports failure |
+| e99bd165 | Search model and reranker warm up one second after each return to the front, once per launch |
+| bcb9f12e | The on-device window keeps its last positive reading when `contextSize` reads 0 in the background (`FoundationModelTokenBudget.lastOnDeviceContext`); an answer resumed there had been packed to 800 characters and wrongly said the guide had no chicken temperature (165°F in front). 84 tests passed |
 
 ## Known and not fixed
 
@@ -77,7 +51,6 @@ internals out of bounds; b3f83ec8 edited them for the proven hang, and he has no
 - `AtlasLabelingTests` adverb tests depend on the simulator having English word classes (skip on a fresh one).
 - Axis ends title-case brand names wrong ("Ipad & Iphone", `AtlasLabeling.titleCase`).
 - A label heading in a grounded answer stays 18 pt while body text scales, so at AX2 it is smaller than its bullets (as `###` headings already are); changing it needs the owner's word.
-- A `CoreMLSentenceEmbeddingProvider` prediction already running when the app leaves is not covered by the background switch.
 
 ## Commands
 
@@ -89,15 +62,24 @@ iPhone, from `/private/tmp/oi-src`: `xcodebuild build -project OpenIntelligence.
 -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/oi-build -jobs 2
 MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549
 /private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app`. Mac: the same build with
-`-destination 'platform=macOS' -derivedDataPath /private/tmp/oi58-mac-dd`; quit the app with `gtimeout 20 osascript -e
+`-destination 'platform=macOS' -derivedDataPath /private/tmp/oi-mac-dd`; quit the app with `gtimeout 20 osascript -e
 'tell application id "Gunndamental.OpenIntelligence" to quit'` (pkill fallback), replace
 `/Applications/OpenIntelligence.app` with `ditto`, then `xattr -cr`. Logs: `python3 scripts/phone_evidence.py --since
 <install time, local> --json`, and the same with `--mac`.
 
+## Verification
+
+- `xcodebuild test` (6 classes, 84 tests, iOS 27 simulator) after bcb9f12e -> passed. iOS and macOS Debug builds -> succeeded.
+- Phone trace 09:40, 10:00 -> embedder loaded `cpuAndNeuralEngine` in the background; no 130 s GPU hang.
+- Not yet seen on the phone: bcb9f12e (an answer left mid-way finishing with full evidence) and 0a2e346a (Siri Ask with a rate limit).
+
 ## Exact Next Action
 
-When `chain2.sh` finishes, score the four runs with `python3 scripts/score_answer_eval.py <run>/maximum-app.xcresult`
-for each `2026-11-19-*-answer-modes-bind-{base1-r,fix1-r,base2-r,fix2-r}` folder in `/private/tmp/oi-neg-wt/BenchmarkRuns`.
-If fix1+fix2 >= base1+base2, record it in `BenchmarkRuns/LEDGER.md` (copy the folders in) and keep 5052c221; if
-lower, revert only the entity-binding half with `RetrievalAblation`-guided code changes, measure, commit. Then the owner
-runs the remaining prompts in Library 11, and the agent reads his trace to tick them.
+Read his trace (`xcrun devicectl device copy from --device 00008140-001130DA1863C01C --domain-type appDataContainer
+--domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log --destination <file>`, then grep
+after 10:27) for two tests: a Standard question in Library 11 left mid-answer (its `Context budget:` line must not read
+`base=0`, and the answer must cite evidence), and "ask OpenIntelligence ..." from Siri (it must come forward or fail fast).
+If both pass and he says go: `zsh -ic 'python3 /private/tmp/claude-501/xc_start_default.py'` (Xcode Cloud workflow
+"Default", main), attach the build to both 5.8 versions (`PATCH appStoreVersions/<id>/relationships/build`; never
+`scripts/asc_prepare_release.rb` for text, it writes the Mac notes to both platforms), read back text and screenshots,
+then ask him once before submitting. After submission set `Docs/SHIPPED_VERSION.json` to in_review.
