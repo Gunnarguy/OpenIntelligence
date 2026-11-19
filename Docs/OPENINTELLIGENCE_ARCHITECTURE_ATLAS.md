@@ -930,6 +930,8 @@ supposed to be agentic.
   `executeRecursiveResearch`'s two call sites and the one Deep Think reaches (`maxIterations: 3`),
   had kept only `shouldAcceptReplacement`. Both of its replacement points now go through
 
+> **5.8, 2026-11-19, "[S#]" is removed from every agentic answer.** `cleanupFinalAnswer` runs `removingPlaceholderCitations` first: the prompts' placeholder "[S#]", copied by the on-device model in place of real labels, is removed with any "as documented in" that only led into it. `[evidence_level: measured (owner's iPhone screenshots 13:46 and 13:47) and test_verified, confidence: high]`
+
 > **5.8, 2026-11-19, research instructions never replace an answer.** `parseResearchDecision` reads a decision reply that carries both "[ANSWER]" and "[SEARCH: ...]" as the search, and `AgenticOrchestrator.shouldAcceptReplacement` turns away any replacement carrying either token, which covers both call sites of `executeRecursiveResearch` (the chain's and the Self-RAG loop's). On the owner's iPhone "[ANSWER] All three quality modes are: Maximum, Free, and Pro. [SEARCH: quality modes]" had replaced an uncited Deep Think synthesis that was right. `[evidence_level: measured (phone trace 13:09:29) and test_verified (AnswerReplacementGuardTests), confidence: high]`
   `loopResearchVerdict`, which applies the first site's checks (`researchMayReplaceSynthesis`,
   `shouldAcceptReplacement`, the evidence-dump and retrieval-miss checks), and the loop stops with its

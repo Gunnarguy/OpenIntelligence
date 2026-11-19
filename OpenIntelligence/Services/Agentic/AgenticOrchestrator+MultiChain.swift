@@ -779,6 +779,25 @@ extension AgenticOrchestrator {
     ///   both destroys that observation and asserts a cause nobody established. A
     ///   device run showed exactly this at session 12, after which the help text
     ///   entered the fact bank as a finding.
+    /// The answer without "[S#]", the prompt's own placeholder copied as if it were a citation (5.8, 2026-11-19). On the
+    /// owner's iPhone a Deep Think synthesis wrote "as documented in [S#], [S#], and [S#]" and then ran on into hundreds
+    /// of "[S#]," before it stopped, and the answer showed them: the prompts say "Cite each fact with the [S#] label of
+    /// the passage", and the small model copied the placeholder. A real label has a number ("[S3]"), so nothing a reader
+    /// can open is lost; the "as documented in" that only led into placeholders goes with them.
+    nonisolated static func removingPlaceholderCitations(_ text: String) -> String {
+        guard text.range(of: #"\[\s*S\s*#\s*\]"#, options: [.regularExpression, .caseInsensitive]) != nil else { return text }
+        let placeholder = #"\[\s*S\s*#\s*\]"#
+        let run =
+            #"(?i)\s*,?\s*(?:as\s+(?:documented|outlined|described|noted|shown|stated|explained|detailed|discussed)\s+in\s+)?"#
+            + "(?:" + placeholder + #"(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s*\/\s*)?)+"#
+        var result = text.replacingOccurrences(of: run, with: "", options: .regularExpression)
+        // A cut-off run at the end ("[S#], [") and spacing the removal left before punctuation.
+        result = result.replacingOccurrences(of: #",?\s*\[\s*S?\s*#?\s*$"#, with: "", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"[ \t]+([.,;:!?])"#, with: "$1", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func cleanupFinalAnswer(_ text: String, isFinalAnswer: Bool = true) -> String {
         // Strip fabricated structured output before anything else looks at the text.
         // This was previously applied only to intermediate reasoning-chain insights,
@@ -791,7 +810,7 @@ extension AgenticOrchestrator {
         // carries no [S#] markers for the verifier to check. `cleanupFinalAnswer` has
         // sixteen call sites and covers every path that produces a user-visible
         // answer, so this is the right place for the guard rather than each caller.
-        var result = stripPromptEchoAndToolNoise(from: text)
+        var result = Self.removingPlaceholderCitations(stripPromptEchoAndToolNoise(from: text))
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Handle "NOT FOUND" responses gracefully
