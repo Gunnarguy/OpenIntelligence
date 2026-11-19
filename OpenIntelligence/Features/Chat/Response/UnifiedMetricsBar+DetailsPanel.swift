@@ -75,7 +75,9 @@ extension UnifiedMetricsBar {
                         agenticToolsSection
                     }
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelContentHeight = $0 }
+                #if os(iOS)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelContentHeight = $0 }
+                #endif
             }
             
             // Native Resizable Drawer Handle
@@ -108,7 +110,12 @@ extension UnifiedMetricsBar {
                     }
             )
         }
-        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { panelTop = $0 }
+        // On a Mac the panel does not measure itself (5.8, 2026-11-19): the window re-laid out each time its height followed
+        // its sections' measured height, until AppKit threw ("_NSViewLayout", crash reports 12:48:37 on the owner's Mac,
+        // the stats bar tapped under a Standard answer, and likely 10:46:58). It opens at a set height and scrolls.
+        #if os(iOS)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { panelTop = $0 }
+        #endif
         // One explicit height, with the card around it (5.8, the owner's iPhone, 2026-11-10). Until then the card sat
         // in a frame that grew to all the space Chat offered: an undragged panel showed empty space under its
         // sections, dragging up left a blank band above them, and a drag could take the handle under the tab bar,
@@ -149,8 +156,15 @@ extension UnifiedMetricsBar {
     /// The height on screen: a dragged height, or the sections' own height with the handle; never past the limit.
     var panelHeight: CGFloat {
         if baseHeight > 0 { return clampedPanelHeight(baseHeight + dragOffset) }
-        return min(panelMaxHeight, max(60, panelContentHeight + Self.panelHandleHeight))
+        #if os(macOS)
+            return Self.macPanelHeight
+        #else
+            return min(panelMaxHeight, max(60, panelContentHeight + Self.panelHandleHeight))
+        #endif
     }
+
+    /// The Mac panel's height before a drag: set, not measured (see the note at the panel's `onGeometryChange`).
+    static let macPanelHeight: CGFloat = 440
 
     /// A dragged height kept between 150 points and the limit.
     func clampedPanelHeight(_ height: CGFloat) -> CGFloat {

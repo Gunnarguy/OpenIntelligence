@@ -824,7 +824,7 @@ extension ChatScreen {
                 .onReceive(macShellCommands.map { $0.$answerDetails.eraseToAnyPublisher() } ?? Just(nil).eraseToAnyPublisher()) {
                     macAnswerDetails = $0
                 }
-                // An answer's details beside the chat, as a pane of this area, instead of a sheet over it (5.8, 2026-11-19).
+                // An answer's details in a sheet of a fixed size (5.8, 2026-11-19; see `MacAnswerDetailsPane`).
                 // They were the window's `.inspector`, and Chat stays alive behind the other areas (`MacShell`), so the
                 // window always carried that inspector's column. While an answer ran, Chat redrew 5 times a second and
                 // the window's constraints pass restarted until AppKit threw ("Update Constraints in Window", crash
@@ -1744,15 +1744,20 @@ extension ChatScreen {
 }
 
 #if os(macOS)
-    /// An answer's details in a pane beside the chat, the way Documents shows a document's (5.8 Mac redesign).
+    /// An answer's details in a sheet of a fixed size over the chat (5.8 Mac redesign, 2026-11-19). They were the window's
+    /// `.inspector` and then an `HSplitView` pane, and the app quit both ways: a split view's column takes its minimum
+    /// width from its content, the details' content changed it during AppKit's constraints pass, and the pass restarted
+    /// until AppKit threw (crash reports 10:46:58, a Standard answer running, and 12:44:39, the details opened:
+    /// `SplitViewChildController.hostingView(_:didUpdateMinSize:maxSize:)` under `NSHostingView._willUpdateConstraintsForSubtree`).
+    /// A sheet of a set size takes nothing from its content.
     private struct MacAnswerDetailsPane: ViewModifier {
         let details: MacAnswerDetails?
         let onClose: () -> Void
 
         func body(content: Content) -> some View {
-            HSplitView {
-                content
-                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+            content.sheet(
+                isPresented: Binding(get: { details != nil }, set: { if !$0 { onClose() } })
+            ) {
                 if let details {
                     ChatResponseDetailsView(
                         metadata: details.metadata,
@@ -1762,7 +1767,7 @@ extension ChatScreen {
                     )
                     .environment(\.libraryDocumentLookup, details.lookup)
                     .id(details.id)
-                    .frame(minWidth: 340, idealWidth: 420, maxWidth: 640, maxHeight: .infinity)
+                    .frame(width: 640, height: 720)
                 }
             }
         }
