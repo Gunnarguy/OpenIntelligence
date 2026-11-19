@@ -1073,7 +1073,9 @@ extension RAGService {
             // `checked:` rather than `verified:`, which `VerificationOutcome` reads as Partially Verified.
             let unchecked = result.gateResults.filter(\.notChecked).map(\.gate.rawValue)
             let confidence = "\(String(format: "%.0f", result.overallConfidence * 100))%"
-            guard unchecked.isEmpty else { return "checked:\(confidence),not_checked:" + unchecked.joined(separator: "+") }
+            guard unchecked.isEmpty else {
+                return "checked:\(confidence),not_checked:" + unchecked.joined(separator: "+")
+            }
             return "verified:\(confidence)"
         }
         return "unverified:" + result.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: "+")
@@ -1682,7 +1684,8 @@ extension RAGService {
                                 "\n\n*This answer stopped early: Apple paused the on-device model while the app was in "
                                 + "the background, and it couldn't be finished. Ask again to get the whole answer.*"
                         } else {
-                            stopNote = "\n\n*This answer stopped early because the model stopped. Ask again to get the whole answer.*"
+                            stopNote =
+                                "\n\n*This answer stopped early because the model stopped. Ask again to get the whole answer.*"
                         }
                         return LLMResponse(
                             text: capturedTrimmed + stopNote,
@@ -1859,7 +1862,21 @@ extension RAGService {
                     // In the background a retry only spends the ladder: iOS rate-limits the on-device model
                     // for an app there (5.8, Apple's `GenerationError.rateLimited`). The answer waits for the
                     // app to come back and goes on from this step.
-                    let waited = await Self.waitWhileAppIsInBackground()
+                    //
+                    // Only an answer asked in Chat waits (5.8, 2026-11-19). A question from Siri or Shortcuts runs with
+                    // the app in the background by design, so it waited forever: on the owner's iPhone "What is the
+                    // monthly rent" was rate-limited at 09:15:13 and the action's two-second heartbeat moved the
+                    // system's progress bar past "157 of 176" for more than 15 minutes with no work behind it. Such a
+                    // question asks once to bring the app forward (the system offers to continue in the app); if it
+                    // stays behind, the ladder runs out and the action reports that it could not answer.
+                    let askedInChat = Self.answerAskedInChat
+                    if !askedInChat, index == 0 {
+                        let bringForward: (@Sendable () async throws -> Void)? = await MainActor.run {
+                            Self.appIsInBackground ? self.bringAppForwardForConsent : nil
+                        }
+                        if let bringForward { try? await bringForward() }
+                    }
+                    let waited = askedInChat ? await Self.waitWhileAppIsInBackground() : 0
                     if waited >= 1 {
                         Log.info(
                             "[RAG] Waited \(String(format: "%.0f", waited))s for the app to come back before retry \(index + 1)",
