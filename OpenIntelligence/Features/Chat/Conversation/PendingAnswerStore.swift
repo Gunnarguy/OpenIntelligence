@@ -20,6 +20,11 @@ import Foundation
         let containerId: UUID?
         let askedAt: Date
         var resumed: Bool
+        /// The answer's text once its last word was written, before its checks (5.8, 2026-11-19). On the owner's
+        /// iPhone an answer finished in the background at 12:00:50 ("The safe internal temperature for fish is 145°F")
+        /// and iOS ended the app during the checks that follow, before it was saved; the reopened chat asked the
+        /// question again from the start. With the text kept here the chat shows that answer instead.
+        var answer: String? = nil
     }
 
     /// How old a lost question may be and still be asked again by itself.
@@ -47,6 +52,14 @@ import Foundation
     static var current: Record? {
         guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(Record.self, from: data)
+    }
+
+    /// Keeps the written answer with its question's record, for the chat to show if the app ends before it is saved.
+    static func keepAnswer(_ text: String, forQuestion messageId: UUID?) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let messageId, var record = current, record.messageId == messageId else { return }
+        record.answer = trimmed
+        save(record)
     }
 
     static func clear() {

@@ -431,6 +431,11 @@ extension ChatScreen {
                                 self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
                             }
                             self.isStreamFinished = true
+                            // The written answer is kept now, before its checks run (5.8, 2026-11-19): iOS can end the
+                            // app during them, and the answer would be lost (`PendingAnswerStore.keepAnswer`).
+                            PendingAnswerStore.keepAnswer(
+                                self.sanitizeFinalResponse(self.streamingText + self.streamingBuffer),
+                                forQuestion: self.messages.last(where: { $0.role == .user })?.id)
                             // DO NOT flush - let the pump finish naturally for a smooth end
                         } else {
                             self.continuedQueryCoordinator.markFirstToken()

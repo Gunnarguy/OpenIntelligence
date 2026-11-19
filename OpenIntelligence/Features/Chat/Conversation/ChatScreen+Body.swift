@@ -401,7 +401,27 @@ extension ChatScreen {
                 // the question and "This answer didn't finish." Only before anything is asked in this run, so an
                 // answer still running here is never asked twice, and never Maximum, which would spend a metered run
                 // nobody asked for (or, at the limit, open its dialog and drop the question; refuting review).
-                if !PendingAnswerStore.askedThisLaunch, !isProcessing, effectiveQualityMode.canonical != .maximum,
+                if !PendingAnswerStore.askedThisLaunch, !isProcessing,
+                    let pending = PendingAnswerStore.resumable(
+                        PendingAnswerStore.current, lastMessageId: messages.last?.id,
+                        lastMessageIsQuestion: messages.last?.role == .user, containerId: activeId,
+                        mode: effectiveQualityMode),
+                    let written = pending.answer, !written.isEmpty
+                {
+                    // The answer was written before the app ended (5.8, 2026-11-19): it is shown, not asked again.
+                    VerificationJournal.record(
+                        "answer.restoredWritten",
+                        ["mode": pending.mode, "chars": "\(written.count)",
+                            "ageSeconds": "\(Int(Date().timeIntervalSince(pending.askedAt)))"])
+                    var restored = ChatMessage(
+                        role: .assistant,
+                        content: written
+                            + "\n\n*(Saved before its sources were checked: iOS closed the app in the background. "
+                            + "Ask again for the checked answer with its sources.)*")
+                    restored.containerId = activeId
+                    appendAndPersistMessage(restored, for: activeId)
+                    PendingAnswerStore.clear()
+                } else if !PendingAnswerStore.askedThisLaunch, !isProcessing, effectiveQualityMode.canonical != .maximum,
                     let pending = PendingAnswerStore.resumable(
                         PendingAnswerStore.current, lastMessageId: messages.last?.id,
                         lastMessageIsQuestion: messages.last?.role == .user, containerId: activeId,
