@@ -28,9 +28,6 @@ struct DocumentLibraryView: View {
     #if os(macOS)
         /// The window's sidebar requests (5.8 Mac redesign).
         @Environment(\.macShellCommands) var macShellCommands
-        /// Whether Documents is in front now, and when the inspector was last closed (`macDocumentsChrome`).
-        @State var macAreaFlag = MacAreaFlag()
-        @State var macInspectorClosedAt: Date?
     #endif
     /// A document in an iCloud library that a swipe asked to delete, waiting for the answer (5.7).
     @State var swipeDeleteCandidate: Document?

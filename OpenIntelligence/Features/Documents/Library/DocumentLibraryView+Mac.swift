@@ -14,37 +14,24 @@
     extension DocumentLibraryView {
         /// The toolbar, inspector and sidebar commands, around the area's content.
         func macDocumentsChrome<Content: View>(_ content: Content) -> some View {
-            content
+            // The details are a pane of this area, beside the table, not the window's inspector (5.8, 2026-11-19). Chat
+            // has the window's inspector for an answer's details, and with both areas kept alive side by side two
+            // `.inspector` columns in one window made AppKit re-lay the window until it threw: "Update Constraints in
+            // Window" passes ran out, and the app quit on the first click on Documents in the sidebar (crash reports
+            // 2026-11-19 07:40 and 07:50, `-[NSWindow _postWindowNeedsUpdateConstraints]` under
+            // `NSHostingView.invalidateSafeAreaInsets`).
+            HSplitView {
+                content
+                    .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                if macShowsInspector && !filteredDocuments.isEmpty {
+                    macInspectorContent
+                        .frame(minWidth: 300, idealWidth: 380, maxWidth: 560, maxHeight: .infinity)
+                }
+            }
                 .navigationSubtitle(macAreaIsActive ? macSubtitle : "")
                 .toolbar {
                     if macAreaIsActive {
                         macDocumentToolbar
-                    }
-                }
-                // Gated on the area being in front: the inspector is a column of the window, and it must not stay
-                // open beside Chat.
-                .inspector(
-                    isPresented: Binding(
-                        get: { macShowsInspector && macAreaIsActive && !filteredDocuments.isEmpty },
-                        set: { show in
-                            if show {
-                                macShowsInspector = true
-                                return
-                            }
-                            // Closed with another area already in front: the switch, not the person.
-                            guard macAreaFlag.isActive else { return }
-                            macShowsInspector = false
-                            macInspectorClosedAt = Date()
-                        })
-                ) {
-                    macInspectorContent
-                        .inspectorColumnWidth(min: 300, ideal: 380, max: 560)
-                }
-                // A close that came with the switch to another area is undone: the inspector is the person's to close.
-                .onChange(of: macAreaIsActive) { _, active in
-                    macAreaFlag.isActive = active
-                    if !active, let closed = macInspectorClosedAt, Date().timeIntervalSince(closed) < 1 {
-                        macShowsInspector = true
                     }
                 }
                 // A link, Siri or the Atlas asked for a document: select it and show it beside the table.

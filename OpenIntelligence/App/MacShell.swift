@@ -121,8 +121,9 @@ private struct AreaNavigationTitle: ViewModifier {
         var body: some View {
             List(selection: $selection) {
                 Section {
-                    area("Chat", symbol: "bubble.left.and.bubble.right", .chat)
-                        .badge(unseenAnswers)
+                    // The badge goes inside the tag: a `.badge` around the `.tag` hid the tag from the List, so the
+                    // Chat row could not be selected or clicked (2026-11-19).
+                    area("Chat", symbol: "bubble.left.and.bubble.right", .chat, badge: unseenAnswers)
                     area("Documents", symbol: "doc.text.magnifyingglass", .documents)
                     area("Atlas", symbol: "globe.americas", .visualizations)
                     area("Database", symbol: "cylinder.split.1x2", .database)
@@ -181,8 +182,9 @@ private struct AreaNavigationTitle: ViewModifier {
             }
         }
 
-        private func area(_ title: String, symbol: String, _ tab: ContentView.Tab) -> some View {
+        private func area(_ title: String, symbol: String, _ tab: ContentView.Tab, badge: Int = 0) -> some View {
             Label(title, systemImage: symbol)
+                .badge(badge)
                 .tag(MacSidebarItem.area(tab))
         }
 
