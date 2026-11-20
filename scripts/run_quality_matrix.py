@@ -548,8 +548,22 @@ def score(case: dict, parsed: dict) -> dict:
 _PRE_EXISTING_DOCUMENTS: set[str] | None = None
 _PRE_EXISTING_METADATA: str | None = None
 
+# The iOS Simulator a run uses, when `--simulator` names one (2026-10-20, for 5.7). Apple's on-device model writes
+# answers in the iOS 27.0 Simulator on this Mac (measured 2026-10-01), so a run there measures the shipped pipeline
+# with the model, and its storage is that Simulator's app container, never the owner's own library. The app installed
+# there must be a Debug build (the headless harness is `#if DEBUG`) with the Simulator model switches patched
+# (PostDesk `Tools/demos/oi/patch_sim_switches.py`).
+SIM_UDID: str | None = None
+SIM_BUNDLE = "Gunndamental.OpenIntelligence"
+SIM_LIBRARY: Path | None = None
+# Fixtures are copied here before a Simulator run: a file under ~/Documents is behind macOS's privacy check for the
+# Documents folder, which a Simulator app has no way to answer.
+SIM_FIXTURES = Path("/private/tmp/oi-sim-bench-fixtures")
+
 
 def real_library_path() -> Path:
+    if SIM_LIBRARY is not None:
+        return SIM_LIBRARY
     return Path.home() / "Library/Application Support/OpenIntelligence"
 
 
@@ -659,9 +673,23 @@ def run_one(
     missing = [p for p in inputs if not Path(p).exists()]
     if missing:
         return {"ok": False, "error": f"missing fixtures: {missing[:3]}"}
+    if SIM_UDID:
+        # Same relative paths under SIM_FIXTURES, so file names, and so source names in the report, are unchanged.
+        staged = []
+        for rel in ordered:
+            source, dest = REPO_ROOT / rel, SIM_FIXTURES / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if not dest.exists() or dest.stat().st_size != source.stat().st_size:
+                shutil.copy2(source, dest)
+            staged.append(str(dest))
+        inputs = staged
 
+    launcher = (
+        ["xcrun", "simctl", "launch", "--console", "--terminate-running-process", SIM_UDID, SIM_BUNDLE]
+        if SIM_UDID else [str(app_bin)]
+    )
     cmd = [
-        str(app_bin),
+        *launcher,
         "--rag-validation",
         "--rag-validation-query", case["query"],
         "--rag-validation-files", ",".join(inputs),
@@ -794,6 +822,11 @@ def reap_orphan_apps() -> int:
     own command line contains `--app /private/tmp/oi-mac-40/.../OpenIntelligence`. That mistake
     killed a run at case 11 of 16 on 2026-08-19.
     """
+    if SIM_UDID:
+        # In a Simulator the app is ended by name; `simctl terminate` fails when it was not running.
+        ended = subprocess.run(
+            ["xcrun", "simctl", "terminate", SIM_UDID, SIM_BUNDLE], capture_output=True, text=True, timeout=30)
+        return 1 if ended.returncode == 0 else 0
     try:
         found = subprocess.run(
             ["pgrep", "-f", "Contents/MacOS/OpenIntelligence"],
@@ -1024,7 +1057,10 @@ def render_markdown(summaries: list[dict], rows: list[dict], meta: dict,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--app", required=True, help="path to built OpenIntelligence.app (or its binary)")
+    ap.add_argument("--app", help="path to built OpenIntelligence.app (or its binary); not used with --simulator")
+    ap.add_argument("--simulator", default="",
+                    help="UDID of an iOS Simulator holding a Debug build with the Simulator model switches patched; "
+                         "the run launches the app there instead of a Mac build")
     ap.add_argument("--modes", default=",".join(ALL_MODES))
     ap.add_argument("--pcc", default="deny", choices=["allow", "deny"])
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
@@ -1081,11 +1117,26 @@ def main() -> int:
                          "Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json")
     args = ap.parse_args()
 
-    app = Path(args.app).expanduser().resolve()
-    app_bin = app / "Contents/MacOS/OpenIntelligence" if app.suffix == ".app" else app
-    if not app_bin.exists():
-        print(f"error: app binary not found at {app_bin}", file=sys.stderr)
-        return 2
+    global SIM_UDID, SIM_LIBRARY
+    if args.simulator:
+        SIM_UDID = args.simulator
+        container = subprocess.run(
+            ["xcrun", "simctl", "get_app_container", SIM_UDID, SIM_BUNDLE, "data"],
+            capture_output=True, text=True, timeout=60).stdout.strip()
+        if not container:
+            print(f"error: {SIM_BUNDLE} is not installed on Simulator {SIM_UDID}", file=sys.stderr)
+            return 2
+        SIM_LIBRARY = Path(container) / "Library/Application Support/OpenIntelligence"
+        app_bin = Path(f"simulator:{SIM_UDID}")
+    else:
+        if not args.app:
+            print("error: give --app, or --simulator", file=sys.stderr)
+            return 2
+        app = Path(args.app).expanduser().resolve()
+        app_bin = app / "Contents/MacOS/OpenIntelligence" if app.suffix == ".app" else app
+        if not app_bin.exists():
+            print(f"error: app binary not found at {app_bin}", file=sys.stderr)
+            return 2
 
     modes = [m.strip() for m in args.modes.split(",") if m.strip()]
     bad = [m for m in modes if m not in ALL_MODES]
@@ -1209,7 +1260,8 @@ def main() -> int:
                 continue
             if args.reset_shared_library:
                 reset_shared_library()
-            storage = Path(tempfile.mkdtemp(prefix=f"matrix-{case['id']}-{mode}-"))
+            storage = Path(tempfile.mkdtemp(
+                prefix=f"matrix-{case['id']}-{mode}-", dir="/private/tmp" if SIM_UDID else None))
             try:
                 print(f"[{n}/{total}] {mode:11} {case['id']}", end=" ", flush=True)
                 run = run_one(
