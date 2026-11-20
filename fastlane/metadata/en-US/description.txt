@@ -1,10 +1,22 @@
 Ask a question about your own PDFs, contracts, lecture recordings or code, and get an answer with the exact passage it came from. Nothing you import leaves your device unless you allow it. Free to start, no account, no API key.
 
-OpenIntelligence reads what you import and answers in plain language, with citations you can tap to see where each claim came from. When your files don't contain the answer, it says so instead of guessing.
-
 ANSWERS START IN YOUR FILES
 
-Not in a chatbot's imagination. OpenIntelligence searches your library first, pulls the exact passages that matter, and only then writes, using Apple's on-device Apple Intelligence models. Requires an Apple Intelligence-capable device, like iPhone 15 Pro or later or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26. Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+Not in a chatbot's imagination.
+
+- OpenIntelligence searches your library first and pulls the exact passages that matter.
+- Only then does it write, in plain language, using Apple's on-device Apple Intelligence models.
+- Inline citations connect every answer to its supporting pages and passages, one tap from claim to source.
+- When your files don't contain the answer, it says so instead of guessing.
+- Requires an Apple Intelligence-capable device, like iPhone 15 Pro or later or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26.
+
+Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+
+MEASURED IN 5.8
+
+- 88% of my 17 mixed test questions answered right in Standard (15 of 17), up from 53% in 5.7. One run each.
+- 89% of cited passages highlighted over most of their length, across 44 PDFs on a Mac, up from 58%.
+- 85% of 515 import checks passed on my eight test papers (439), up from 67%, and 94% of numbers kept, up from 90%.
 
 WHAT YOU CAN DO
 
@@ -16,29 +28,40 @@ WHAT YOU CAN DO
 
 BRING YOUR OWN MATERIAL
 
-Import PDFs, Office documents, text and Markdown files, CSVs, code, images and scans, audio, or video. Pages, Numbers and Keynote files need to be exported to PDF first. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
+- PDFs, Office documents, text and Markdown files, CSVs and code.
+- Images and scans, read with Vision OCR where needed.
+- Audio and video, transcribed.
+- Pages, Numbers and Keynote files: export to PDF first.
 
 HOW ANSWERS ARE BUILT
 
-Exact keyword matching and semantic search work together to retrieve the passages that matter. Apple Foundation Models turn those passages into a natural-language response. Then the app checks its own answer against the passages it actually used, so you can inspect what it's standing on instead of taking its word.
-
-If the sources do not establish an answer, the app flags weak support or abstains. No confident filler.
+- Exact keyword matching and semantic search work together to find those passages.
+- Apple Foundation Models turn them into a natural-language response.
+- The app then checks its own answer against the passages it actually used.
+- If the sources do not establish an answer, it flags weak support or abstains. No confident filler.
+- Response details show source snippets, retrieval quality, verification warnings, timing, and the route that produced the answer.
 
 WHERE YOUR FILES GO (AND DON'T)
 
-Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can optionally allow Apple Private Cloud Compute to do the writing. The app shows you how much would be sent and why, and asks you first. Apple says its servers keep nothing afterwards. Your material is never sent to a third-party AI provider.
-
-ANSWERS YOU CAN INSPECT
-
-Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer.
+- Reading your files, searching them, and choosing what to cite all happen on your device, before anything is written.
+- On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works.
+- For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can allow Apple Private Cloud Compute to do the writing. The app shows you how much would be sent and why, and asks you first. Apple says its servers keep nothing afterwards.
+- Your material is never sent to a third-party AI provider.
 
 LIBRARIES THAT FIT YOUR WORK
 
-Keep different subjects, projects, or clients in separate libraries. Choose Local Only or iCloud Drive (paid plans) for each library, and organize ongoing research in saved conversation threads. Siri and Shortcuts actions are available for common document and library workflows.
+- Separate libraries, each with its own searchable index, for different subjects, projects, or clients.
+- Local Only or iCloud Drive (paid plans) for each library.
+- Saved conversation threads for ongoing research.
+- Siri and Shortcuts actions for common document and library workflows.
 
 PLANS
 
-Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, 1 library, Maximum 3 times a day. Pro: no Maximum cap, 1,000 documents, 10 libraries, more conversations, watched folders. Lifetime, one payment: unlimited documents and conversations, 20 libraries, watched folders.
+Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent.
+
+- Free: 5 documents, 1 library, Maximum 3 times a day.
+- Pro: no Maximum cap, 1,000 documents, 10 libraries, more conversations, watched folders.
+- Lifetime, one payment: unlimited documents and conversations, 20 libraries, watched folders.
 
 OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
 

@@ -193,6 +193,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Live:** not yet; submitted 2026-11-19 ~13:55 PT with build 506, pulled ~14:30 at the owner's word, and submitted again ~15:50 PT with build 509 (`8e148387`) on both platforms, release AFTER_APPROVAL, both WAITING_FOR_REVIEW (submissions 001409e4 iOS, f3ea2da1 macOS)
 - **Rejected 2026-11-20, 02:51 (iOS) and 02:52 (macOS), Guideline 3.1.2 (Business: Payments, Subscriptions), by an automated check:** the submission offers auto-renewable subscriptions (Pro Monthly, Pro Annual) and the description had no functional link to the Terms of Use (EULA). The app uses Apple's standard EULA (the plans screen links it, `PlanUpgradeSheet.swift`), so the description now ends with `Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/` under the privacy line. To stay under 4,000, the sentence "The optional telemetry interface goes deeper when you want it and stays out of the way when you don't." was cut, since the sentence before it already says response details go deeper. 3,981 characters. Written to both App Store Connect localizations (en-US, iOS and macOS) through the API on 2026-11-20 and read back equal; the URL answered HTTP 200. Build 509 is unchanged; resubmission is the owner's.
 - **Promotional text, 2026-11-20, at the owner's word ("Update promo text to %s"):** the Standard result is given as a percentage with its count beside it, "right on 88% of test questions (15 of 17), up from 53% in 5.7" (15 of 17 is 88.2%, 9 of 17 is 52.9%; `Docs/USER_CHANGELOG.md`, "Measured against 5.7"), where both platforms read "right on 15 of 17 test questions where 5.7 got 9". 169 characters on the Mac and 168 on iPhone and iPad, limit 170. Written to both 5.8 localizations through the API while the version waited for review (promotional text can change without a new submission) and read back equal; both records still read `WAITING_FOR_REVIEW`. The release notes keep their counts: What's New cannot change while a version is in review.
+- **Description, 2026-11-20, at the owner's word ("And description if possible, I love bullet points"):** the same claims as bullets under the same headings, and a new section, `MEASURED IN 5.8`, with three results from the release notes as percentages with their counts: Standard 88% of 17 mixed test questions (15), up from 53% in 5.7, one run each; 89% of cited passages highlighted over most of their length on 44 PDFs on a Mac, up from 58%; 85% of 515 import checks on eight test papers (439), up from 67% (344), and numbers kept 94%, up from 90%. `ANSWERS YOU CAN INSPECT` is folded into the first section (the inline-citation line) and `HOW ANSWERS ARE BUILT` (the response-details line); the device requirement is a bullet in the first section; the opening paragraph, "Not in a chatbot's imagination.", "Your device already had the intelligence...", the plans, the closing paragraph and the two links are unchanged. Sentences shortened to fit, with no claim withdrawn: "so you can inspect what it's standing on instead of taking its word" and "start to finish" are cut, "transcribes speech" reads "transcribed", "optionally allow" reads "allow". 3,989 characters. Written to both 5.8 localizations through the API while the version waited for review (a description edit was accepted in that state, measured the same day) and read back equal; both records still read `WAITING_FOR_REVIEW`. The section names a version, so it has to be measured again or removed for 5.9.
 - **Final release notes commit:** not yet committed; the text below is the working tree of 2026-11-19 (the previous text was the 2026-11-18 `8f63d7f8` notes and the 2026-11-17 promotional text)
 - **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,535 characters for the Mac and 2,616 for iPhone and iPad, after the launch-freeze, rebuild, Atlas and two-window lines were added the same day; promotional text 159. Not pushed to App Store Connect.
 - **Release notes, 2026-11-14:** a MEASURED AGAINST 5.7 block after the opening (15, 14 and 14 right of 17 like-for-like questions against 9, 11 and 9). 3,761 characters for the Mac, 3,631 for iPhone and iPad. Not pushed to App Store Connect.
@@ -343,11 +344,23 @@ New in 5.8, the biggest update yet: Standard right on 88% of test questions (15 
 ```text
 Ask a question about your own PDFs, contracts, lecture recordings or code, and get an answer with the exact passage it came from. Nothing you import leaves your device unless you allow it. Free to start, no account, no API key.
 
-OpenIntelligence reads what you import and answers in plain language, with citations you can tap to see where each claim came from. When your files don't contain the answer, it says so instead of guessing.
-
 ANSWERS START IN YOUR FILES
 
-Not in a chatbot's imagination. OpenIntelligence searches your library first, pulls the exact passages that matter, and only then writes, using Apple's on-device Apple Intelligence models. Requires an Apple Intelligence-capable device, like iPhone 15 Pro or later or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26. Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+Not in a chatbot's imagination.
+
+- OpenIntelligence searches your library first and pulls the exact passages that matter.
+- Only then does it write, in plain language, using Apple's on-device Apple Intelligence models.
+- Inline citations connect every answer to its supporting pages and passages, one tap from claim to source.
+- When your files don't contain the answer, it says so instead of guessing.
+- Requires an Apple Intelligence-capable device, like iPhone 15 Pro or later or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26.
+
+Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+
+MEASURED IN 5.8
+
+- 88% of my 17 mixed test questions answered right in Standard (15 of 17), up from 53% in 5.7. One run each.
+- 89% of cited passages highlighted over most of their length, across 44 PDFs on a Mac, up from 58%.
+- 85% of 515 import checks passed on my eight test papers (439), up from 67%, and 94% of numbers kept, up from 90%.
 
 WHAT YOU CAN DO
 
@@ -359,33 +372,45 @@ WHAT YOU CAN DO
 
 BRING YOUR OWN MATERIAL
 
-Import PDFs, Office documents, text and Markdown files, CSVs, code, images and scans, audio, or video. Pages, Numbers and Keynote files need to be exported to PDF first. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
+- PDFs, Office documents, text and Markdown files, CSVs and code.
+- Images and scans, read with Vision OCR where needed.
+- Audio and video, transcribed.
+- Pages, Numbers and Keynote files: export to PDF first.
 
 HOW ANSWERS ARE BUILT
 
-Exact keyword matching and semantic search work together to retrieve the passages that matter. Apple Foundation Models turn those passages into a natural-language response. Then the app checks its own answer against the passages it actually used, so you can inspect what it's standing on instead of taking its word.
-
-If the sources do not establish an answer, the app flags weak support or abstains. No confident filler.
+- Exact keyword matching and semantic search work together to find those passages.
+- Apple Foundation Models turn them into a natural-language response.
+- The app then checks its own answer against the passages it actually used.
+- If the sources do not establish an answer, it flags weak support or abstains. No confident filler.
+- Response details show source snippets, retrieval quality, verification warnings, timing, and the route that produced the answer.
 
 WHERE YOUR FILES GO (AND DON'T)
 
-Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can optionally allow Apple Private Cloud Compute to do the writing. The app shows you how much would be sent and why, and asks you first. Apple says its servers keep nothing afterwards. Your material is never sent to a third-party AI provider.
-
-ANSWERS YOU CAN INSPECT
-
-Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer. The optional telemetry interface goes deeper when you want it and stays out of the way when you don't.
+- Reading your files, searching them, and choosing what to cite all happen on your device, before anything is written.
+- On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works.
+- For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can allow Apple Private Cloud Compute to do the writing. The app shows you how much would be sent and why, and asks you first. Apple says its servers keep nothing afterwards.
+- Your material is never sent to a third-party AI provider.
 
 LIBRARIES THAT FIT YOUR WORK
 
-Keep different subjects, projects, or clients in separate libraries. Choose Local Only or iCloud Drive (paid plans) for each library, and organize ongoing research in saved conversation threads. Siri and Shortcuts actions are available for common document and library workflows.
+- Separate libraries, each with its own searchable index, for different subjects, projects, or clients.
+- Local Only or iCloud Drive (paid plans) for each library.
+- Saved conversation threads for ongoing research.
+- Siri and Shortcuts actions for common document and library workflows.
 
 PLANS
 
-Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, 1 library, Maximum 3 times a day. Pro: no Maximum cap, 1,000 documents, 10 libraries, more conversations, watched folders. Lifetime, one payment: unlimited documents and conversations, 20 libraries, watched folders.
+Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent.
+
+- Free: 5 documents, 1 library, Maximum 3 times a day.
+- Pro: no Maximum cap, 1,000 documents, 10 libraries, more conversations, watched folders.
+- Lifetime, one payment: unlimited documents and conversations, 20 libraries, watched folders.
 
 OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
 
 Privacy Policy: gunndamental.com/openintelligence/privacy/
+Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 ```
 
 ### 5.7
