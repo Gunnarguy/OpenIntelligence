@@ -1,54 +1,64 @@
-5.8 is the biggest update since launch, about answers you can trust and an app that gets out of your way.
+5.8 is the biggest update since launch.  Answers are right more often, you can see exactly where each one came from, and an answer keeps going when you leave the app.
 
 
-MEASURED AGAINST 5.7
+THE SHORT VERSION
 
-• On 17 mixed test questions asked the same way in both, Standard got 15 right against 5.7's 9, Deep Think 14 against 11 and Maximum 14 against 9.  One run each.  Answer and search figures are from the iOS 27 Simulator unless a Mac or my iPhone is named.
+• More right answers.  On 17 test questions asked the same way in 5.7 and 5.8, Standard went from 53% right to 88% (9 to 15 of 17), Deep Think from 65% to 82% (11 to 14) and Maximum from 53% to 82% (9 to 14).  One run each, in the iOS 27 Simulator unless a Mac or my iPhone is named.
 
+• Tap a citation and the document opens with the exact words highlighted.  On 44 PDFs on a Mac, 89% of passages were marked over most of their length, up from 58%.
 
-A ONE-TIME REBUILD
+• Tables and numbers survive import.  My eight test papers pass 85% of 515 import checks (439), up from 67% (344), and 94% of numbers are kept, up from 90%.
 
-• Search uses IBM's Granite embedding model in place of MiniLM, whose training data was licensed for research only, and found the right document in the top five on 15 of 19 test questions, up from 10.  Each library rebuilds its index once when opened and keeps its text, so nothing is imported again; a large library takes a while and carries on in the background.  If you share libraries over iCloud, update every device.
-
-• IBM's Granite reranker put the passage holding the answer in the top five on 119 of 246 research-paper questions, up from 103, on a Mac.
-
-
-ANSWERS
-
-• Deep Think writes from the passages its searches cited, up to about 6,000 tokens at an 8K window: 49 of 53 table questions right, up from 47.  It opens with the answer, about 14 seconds sooner at the median, and checks every claim it lists.
-
-• Maximum reads the source passages themselves: 25 of 30 table values right, up from 8, in 79 seconds at the median against 117.
-
-• Apple gives its on-device model 4K to 8K tokens, and its larger one 8K on iPhone Air, iPhone 17 Pro and 18 Pro, iPhone Duo and M4 or later iPads.  My iPhone 16 Pro Max read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1.  A continued answer no longer stops after 1,600 more characters, and Model & Privacy names the model.
-
-• A citation opens any document highlighted on its exact words; on 44 PDFs on a Mac, passages marked over most of their length went from 58% to 89%.  Every answer keeps its citations, where 8 of 28 on my iPhone had lost them.
-
-• A list item's number stays with its subject, a "no" about something else no longer counts against an answer, Needs Verification means a claim failed, and the badge agrees with Fact Check.
-
-• Quotes only quotes your documents word for word, "which document" gets the file's name, a follow-up answers your latest question, no answer is blank, and tokens per second is the answer's own writing speed.
+• One thing to know: each library rebuilds its search once, the first time you open it.  Nothing is imported again.
 
 
 ON IPHONE AND IPAD
 
-• An answer keeps working after you leave and finishes there when Apple Intelligence allows it, otherwise as soon as you're back, and a finished answer is never lost.  Imports keep going in the background, and the app is no longer closed there while iCloud syncs.
+• An answer keeps working after you leave and finishes there when Apple Intelligence allows it, otherwise as soon as you're back.  A finished answer is never lost.
+
+• Imports keep going in the background, and the app is no longer closed there while iCloud syncs.
 
 • A finished import's card leaves the Lock Screen and your Watch when you open the app, a swipe in from the left opens Evidence Threads, the X-Ray outlines your chip itself on recent models, and iPhone stays upright.
 
 
+SEARCH
+
+• Search finds the right document more often: in the top five for 79% of test questions (15 of 19), up from 53% (10).  It now uses IBM's Granite model in place of MiniLM, whose training data was licensed for research only.
+
+• The passage holding the answer reached the top five on 48% of 246 research-paper questions (119), up from 42% (103), on a Mac.
+
+• The one-time rebuild keeps your text.  A large library takes a while and carries on in the background.  If you share libraries over iCloud, update every device.
+
+
+ANSWERS
+
+• Deep Think opens with the answer, about 14 seconds sooner at the median, and got 92% of 53 table questions right (49), up from 89% (47).  It checks every claim it lists.
+
+• Maximum reads the source passages themselves: 83% of 30 table values right (25), up from 27% (8), in 79 seconds at the median where it took 117.
+
+• Long answers no longer stop short, and every answer keeps its citations, where 29% on my iPhone had lost them (8 of 28).
+
+• Apple's on-device model has room for 4K to 8K tokens, and its larger one 8K on iPhone Air, iPhone 17 Pro and 18 Pro, iPhone Duo and M4 or later iPads.  My iPhone 16 Pro Max read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1.  Model & Privacy names the model you have.
+
+• Fact Check is fairer: a list item's number stays with its subject, a "no" about something else doesn't count against an answer, and Needs Verification means a claim failed.
+
+• Quotes only quotes your documents word for word, "which document" gets the file's name, a follow-up answers your latest question, and no answer is blank.
+
+
 YOUR DOCUMENTS
 
-• My eight test papers now pass 439 of 515 import checks, up from 344: tables stay whole under their column names, faded scans, fine print and other scripts are read, and numbers kept went from 90% to 94%.
+• Tables stay whole under their column names, and faded scans, fine print and other scripts are read.
 
-• On Pro and Lifetime a library can watch a folder, checked each time you open the app, and it never changes your originals.
+• On Pro and Lifetime a library can watch a folder: new files in it import by themselves.  It checks each time you open the app and never changes your originals.
 
-• The guides have their own Guide library, which stays as it came and doesn't count toward your plan, and your first library is now Library 1.
+• The guides have their own Guide library, which doesn't count toward your plan, and your first library is now Library 1.
 
-• Several files no longer wait on each other, an import reads Complete once you can search it, a rebuild leaves your other devices alone, and sync never deletes a document it can't place.
+• Several files no longer wait on each other, an import reads Complete once you can search it, and sync never deletes a document it can't place.
 
 
 ALSO
 
-• No launch freeze from a watched folder or iCloud, the Atlas no longer spends 24 to 61 seconds on every open, Chat no longer turns white, and "Getting search ready" happens once and says which step it's on.
+• No launch freeze from a watched folder or iCloud, the Atlas no longer spends 24 to 61 seconds on every open, Chat no longer turns white, and "Getting search ready" happens once.
 
 • Settings has fewer, fuller pages, small tips show you around, two iPad windows share one engine, plans are compared side by side, and rating is Apple's own sheet.
 

@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-11-20 09:50
+Updated: 2026-11-20 10:05
 Branch/worktree: `main`, primary checkout
 Last verified commit: 19c36f86
 
@@ -69,8 +69,11 @@ Retrospective fixes, of ten:
 
 - The every-task read set is over its limit (above). Fix by cutting `Docs/ai/ARCHITECTURE.md` back to a map that
   points at the owning docs; verify with the router test.
-- The gate's age-rating warning: App Store Connect has two questions unanswered on the 5.8 record. Apple accepted the
-  submission with them empty. Answering them is the owner's (App Store Connect, App Information, Age Rating).
+- 5.8's store copy changed on 2026-11-20 while it waited for review, all at the owner's word and all read back equal:
+  promotional text with percentages (82776099), the description as bullets with a `MEASURED IN 5.8` section (210fd2ed),
+  both What's New texts rewritten for a general reader with percentages, and the two new age-rating declarations
+  answered No. The gate reads 0 FAIL, 0 WARN, 25 PASS. `MEASURED IN 5.8` in the description must be measured again or
+  removed for 5.9.
 - 5.8's age rating computes 4+ where the live 5.7 record shows 17+ (a 16+ override). This was chosen on 2026-11-06
   (`~/ASC/CHANGES-2026-11-06.md`, "the 16+ override dropped on 5.8"); the gate prints it as information.
 - Whether a journal pull works while the phone is locked is not measured.
