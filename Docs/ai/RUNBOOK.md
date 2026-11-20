@@ -1365,6 +1365,26 @@ between two options prove nothing about the unit: on 2026-10-10 the vectors unde
 matched CPU-only output to nine decimal places, which only rules out a half-precision unit.
 `[evidence_level: measured, confidence: high for this Mac, evidence_source: the probe's output of 2026-10-12, kept in the session scratchpad and not in the repository; the probe source was a scratch file]`
 
+## Watching the phone while the owner tests (added 2026-11-20)
+
+```bash
+python3 scripts/phone_watch.py
+```
+
+Polls the development build's journal and the phone's crash reports over Wi-Fi and prints one line per new question,
+answer, failure, restart, long stall or crash, so the owner does not have to say "check trace". Run it under the
+Monitor tool (30 minutes at most per watch; arm it again, the cursor is on disk and nothing is reported twice). The
+`phone-watch` skill has the command, what each line means and what to do with it. `--since <local time>` reports what
+happened before the watch started; `--once` runs one pass.
+
+A line carries only numbers, true or false and single enumerated words from a fixed list of fields; any other value
+prints as `<text>`, so no document name, library name or question reaches a line. The pulled journal stays in
+`~/Library/Developer/OpenIntelligence-evidence/watch`. Tests: `python3 scripts/test_phone_watch.py` (7, on an invented
+journal). It reads the same journal `scripts/phone_evidence.py` checks roadmap rows against, and Debug builds only:
+a store build writes none.
+
+`[evidence_level: measured, confidence: high, evidence_source: 2026-11-20 on the iPhone 16 Pro Max over Wi-Fi: file listing 0.9 s, journal copy of 7.2 MB 4.2 s, one full pass 6.6 s; replay of the 2026-11-19 journal printed 39 lines for 1,991 events; 90 s under Monitor with the phone idle printed nothing. Not yet run while the owner tested.]`
+
 ## Timing the vector store at the size of a very large library (added 2026-10-12)
 
 `VectorStoreScaleBenchmarkTests` builds a store of as many passages as it is told, times a load, a search,
@@ -1435,10 +1455,48 @@ Review notes and handles the rest of the listing (its sale step stops applying a
 
 `[evidence_level: measured, confidence: exact, evidence_source: PATCH returned 204 for both 5.1 records on 2026-09-02; GET read back the attached ids]`
 
+## The submit gate: run it before every submission (added 2026-11-20)
+
+```bash
+zsh -ic 'python3 scripts/asc_submit_gate.py <X.Y>'
+```
+
+Read-only: GET requests to App Store Connect and to the URLs the listing names. It prints one line per check for both
+platforms and exits 1 on any FAIL. A FAIL means do not submit. It exists because 5.8 was rejected on 2026-11-20 by an
+automated check (Guideline 3.1.2: the app sells auto-renewable subscriptions and the description had no Terms of Use
+link), about 15 hours after submission; `scripts/asc_prepare_release.rb` checks text lengths only.
+
+| It fails on | |
+|---|---|
+| Terms of Use | subscriptions exist, no custom EULA is set, and a localization's description has no link on a line naming the Terms of Use or EULA, or the link does not answer 200 |
+| Links | privacy policy, support or marketing URL missing or not answering 200 |
+| Text | description, What's New or keywords empty or over their limit (4,000, 4,000, 100); promotional text over 170; review notes over 4,000 |
+| Build | none attached, not `VALID`, expired, export compliance unanswered, a different build number per platform, or built from a commit other than the tag `v<X.Y>.0` |
+| Screenshots | no iPhone set, no 13-inch iPad set, no Mac set, a set over 10, or an upload that is not `COMPLETE` |
+| Records | a platform has no version record, no review contact, a product in `MISSING_METADATA`, `DEVELOPER_ACTION_NEEDED` or `REJECTED`, or a submission already open or with unresolved issues |
+
+It warns, without blocking, on the owner's copy rules (an em dash; a What's New line that gives "N of M" with no
+percentage), on copy in App Store Connect that differs from `fastlane/metadata/en-US/`, on review notes that do not
+hold `fastlane/review_notes/<X.Y>.txt`, on age-rating questions left empty, and when the tag does not exist yet. It
+ends with what the API cannot show (the App Privacy answers, the text of a rejection).
+
+`--save FILE` writes what it read (no contact details or notes, only lengths and yes or no), and `--snapshot FILE`
+checks such a file with no network. Tests: `python3 scripts/test_asc_submit_gate.py` (14, no network).
+
+Two facts about the API it relies on, both measured 2026-11-20: `GET /v1/ciBuildRuns` as a collection answers 403
+("does not allow GET_COLLECTION"), and `filter[builds]` on `/v1/ciProducts/{id}/buildRuns` is ignored, so the build's
+commit is found by listing that product's runs newest first (`sort=-number`), taking the run whose number equals the
+build number, and confirming the build is in `/v1/ciBuildRuns/{id}/builds`.
+
+`[evidence_level: measured, confidence: exact, evidence_source: run against live 5.8 on 2026-11-20 09:23 PT (0 FAIL, 3 WARN, 24 PASS, 22 s; tag v5.8.0 and build 509 both 8e148387); the same snapshot with the description of 2026-11-19 (git show 3b35cb50^) gave FAIL terms-link on both platforms and exit 1]`
+
 ## Submitting for review through the API
 
 Only at the owner's word; `scripts/asc_prepare_release.rb` stages a version and never submits. The order that worked
 on 2026-09-29 for 5.5, one pass per platform (`IOS`, `MAC_OS`):
+
+0. `zsh -ic 'python3 scripts/asc_submit_gate.py <X.Y>'` after step 2 and before step 3: no FAIL, and every WARN read. Run it
+   again after any change to the copy.
 
 1. `scripts/asc_prepare_release.rb <X.Y> <build> --apply` attaches the build and writes What's New, the description
    and keywords. Read back each record: `appStoreState` `PREPARE_FOR_SUBMISSION` and the expected build.

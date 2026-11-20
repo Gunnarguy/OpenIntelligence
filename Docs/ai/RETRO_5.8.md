@@ -47,3 +47,12 @@ has two meanings. Tool counts are exact, from the main session's transcript.
 ## Order to build
 
 1, 2, 3 first (each is under a day and removes the most repeated messages), then 4, then 5 and 6, then 7 to 9.
+
+## Built so far
+
+| # | Built | Where | Proof |
+|---|---|---|---|
+| 1 | 2026-11-20 | `scripts/asc_submit_gate.py`, `Docs/ai/RUNBOOK.md` "The submit gate" | Live 5.8: 0 FAIL, 3 WARN, 24 PASS in 22 s. The description of 2026-11-19: FAIL on both platforms. 14 tests. |
+| 2 | 2026-11-20 | `scripts/phone_watch.py`, the `phone-watch` skill | One pass against the phone in 6.6 s; 1,991 events of 2026-11-19 became 39 lines with no private text; 7 tests. Not yet run while he tested. |
+| 3 | plan only | `Docs/ai/plans/build-stamp.md` | The stamp needs no app code: a build number per device build, given on the command line. Not built. |
+

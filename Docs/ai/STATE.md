@@ -1,95 +1,104 @@
 # Current State
 
-Updated: 2026-11-19 15:50
+Updated: 2026-11-20 09:45
 Branch/worktree: `main`, primary checkout
-Last verified commit: 8e148387
+Last verified commit: ccc2f840
 
 ## Objective
 
-**Ship 5.8 to App Review today** (owner, 2026-11-19: "in review in the next like 3 hours"). He tests on his iPhone; the
-agent reads his trace, fixes what it shows, and keeps the device-pass page https://claude.ai/artifact/RyYN25e7RGMAFthrKnBtNT
-ticked (ArtifactData collection `pass`, doc `checks`, version 9, 14 ticked). He said "stop submitting archives until we
-square this stuff away": no Xcode Cloud build until his tests pass. Submitting is his word alone; ask once.
+**Make 5.9 and later cheaper to build than 5.8 was**, by building the fixes in `Docs/ai/RETRO_5.8.md` in its order
+(owner, 2026-11-20: "create a bulletproof productivity engine so that 5.9 and any version beyond this is significantly
+easier to iterate on"; then "Yes, build 1 to 3"). 5.8 itself is submitted and needs nothing by hand until Apple answers.
 
 ## Status
 
-**5.8 is in review on both platforms with build 509** (from 8e148387), release AFTER_APPROVAL. Build 506 was
-submitted first and pulled at the owner's word for four fixes found on his iPhone afterwards: "[S#]" in Deep Think
-answers (1ce0902b), the app killed when an answer's background task expired (ac4c0cd8, every expiration handler now
-completes its task synchronously), and two 0x8BADF00D scene-update watchdog kills drawing long answers (c3e31d40 parse
-cache, 8e148387 plain streaming for a rewrite). The background-expiry fix was seen holding on the phone (14:55 Deep
-Think run: no kill on leaving). Builds 504, 505, 507 and 508 are unused.
+**5.8 is waiting for review on both platforms with build 509** (from 8e148387, tag `v5.8.0`), release AFTER_APPROVAL.
+Apple rejected it on 2026-11-20 at 02:51 (Guideline 3.1.2: subscriptions on sale and no Terms of Use link in the
+description). The description now ends with Apple's standard EULA link on both platforms (3b35cb50) and the owner
+had it resubmitted at 06:32 PT. No app code changed; build 509 is unchanged.
 
-## Completed on 2026-11-19 (pushed)
+Retrospective fixes, of ten:
 
-| Commit | What |
+| # | Fix | State |
+|---|---|---|
+| 1 | Submit gate | Built: `scripts/asc_submit_gate.py`, runbook "The submit gate". |
+| 2 | Phone watch | Built: `scripts/phone_watch.py`, skill `phone-watch`. Not yet run while the owner tested. |
+| 3 | Which build is on the phone | Plan only: `Docs/ai/plans/build-stamp.md`. Steps 1 and 2 need no app code. |
+| 4 to 10 | Lifecycle tests, one session per workstream, paired runs, design sheet, claims register, post-release watch, smaller releases | Not started. |
+
+## Active Constraints
+
+- No source edit under `OpenIntelligence/` without the owner's `PROCEED: IMPLEMENT`; the retrospective work so far is
+  scripts, skills and docs only.
+- 5.8 is unreleased: no new version heading, and do not edit `Docs/SHIPPED_VERSION.json`, the `## v5.8` heading in
+  `Docs/USER_CHANGELOG.md` or `OpenIntelligence/Resources/VersionHistory.md` (the release watcher does it and pushes).
+  `git fetch` and check `git rev-list --count HEAD..origin/main` before each commit.
+- Submitting to Apple and starting an Xcode Cloud build are the owner's word each time. Commits carry `[ci skip]`.
+- Do not stage `scripts/run_quality_matrix.py`, `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md`, the three
+  `Docs/ai/codemap/*.md` files, `.agents/skills/` or `.codex/`: another session's work.
+
+## Working Set
+
+| File | Why |
 |---|---|
-| 6122d185, 19f31f53 | Mac redesign: sidebar window, Settings window, Documents details as an `HSplitView` pane (two inspectors crashed AppKit), Chat row selectable (`.badge` before `.tag`) |
-| d43158e5, ec78e1de | In-app What's New for 5.8; App Store copy for both platforms, review notes, metadata history, Mac screenshot boxes |
-| a292e89d, 00c2f8cc, 62b5dad7, 7ed65fec | Core ML embedder uses CPU and Neural Engine whenever the app is in the background (`DeviceCapabilityService.isAppInBackground`, set by ContentView): first load, pending switch, retry, and a prediction that starts in the background on GPU units. Seen on the phone 09:40 and 10:00 |
-| 0a2e346a | Siri and Shortcuts no longer wait forever after a rate limit: only a Chat answer waits for the app to return; an action asks once to come forward, then retries and reports failure |
-| e99bd165 | Search model and reranker warm up one second after each return to the front, once per launch |
-| bcb9f12e | The on-device window keeps its last positive reading when `contextSize` reads 0 in the background (`FoundationModelTokenBudget.lastOnDeviceContext`); an answer resumed there had been packed to 800 characters and wrongly said the guide had no chicken temperature (165°F in front). 84 tests passed |
-| 23eed636 | Fact Check ignores words a claim repeats from the question ("Chicken should reach 165°F" no longer Partial) |
-| 6e6ba674 | The embedder's background form compiles during the warm-up, in front |
-| 4bf4fb5e | Every answer holds a continued-processing task; no planner model call in the background; a rate-limited Chat answer retries in the background for ~52 s before waiting |
-| ea8c5c03 | Mac: answer details are an HSplitView pane (crash at 10:46:58 in Chat); one Lock Screen card (no Live Activity while iOS shows the task's card) |
-| 64f80816, 7d0be463 | Mac: colored mode pill, library name under "Chat", a library click keeps the area in front |
-| 895597fe | `LiveFoundationModelCapabilityProvider` uses the kept window, so the plan no longer re-packs background answers into 800 characters (bags answered "$200") |
-| 6ff02031 | `joiningContinuation` for continuations and resumes ("itemThe document"); Mac sidebar says Evidence Threads |
-| 7abf10eb | `PendingAnswerStore.keepAnswer`: the written answer is saved when the stream ends; a relaunch shows it instead of asking again |
-| b9219793 | Mac stats panel opens at a set height and answer details open in a fixed-size sheet (crashes 12:44 and 12:48) |
-| 950def34 | A research decision that asks for a search is not an answer; no text with [SEARCH:]/[ANSWER] replaces an answer |
-| bd0c556e, c4ae4673 | iPhone release-notes bullet swapped at the owner's word; 5.8 recorded in review |
-
-## Known and not fixed
-
-- Identical files under two names import as one ("Already imported"), so the device pass's Kestrel prompt (the same PDF
-  twice) cannot be set up as written; the queue card said "Paused after app restart" though the app had not restarted.
-- Mac: Services Ask fills the other window's field with two windows open; Finder Add on an iCloud file not downloaded
-  shows nothing for about 2 minutes (the Mac session lists both as follow-ups).
-- The answer scorer (`scripts/score_answer_eval.py`) fails a right refusal that later lists any dollar amount.
-- Held for after 5.8, Future Backlog rows, patches in `BenchmarkRuns/2026-11-18-held-after-5.8/`: Standard's planner
-  model call (2.5 to 12 s before every question), and the case-insensitive Code/Standard spec patterns.
-
-- Search setup after an install took 55 to 99 s (embedding) and 87 to 131 s (reranker) on his iPhone at thermal state serious.
-- Main-thread stalls on Chat during rebuilds (worst 1,658 ms); the `@concurrent` fix (641c7aa9) is not yet seen on the
-  phone. Next: `bash scripts/profile_phone.sh` while he rebuilds one library.
-- The app never says the phone's storage is full (Future Backlog 41b49a74d54f81eebbc3fbbee08a878d).
-- Open UI asks with no answer: the Standard picker on the Mac lacks its capsule; the colour and icon pickers; repeated plan-card bullets.
-- `AtlasLabelingTests` adverb tests depend on the simulator having English word classes (skip on a fresh one).
-- Axis ends title-case brand names wrong ("Ipad & Iphone", `AtlasLabeling.titleCase`).
-- A label heading in a grounded answer stays 18 pt while body text scales, so at AX2 it is smaller than its bullets (as `###` headings already are); changing it needs the owner's word.
-
-## Commands
-
-```bash
-rsync -a --delete --exclude .build --exclude .git --exclude .git.nosync --exclude BenchmarkRuns --exclude '.claude/worktrees' ./ /private/tmp/oi-src/
-```
-
-iPhone, from `/private/tmp/oi-src`: `xcodebuild build -project OpenIntelligence.xcodeproj -scheme OpenIntelligence
--configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/oi-build -jobs 2
-MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F12-4FFD-5534-BA30-29FF48070549
-/private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app`. Mac: the same build with
-`-destination 'platform=macOS' -derivedDataPath /private/tmp/oi-mac-dd`; quit the app with `gtimeout 20 osascript -e
-'tell application id "Gunndamental.OpenIntelligence" to quit'` (pkill fallback), replace
-`/Applications/OpenIntelligence.app` with `ditto`, then `xattr -cr`. Logs: `python3 scripts/phone_evidence.py --since
-<install time, local> --json`, and the same with `--mac`.
+| `Docs/ai/RETRO_5.8.md` | The ten gaps, their evidence, the order to build, and what is built so far. |
+| `scripts/asc_submit_gate.py`, `scripts/test_asc_submit_gate.py` | Fix 1. `collect()` reads App Store Connect, `check()` is a pure function of the snapshot. |
+| `scripts/phone_watch.py`, `scripts/test_phone_watch.py`, `.claude/skills/phone-watch/SKILL.md` | Fix 2. `SHOW` and `SHOW_WHEN` list the events and the only fields a line may carry. |
+| `Docs/ai/plans/build-stamp.md` | Fix 3's plan: a build number per device build on the `xcodebuild` command line, then an install script with a record. |
+| `Docs/ai/RUNBOOK.md` | New sections "The submit gate" and "Watching the phone while the owner tests"; step 0 in "Submitting for review through the API". |
 
 ## Verification
 
-- `xcodebuild test` (6 classes, 84 tests, iOS 27 simulator) after bcb9f12e -> passed. iOS and macOS Debug builds -> succeeded.
-- Phone trace 09:40, 10:00 -> embedder loaded `cpuAndNeuralEngine` in the background; no 130 s GPU hang.
-- Not yet seen on the phone: bcb9f12e (an answer left mid-way finishing with full evidence) and 0a2e346a (Siri Ask with a rate limit).
+- `zsh -ic 'python3 scripts/asc_submit_gate.py 5.8'` -> 0 FAIL, 3 WARN, 24 PASS, 22 s (2026-11-20 09:23). WARN: two
+  age-rating questions empty (`datingAndRelationships`, `sharedLocation`), and 4 What's New lines with a count and no
+  percentage on each platform.
+- The same snapshot with the 2026-11-19 description (`git show 3b35cb50^:fastlane/metadata/en-US/description.txt`) ->
+  FAIL `terms-link` on both platforms, exit 1.
+- `python3 scripts/test_asc_submit_gate.py` -> 14 passed. `python3 scripts/test_phone_watch.py` -> 7 passed.
+  `python3 scripts/test_phone_evidence.py` -> passed. `python3 scripts/secret_scan.py` -> clean.
+- `python3 scripts/phone_watch.py --once --since 2026-11-19T15:30` against the iPhone -> 3 lines, 6.6 s. 90 s under the
+  Monitor tool with the phone idle -> no lines.
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 30 passed, 1 failed:
+  `test_every_task_loads_only_the_small_universal_set`, 48,493 bytes against a 40,000 limit. Not caused by this work:
+  `Docs/ai/ARCHITECTURE.md` alone is 37,041 bytes.
+
+## Blockers / Unknowns
+
+- The every-task read set is over its limit (above). Fix by cutting `Docs/ai/ARCHITECTURE.md` back to a map that
+  points at the owning docs; verify with the router test.
+- The gate's age-rating warning: App Store Connect has two questions unanswered on the 5.8 record. Apple accepted the
+  submission with them empty. Answering them is the owner's (App Store Connect, App Information, Age Rating).
+- 5.8's age rating computes 4+ where the live 5.7 record shows 17+ (a 16+ override). This was chosen on 2026-11-06
+  (`~/ASC/CHANGES-2026-11-06.md`, "the 16+ override dropped on 5.8"); the gate prints it as information.
+- Whether a journal pull works while the phone is locked is not measured.
+
+## Known and not fixed in the app (carried from 2026-11-19)
+
+- Identical files under two names import as one ("Already imported"); the queue card said "Paused after app restart"
+  though the app had not restarted.
+- Mac: Services Ask fills the other window's field with two windows open; Finder Add on an iCloud file not downloaded
+  shows nothing for about 2 minutes.
+- `scripts/score_answer_eval.py` fails a right refusal that later lists any dollar amount.
+- Held for after 5.8 (Future Backlog, patches in `BenchmarkRuns/2026-11-18-held-after-5.8/`): Standard's planner model
+  call (2.5 to 12 s before every question), and the case-insensitive Code/Standard spec patterns.
+- Search setup after an install took 55 to 99 s (embedding) and 87 to 131 s (reranker) on the iPhone at thermal state
+  serious. Main-thread stalls on Chat during rebuilds (worst 1,658 ms); the fix 641c7aa9 is not yet seen on the phone.
+- The app never says the phone's storage is full (Future Backlog 41b49a74d54f81eebbc3fbbee08a878d).
+- Open UI asks with no answer: the Standard picker's capsule on the Mac, the colour and icon pickers, repeated
+  plan-card bullets. `AtlasLabeling.titleCase` writes "Ipad & Iphone".
+- Not yet seen on the phone: bcb9f12e (an answer left mid-way finishing with full evidence), 0a2e346a (Siri Ask with a
+  rate limit).
 
 ## Exact Next Action
 
-Nothing to do by hand for the 5.8 release itself. The GitHub release `v5.8.0` (tag on 8e148387, build 509) is up as a
-pre-release, and launchd `com.gunnarguy.oi-release-watch` (`~/.agents/bin/oi_release_watch.py`, log
-`~/.agents/data/oi-release-watch/log.txt`) reads App Store Connect every 30 minutes: as each platform goes live it
-updates `Docs/SHIPPED_VERSION.json` on origin/main, and once both are live it sets `app_store` 5.8, empties `in_review`,
-dates the `## v5.8` heading in `Docs/USER_CHANGELOG.md` and `VersionHistory.md`, makes the release Latest and unloads
-itself. So `git pull` before the next commit here, and do not edit those three files for the 5.8 release. Still by
-hand after it is live: the release-notes, docs-index and metadata-history lines the 5.7 commit 3face1fb carried. Then file Notion rows for after 5.8: the continuation trigger on a final list item
-without a period, Apple's background rate limit (answers wait for the app), Siri scope and open-document, the DHA
-named-document row, Standard's planner model call, and the Mac Dock/Space behaviour of the details sheet.
+Wait for the owner's word on the build stamp: `Docs/ai/plans/build-stamp.md` steps 1 and 2 (a per-build number on
+the device build's command line, then `scripts/install_to_phone.sh` with its install record). They touch no app code,
+so they do not wait for 5.8. On his yes: add `CURRENT_PROJECT_VERSION=<commits>.<DDHHMM>` to the device build in
+`Docs/ai/RUNBOOK.md` "Building to the owner's iPhone", run the plan's four checks on the first build that uses it, and
+write the script.
+
+When Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
+`~/.agents/data/oi-release-watch/log.txt`): add the release-notes, docs-index and metadata-history lines the 5.7
+commit 3face1fb carried, then file Future Backlog rows in Notion for the continuation trigger on a final list item
+without a period, Apple's background rate limit, Siri scope and open-document, the DHA named-document row, Standard's
+planner model call, the Mac Dock/Space behaviour of the details sheet, and the retrospective's fixes 4 to 9.
