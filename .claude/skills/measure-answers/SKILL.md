@@ -10,6 +10,13 @@ measured before the change (`Docs/ai/RETRO_5.8.md`, gap 6: "we just did all of t
 basically be just as bad"). And two runs of one build give different answers here, so a one-question gain proves
 nothing until that variation is known.
 
+## The number to beat
+
+Measured 2026-11-20 on the code of build 509: two runs of the same build in Standard scored 80% (16 of 20) and 90%
+(18 of 20). Two questions flipped with no change at all, both "lost in the middle" ones. So on this set, one run
+before and one run after cannot show a change of 2 questions or fewer; use `--repeats 2` or more, and do not count
+those two questions as evidence. One pair of runs measured this, so the real spread may be wider.
+
 ## The order
 
 1. **Baseline first, before the first edit.** `python3 scripts/paired_run.py pair --before HEAD --after HEAD`

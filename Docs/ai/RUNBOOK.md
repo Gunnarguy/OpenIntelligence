@@ -1440,7 +1440,7 @@ runs of one build. `pair --before HEAD --after HEAD` measures that variation by 
 run folders that exist. The `measure-answers` skill has the order of work. It prints the `BenchmarkRuns/LEDGER.md` lines
 and never edits that file. Tests: `python3 scripts/test_paired_run.py` (56).
 
-`[evidence_level: test_verified for the tool; measured for compare, which reproduces the ledger's reading of the two pairs of 2026-11-19 (bind-base-ans against bind-fix-ans: 90% (18 of 20) both, one fixed, one broken). A real pair run from this script has not been made yet.]`
+`[evidence_level: test_verified for the tool; measured for compare, which reproduces the ledger's reading of the two pairs of 2026-11-19 (bind-base-ans against bind-fix-ans: 90% (18 of 20) both, one fixed, one broken). First real run through the script, 2026-11-20, the same build twice (29a406bd): Standard 80% (16 of 20) then 90% (18 of 20), 2 of 20 flipped, 12 and 9 minutes a run plus a 3-minute build each; ledger entry "noise".]`
 
 ## UI before and after, side by side (added 2026-11-20)
 
@@ -1451,8 +1451,13 @@ python3 scripts/ui_shots.py pair --before HEAD
 Runs the screenshot tests (`FiveChecksUITests`, every `testShotsOf...`) on the last commit and on the working tree,
 each on a new iPhone simulator with the clock fixed, and writes each changed screen as one image with before on the
 left and after on the right (`sheet.png` stacks them). Read `Docs/ai/DESIGN.md` first and send the owner the sheet
-before installing a UI change; the `ui-change` skill has the steps. Still iPhone screens only: no motion, Mac, iPad,
-Dark Mode or larger text. Tests: `python3 scripts/test_ui_shots.py` (4, the comparison on drawn images).
+before installing a UI change; the `ui-change` skill has the steps. A screen is "changed" when its words changed (the
+element list the tests save beside each shot, compared a page at a time, with tips, file paths and "3 seconds ago" left
+out) or when more than 3% of it differs after the two shots are slid to their best vertical fit. Still iPhone screens
+only: no motion, Mac, iPad, Dark Mode or larger text. Tests: `python3 scripts/test_ui_shots.py` (6, on drawn images
+and invented element lists).
+
+`[evidence_level: measured, confidence: high for false alarms, medium for misses, evidence_source: three captures of the same code on 2026-11-20 (145 shots each, 9 tests, 0 failures, about 20 minutes a capture; folders 2026-11-20_113335 and 2026-11-20_122248-noise-check under ~/Library/Developer/OpenIntelligence-evidence/ui-shots): 0 of 145 changed in both comparisons, with 41 and 48 shots scrolled to a different place; before the scroll fit and the page-level word comparison the same captures read 41 of 145 changed. On an altered copy: one renamed label caught, an 11% block caught, a 0.6% recolour with unchanged words not caught (identical builds differ by up to 1.9% at the best fit). No real before-and-after of a UI change has been run yet.]`
 
 ## The claims register for the store copy (added 2026-11-20)
 

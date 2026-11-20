@@ -14,12 +14,16 @@ then run this and send him `sheet.png` before any install.
 How: the screenshot tests that already exist (`OpenIntelligenceUITests/FiveChecksUITests`, every test whose name
 starts with `testShotsOf`: Chat, Documents and its sheets, every Settings page, Plans, Database, Atlas) run on a new
 iPhone simulator with the clock fixed at 9:41. For a `--before` ref the app is built from that ref with today's UI
-tests laid over it, so the same robot photographs both. `compare` ignores the status bar and small rendering noise,
-and writes, for each screen that changed, one image with before on the left and after on the right and the changed
-area outlined; `sheet.png` stacks them, and `SUMMARY.txt` lists changed, unchanged, new and missing screens with
-the share of pixels that differ. Results: ~/Library/Developer/OpenIntelligence-evidence/ui-shots/<time>/.
+tests laid over it, so the same robot photographs both. `compare` judges a screen two ways. Words: the element list
+the tests save beside each shot, compared a page at a time, so a renamed, added or removed label is caught however
+small; tips, file paths and "3 seconds ago" are left out, because they differ between two runs of one build. Look: the pixels,
+after the two shots are slid to their best vertical fit, because two runs of one build never scroll to the same
+pixel (41 of 145 screens of identical code differed by that alone on 2026-11-20). It writes, for each screen that
+changed, one image with before on the left and after on the right; `sheet.png` stacks them, and `SUMMARY.txt` lists
+what changed and why. Results: ~/Library/Developer/OpenIntelligence-evidence/ui-shots/<time>/.
 
-What it does not show: motion (a view that "jumps around" needs a recording), the Mac, iPad, Dark Mode and larger
+What it can miss: a change of look smaller than 3% of the screen with no change of words (a recoloured icon, a
+border), which is under the level two identical runs differ by. What it does not show: motion (a view that "jumps around" needs a recording), the Mac, iPad, Dark Mode and larger
 text sizes, and any screen the screenshot tests do not open. The answers on the Chat screen come from the
 screenshot stand-in model, not Apple's.
 
@@ -40,7 +44,14 @@ TEST_CLASS = "OpenIntelligenceUITests/FiveChecksUITests"
 GAMES = "World of Warcraft.app/Contents/MacOS|League of Legends.app/Contents/MacOS"
 STATUS_BAR = 0.065  # the top share of the screen that is ignored: clock, signal, battery
 CHANNEL_NOISE = 24  # a pixel differs when a colour channel moves by more than this (antialiasing moves less)
-CHANGED_SHARE = 0.002  # a screen changed when more than 0.2% of its pixels differ
+CHANGED_SHARE = 0.002  # two shots are identical when no more than 0.2% of their pixels differ
+# Two runs of the same build do not scroll to the same pixel: on 2026-11-20, 41 of 145 screens of identical code
+# differed by this alone. So a pair that differs is slid up and down to its best fit before it is judged, and only
+# what still differs then counts as a change of look. Words are compared separately, from the element list the
+# tests save beside each shot, so a renamed label is caught however small it is.
+ALIGNED_SHARE = 0.03  # after the best fit, more than 3% of the middle of the screen still differs (identical code: up to 1.9%)
+FIXED_TOP, FIXED_BOTTOM = 0.16, 0.14  # the navigation bar and the tab bar do not scroll
+MAX_SLIDE = 0.25  # how far, as a share of the height, one run may have scrolled past the other
 
 
 # ---------------------------------------------------------------- comparing (needs Pillow, which this Mac's Python has)
@@ -59,6 +70,98 @@ def difference(path_a, path_b):
         return 0.0, None
     changed = diff.histogram()[255]
     return changed / (a.width * (a.height - top)), box
+
+
+def aligned_difference(path_a, path_b):
+    """The share of the scrolling middle of the screen that still differs at the best vertical fit, and the slide
+    in pixels. The fit is searched at a quarter size and then settled pixel by pixel at full size: a fit that is two
+    pixels off makes every line of text differ along its edges."""
+    from PIL import Image, ImageChops
+    full_a, full_b = Image.open(path_a).convert("L"), Image.open(path_b).convert("L")
+    if full_a.size != full_b.size:
+        return 1.0, 0
+
+    def share_at(a, b, dy):
+        top, bottom = int(a.height * FIXED_TOP), int(a.height * (1 - FIXED_BOTTOM))
+        y0, y1 = max(top, top + dy), min(bottom, bottom + dy)  # rows of a that have a partner in b
+        if y1 - y0 < (bottom - top) // 2:
+            return None
+        diff = ImageChops.difference(a.crop((0, y0, a.width, y1)), b.crop((0, y0 - dy, b.width, y1 - dy)))
+        return sum(diff.point(lambda v: 255 if v > CHANNEL_NOISE else 0).histogram()[255:]) / (a.width * (y1 - y0))
+
+    scale = 4
+    small_a, small_b = (i.resize((i.width // scale, i.height // scale)) for i in (full_a, full_b))
+    reach = int(small_a.height * MAX_SLIDE)
+    coarse = min(((share_at(small_a, small_b, dy), dy) for dy in range(-reach, reach + 1)
+                  if share_at(small_a, small_b, dy) is not None), default=(1.0, 0))
+    best = (1.0, 0)
+    for dy in range(coarse[1] * scale - 2 * scale, coarse[1] * scale + 2 * scale + 1):
+        share = share_at(full_a, full_b, dy)
+        if share is not None and share < best[0]:
+            best = (share, dy)
+    return best
+
+
+def labels(tree_path):
+    """What a screen says, from the element list saved beside its shot: one entry per element that has words
+    (its kind, its identifier, its label and its value), with positions and memory addresses left out."""
+    import collections
+    found = collections.Counter()
+    if not os.path.exists(tree_path):
+        return None
+    for line in open(tree_path, encoding="utf-8", errors="replace"):
+        kind = re.match(r"\s*(?:→)?\s*(\w+)", line)
+        label = re.search(r"label: '((?:[^'\\]|\\.)*)'", line)
+        value = re.search(r"value: (.+?)\s*$", line)
+        identifier = re.search(r"identifier: '([^']*)'", line)
+        if kind and (label or value) and kind.group(1) not in ("Attributes", "Application", "Path", "Query"):
+            found[(kind.group(1), identifier.group(1) if identifier else "", label.group(1) if label else "",
+                   value.group(1) if value else "")] += 1
+    return found
+
+
+def normal(text):
+    """A label with what differs between two runs of one build taken out: file paths (they hold the simulator's
+    id) and "3 seconds ago"."""
+    text = re.sub(r"/(?:Users|private|var)/\S+", "<path>", text)
+    return re.sub(r"\b\d+ (?:second|minute|hour|day)s? ago\b|\bjust now\b", "<when>", text)
+
+
+def tip_texts(root=ROOT):
+    """Every string in the app's tips source. A tip shows in one run and not the next (TipKit paces them), so its
+    words, its Close button and the space it covers are not a change."""
+    found = set()
+    for path in glob.glob(os.path.join(root, "OpenIntelligence", "Services", "Infrastructure", "Tips", "*.swift")):
+        found.update(m for m in re.findall(r'"((?:[^"\\]|\\.){4,})"', open(path, encoding="utf-8", errors="replace").read()))
+    return found
+
+
+def words(tree_path, tips=()):
+    """(the words on the screen, whether a tip is showing, the words a tip could have put there). None when the
+    element list is missing. A tip is a popover (the list has its dismiss region). Scroll bars are left out: their
+    value is how far the page happens to be scrolled."""
+    found = labels(tree_path)
+    if found is None:
+        return None
+    tip = any(identifier == "PopoverDismissRegion" for (_, identifier, _, _) in found)
+    said, tipish = set(), set()
+    for (_, identifier, label, value), _count in found.items():
+        if "scroll bar" in label.lower() or identifier == "PopoverDismissRegion":
+            continue
+        for text in (label, value):
+            if not text:
+                continue
+            said.add(normal(text))
+            if text == "Close" or any(text == t or (len(t) > 24 and text.startswith(t[:24])) for t in tips):
+                tipish.add(normal(text))
+    return said, tip, tipish
+
+
+def page_of(name):
+    """The page a shot belongs to: `settings-02-Plain-English-3.png` is the third screenful of
+    `settings-02-Plain-English`. Words are compared a page at a time, because a long list holds only the rows
+    near where it was scrolled to, and two runs never stop at the same row."""
+    return re.sub(r"-\d+$", "", name[:-4] if name.endswith(".png") else name)
 
 
 def side_by_side(path_a, path_b, box, label_a, label_b, name, out_path, height=1400):
@@ -92,19 +195,57 @@ def compare(folder_a, folder_b, out, label_a="before", label_b="after"):
     names_a = {os.path.basename(p) for p in glob.glob(os.path.join(folder_a, "*.png"))}
     names_b = {os.path.basename(p) for p in glob.glob(os.path.join(folder_b, "*.png"))}
     rows, sheets = [], []
+    tips = tip_texts()
+    said = {}  # (side, shot) -> (words, tip showing)
+    for side, folder, names in (("a", folder_a, names_a), ("b", folder_b, names_b)):
+        for name in names:
+            said[(side, name)] = words(os.path.join(folder, name[:-4] + ".tree.txt"), tips)
+    page_words = {}  # page -> (gone, new), from every screenful of the page on each side
+    for page in {page_of(n) for n in names_a & names_b}:
+        shots_of = [n for n in names_a & names_b if page_of(n) == page]
+        if any(said[(side, n)] is None for side in "ab" for n in shots_of):
+            continue
+        before = set().union(*(said[("a", n)][0] for n in shots_of))
+        after = set().union(*(said[("b", n)][0] for n in shots_of))
+        if any(said[(side, n)][1] for side in "ab" for n in shots_of):
+            # A tip showed somewhere on this page in one of the runs: leave the words a tip can carry out of both
+            # sides, or a label that happens to match a tip's text reads as new on the side without the tip.
+            tipish = set().union(*(said[(side, n)][2] for side in "ab" for n in shots_of))
+            before, after = before - tipish, after - tipish
+        page_words[page] = (sorted(before - after), sorted(after - before))
+    reported = set()
     for name in sorted(names_a | names_b):
         if name not in names_b:
-            rows.append((name, "missing after", 1.0))
-        elif name not in names_a:
-            rows.append((name, "new", 1.0))
-        else:
-            share, box = difference(os.path.join(folder_a, name), os.path.join(folder_b, name))
-            if share > CHANGED_SHARE:
-                rows.append((name, "changed", share))
-                sheets.append(side_by_side(os.path.join(folder_a, name), os.path.join(folder_b, name), box, label_a, label_b,
-                                           name[:-4], os.path.join(out, "changed", name)))
-            else:
-                rows.append((name, "same", share))
+            rows.append((name, "missing after", 1.0, ""))
+            continue
+        if name not in names_a:
+            rows.append((name, "new", 1.0, ""))
+            continue
+        path_a, path_b = os.path.join(folder_a, name), os.path.join(folder_b, name)
+        share, box = difference(path_a, path_b)
+        note, kind = "", "same"
+        gone, new = page_words.get(page_of(name), ([], []))
+        if (gone or new) and page_of(name) not in reported:  # said once, on the page's first screenful
+            reported.add(page_of(name))
+            kind = "changed"
+            note = "words: " + "; ".join([f"gone \"{w[:40]}\"" for w in gone[:2]] + [f"new \"{w[:40]}\"" for w in new[:2]])
+            more = len(gone) + len(new) - min(2, len(gone)) - min(2, len(new))
+            note += f" (+{more} more)" if more > 0 else ""
+        tip_in_one = (said[("a", name)] is not None and said[("b", name)] is not None
+                      and said[("a", name)][1] != said[("b", name)][1])
+        if share > CHANGED_SHARE:
+            fitted, slide = aligned_difference(path_a, path_b)
+            if fitted > ALIGNED_SHARE and not tip_in_one:
+                kind = "changed"
+                note = (note + "; " if note else "") + f"look: {100 * fitted:.1f}% of the screen differs at the best fit"
+                share = fitted
+            elif kind == "same":
+                kind = "scrolled"
+                note = "a tip was showing in one run" if tip_in_one and fitted > ALIGNED_SHARE else f"same content, {abs(slide)} px apart"
+        if kind == "changed":
+            sheets.append(side_by_side(path_a, path_b, box if "look" in note else None, label_a, label_b,
+                                       name[:-4], os.path.join(out, "changed", name)))
+        rows.append((name, kind, share, note))
     if sheets:
         from PIL import Image
         shown = sheets[:12]
@@ -123,12 +264,13 @@ def compare(folder_a, folder_b, out, label_a="before", label_b="after"):
 
 
 def render(rows, label_a="before", label_b="after"):
-    count = {kind: sum(1 for r in rows if r[1] == kind) for kind in ("changed", "same", "new", "missing after")}
-    lines = [f"{label_a} against {label_b}: {count['changed']} of {len(rows)} screens changed, {count['same']} the same, "
+    count = {kind: sum(1 for r in rows if r[1] == kind) for kind in ("changed", "same", "scrolled", "new", "missing after")}
+    lines = [f"{label_a} against {label_b}: {count['changed']} of {len(rows)} screens changed, "
+             f"{count['same'] + count['scrolled']} the same ({count['scrolled']} of them scrolled to a different place), "
              f"{count['new']} new, {count['missing after']} missing after"]
-    for name, kind, share in sorted(rows, key=lambda r: (r[1] == "same", -r[2], r[0])):
-        if kind != "same":
-            lines.append(f"  {kind:<14} {name[:-4]:<48} " + (f"{100 * share:.1f}% of pixels" if kind == "changed" else ""))
+    for name, kind, share, note in sorted(rows, key=lambda r: (r[1] != "changed", r[0])):
+        if kind in ("changed", "new", "missing after"):
+            lines.append(f"  {kind:<14} {name[:-4]:<44} {note}")
     return "\n".join(lines)
 
 
@@ -224,7 +366,7 @@ def take(ref, out, scratch="/private/tmp", ignore_games=False):
                     kill_tree(process.pid)
                     break
         shots = glob.glob(os.path.join(SHOTS, "*.png"))
-        for path in shots:
+        for path in shots + glob.glob(os.path.join(SHOTS, "*.tree.txt")):
             shutil.copy2(path, out)
         print(f"{ref}: {len(shots)} screenshots from {len(names)} tests in {time.time() - began:.0f} s", flush=True)
         return len(shots)

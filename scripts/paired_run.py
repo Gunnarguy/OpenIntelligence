@@ -411,10 +411,15 @@ def describe(result, texts=None):
 def ledger_lines(date, label, sides, modes, repeats, folders, result_table):
     """The entry to add to BenchmarkRuns/LEDGER.md, in that file's form. `sides` is [(side, what was built)]."""
     names = ", ".join(f"`{name}`" for name in folders) or "no run folder was made"
-    runs = "one run of each build, so run-to-run noise was not measured" if repeats == 1 else \
-        f"{repeats} runs of each build, alternating"
-    confidence = "low: one run per build" if repeats == 1 else f"medium: {repeats} runs per build, one question set"
     built = "; ".join(f"{side} is {what}" for side, what in sides)
+    same_build = len({what for _, what in sides}) == 1 and len(sides) > 1
+    if same_build:  # before and after are one commit: the run is the noise measurement itself
+        runs = f"{repeats * len(sides)} runs of one build, so every flip is run-to-run noise"
+        confidence = f"low: {repeats * len(sides)} runs of one build, one question set"
+    else:
+        runs = "one run of each build, so run-to-run noise was not measured" if repeats == 1 else \
+            f"{repeats} runs of each build, alternating"
+        confidence = "low: one run per build" if repeats == 1 else f"medium: {repeats} runs per build, one question set"
     how = (f"`scripts/paired_run.py pair`: {built}. Modes: {', '.join(modes)}; {runs}. Each build is a scratch copy "
            "with the Simulator switches of `scripts/sim_model_copy.py` turned off, its own build folder and its own "
            "simulator (iOS 27.0, iPhone 17 Pro), run one after the other. Right and wrong by rule "

@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-20 12:20
+Updated: 2026-11-20 13:35
 Branch/worktree: `main`, primary checkout
-Last verified commit: 56172a5b
+Last verified commit: 29a406bd
 
 ## Objective
 
@@ -30,8 +30,8 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 | 3 | Build number per phone build | `scripts/install_to_phone.py` | (memory) | phone shows 5.8 (1876.200935) = 19c36f86 |
 | 4 | Lifecycle scenarios | `scripts/lifecycle_scenarios.py` | `lifecycle-check` | 6 of 6 passed twice, 10.5 minutes |
 | 5 | Sessions and context | `scripts/release_status.py`; compaction count in the session-start hook; memory index regrouped; `Docs/ai/ARCHITECTURE_DETAIL.md` | `project-orient` | read set 34.6 KB of 40 KB (router test passes again) |
-| 6 | Baseline before quality work | `scripts/paired_run.py` | `measure-answers` | reproduces two real pairs of 2026-11-19; no real pair run from the script yet |
-| 7 | Show UI first | `Docs/ai/DESIGN.md`, `scripts/ui_shots.py` | `ui-change` | 40 rulings, 72 quotes checked; first shots run in progress at handoff |
+| 6 | Baseline before quality work | `scripts/paired_run.py` | `measure-answers` | first real run, the same build twice: Standard 80% (16 of 20) then 90% (18 of 20), so 2 of 20 flip from noise |
+| 7 | Show UI first | `Docs/ai/DESIGN.md`, `scripts/ui_shots.py` | `ui-change` | 40 rulings, 72 quotes checked; identical code reads 0 of 145 screens changed, a renamed label and an 11% block are caught; no real UI change run through it yet |
 | 8 | Claims register | `Docs/ai/CLAIMS.json`, `scripts/check_claims.py`, in the gate | rule `user-facing-copy` | 149 numbers, 0 without evidence |
 | 9 | Release watch | `scripts/release_health.py`, launchd Mondays 09:15 | (runbook) | first read: 2 reviews, 4 from 5, no Apple performance data yet |
 | 10 | Smaller releases | | | the owner's call |
@@ -57,7 +57,7 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 |---|---|
 | `Docs/ai/RETRO_5.8.md` | The ten gaps with their evidence, and the "Built so far" table. |
 | `Docs/ai/RUNBOOK.md` | One section per tool, each added 2026-11-20. |
-| `scripts/*.py` named in the table, each with `scripts/test_<name>.py` | 123 tests in eight files, none needing a simulator or network. |
+| `scripts/*.py` named in the table, each with `scripts/test_<name>.py` | 133 tests in eight files, none needing a simulator or network. |
 | `.claude/skills/{phone-watch,lifecycle-check,ui-change,measure-answers}/SKILL.md` | When to use each tool; their descriptions load every session. |
 | `Docs/ai/DESIGN.md`, `Docs/ai/CLAIMS.json`, `Docs/ai/ARCHITECTURE_DETAIL.md` | The rulings, the register, and the three sections moved out of the map. |
 | `~/Library/Developer/OpenIntelligence-evidence/` | Outside the repository: the phone journal copy, install record, lifecycle and UI-shot run folders. |
@@ -65,15 +65,18 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 ## Verification
 
 - Eight test files -> all pass: `test_asc_submit_gate` 16, `test_phone_watch` 8, `test_install_to_phone` 6,
-  `test_lifecycle_scenarios` 13, `test_ui_shots` 4, `test_release_health` 3, `test_check_claims` 25, `test_paired_run` 56.
+  `test_lifecycle_scenarios` 13, `test_ui_shots` 6, `test_release_health` 3, `test_check_claims` 25, `test_paired_run` 56.
 - `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> OK (it failed at 48,493 bytes
   before the move). `python3 scripts/verify_doc_claims.py` -> 2,365 claims, all match. `python3 scripts/secret_scan.py`
   -> clean. `bash scripts/test_stop_handoff.sh` -> 11 passed.
 - `zsh -ic 'python3 scripts/asc_submit_gate.py 5.8'` -> 0 FAIL, 0 WARN, 26 PASS (2026-11-20 11:44).
 - `python3 scripts/lifecycle_scenarios.py` -> 6 of 6, twice. `zsh -ic 'python3 scripts/release_health.py'` -> report,
   then "Nothing new". `python3 scripts/release_status.py` -> 8 lines in 0.7 s.
-- Not yet run to the end at this handoff: `python3 scripts/ui_shots.py pair --before HEAD` (the before half took
-  1,168 s for 9 tests, 0 failures), and any real `paired_run.py pair`.
+- `python3 scripts/ui_shots.py pair --before HEAD` -> 145 shots a side, 9 tests, 0 failures, about 20 minutes a side.
+  Three captures of the same code compare as 0 of 145 changed (41 and 48 shots scrolled to a different place).
+- `python3 scripts/paired_run.py pair --before HEAD --after HEAD --name noise` -> ran to the end (two 3-minute builds,
+  runs of 12 and 9 minutes): 80% (16 of 20) and 90% (18 of 20), "within run-to-run noise"; entry in
+  `BenchmarkRuns/LEDGER.md`.
 
 ## Blockers / Unknowns
 
@@ -84,8 +87,8 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
   `~/Library/Developer/OpenIntelligence-evidence/memory-index-before-2026-11-20.md`.
 - `codemap.py check` reports 4 errors and 272 warnings (citations that moved in the 5.8 file split); 5 run folders
   under `BenchmarkRuns/` have no `LEDGER.md` entry.
-- `bash scripts/test_verify_doc_claims.sh` was still running after 7 minutes when this was written; the checker
-  itself passes.
+- `python3 .claude/skills/repo-map/scripts/test_build_map.py` has 2 failures that predate this work (a type named in
+  `Docs/HOW_IT_WORKS.md`, and UI test classes it counts as removed). `bash scripts/test_verify_doc_claims.sh` -> 8 passed.
 
 ## Known and not fixed in the app (carried from 2026-11-19)
 
@@ -106,12 +109,10 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-If `~/Library/Developer/OpenIntelligence-evidence/ui-shots/2026-11-20_113335/SUMMARY.txt` does not exist, the first UI
-shots run did not finish: run `python3 scripts/ui_shots.py pair --before HEAD` again (same code on both sides, so it
-should report no screen changed; that is the tool's noise check). Then run
-`python3 scripts/paired_run.py pair --before HEAD --after HEAD` once: it proves the script end to end and gives the
-number of Standard questions that flip between two runs of one build, which every later comparison needs. Add the
-`BenchmarkRuns/LEDGER.md` lines it prints.
+None for the retrospective: nine fixes are built, proven as far as the table above says, and pushed. The first real
+uses are still ahead and are where each tool gets its real test: the phone watch during a testing session of the
+owner's, `ui_shots.py pair` on an actual UI change, and `paired_run.py pair --repeats 2` before and after the first
+answer-quality change of 5.9 (the noise to beat is 2 of 20 in Standard).
 
 When Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
 `~/.agents/data/oi-release-watch/log.txt`): add the release-notes, docs-index and metadata-history lines the 5.7

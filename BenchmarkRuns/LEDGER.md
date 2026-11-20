@@ -1812,3 +1812,24 @@ and `tables.sh` stops a run under 10 GB.
 **Not settled.** The Deep Think and Maximum answer tests after (the decision rule needs them). One run per mode of the answer test. No iPhone run; the phone's 3B model was not reproduced word for
 word by the Simulator. The lead's effect on Deep Think and Maximum alone (it changes their sentence windows too) is
 inside the answer-test rows, not measured apart.
+
+### 2026-11-20 Paired answer run "noise": the same build twice (`2026-11-20-1249-answer-modes-noise-before`, `2026-11-20-1306-answer-modes-noise-after`)
+
+`scripts/paired_run.py pair --before HEAD --after HEAD --name noise`: before is `HEAD` (29a406bd); after is `HEAD`
+(29a406bd), whose app code is that of tag `v5.8.0` (build 509). Mode: standard; 2 runs of one build, so every flip is
+run-to-run noise. Each run is a scratch copy with the Simulator switches of `scripts/sim_model_copy.py` turned off, its
+own build folder and its own simulator (iOS 27.0, iPhone 17 Pro), one after the other. Right and wrong by rule
+(`scripts/score_answer_eval.py`), the 20 questions of the tiny research suite. First run 12 minutes, second 9.
+`[evidence_level: measured, confidence: low: 2 runs of one build, one question set]`
+
+| Mode | First run | Second run | Wrong to right | Right to wrong | Net | Reading |
+|---|---|---|---|---|---|---|
+| standard (app model) | 80% (16 of 20) | 90% (18 of 20) | 2: lost_in_middle_middle, lost_in_middle_end | 0: none | +10 points (+2 questions of 20) | within run-to-run noise |
+
+Read: Standard on one build moved by 2 of 20 questions between two runs, both "lost in the middle" questions (a
+token placed mid-document or at its end). So on this set a change has to move more than 2 questions, more than 10
+points, before one run of each build can show it, and the two lost-in-the-middle questions cannot be used as evidence
+either way from single runs. It is one pair of runs: the true spread may be wider, and it says nothing about Deep
+Think or Maximum. This is also the first run made through `scripts/paired_run.py` end to end; its scratch folders
+(`/private/tmp/oi-pair`) and both simulators were removed afterwards.
+

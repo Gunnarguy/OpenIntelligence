@@ -22,8 +22,9 @@ python3 scripts/ui_shots.py pair --before HEAD
 ```
 
 It builds the last commit and the working tree, photographs every main screen of each on a new iPhone simulator
-(Chat, Documents and its sheets, every Settings page, Plans, Database, Atlas), and writes the screens that changed
-side by side with the changed area outlined. Send him `sheet.png` from the folder it prints (SendUserFile) with one
+(145 shots: Chat, Documents and its sheets, every Settings page, Plans, Database, Atlas), and writes the screens that
+changed side by side. A screen counts as changed when its words changed (a label renamed, added or removed, however
+small) or when more than 3% of it looks different after the two shots are lined up. Send him `sheet.png` from the folder it prints (SendUserFile) with one
 line saying what changed and why. About 40 minutes for the pair (20 a side, measured 2026-11-20); run it in the background. `--before <tag or commit>`
 compares against something older; `compare <folder> <folder>` re-compares two sets already taken.
 
@@ -33,6 +34,14 @@ difference.
 ## 3. Install only after he has seen it
 
 Then `python3 scripts/install_to_phone.py`, and tell him the build number.
+
+## How far to trust it
+
+Measured 2026-11-20 on three captures of the same code: 0 of 145 screens reported changed, though 41 to 48 of them
+were scrolled to a different pixel and tips showed in one run and not the other. A renamed label and a block covering
+11% of a screen were both caught. A recolour covering 0.6% of a screen with no change of words was not: identical
+builds differ by up to 1.9%, so anything under 3% with the same words is invisible to it. For a change that small
+(an icon's tint, a border), open the two shots yourself and say so.
 
 ## What the shots do not show
 
