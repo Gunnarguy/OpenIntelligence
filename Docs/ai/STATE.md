@@ -84,8 +84,12 @@ MARKETING_VERSION=5.8`, then `xcrun devicectl device install app --device B1483F
 
 ## Exact Next Action
 
-Read App Store Connect for the 5.8 records (`zsh -ic 'python3 /private/tmp/claude-501/asc_submit.py'` prints each
-platform's state). When a platform reads READY_FOR_SALE, move `app_store_by_platform` for it (and `app_store` when both
-are live), empty `in_review`, push. Then file Notion rows for after 5.8: the continuation trigger on a final list item
+Nothing to do by hand for the 5.8 release itself. The GitHub release `v5.8.0` (tag on 8e148387, build 509) is up as a
+pre-release, and launchd `com.gunnarguy.oi-release-watch` (`~/.agents/bin/oi_release_watch.py`, log
+`~/.agents/data/oi-release-watch/log.txt`) reads App Store Connect every 30 minutes: as each platform goes live it
+updates `Docs/SHIPPED_VERSION.json` on origin/main, and once both are live it sets `app_store` 5.8, empties `in_review`,
+dates the `## v5.8` heading in `Docs/USER_CHANGELOG.md` and `VersionHistory.md`, makes the release Latest and unloads
+itself. So `git pull` before the next commit here, and do not edit those three files for the 5.8 release. Still by
+hand after it is live: the release-notes, docs-index and metadata-history lines the 5.7 commit 3face1fb carried. Then file Notion rows for after 5.8: the continuation trigger on a final list item
 without a period, Apple's background rate limit (answers wait for the app), Siri scope and open-document, the DHA
 named-document row, Standard's planner model call, and the Mac Dock/Space behaviour of the details sheet.
