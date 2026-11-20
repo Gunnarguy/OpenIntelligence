@@ -1414,6 +1414,34 @@ a store build writes none.
 
 `[evidence_level: measured, confidence: high, evidence_source: 2026-11-20 on the iPhone 16 Pro Max over Wi-Fi: file listing 0.9 s, journal copy of 7.2 MB 4.2 s, one full pass 6.6 s; replay of the 2026-11-19 journal printed 39 lines for 1,991 events; 90 s under Monitor with the phone idle printed nothing. Not yet run while the owner tested.]`
 
+## Lifecycle scenarios: leaving, locking and ending the app (added 2026-11-20)
+
+```bash
+python3 scripts/lifecycle_scenarios.py
+```
+
+Six scenarios in the iOS 27 Simulator, about 11 minutes: a new install opened twice, leaving during an import, an
+answer with the app in front, leaving during an answer, locking during an answer, and ending the app during an answer
+and opening it again. `OpenIntelligenceUITests/LifecycleScenarioUITests.swift` drives the app; the verdict is read
+from the journal the Debug build writes, never from the screen. The script copies the working tree out of iCloud,
+patches the copy with `scripts/sim_model_copy.py` so Apple's model answers in the Simulator, builds the
+`OpenIntelligenceUITests` scheme, makes a simulator of its own ("OI lifecycle") and deletes it at the end. It waits
+while a game is open and refuses while another `xcodebuild` runs. The `lifecycle-check` skill has the flags, how to
+read PASS, FAIL and NOT TESTED, and how to add a scenario. Run it before a build goes to the owner's phone after any
+change to answers, the import queue, background tasks, launch or app state, and before every submission.
+
+A pass means the app's own logic held, not that a phone behaves: the Simulator refuses the continued-processing task
+(`bgtask.* submissionFailed`, so the app runs its fallback), does not withhold the Neural Engine in the background,
+and has no heat, memory pressure or Private Cloud Compute. The scenarios ask in Standard only.
+
+`--real-use <journal> [--since <local time>]` needs no simulator: it reads a journal of the owner's own use (the copy
+`scripts/phone_watch.py` pulls) and prints every answer by whether the app stayed in front, left or restarted, with
+the share that finished.
+
+Tests: `python3 scripts/test_lifecycle_scenarios.py` (13, the judges on invented journals).
+
+`[evidence_level: measured, confidence: high, evidence_source: two full runs on 2026-11-20 (run folders 2026-11-20_103956 and 2026-11-20_105206 under ~/Library/Developer/OpenIntelligence-evidence/lifecycle), commit fdea5f00's app code: 6 of 6 passed both times, 10.5 minutes; second run: import of a 601 KB note in 68 s finishing after coming back, answers in 67 to 68 s from the imported note, the ended app asked again on reopening and answered; longest main-thread stall 3.9 s (8.7 s on the first run's first launch). Real use on the iPhone, 2026-11-19 00:00 to 2026-11-20 09:44: in front 100% (11 of 11), left 100% (11 of 11), restarted 71% (10 of 14).]`
+
 ## Timing the vector store at the size of a very large library (added 2026-10-12)
 
 `VectorStoreScaleBenchmarkTests` builds a store of as many passages as it is told, times a load, a search,

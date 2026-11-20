@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-11-20 10:05
+Updated: 2026-11-20 11:10
 Branch/worktree: `main`, primary checkout
 Last verified commit: 19c36f86
 
@@ -24,7 +24,8 @@ Retrospective fixes, of ten:
 | 1 | Submit gate | Built: `scripts/asc_submit_gate.py`, runbook "The submit gate". |
 | 2 | Phone watch | Built: `scripts/phone_watch.py`, skill `phone-watch`. Not yet run while the owner tested. |
 | 3 | Which build is on the phone | Steps 1 and 2 built: `scripts/install_to_phone.py` gives each device build the number `<commits>.<DDHHMM>` and records it. The iPhone runs 5.8 (1876.200935) = 19c36f86 since 09:38 on 2026-11-20 (same app code as build 509). Step 3 (the commit inside the app) is not built and may not be needed. |
-| 4 to 10 | Lifecycle tests, one session per workstream, paired runs, design sheet, claims register, post-release watch, smaller releases | Not started. |
+| 4 | Lifecycle tests | Built: `scripts/lifecycle_scenarios.py`, `OpenIntelligenceUITests/LifecycleScenarioUITests.swift`, skill `lifecycle-check`. 6 of 6 passed twice in the Simulator. |
+| 5 to 10 | One session per workstream, paired runs, design sheet, claims register, post-release watch, smaller releases | Not started. |
 
 ## Active Constraints
 
@@ -56,7 +57,10 @@ Retrospective fixes, of ten:
   FAIL `terms-link` on both platforms, exit 1.
 - `python3 scripts/install_to_phone.py` -> `installed 5.8 (1876.200935) = 19c36f86, not launched`, 163 s; the iPhone's app
   list read `5.8 | 1876.200935`; the phone watch then printed `app launched: build 5.8 (1876.200935) = 19c36f86` at 09:38:52.
-- `python3 scripts/test_asc_submit_gate.py` -> 14 passed. `python3 scripts/test_phone_watch.py` -> 8 passed.
+- `python3 scripts/lifecycle_scenarios.py` -> 6 of 6 scenarios passed, twice, 10.5 minutes each (run folders
+  `~/Library/Developer/OpenIntelligence-evidence/lifecycle/2026-11-20_103956` and `_105206`).
+  `python3 scripts/test_lifecycle_scenarios.py` -> 13 passed.
+- `python3 scripts/test_asc_submit_gate.py` -> 15 passed. `python3 scripts/test_phone_watch.py` -> 8 passed.
   `python3 scripts/test_install_to_phone.py` -> 6 passed.
   `python3 scripts/test_phone_evidence.py` -> passed. `python3 scripts/secret_scan.py` -> clean.
 - `python3 scripts/phone_watch.py --once --since 2026-11-19T15:30` against the iPhone -> 3 lines, 6.6 s. 90 s under the
@@ -97,7 +101,7 @@ Retrospective fixes, of ten:
 
 ## Exact Next Action
 
-None for the retrospective until the owner says which fix is next (4 to 10 in `Docs/ai/RETRO_5.8.md`). He was surprised
+None for the retrospective until the owner says which fix is next (5 to 10 in `Docs/ai/RETRO_5.8.md`). He was surprised
 by the 09:38 install ("why you just built another version to my phone"): install to his phone only for a fix he is
 waiting on or at his word, and say so before it happens.
 
