@@ -125,6 +125,12 @@ class SubmitGate(unittest.TestCase):
         self.assertEqual(levels(snap, "product-state"), ["FAIL"])
         self.assertEqual(levels(snap, "privacy-policy-url"), ["FAIL"])
 
+    def test_an_unanswered_age_rating_question_fails(self):
+        # Apple, 2026-11-02: required when submitting an app update from 2026-11-16.
+        snap = good()
+        snap["app_infos"][0]["ageUnanswered"] = ["datingAndRelationships", "sharedLocation"]
+        self.assertEqual(levels(snap, "age-rating-questions"), ["FAIL"])
+
     def test_review_detail(self):
         snap = good()
         snap["platforms"]["IOS"]["review"].update(contact=False, notesLength=4001)
@@ -136,12 +142,11 @@ class SubmitGate(unittest.TestCase):
         snap = good()
         loc = snap["platforms"]["IOS"]["localizations"][0]
         loc["whatsNew"] = "Standard answered 15 of 17.\nA dash — here."
-        snap["app_infos"][0]["ageUnanswered"] = ["sharedLocation"]
         snap["repo"]["description"] = "something else"
         results = gate.check(snap)
         self.assertEqual([r for r in results if r["level"] == "FAIL"], [])
         warned = {r["check"].split("[")[0] for r in results if r["level"] == "WARN"}
-        self.assertEqual(warned, {"percentages", "em-dash", "age-rating-questions", "repo-description"})
+        self.assertEqual(warned, {"percentages", "em-dash", "repo-description"})
 
     def test_an_already_submitted_version_is_information_not_a_failure(self):
         snap = good()

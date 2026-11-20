@@ -1502,15 +1502,16 @@ link), about 15 hours after submission; `scripts/asc_prepare_release.rb` checks 
 | Text | description, What's New or keywords empty or over their limit (4,000, 4,000, 100); promotional text over 170; review notes over 4,000 |
 | Build | none attached, not `VALID`, expired, export compliance unanswered, a different build number per platform, or built from a commit other than the tag `v<X.Y>.0` |
 | Screenshots | no iPhone set, no 13-inch iPad set, no Mac set, a set over 10, or an upload that is not `COMPLETE` |
+| Age rating | a content question left unanswered. Apple's notice of 2026-11-02: from 2026-11-16 the Shared Location and Dating and Relationships declarations must be provided when submitting an app update, and by 2027-01-12 for every app. 5.8 was submitted on 2026-11-19 and 11-20 with both empty, found on 2026-11-20 when the gate was first run |
 | Records | a platform has no version record, no review contact, a product in `MISSING_METADATA`, `DEVELOPER_ACTION_NEEDED` or `REJECTED`, or a submission already open or with unresolved issues |
 
 It warns, without blocking, on the owner's copy rules (an em dash; a What's New line that gives "N of M" with no
 percentage), on copy in App Store Connect that differs from `fastlane/metadata/en-US/`, on review notes that do not
-hold `fastlane/review_notes/<X.Y>.txt`, on age-rating questions left empty, and when the tag does not exist yet. It
+hold `fastlane/review_notes/<X.Y>.txt`, and when the tag does not exist yet. It
 ends with what the API cannot show (the App Privacy answers, the text of a rejection).
 
 `--save FILE` writes what it read (no contact details or notes, only lengths and yes or no), and `--snapshot FILE`
-checks such a file with no network. Tests: `python3 scripts/test_asc_submit_gate.py` (14, no network).
+checks such a file with no network. Tests: `python3 scripts/test_asc_submit_gate.py` (15, no network).
 
 Two facts about the API it relies on, both measured 2026-11-20: `GET /v1/ciBuildRuns` as a collection answers 403
 ("does not allow GET_COLLECTION"), and `filter[builds]` on `/v1/ciProducts/{id}/buildRuns` is ignored, so the build's

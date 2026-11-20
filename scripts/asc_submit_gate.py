@@ -25,7 +25,9 @@ What each check is based on, with the date it was read:
   subtitle 30 (App Store Connect's field limits).
 - Screenshots: "Screenshot specifications", developer.apple.com/help/app-store-connect, read 2026-11-20: at least
   one iPhone set, one 13-inch iPad set if the app runs on iPad, one Mac set for a Mac app.
-- Age rating attributes: AgeRatingDeclaration.Attributes, developer.apple.com, read 2026-11-20.
+- Age rating attributes: AgeRatingDeclaration.Attributes, developer.apple.com, read 2026-11-20. An unanswered
+  question fails: Apple's news item of 2026-11-02 ("New age rating content descriptors") says the Shared Location and
+  Dating and Relationships declarations must be provided when submitting an app update from 2026-11-16.
 - Build commit: an Xcode Cloud run's number is the build number; its `sourceCommit` is read from
   /v1/ciProducts/{id}/buildRuns (the plain /v1/ciBuildRuns collection is not readable, measured 2026-11-20).
 """
@@ -319,8 +321,10 @@ def check(snap):
                 if len(loc[field]) > 30:
                     add("FAIL", "APP", f"{field}-length[{loc['locale']}]", f"{len(loc[field])} characters, limit 30")
         if editable["ageUnanswered"]:
-            add("WARN", "APP", "age-rating-questions",
-                "unanswered: " + ", ".join(editable["ageUnanswered"]) + " (Apple accepted 5.8 with these two empty on 2026-11-20)")
+            add("FAIL", "APP", "age-rating-questions",
+                "unanswered: " + ", ".join(editable["ageUnanswered"]) + ". Apple, 2026-11-02: from 2026-11-16 these declarations "
+                "must be provided when submitting an app update, and by 2027-01-12 for every app (App Store Connect, App "
+                "Information, Age Rating)")
         else:
             add("PASS", "APP", "age-rating-questions", "every content question is answered")
         if live and live is not editable and live["ageRating"] != editable["ageRating"]:
