@@ -30,7 +30,7 @@ Reading your files, searching them, and choosing what to cite all happen on your
 
 ANSWERS YOU CAN INSPECT
 
-Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer. The optional telemetry interface goes deeper when you want it and stays out of the way when you don't.
+Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer.
 
 LIBRARIES THAT FIT YOUR WORK
 
@@ -43,3 +43,4 @@ Every plan runs the same model: Apple Intelligence on your device, Deep Think, a
 OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
 
 Privacy Policy: gunndamental.com/openintelligence/privacy/
+Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
