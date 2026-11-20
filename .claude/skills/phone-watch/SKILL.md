@@ -36,7 +36,7 @@ run. With no cursor and no `--since` it starts from now.
 | `answer judged: verdict=partial` | The answer check found it incomplete. Read that answer's lines in the trace before saying anything about quality. |
 | `MODEL FAILURE: kind=rateLimited ...` | Apple's model refused or limited the call. Not a defect by itself; say so if the answer was slow. |
 | `background answer: phase=expired` or `failed` | iOS ended the background time. Check that the answer resumed (`answer done` after it). |
-| `app launched: build 5.8 (150), pid N (was pid M)` | The app restarted. If he did not relaunch it, it was killed: look for a `CRASH report` line and the crash log. |
+| `app launched: build 5.8 (1876.200935) = 19c36f86, pid N (was pid M)` | The app restarted. If he did not relaunch it, it was killed: look for a `CRASH report` line and the crash log. |
 | `N main-thread stalls of 2 s or more` | A freeze he probably felt. The trace has the phase. |
 | `FAILED <event>` | An event recorded as failed. Pull the evidence and read that event. |
 | `CRASH report on the phone: <name>.ips` | Copy it off (`xcrun devicectl device copy from --domain-type systemCrashLogs --source <name>`), read the crashed thread, and tell him the cause before he asks. |
@@ -50,8 +50,10 @@ Reply to him in one or two lines per thing that happened, unprompted. Do not wai
 ## Limits
 
 - **Debug builds only.** The App Store and TestFlight builds write no journal, so the watch is silent on them.
-- **It cannot say which commit is on the phone.** Every line carries the version and build number, and every
-  development build has been build 150. `Docs/ai/plans/build-stamp.md` is the plan that fixes this.
+- **Which commit is on the phone:** install with `python3 scripts/install_to_phone.py`. It gives the build a number
+  that names the commit and keeps a record, and the watch then prints `app launched: build 5.8 (1876.200935) = 19c36f86`
+  and says when the phone runs a build that is not the newest install. A build installed any other way prints its
+  number alone (150 for every hand-made build).
 - **A line holds no document name, library name or question**: only numbers, true/false and single enumerated words
   from a fixed list of fields, with anything else printed as `<text>`. The pulled journal does hold them; it stays in
   `~/Library/Developer/OpenIntelligence-evidence/watch` and is never committed or pasted whole.

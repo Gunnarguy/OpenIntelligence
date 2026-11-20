@@ -72,6 +72,28 @@ class PhoneWatch(unittest.TestCase):
         self.assertIn("1 main-thread stall of 2 s or more, longest 3.2 s (phase import)", out)
         self.assertEqual(out.count("question asked"), 2)  # the UI-test line is dropped
 
+    def test_a_launch_names_the_commit_from_the_install_record(self):
+        installs = [
+            {"version": "9.9", "build": "1", "commit": "a1b2c3d4" + "0" * 32, "dirty": True, "installed": True},
+            {"version": "9.9", "build": "77.201041", "commit": "ffff0000" + "1" * 32, "dirty": False, "installed": False},
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            write(folder, JOURNAL[:2])
+            path = os.path.join(folder, "installs.jsonl")
+            with open(path, "w") as f:
+                f.write("\n".join(json.dumps(i) for i in installs) + "\nnot json\n")
+            out = "\n".join(watch.one_pass(folder, {}, from_device=False, installs_path=path))
+            self.assertIn("app launched: build 9.9 (1) = a1b2c3d4 + uncommitted changes, ms=840", out)
+            self.assertNotIn("NOT the newest", out)  # a build that was only built, never installed, is not the newest install
+            installs[1]["installed"] = True
+            with open(path, "w") as f:
+                f.write("\n".join(json.dumps(i) for i in installs))
+            out = "\n".join(watch.one_pass(folder, {}, from_device=False, installs_path=path))
+            self.assertIn("build 9.9 (1) = a1b2c3d4 + uncommitted changes (NOT the newest install, which is 9.9 (77.201041))", out)
+            # No record at all: the line is as before.
+            out = "\n".join(watch.one_pass(folder, {}, from_device=False, installs_path=os.path.join(folder, "none")))
+            self.assertIn("app launched: build 9.9 (1), ms=840", out)
+
     def test_the_cursor_moves_and_nothing_is_reported_twice(self):
         with tempfile.TemporaryDirectory() as folder:
             state = {}

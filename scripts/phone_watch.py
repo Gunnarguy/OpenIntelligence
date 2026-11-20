@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from phone_evidence import BUNDLE, DEVICE  # the owner's iPhone and the app's bundle id
 
 HOME = os.path.expanduser("~/Library/Developer/OpenIntelligence-evidence/watch")
+INSTALLS = os.path.expanduser("~/Library/Developer/OpenIntelligence-evidence/installs.jsonl")
 JOURNAL, PREVIOUS = "verification_events.jsonl", "verification_events.prev.jsonl"
 TOKEN = re.compile(r"^[A-Za-z0-9_.+-]{1,32}$")
 STALL_MS = 2000
@@ -58,6 +59,37 @@ LABEL = {"answer.start": "question asked", "answer.done": "answer done", "model.
          "system.state": "device state"}
 
 
+def load_installs(path):
+    """Build name ("5.8 (1876.201041)") to its line in the record `scripts/install_to_phone.py` keeps, plus the
+    newest build that was installed under the key None."""
+    known = {}
+    if path and os.path.exists(path):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                    name = f"{entry['version']} ({entry['build']})"
+                except (ValueError, KeyError, TypeError):
+                    continue
+                if entry.get("installed"):
+                    known[name] = entry
+                    known[None] = dict(entry, name=name)
+    return known
+
+
+def commit_of(build, installs):
+    """" = 19c36f86 + uncommitted changes" for a build this Mac installed; a note when it is not the newest one."""
+    if not installs:
+        return ""
+    entry, newest = installs.get(build), installs.get(None)
+    text = ""
+    if entry and re.fullmatch(r"[0-9a-f]{7,40}", str(entry.get("commit", ""))):
+        text = f" = {entry['commit'][:8]}" + (" + uncommitted changes" if entry.get("dirty") else "")
+    if newest and newest["name"] != build:
+        text += f" (NOT the newest install, which is {build_name(newest['name'])})"
+    return text
+
+
 def safe(value):
     """A value that can be printed: a number, true/false, or one enumerated word. Anything else is <text>."""
     if isinstance(value, bool):
@@ -71,7 +103,7 @@ def safe(value):
 
 def build_name(value):
     """The journal's version stamp, "5.8 (150)", when it has that shape."""
-    return value if isinstance(value, str) and re.match(r"^[0-9.]{1,12}( \([0-9]{1,8}\))?$", value) else safe(value)
+    return value if isinstance(value, str) and re.match(r"^[0-9.]{1,12}( \([0-9.]{1,18}\))?$", value) else safe(value)
 
 
 def fields(event, names):
@@ -99,7 +131,7 @@ def number(value):
         return 0.0
 
 
-def describe(events, process):
+def describe(events, process, installs=None):
     """Lines for a batch of new events. `process` is the last seen (version, pid), updated in place."""
     lines, imports, stalls, longest = [], {}, 0, (0.0, "")
     for e in events:
@@ -107,7 +139,8 @@ def describe(events, process):
         seen = [build_name(e.get("v")), safe(e.get("pid"))]
         if e.get("pid") is not None and seen != process.get("now"):
             if process.get("now") and process["now"][1] != seen[1]:
-                lines.append(f"{when} app restarted: build {seen[0]}, pid {seen[1]} (was pid {process['now'][1]})")
+                lines.append(f"{when} app restarted: build {seen[0]}{commit_of(seen[0], installs)}, pid {seen[1]} "
+                             f"(was pid {process['now'][1]})")
             process["now"] = seen
         if name == "mainThread.stall":
             ms = number(f.get("ms", e.get("ms")))
@@ -124,10 +157,10 @@ def describe(events, process):
             detail = fields(e, SHOW[name])
             took = f", took {number(e['ms']) / 1000:.1f} s" if name == "answer.done" and e.get("ms") else ""
             outcome = "" if e.get("o") in ("ok", "info", "started", None) else f" [{safe(e.get('o'))}]"
-            build = f" build {seen[0]}," if name == "launch.chatUsable" else ""
+            build = f" build {seen[0]}{commit_of(seen[0], installs)}," if name == "launch.chatUsable" else ""
             if build and lines and " app restarted: " in lines[-1]:
                 was = lines.pop().rsplit("(was ", 1)[-1].rstrip(")")
-                build = f" build {seen[0]}, pid {seen[1]} (was {was}),"
+                build = f" build {seen[0]}{commit_of(seen[0], installs)}, pid {seen[1]} (was {was}),"
             lines.append(f"{when} {LABEL[name]}{outcome}:{build} {detail}{took}".rstrip(": ").rstrip())
             continue
         if name in SHOW_WHEN:
@@ -226,7 +259,7 @@ def save_state(path, state):
     os.replace(path + ".tmp", path)
 
 
-def one_pass(folder, state, from_device):
+def one_pass(folder, state, from_device, installs_path=None):
     """Reads what is new, returns the lines to print, and moves the cursor in `state`."""
     lines = []
     if from_device:
@@ -246,7 +279,7 @@ def one_pass(folder, state, from_device):
     events = new_events(folder, state.get("cursor"))
     if events:
         process = {"now": state.get("process")}
-        lines += describe(events, process)
+        lines += describe(events, process, load_installs(installs_path))
         state["process"], state["cursor"] = process["now"], events[-1]["t"]
     crashes = crash_names(None if from_device else folder)
     if crashes is not None:
@@ -264,8 +297,11 @@ def main():
     p.add_argument("--once", action="store_true")
     p.add_argument("--dir", help="read journal files from this folder instead of the phone, one pass")
     p.add_argument("--state", default=os.path.join(HOME, "state.json"))
+    p.add_argument("--installs", help="the install record (default: the one scripts/install_to_phone.py writes; "
+                                      "with --dir, installs.jsonl in that folder)")
     a = p.parse_args()
     folder = a.dir or HOME
+    installs_path = a.installs or (os.path.join(a.dir, "installs.jsonl") if a.dir else INSTALLS)
     os.makedirs(folder, exist_ok=True)
     state = load_state(a.state)
     if a.since:
@@ -275,7 +311,7 @@ def main():
         state["cursor"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     misses, away = 0, False
     while True:
-        lines = one_pass(folder, state, from_device=not a.dir)
+        lines = one_pass(folder, state, from_device=not a.dir, installs_path=installs_path)
         if lines is None:
             misses += 1
             if misses == 3 and not away:

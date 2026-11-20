@@ -1,8 +1,8 @@
 # Plan: know which build is on the phone
 
 Written 2026-11-20. Gap 3 of `Docs/ai/RETRO_5.8.md`: about 27 owner messages on 13 days asked "is it on my phone" or
-"was this the new build". Nothing here is built yet. No file under `OpenIntelligence/`, no `Info.plist` and no
-`project.pbxproj` is edited by steps 1 and 2.
+"was this the new build". **Steps 1 and 2 were built on 2026-11-20** (`scripts/install_to_phone.py`, results at the
+end); step 3 is not. No file under `OpenIntelligence/`, no `Info.plist` and no `project.pbxproj` was edited.
 
 ## What is true today
 
@@ -49,7 +49,7 @@ already ties to a commit.
 
 ## Step 2: an install script that keeps a record (no app code)
 
-`scripts/install_to_phone.sh`, wrapping the runbook's three commands (mirror out of iCloud, build with the settings
+`scripts/install_to_phone.py`, wrapping the runbook's three commands (mirror out of iCloud, build with the settings
 above, install and launch), which then:
 
 - appends one line to `~/Library/Developer/OpenIntelligence-evidence/installs.jsonl`: time, build number, commit,
@@ -85,3 +85,19 @@ engine target in `project.pbxproj`). Needs the owner's `PROCEED: IMPLEMENT` and 
 
 Step 1 is a runbook change and four checks on the next device build. Step 2 is one script and a small change to the
 phone watch, about half a day with its test. Step 3 waits for 5.8 to be live and for his word.
+
+## Result, 2026-11-20
+
+| Check | Result |
+|---|---|
+| The number reaches every target | The built app, `OpenIntelligenceShare.appex` and `OpenIntelligenceLiveActivities.appex` all read 5.8 / 1876.200935 (their `Info.plist`s; the script refuses to install when they differ). `[build_verified]` |
+| It installs over the current development build | Installed over build 150 at 09:38; `devicectl device info apps` on the iPhone read `5.8 | 1876.200935`. A lower number over a higher one is not tried (a later build of the same day always has a higher one; the first build of a new month has a lower one). `[measured]` |
+| Settings and the journal show it | The journal does: when the owner opened the app the phone watch printed `09:38:52 app launched: build 5.8 (1876.200935) = 19c36f86, pid 28040 (was pid 23309)`. `[measured]` Settings is not yet looked at. |
+| Search setup is not shown again because of the number | Not yet seen, same reason. |
+| Cost | First build into an empty folder and install: 163 s. A rebuild with only a new number: 13 s. `[measured]` |
+
+Differences from the plan above: the script is Python (`scripts/install_to_phone.py`) so its parts have tests; it
+installs when the app is not running or has been silent in its journal for ten minutes (the runbook's rule was "not
+running"; the app was suspended and 603 minutes silent on this run); and it does not launch unless `--launch` is
+given. The `CLAUDE.md` rule is not added; the standing memory "build every fix to his phone" now names the script.
+

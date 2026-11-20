@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-20 09:45
+Updated: 2026-11-20 09:50
 Branch/worktree: `main`, primary checkout
-Last verified commit: ccc2f840
+Last verified commit: 19c36f86
 
 ## Objective
 
@@ -23,7 +23,7 @@ Retrospective fixes, of ten:
 |---|---|---|
 | 1 | Submit gate | Built: `scripts/asc_submit_gate.py`, runbook "The submit gate". |
 | 2 | Phone watch | Built: `scripts/phone_watch.py`, skill `phone-watch`. Not yet run while the owner tested. |
-| 3 | Which build is on the phone | Plan only: `Docs/ai/plans/build-stamp.md`. Steps 1 and 2 need no app code. |
+| 3 | Which build is on the phone | Steps 1 and 2 built: `scripts/install_to_phone.py` gives each device build the number `<commits>.<DDHHMM>` and records it. The iPhone runs 5.8 (1876.200935) = 19c36f86 since 09:38 on 2026-11-20 (same app code as build 509). Step 3 (the commit inside the app) is not built and may not be needed. |
 | 4 to 10 | Lifecycle tests, one session per workstream, paired runs, design sheet, claims register, post-release watch, smaller releases | Not started. |
 
 ## Active Constraints
@@ -44,7 +44,7 @@ Retrospective fixes, of ten:
 | `Docs/ai/RETRO_5.8.md` | The ten gaps, their evidence, the order to build, and what is built so far. |
 | `scripts/asc_submit_gate.py`, `scripts/test_asc_submit_gate.py` | Fix 1. `collect()` reads App Store Connect, `check()` is a pure function of the snapshot. |
 | `scripts/phone_watch.py`, `scripts/test_phone_watch.py`, `.claude/skills/phone-watch/SKILL.md` | Fix 2. `SHOW` and `SHOW_WHEN` list the events and the only fields a line may carry. |
-| `Docs/ai/plans/build-stamp.md` | Fix 3's plan: a build number per device build on the `xcodebuild` command line, then an install script with a record. |
+| `scripts/install_to_phone.py`, `scripts/test_install_to_phone.py`, `Docs/ai/plans/build-stamp.md` | Fix 3: the device build with its own number, the install record, and the plan with the measured result. |
 | `Docs/ai/RUNBOOK.md` | New sections "The submit gate" and "Watching the phone while the owner tests"; step 0 in "Submitting for review through the API". |
 
 ## Verification
@@ -54,7 +54,10 @@ Retrospective fixes, of ten:
   percentage on each platform.
 - The same snapshot with the 2026-11-19 description (`git show 3b35cb50^:fastlane/metadata/en-US/description.txt`) ->
   FAIL `terms-link` on both platforms, exit 1.
-- `python3 scripts/test_asc_submit_gate.py` -> 14 passed. `python3 scripts/test_phone_watch.py` -> 7 passed.
+- `python3 scripts/install_to_phone.py` -> `installed 5.8 (1876.200935) = 19c36f86, not launched`, 163 s; the iPhone's app
+  list read `5.8 | 1876.200935`; the phone watch then printed `app launched: build 5.8 (1876.200935) = 19c36f86` at 09:38:52.
+- `python3 scripts/test_asc_submit_gate.py` -> 14 passed. `python3 scripts/test_phone_watch.py` -> 8 passed.
+  `python3 scripts/test_install_to_phone.py` -> 6 passed.
   `python3 scripts/test_phone_evidence.py` -> passed. `python3 scripts/secret_scan.py` -> clean.
 - `python3 scripts/phone_watch.py --once --since 2026-11-19T15:30` against the iPhone -> 3 lines, 6.6 s. 90 s under the
   Monitor tool with the phone idle -> no lines.
@@ -91,11 +94,9 @@ Retrospective fixes, of ten:
 
 ## Exact Next Action
 
-Wait for the owner's word on the build stamp: `Docs/ai/plans/build-stamp.md` steps 1 and 2 (a per-build number on
-the device build's command line, then `scripts/install_to_phone.sh` with its install record). They touch no app code,
-so they do not wait for 5.8. On his yes: add `CURRENT_PROJECT_VERSION=<commits>.<DDHHMM>` to the device build in
-`Docs/ai/RUNBOOK.md` "Building to the owner's iPhone", run the plan's four checks on the first build that uses it, and
-write the script.
+None for the retrospective until the owner says which fix is next (4 to 10 in `Docs/ai/RETRO_5.8.md`). He was surprised
+by the 09:38 install ("why you just built another version to my phone"): install to his phone only for a fix he is
+waiting on or at his word, and say so before it happens.
 
 When Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
 `~/.agents/data/oi-release-watch/log.txt`): add the release-notes, docs-index and metadata-history lines the 5.7

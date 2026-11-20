@@ -1183,6 +1183,35 @@ highest installed Xcode.
 
 ## Building to the owner's iPhone
 
+**Use the script** *(added 2026-11-20)*. It does the three steps below and gives the build a number that names the
+commit, so the phone itself says which build it runs:
+
+```bash
+python3 scripts/install_to_phone.py
+```
+
+It mirrors the repository out of iCloud, builds with `MARKETING_VERSION` from the first numbered `CHANGELOG.md` heading
+and `CURRENT_PROJECT_VERSION=<commits>.<DDHHMM>` (`git rev-list --count HEAD`, then the day of the month and the local
+time), checks that the app and both extensions carry that number, installs, and prints one line:
+`installed 5.8 (1876.200935) = 19c36f86, not launched: open it on the phone`. Settings, About, the feedback mail and
+every journal line then read `5.8 (1876.200935)`; the commit is `git rev-list --reverse HEAD | sed -n '1876p'`. No file
+in the repository changes, and Xcode Cloud builds keep their run number. Each run appends a line to
+`~/Library/Developer/OpenIntelligence-evidence/installs.jsonl` (build number, commit, whether app files had
+uncommitted changes and a hash of them, installed or why not), which `scripts/phone_watch.py` reads to name the commit
+when the app launches and to say when the phone runs an older build than the newest install.
+
+Its rules: it refuses to start while another `xcodebuild` runs or under 12 GiB free; it stops its own build (never
+another session's) if free memory falls under 15% or the disk under 6 GiB; it installs only when the app is not
+running on the phone, or is running and has written nothing to its journal for ten minutes (an install ends the app,
+and with it an answer or an import; `--force` overrides); it does not launch the app unless `--launch` is given, so it
+never takes the phone's screen from the owner. `--no-install` builds only, `--dry-run` prints the number and the
+commands, `--provisioning` adds `-allowProvisioningUpdates` after an entitlement change.
+Tests: `python3 scripts/test_install_to_phone.py` (6, no build and no phone).
+
+`[evidence_level: measured, confidence: exact, evidence_source: 2026-11-20 09:35 PT: build with an empty build folder and install in 163 s, free memory 42% or more, disk 22 to 21 GiB free; app, OpenIntelligenceShare.appex and OpenIntelligenceLiveActivities.appex all read 5.8 / 1876.200935; devicectl device info apps on the iPhone read 5.8 | 1876.200935, installed over build 150 with the app suspended 603 minutes. A second build with a new number took 13 s. Not yet seen: the number in Settings and on a journal line, which need the owner to open the app.]`
+
+The same steps by hand, kept as the record:
+
 *Verified 2026-09-23, and again 2026-09-24 and 2026-09-28.* A Debug build installs over Wi-Fi with no cable;
 the "USB only" note elsewhere applies to tests, which need the developer disk image.
 
@@ -1379,7 +1408,7 @@ happened before the watch started; `--once` runs one pass.
 
 A line carries only numbers, true or false and single enumerated words from a fixed list of fields; any other value
 prints as `<text>`, so no document name, library name or question reaches a line. The pulled journal stays in
-`~/Library/Developer/OpenIntelligence-evidence/watch`. Tests: `python3 scripts/test_phone_watch.py` (7, on an invented
+`~/Library/Developer/OpenIntelligence-evidence/watch`. Tests: `python3 scripts/test_phone_watch.py` (8, on an invented
 journal). It reads the same journal `scripts/phone_evidence.py` checks roadmap rows against, and Debug builds only:
 a store build writes none.
 
