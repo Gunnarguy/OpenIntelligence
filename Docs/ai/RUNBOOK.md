@@ -1442,6 +1442,29 @@ and never edits that file. Tests: `python3 scripts/test_paired_run.py` (56).
 
 `[evidence_level: test_verified for the tool; measured for compare, which reproduces the ledger's reading of the two pairs of 2026-11-19 (bind-base-ans against bind-fix-ans: 90% (18 of 20) both, one fixed, one broken). First real run through the script, 2026-11-20, the same build twice (29a406bd): Standard 80% (16 of 20) then 90% (18 of 20), 2 of 20 flipped, 12 and 9 minutes a run plus a 3-minute build each; ledger entry "noise".]`
 
+## How much answers vary between identical runs (added 2026-11-20)
+
+```bash
+python3 scripts/stability_battery.py --dry-run
+```
+
+```bash
+python3 scripts/stability_battery.py
+```
+
+The second command makes the runs that do not exist yet: the answer test's 20 questions in Standard, 3 times as shipped,
+2 with no randomness (`greedy`), 2 with a fixed seed, 2 at temperature 0.1 and 3 with the app's adaptive-profiles
+switch on, about 10 minutes each in the iOS 27 Simulator, one at a time, from one scratch copy of `HEAD` (so commit
+first). A stopped battery picks up where it was; `--report` prints the table from the runs that exist. Two greedy runs
+that still differ mean something before the writing varies: `--arms hashed` repeats them with Swift's hashing held
+fixed, and the golden harnesses compare the passages. `--mode deepThink --arms shipped greedy adaptive` is the same
+for Deep Think and takes hours (use the `overnight` skill). It prints the `BenchmarkRuns/LEDGER.md` lines and never
+edits that file. The questions it answers and what each result leads to are in `Docs/ai/plans/consistent-answers.md`.
+The settings reach the app through `EvaluationSampling` in `AnswerQualityEvaluationTests.swift`. Tests:
+`python3 scripts/test_stability_battery.py` (8).
+
+`[evidence_level: test_verified for the script's arithmetic and wording; build_verified for the test hook; --report reproduces the two as-shipped runs of 2026-11-20 (80% and 90%, 1 of 18 answers the same); no battery run made yet, so the settings reaching the model is unobserved, confidence: medium]`
+
 ## UI before and after, side by side (added 2026-11-20)
 
 ```bash

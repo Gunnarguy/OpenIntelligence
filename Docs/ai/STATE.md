@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-20 13:35
+Updated: 2026-11-20 14:57
 Branch/worktree: `main`, primary checkout
-Last verified commit: 29a406bd
+Last verified commit: f0596ab5
 
 ## Objective
 
@@ -10,6 +10,12 @@ Last verified commit: 29a406bd
 "create a bulletproof productivity engine"; then "do all of them, now", with the condition "only if it helps you help
 me ... dont want more hoops"). Nine of the ten are built; the tenth (smaller releases) is his call. 5.8 itself is
 submitted and needs nothing by hand until Apple answers.
+
+**Second objective, opened 2026-11-20 by the owner: the same documents and the same question give the same, right
+answer** ("any kind of variation ... defeats the whole purpose of the app"). The measurements are scaffolded and
+**wait for his word "go"** ("wait for me to give you the greenlight on those measurements"). App changes that follow
+go into 5.9 with his `PROCEED: IMPLEMENT`. Everything is in `Docs/ai/plans/consistent-answers.md`: the side-by-side
+table of Standard, Deep Think and Maximum, the questions, and the decision rules written before the runs.
 
 ## Status
 
@@ -62,6 +68,10 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 | `Docs/ai/DESIGN.md`, `Docs/ai/CLAIMS.json`, `Docs/ai/ARCHITECTURE_DETAIL.md` | The rulings, the register, and the three sections moved out of the map. |
 | `~/Library/Developer/OpenIntelligence-evidence/` | Outside the repository: the phone journal copy, install record, lifecycle and UI-shot run folders. |
 
+- `scripts/stability_battery.py`, `scripts/test_stability_battery.py`, `Docs/ai/plans/consistent-answers.md`,
+  `EvaluationSampling` in `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`: the
+  consistent-answers work. Scratch copy and build products for it are in `/private/tmp/oi-stability` (safe to delete).
+
 ## Verification
 
 - Eight test files -> all pass: `test_asc_submit_gate` 16, `test_phone_watch` 8, `test_install_to_phone` 6,
@@ -77,6 +87,11 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 - `python3 scripts/paired_run.py pair --before HEAD --after HEAD --name noise` -> ran to the end (two 3-minute builds,
   runs of 12 and 9 minutes): 80% (16 of 20) and 90% (18 of 20), "within run-to-run noise"; entry in
   `BenchmarkRuns/LEDGER.md`.
+
+- `python3 scripts/test_stability_battery.py` -> 8 tests OK. `xcodebuild build-for-testing` of the staged tree with
+  the test change (generic iOS Simulator, `/private/tmp/oi-stability/dd`) -> `** TEST BUILD SUCCEEDED **`, 2026-11-20
+  14:50. `python3 scripts/stability_battery.py --report` -> the two as-shipped runs, 80% and 90%, 1 of 18 answers the
+  same. No battery run has been made, and the full unit suite was not run on the test change.
 
 ## Blockers / Unknowns
 
@@ -109,13 +124,23 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-None for the retrospective: nine fixes are built, proven as far as the table above says, and pushed. The first real
-uses are still ahead and are where each tool gets its real test: the phone watch during a testing session of the
-owner's, `ui_shots.py pair` on an actual UI change, and `paired_run.py pair --repeats 2` before and after the first
-answer-quality change of 5.9 (the noise to beat is 2 of 20 in Standard).
+**When the owner says "go"** (and not before): check he is not gaming and that the disk has 15 GiB free, then run
+`python3 scripts/stability_battery.py` in the background (10 runs of about 10 minutes, Standard, iOS 27 Simulator;
+`--dry-run` lists them; it stages `HEAD`, so the commit holding `EvaluationSampling` must be the one checked out). Read
+the first run's log for the line `[AnswerQualityEvaluation] sampling:` to confirm a setting reached the test. When it
+ends, `--report` prints the table: put its ledger lines in `BenchmarkRuns/LEDGER.md`, write the result on the six
+roadmap rows the plan links, and answer him with the table and what the plan's rules say to build. If two `greedy`
+runs differ, run `--arms hashed` and then the golden harnesses before proposing any temperature change. Deep Think
+(`--mode deepThink --arms shipped greedy adaptive`) is hours a run: offer it for overnight with the `overnight` skill.
 
-When Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
-`~/.agents/data/oi-release-watch/log.txt`): add the release-notes, docs-index and metadata-history lines the 5.7
+What was found on the way, all code_verified on 2026-11-20 and in the plan: as installed Standard writes at 0.4 or
+lower, every Deep Think step at 0.5 and Maximum's first sessions at 0.7; the per-kind temperature (0.1 for a lookup) is
+the Settings switch `adaptiveInferenceProfiles`, off by default; most `RAGQualityMode` settings are read only by
+Standard's pipeline and seven by nothing. An earlier answer of mine in that session said Deep Think used 0.1 for
+lookups: that holds only with the switch on, and he has been told.
+
+Still standing from before: when Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
+`~/.agents/data/oi-release-watch/log.txt`), add the release-notes, docs-index and metadata-history lines the 5.7
 commit 3face1fb carried, then file Future Backlog rows in Notion for the continuation trigger on a final list item
 without a period, Apple's background rate limit, Siri scope and open-document, the DHA named-document row, Standard's
 planner model call, and the Mac Dock/Space behaviour of the details sheet. For 5.9, correct the Mac release notes'

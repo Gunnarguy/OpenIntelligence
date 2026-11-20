@@ -24,6 +24,15 @@
 //    and says so. `scripts/bench_answer_modes.sh` builds that copy and runs all three modes.
 //  - `OI_EVAL_TOPK`, as before.
 //
+//  Since 2026-11-20, for measuring how much answers vary between runs (`scripts/stability_battery.py`), three
+//  benchmark-only sampling settings, each also with the `TEST_RUNNER_` prefix. They reach the app's own model
+//  service only (`OI_EVAL_MODEL=app`), through the three defaults `AppleFoundationLLMService` reads for a benchmark
+//  run, and are removed when the run ends (`EvaluationSampling`):
+//  - `OI_EVAL_SAMPLING` greedy, topk or topp. Greedy always takes the likeliest word and ignores temperature.
+//  - `OI_EVAL_SEED` an integer: random sampling with the draws held fixed.
+//  - `OI_EVAL_TEMPERATURE` a number, in place of the mode's own.
+//  - `OI_EVAL_ADAPTIVE` 1: the app's Settings switch for a temperature by the kind of question, on for the run.
+//
 
 import Evaluations
 import Foundation
@@ -61,6 +70,47 @@ private struct EvaluationSetupError: Error, CustomStringConvertible {
 }
 
 /// One case of `rag_eval_v1.jsonl`, as the file writes it.
+/// Benchmark-only sampling for a run: sets, and afterwards removes, the three defaults `AppleFoundationLLMService`
+/// reads when a benchmark asks for greedy sampling, a fixed seed or another temperature, and the adaptive-profiles
+/// switch. With none of the four settings in the environment it changes nothing, so an ordinary run answers as the app ships.
+enum EvaluationSampling {
+    static let strategyKey = "benchmarkSamplingStrategy"
+    static let seedKey = "benchmarkSamplingSeed"
+    static let temperatureKey = "benchmarkTemperature"
+    /// The app's own Settings switch "adaptive profiles" (off by default): a temperature by the kind of question.
+    static let adaptiveKey = "adaptiveInferenceProfiles"
+
+    /// Applies what the environment asks for and returns it in words, for the run's log.
+    @discardableResult
+    static func apply(
+        environment: [String: String] = ProcessInfo.processInfo.environment, defaults: UserDefaults = .standard
+    ) -> String {
+        clear(defaults: defaults)
+        var said: [String] = []
+        if let strategy = environment["OI_EVAL_SAMPLING"], ["greedy", "topk", "topp"].contains(strategy) {
+            defaults.set(strategy, forKey: strategyKey)
+            said.append("strategy \(strategy)")
+        }
+        if let seed = environment["OI_EVAL_SEED"].flatMap(UInt64.init) {
+            defaults.set(NSNumber(value: seed), forKey: seedKey)
+            said.append("seed \(seed)")
+        }
+        if let temperature = environment["OI_EVAL_TEMPERATURE"].flatMap(Double.init) {
+            defaults.set(temperature, forKey: temperatureKey)
+            said.append("temperature \(temperature)")
+        }
+        if environment["OI_EVAL_ADAPTIVE"] == "1" {
+            defaults.set(true, forKey: adaptiveKey)
+            said.append("adaptive profiles on")
+        }
+        return said.isEmpty ? "as shipped" : said.joined(separator: ", ")
+    }
+
+    static func clear(defaults: UserDefaults = .standard) {
+        for key in [strategyKey, seedKey, temperatureKey, adaptiveKey] { defaults.removeObject(forKey: key) }
+    }
+}
+
 private struct EvalCase: Decodable {
     let id: String
     let query: String
@@ -92,7 +142,8 @@ private enum AnswerQualityData {
     /// Every fixture the cases name, found by name under the suite's fixture folder.
     static var fixtureFiles: [URL] {
         let wanted = Set(cases.flatMap(\.fixtureNames))
-        let all = FileManager.default.enumerator(at: fixtures, includingPropertiesForKeys: nil)?
+        let all =
+            FileManager.default.enumerator(at: fixtures, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL } ?? []
         return all.filter { wanted.contains($0.lastPathComponent) }
     }
@@ -142,7 +193,10 @@ private actor EvaluationLibrary {
 
     func id() async throws -> UUID {
         if let made { return made.library }
-        if making == nil { making = Task { try await Self.make() } }
+        if making == nil {
+            print("[AnswerQualityEvaluation] sampling: \(EvaluationSampling.apply())")
+            making = Task { try await Self.make() }
+        }
         let new = try await making!.value
         made = new
         return new.library
@@ -158,14 +212,18 @@ private actor EvaluationLibrary {
 
     /// Removes the library and its documents, and gives Siri and Shortcuts their usual engine back.
     func remove() async {
+        EvaluationSampling.clear()
         guard let made else { return }
         self.made = nil
         await Self.delete(made.library, importer: made.importer)
         await MainActor.run {
             AskActionRunner.makeEngine = { RAGService() }
             if let saved = Self.savedTierForRun {
-                if let saved { UserDefaults.standard.set(saved, forKey: "entitlement.activeTier") }
-                else { UserDefaults.standard.removeObject(forKey: "entitlement.activeTier") }
+                if let saved {
+                    UserDefaults.standard.set(saved, forKey: "entitlement.activeTier")
+                } else {
+                    UserDefaults.standard.removeObject(forKey: "entitlement.activeTier")
+                }
                 Self.savedTierForRun = nil
             }
         }
@@ -196,14 +254,16 @@ private actor EvaluationLibrary {
             let service = AppleFoundationLLMService()
             guard service.isAvailable else {
                 throw EvaluationSetupError(
-                    "OI_EVAL_MODEL=app, and the app's own model service is off here: run a copy patched by scripts/sim_model_copy.py")
+                    "OI_EVAL_MODEL=app, and the app's own model service is off here: run a copy patched by scripts/sim_model_copy.py"
+                )
             }
             model = service
         } else {
             model = OnDeviceModel()
         }
         print(
-            "[AnswerQualityEvaluation] mode=\(AnswerQualityData.modeName) model=\(model.modelName) passages=\(AnswerQualityEvaluation.passages)")
+            "[AnswerQualityEvaluation] mode=\(AnswerQualityData.modeName) model=\(model.modelName) passages=\(AnswerQualityEvaluation.passages)"
+        )
         // Maximum is counted against the free plan's daily allowance where the app's saved plan is Free, as it is on
         // the test simulator; the run holds Pro there and `remove` puts back what was there.
         if AnswerQualityData.mode == .maximum {
@@ -224,7 +284,9 @@ private actor EvaluationLibrary {
                 print("[AnswerQualityEvaluation] removed \(leftover.name), left by an earlier run")
             }
         } else {
-            print("[AnswerQualityEvaluation] the documents were not loaded in 10 s; earlier libraries are left as they are")
+            print(
+                "[AnswerQualityEvaluation] the documents were not loaded in 10 s; earlier libraries are left as they are"
+            )
         }
         // `ContainerService.createContainer` checks the plan the app saved (`EntitlementStore.currentLibraryLimit()`,
         // standard defaults), not an engine's store, and on the test simulator that plan is Free with its one library
@@ -303,11 +365,13 @@ private struct AnswerQualityEvaluation: Evaluation {
                 question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library,
                 documentIds: (scope ?? []).isEmpty ? nil : scope)
             print(
-                "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(outcome.answer.text.prefix(300).replacingOccurrences(of: "\n", with: " "))")
+                "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(outcome.answer.text.prefix(300).replacingOccurrences(of: "\n", with: " "))"
+            )
             return ModelSubject(value: outcome.answer.text)
         } catch {
             print(
-                "[AnswerQualityEvaluation] refused mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) error=\(error)")
+                "[AnswerQualityEvaluation] refused mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) error=\(error)"
+            )
             // A refused question is an answer too: an abstention case may end here.
             return ModelSubject(value: "\(error)")
         }
@@ -317,8 +381,10 @@ private struct AnswerQualityEvaluation: Evaluation {
         ModelJudgeEvaluator<ModelSample<String>>(
             "Correct",
             scale: .passFail(
-                passDescription: "The response gives the facts of the reference answer, or, when the reference says the information is not available, the response says so too.",
-                failDescription: "The response leaves out or contradicts the reference answer, or answers when the reference says the information is not available."
+                passDescription:
+                    "The response gives the facts of the reference answer, or, when the reference says the information is not available, the response says so too.",
+                failDescription:
+                    "The response leaves out or contradicts the reference answer, or answers when the reference says the information is not available."
             ))
     }
 
@@ -337,7 +403,8 @@ struct AnswerQualityEvaluationTests {
         let result = EvaluationContext.current.result
         let correct = result.aggregateValue(.mean(of: AnswerQualityEvaluation.correct))
         print(
-            "[AnswerQualityEvaluation] correct: \(correct) over \(AnswerQualityData.cases.count) cases, mode=\(AnswerQualityData.modeName) appModel=\(AnswerQualityData.usesAppModel)")
+            "[AnswerQualityEvaluation] correct: \(correct) over \(AnswerQualityData.cases.count) cases, mode=\(AnswerQualityData.modeName) appModel=\(AnswerQualityData.usesAppModel)"
+        )
         print("[AnswerQualityEvaluation] \(result.groupedSummary)")
         await EvaluationLibrary.shared.remove()
         #expect(AnswerQualityData.cases.count == 20, "the dataset has \(AnswerQualityData.cases.count) cases")

@@ -41,6 +41,12 @@ python3 scripts/paired_run.py pair --before HEAD --after worktree --repeats 2
 `python3 scripts/paired_run.py compare <runA> <runB> [--noise <another run of A's build>]` compares run folders that
 already exist. `--dry-run` on `pair` prints every command and runs none.
 
+## When the question is "why do two runs differ", not "did my change help"
+
+`python3 scripts/stability_battery.py` (`--dry-run` first) runs the same questions several times under five sampling
+settings and says whether the writing's randomness or something before it varies. Plan and decision rules:
+`Docs/ai/plans/consistent-answers.md`. It uses Mac time (about 100 minutes in Standard): ask the owner first.
+
 ## What this does not settle
 
 - 20 questions over one small document set. His rule 6 asks for every benchmark set: a gain here still needs the
