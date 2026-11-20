@@ -1,1 +1,1 @@
-New in 5.8, the biggest update yet: Standard right on 15 of 17 test questions where 5.7 got 9, whole tables and exact citations.  Needs Apple Intelligence.
+New in 5.8, the biggest update yet: Standard right on 88% of test questions (15 of 17), up from 53% in 5.7, whole tables and exact citations.  Needs Apple Intelligence.

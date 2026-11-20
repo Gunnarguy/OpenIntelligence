@@ -192,6 +192,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Description, 2026-11-06:** the closing privacy line is `Privacy Policy: gunndamental.com/openintelligence/privacy/` (was `https://gunzino.me/...`; the scheme dropped to stay under 4,000 characters, since store text is not a link; which now 301-forwards after the domain move). App Store Connect's privacy URL field already reads gunndamental.com.
 - **Live:** not yet; submitted 2026-11-19 ~13:55 PT with build 506, pulled ~14:30 at the owner's word, and submitted again ~15:50 PT with build 509 (`8e148387`) on both platforms, release AFTER_APPROVAL, both WAITING_FOR_REVIEW (submissions 001409e4 iOS, f3ea2da1 macOS)
 - **Rejected 2026-11-20, 02:51 (iOS) and 02:52 (macOS), Guideline 3.1.2 (Business: Payments, Subscriptions), by an automated check:** the submission offers auto-renewable subscriptions (Pro Monthly, Pro Annual) and the description had no functional link to the Terms of Use (EULA). The app uses Apple's standard EULA (the plans screen links it, `PlanUpgradeSheet.swift`), so the description now ends with `Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/` under the privacy line. To stay under 4,000, the sentence "The optional telemetry interface goes deeper when you want it and stays out of the way when you don't." was cut, since the sentence before it already says response details go deeper. 3,981 characters. Written to both App Store Connect localizations (en-US, iOS and macOS) through the API on 2026-11-20 and read back equal; the URL answered HTTP 200. Build 509 is unchanged; resubmission is the owner's.
+- **Promotional text, 2026-11-20, at the owner's word ("Update promo text to %s"):** the Standard result is given as a percentage with its count beside it, "right on 88% of test questions (15 of 17), up from 53% in 5.7" (15 of 17 is 88.2%, 9 of 17 is 52.9%; `Docs/USER_CHANGELOG.md`, "Measured against 5.7"), where both platforms read "right on 15 of 17 test questions where 5.7 got 9". 169 characters on the Mac and 168 on iPhone and iPad, limit 170. Written to both 5.8 localizations through the API while the version waited for review (promotional text can change without a new submission) and read back equal; both records still read `WAITING_FOR_REVIEW`. The release notes keep their counts: What's New cannot change while a version is in review.
 - **Final release notes commit:** not yet committed; the text below is the working tree of 2026-11-19 (the previous text was the 2026-11-18 `8f63d7f8` notes and the 2026-11-17 promotional text)
 - **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,535 characters for the Mac and 2,616 for iPhone and iPad, after the launch-freeze, rebuild, Atlas and two-window lines were added the same day; promotional text 159. Not pushed to App Store Connect.
 - **Release notes, 2026-11-14:** a MEASURED AGAINST 5.7 block after the opening (15, 14 and 14 right of 17 like-for-like questions against 9, 11 and 9). 3,761 characters for the Mac, 3,631 for iPhone and iPad. Not pushed to App Store Connect.
@@ -328,13 +329,13 @@ Everything still runs on your device, unless you approve Apple's Private Cloud C
 **Promotional text** (`fastlane/metadata/`, the macOS copy):
 
 ```text
-New in 5.8, the biggest update yet: a Mac app that works like one, and Standard right on 15 of 17 test questions where 5.7 got 9.  Needs Apple Intelligence.
+New in 5.8, the biggest update yet: a Mac app that works like one, and Standard right on 88% of test questions (15 of 17), up from 53% in 5.7.  Needs Apple Intelligence.
 ```
 
 **Promotional text** (`fastlane/metadata-ios/`):
 
 ```text
-New in 5.8, the biggest update yet: Standard right on 15 of 17 test questions where 5.7 got 9, whole tables and exact citations.  Needs Apple Intelligence.
+New in 5.8, the biggest update yet: Standard right on 88% of test questions (15 of 17), up from 53% in 5.7, whole tables and exact citations.  Needs Apple Intelligence.
 ```
 
 **Description** (both platforms; `fastlane/metadata-ios/en-US/description.txt` is a link to the macOS file):
