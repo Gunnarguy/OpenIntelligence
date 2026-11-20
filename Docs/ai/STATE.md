@@ -2,7 +2,7 @@
 
 Updated: 2026-11-20 11:40
 Branch/worktree: `main`, primary checkout
-Last verified commit: 2dfddfcc
+Last verified commit: 56172a5b
 
 ## Objective
 
@@ -75,10 +75,11 @@ Retrospective fixes, of ten:
 - The checkout was closed out on 2026-11-20 at the owner's word ("leave no open loop"): main level with origin, the
   three stale `/private/tmp` worktree records pruned, the month-old `--simulator` option of
   `scripts/run_quality_matrix.py` and the dashboard's rows 15 and 16 committed, the codemap index regenerated.
-- Still open, each with its reason: branch `agent/tipkit-overhaul-ab8417` (0 commits not on main; its session is kept
-  open at the owner's word, and archiving that session removes the branch and worktree); `codemap.py check` reports 4
-  errors and 272 warnings (citations that moved in the 5.8 file split); 5 run folders under `BenchmarkRuns/` have no
-  `LEDGER.md` entry (the session brief names the count).
+- One branch: `main`, locally and on GitHub, with one worktree. `agent/tipkit-overhaul-ab8417` (0 commits not on main) and
+  its worktree were removed on 2026-11-20 after the TipKit and Mac redesign sessions were archived; the tour's open items
+  for 5.9 are on its roadmap row (40d49a74d54f81218bd0d100b44984e0).
+- Still open: `codemap.py check` reports 4 errors and 272 warnings (citations that moved in the 5.8 file split); 5 run
+  folders under `BenchmarkRuns/` have no `LEDGER.md` entry (the session brief names the count).
 - The every-task read set is over its limit (above). Fix by cutting `Docs/ai/ARCHITECTURE.md` back to a map that
   points at the owning docs; verify with the router test.
 - 5.8's store copy changed on 2026-11-20 while it waited for review, all at the owner's word and all read back equal:
