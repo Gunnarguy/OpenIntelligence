@@ -133,6 +133,17 @@ if [ "$SOURCE" = "compact" ] && [ -f "$CKPT" ]; then
   head -16 "$CKPT" | sed 's/^/  /'
 fi
 
+# Count this conversation's compactions (added 2026-11-20). The conversation that carried 5.8 was compacted 49
+# times, and each one lost detail the owner then had to repeat (Docs/ai/RETRO_5.8.md, gap 5). From the third on, say so.
+if [ "$SOURCE" = "compact" ] && [ -n "$SESSION_ID" ]; then
+  COUNT_FILE="$STATE_DIR/compactions-$SESSION_ID"
+  COMPACTIONS=$(( $(cat "$COUNT_FILE" 2>/dev/null || echo 0) + 1 ))
+  echo "$COMPACTIONS" > "$COUNT_FILE" 2>/dev/null || true
+  if [ "$COMPACTIONS" -ge 3 ]; then
+    echo "This conversation has been compacted $COMPACTIONS times. When the piece of work in hand is done, write the handoff (project-handoff skill) and tell the owner in one line that the next piece of work will be cheaper and more accurate in a fresh session started from Docs/ai/STATE.md. Carry on here only if he says so."
+  fi
+fi
+
 # Every measurement lives in a BenchmarkRuns/<date>-<name> folder, indexed by BenchmarkRuns/LEDGER.md.
 # Added 2026-11-12, when 36 of 39 recent folders had no entry and a whole import comparison was missed.
 LEDGER="BenchmarkRuns/LEDGER.md"

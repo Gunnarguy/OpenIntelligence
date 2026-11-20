@@ -131,6 +131,17 @@ class SubmitGate(unittest.TestCase):
         snap["app_infos"][0]["ageUnanswered"] = ["datingAndRelationships", "sharedLocation"]
         self.assertEqual(levels(snap, "age-rating-questions"), ["FAIL"])
 
+    def test_a_figure_without_evidence_fails_and_drifted_notes_warn(self):
+        snap = good()
+        snap["repo"]["claims"] = {"failures": ["uncovered number 470 in release_notes.txt:21"], "warnings": [], "counts": {}}
+        self.assertEqual(levels(snap, "claims"), ["FAIL"])
+        snap["repo"]["claims"] = {"failures": [], "warnings": [], "counts": {}}
+        self.assertEqual(levels(snap, "claims"), ["PASS"])
+        snap["repo"]["whatsNew"] = {"IOS": snap["platforms"]["IOS"]["localizations"][0]["whatsNew"], "MAC_OS": "older text"}
+        results = gate.check(snap)
+        self.assertEqual([r["scope"] for r in results if r["check"] == "repo-whatsNew"], ["MAC_OS"])
+        self.assertEqual([r for r in results if r["level"] == "FAIL"], [])
+
     def test_review_detail(self):
         snap = good()
         snap["platforms"]["IOS"]["review"].update(contact=False, notesLength=4001)

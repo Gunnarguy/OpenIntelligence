@@ -1,95 +1,91 @@
 # Current State
 
-Updated: 2026-11-20 11:40
+Updated: 2026-11-20 12:20
 Branch/worktree: `main`, primary checkout
 Last verified commit: 56172a5b
 
 ## Objective
 
-**Make 5.9 and later cheaper to build than 5.8 was**, by building the fixes in `Docs/ai/RETRO_5.8.md` in its order
-(owner, 2026-11-20: "create a bulletproof productivity engine so that 5.9 and any version beyond this is significantly
-easier to iterate on"; then "Yes, build 1 to 3"). 5.8 itself is submitted and needs nothing by hand until Apple answers.
+**Make 5.9 and later cheaper to build than 5.8 was**, by the fixes in `Docs/ai/RETRO_5.8.md` (owner, 2026-11-20:
+"create a bulletproof productivity engine"; then "do all of them, now", with the condition "only if it helps you help
+me ... dont want more hoops"). Nine of the ten are built; the tenth (smaller releases) is his call. 5.8 itself is
+submitted and needs nothing by hand until Apple answers.
 
 ## Status
 
-**5.8 is waiting for review on both platforms with build 509** (from 8e148387, tag `v5.8.0`), release AFTER_APPROVAL.
-Apple rejected it on 2026-11-20 at 02:51 (Guideline 3.1.2: subscriptions on sale and no Terms of Use link in the
-description). The description now ends with Apple's standard EULA link on both platforms (3b35cb50) and the owner
-had it resubmitted at 06:32 PT. No app code changed; build 509 is unchanged.
+**5.8: build 509 (8e148387, tag `v5.8.0`). Mac IN_REVIEW since 2026-11-20 about 11:00 PT, iPhone and iPad
+WAITING_FOR_REVIEW.** Rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link), fixed and resubmitted
+06:32 PT. No app code has changed since the tag: `python3 scripts/release_status.py` prints "0 app files changed".
 
-Retrospective fixes, of ten:
+Store copy changed on 2026-11-20 while waiting for review, each at the owner's word and read back equal: promotional
+text with percentages, the description as bullets with a `MEASURED IN 5.8` section, both What's New texts rewritten
+for a general reader, the two new age-rating declarations answered No. The Mac's What's New could not take a later
+correction (409, already IN_REVIEW); the three sentences concerned are in the 5.8 entry of
+`Docs/Release/APP_STORE_METADATA_HISTORY.md` and in `Docs/ai/CLAIMS.json` notes.
 
-| # | Fix | State |
-|---|---|---|
-| 1 | Submit gate | Built: `scripts/asc_submit_gate.py`, runbook "The submit gate". |
-| 2 | Phone watch | Built: `scripts/phone_watch.py`, skill `phone-watch`. Not yet run while the owner tested. |
-| 3 | Which build is on the phone | Steps 1 and 2 built: `scripts/install_to_phone.py` gives each device build the number `<commits>.<DDHHMM>` and records it. The iPhone runs 5.8 (1876.200935) = 19c36f86 since 09:38 on 2026-11-20 (same app code as build 509). Step 3 (the commit inside the app) is not built and may not be needed. |
-| 4 | Lifecycle tests | Built: `scripts/lifecycle_scenarios.py`, `OpenIntelligenceUITests/LifecycleScenarioUITests.swift`, skill `lifecycle-check`. 6 of 6 passed twice in the Simulator. |
-| 5 to 10 | One session per workstream, paired runs, design sheet, claims register, post-release watch, smaller releases | Not started. |
+| # | Fix | Tool | Skill | Proven by |
+|---|---|---|---|---|
+| 1 | Submit gate | `scripts/asc_submit_gate.py <version>` (through `zsh -ic`) | runbook "The submit gate" | live 5.8: 0 FAIL, 0 WARN, 26 PASS; fails the 2026-11-19 description |
+| 2 | Phone watch | `scripts/phone_watch.py` under Monitor | `phone-watch` | reported his launch of 09:38 with build and commit; not yet a full testing session |
+| 3 | Build number per phone build | `scripts/install_to_phone.py` | (memory) | phone shows 5.8 (1876.200935) = 19c36f86 |
+| 4 | Lifecycle scenarios | `scripts/lifecycle_scenarios.py` | `lifecycle-check` | 6 of 6 passed twice, 10.5 minutes |
+| 5 | Sessions and context | `scripts/release_status.py`; compaction count in the session-start hook; memory index regrouped; `Docs/ai/ARCHITECTURE_DETAIL.md` | `project-orient` | read set 34.6 KB of 40 KB (router test passes again) |
+| 6 | Baseline before quality work | `scripts/paired_run.py` | `measure-answers` | reproduces two real pairs of 2026-11-19; no real pair run from the script yet |
+| 7 | Show UI first | `Docs/ai/DESIGN.md`, `scripts/ui_shots.py` | `ui-change` | 40 rulings, 72 quotes checked; first shots run in progress at handoff |
+| 8 | Claims register | `Docs/ai/CLAIMS.json`, `scripts/check_claims.py`, in the gate | rule `user-facing-copy` | 149 numbers, 0 without evidence |
+| 9 | Release watch | `scripts/release_health.py`, launchd Mondays 09:15 | (runbook) | first read: 2 reviews, 4 from 5, no Apple performance data yet |
+| 10 | Smaller releases | | | the owner's call |
 
 ## Active Constraints
 
-- No source edit under `OpenIntelligence/` without the owner's `PROCEED: IMPLEMENT`; the retrospective work so far is
-  scripts, skills and docs only.
+- No source edit under `OpenIntelligence/` without the owner's `PROCEED: IMPLEMENT`; all of the above is scripts,
+  skills, docs, one UI-test file and one hook.
 - 5.8 is unreleased: no new version heading, and do not edit `Docs/SHIPPED_VERSION.json`, the `## v5.8` heading in
-  `Docs/USER_CHANGELOG.md` or `OpenIntelligence/Resources/VersionHistory.md` (the release watcher does it and pushes).
-  `git fetch` and check `git rev-list --count HEAD..origin/main` before each commit.
+  `Docs/USER_CHANGELOG.md` or `OpenIntelligence/Resources/VersionHistory.md` (launchd `com.gunnarguy.oi-release-watch`
+  does it and pushes). `git fetch` and check `git rev-list --count HEAD..origin/main` before each commit.
 - Submitting to Apple and starting an Xcode Cloud build are the owner's word each time. Commits carry `[ci skip]`.
-- `.agents/skills/` and `.codex/config.toml`, `.codex/hooks.json`, `.codex/hooks/` are other agents' machine-local
-  mirrors (the hooks file holds absolute paths on this Mac). They are neither committed nor deleted; this checkout's
-  `info/exclude` hides them from `git status` since 2026-11-20.
+- The standing approvals of 2026-11-18 were for 5.8. Ask once when 5.9 work starts.
+- An install to his phone that is not a fix he is waiting on gets one line to him first (2026-11-20: "im officially
+  confused why you just built another version to my phone").
+- `.agents/skills/`, `.codex/config.toml`, `.codex/hooks.json`, `.codex/hooks/` are other agents' machine-local mirrors:
+  neither committed nor deleted, hidden from `git status` by this checkout's `info/exclude`.
+- Scratch copies never include `.env*` (the scripts exclude it since 2026-11-20).
 
 ## Working Set
 
 | File | Why |
 |---|---|
-| `Docs/ai/RETRO_5.8.md` | The ten gaps, their evidence, the order to build, and what is built so far. |
-| `scripts/asc_submit_gate.py`, `scripts/test_asc_submit_gate.py` | Fix 1. `collect()` reads App Store Connect, `check()` is a pure function of the snapshot. |
-| `scripts/phone_watch.py`, `scripts/test_phone_watch.py`, `.claude/skills/phone-watch/SKILL.md` | Fix 2. `SHOW` and `SHOW_WHEN` list the events and the only fields a line may carry. |
-| `scripts/install_to_phone.py`, `scripts/test_install_to_phone.py`, `Docs/ai/plans/build-stamp.md` | Fix 3: the device build with its own number, the install record, and the plan with the measured result. |
-| `Docs/ai/RUNBOOK.md` | New sections "The submit gate" and "Watching the phone while the owner tests"; step 0 in "Submitting for review through the API". |
+| `Docs/ai/RETRO_5.8.md` | The ten gaps with their evidence, and the "Built so far" table. |
+| `Docs/ai/RUNBOOK.md` | One section per tool, each added 2026-11-20. |
+| `scripts/*.py` named in the table, each with `scripts/test_<name>.py` | 123 tests in eight files, none needing a simulator or network. |
+| `.claude/skills/{phone-watch,lifecycle-check,ui-change,measure-answers}/SKILL.md` | When to use each tool; their descriptions load every session. |
+| `Docs/ai/DESIGN.md`, `Docs/ai/CLAIMS.json`, `Docs/ai/ARCHITECTURE_DETAIL.md` | The rulings, the register, and the three sections moved out of the map. |
+| `~/Library/Developer/OpenIntelligence-evidence/` | Outside the repository: the phone journal copy, install record, lifecycle and UI-shot run folders. |
 
 ## Verification
 
-- `zsh -ic 'python3 scripts/asc_submit_gate.py 5.8'` -> 0 FAIL, 3 WARN, 24 PASS, 22 s (2026-11-20 09:23). WARN: two
-  age-rating questions empty (`datingAndRelationships`, `sharedLocation`), and 4 What's New lines with a count and no
-  percentage on each platform.
-- The same snapshot with the 2026-11-19 description (`git show 3b35cb50^:fastlane/metadata/en-US/description.txt`) ->
-  FAIL `terms-link` on both platforms, exit 1.
-- `python3 scripts/install_to_phone.py` -> `installed 5.8 (1876.200935) = 19c36f86, not launched`, 163 s; the iPhone's app
-  list read `5.8 | 1876.200935`; the phone watch then printed `app launched: build 5.8 (1876.200935) = 19c36f86` at 09:38:52.
-- `python3 scripts/lifecycle_scenarios.py` -> 6 of 6 scenarios passed, twice, 10.5 minutes each (run folders
-  `~/Library/Developer/OpenIntelligence-evidence/lifecycle/2026-11-20_103956` and `_105206`).
-  `python3 scripts/test_lifecycle_scenarios.py` -> 13 passed.
-- `python3 scripts/test_asc_submit_gate.py` -> 15 passed. `python3 scripts/test_phone_watch.py` -> 8 passed.
-  `python3 scripts/test_install_to_phone.py` -> 6 passed.
-  `python3 scripts/test_phone_evidence.py` -> passed. `python3 scripts/secret_scan.py` -> clean.
-- `python3 scripts/phone_watch.py --once --since 2026-11-19T15:30` against the iPhone -> 3 lines, 6.6 s. 90 s under the
-  Monitor tool with the phone idle -> no lines.
-- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 30 passed, 1 failed:
-  `test_every_task_loads_only_the_small_universal_set`, 48,493 bytes against a 40,000 limit. Not caused by this work:
-  `Docs/ai/ARCHITECTURE.md` alone is 37,041 bytes.
+- Eight test files -> all pass: `test_asc_submit_gate` 16, `test_phone_watch` 8, `test_install_to_phone` 6,
+  `test_lifecycle_scenarios` 13, `test_ui_shots` 4, `test_release_health` 3, `test_check_claims` 25, `test_paired_run` 56.
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> OK (it failed at 48,493 bytes
+  before the move). `python3 scripts/verify_doc_claims.py` -> 2,365 claims, all match. `python3 scripts/secret_scan.py`
+  -> clean. `bash scripts/test_stop_handoff.sh` -> 11 passed.
+- `zsh -ic 'python3 scripts/asc_submit_gate.py 5.8'` -> 0 FAIL, 0 WARN, 26 PASS (2026-11-20 11:44).
+- `python3 scripts/lifecycle_scenarios.py` -> 6 of 6, twice. `zsh -ic 'python3 scripts/release_health.py'` -> report,
+  then "Nothing new". `python3 scripts/release_status.py` -> 8 lines in 0.7 s.
+- Not yet run to the end at this handoff: `python3 scripts/ui_shots.py pair --before HEAD` (the before half took
+  1,168 s for 9 tests, 0 failures), and any real `paired_run.py pair`.
 
 ## Blockers / Unknowns
 
-- The checkout was closed out on 2026-11-20 at the owner's word ("leave no open loop"): main level with origin, the
-  three stale `/private/tmp` worktree records pruned, the month-old `--simulator` option of
-  `scripts/run_quality_matrix.py` and the dashboard's rows 15 and 16 committed, the codemap index regenerated.
-- One branch: `main`, locally and on GitHub, with one worktree. `agent/tipkit-overhaul-ab8417` (0 commits not on main) and
-  its worktree were removed on 2026-11-20 after the TipKit and Mac redesign sessions were archived; the tour's open items
-  for 5.9 are on its roadmap row (40d49a74d54f81218bd0d100b44984e0).
-- Still open: `codemap.py check` reports 4 errors and 272 warnings (citations that moved in the 5.8 file split); 5 run
-  folders under `BenchmarkRuns/` have no `LEDGER.md` entry (the session brief names the count).
-- The every-task read set is over its limit (above). Fix by cutting `Docs/ai/ARCHITECTURE.md` back to a map that
-  points at the owning docs; verify with the router test.
-- 5.8's store copy changed on 2026-11-20 while it waited for review, all at the owner's word and all read back equal:
-  promotional text with percentages (82776099), the description as bullets with a `MEASURED IN 5.8` section (210fd2ed),
-  both What's New texts rewritten for a general reader with percentages, and the two new age-rating declarations
-  answered No. The gate reads 0 FAIL, 0 WARN, 25 PASS. `MEASURED IN 5.8` in the description must be measured again or
-  removed for 5.9.
-- 5.8's age rating computes 4+ where the live 5.7 record shows 17+ (a 16+ override). This was chosen on 2026-11-06
-  (`~/ASC/CHANGES-2026-11-06.md`, "the 16+ override dropped on 5.8"); the gate prints it as information.
-- Whether a journal pull works while the phone is locked is not measured.
+- One branch, `main`, locally and on GitHub; one worktree. The Mac redesign and TipKit sessions are archived; the
+  tour's open items for 5.9 are on its roadmap row (40d49a74d54f81218bd0d100b44984e0).
+- The memory audit of 2026-11-20 found 31 contradictions; 18 notes carry a dated correction and the rest are listed
+  in this session's transcript only. The old index is at
+  `~/Library/Developer/OpenIntelligence-evidence/memory-index-before-2026-11-20.md`.
+- `codemap.py check` reports 4 errors and 272 warnings (citations that moved in the 5.8 file split); 5 run folders
+  under `BenchmarkRuns/` have no `LEDGER.md` entry.
+- `bash scripts/test_verify_doc_claims.sh` was still running after 7 minutes when this was written; the checker
+  itself passes.
 
 ## Known and not fixed in the app (carried from 2026-11-19)
 
@@ -110,12 +106,16 @@ Retrospective fixes, of ten:
 
 ## Exact Next Action
 
-None for the retrospective until the owner says which fix is next (5 to 10 in `Docs/ai/RETRO_5.8.md`). He was surprised
-by the 09:38 install ("why you just built another version to my phone"): install to his phone only for a fix he is
-waiting on or at his word, and say so before it happens.
+If `~/Library/Developer/OpenIntelligence-evidence/ui-shots/2026-11-20_113335/SUMMARY.txt` does not exist, the first UI
+shots run did not finish: run `python3 scripts/ui_shots.py pair --before HEAD` again (same code on both sides, so it
+should report no screen changed; that is the tool's noise check). Then run
+`python3 scripts/paired_run.py pair --before HEAD --after HEAD` once: it proves the script end to end and gives the
+number of Standard questions that flip between two runs of one build, which every later comparison needs. Add the
+`BenchmarkRuns/LEDGER.md` lines it prints.
 
 When Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
 `~/.agents/data/oi-release-watch/log.txt`): add the release-notes, docs-index and metadata-history lines the 5.7
 commit 3face1fb carried, then file Future Backlog rows in Notion for the continuation trigger on a final list item
 without a period, Apple's background rate limit, Siri scope and open-document, the DHA named-document row, Standard's
-planner model call, the Mac Dock/Space behaviour of the details sheet, and the retrospective's fixes 4 to 9.
+planner model call, and the Mac Dock/Space behaviour of the details sheet. For 5.9, correct the Mac release notes'
+three sentences and re-measure or remove the description's `MEASURED IN 5.8` section.

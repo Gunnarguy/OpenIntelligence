@@ -26,6 +26,15 @@ hardware it came from.
 The same applies to `SampleDocumentManager`. Those documents are ingested, retrieved, and cited back
 to users as sourced fact, so a stale figure there is worse than the same figure in chrome.
 
+## A figure in the App Store copy needs an entry in the claims register
+
+`Docs/ai/CLAIMS.json` ties every number in `fastlane/metadata*/en-US/` (description, promotional text, release notes)
+to the file and string that prove it. After changing that copy run `python3 scripts/check_claims.py`: it fails on a
+number with no entry and on an entry whose evidence has gone, and the submit gate runs it too. Add or change the entry
+in the same commit; never register a figure you could not trace (`status: unverified` says so honestly). The check reads
+figures, not sentences: on 2026-11-20 every figure was right and four sentences still said something the run had not
+measured, so read the entry's `note` and the sentence together.
+
 ## Before removing a claim, run `oi-claim-audit`
 
 Withdrawing a true claim has already happened here. "TinyBERT" was deleted because

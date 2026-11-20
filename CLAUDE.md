@@ -146,7 +146,11 @@ Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`. `xcodebuild test
 | Current objective, blockers, exact next action | `Docs/ai/STATE.md` |
 | What the project is, scope, constraints | `Docs/ai/PROJECT.md` |
 | Component map and which doc owns which area | `Docs/ai/ARCHITECTURE.md` |
+| Feature vocabulary, hop-by-hop data flow, external couplings (moved out of the map 2026-11-20) | `Docs/ai/ARCHITECTURE_DETAIL.md` |
 | Which file of a split type holds what (RAGService, ChatScreen, DocumentProcessor and 14 more) | `Docs/ai/FILE_MAP.md` |
+| Where the release stands right now, from records (version, phone build, last runs) | `python3 scripts/release_status.py` |
+| The owner's UI rulings, before any change to a screen | `Docs/ai/DESIGN.md` (the `ui-change` skill) |
+| The evidence behind every figure in the App Store copy | `Docs/ai/CLAIMS.json`, checked by `python3 scripts/check_claims.py` |
 | Why something is the way it is | `Docs/ai/DECISIONS.md` |
 | What has been measured, and what each run found | `BenchmarkRuns/LEDGER.md`, one entry per `BenchmarkRuns/` folder; the session brief counts folders with none |
 | What still needs measuring, per question, with cost and route | `Docs/ai/MEASUREMENTS.md` |

@@ -1414,6 +1414,77 @@ a store build writes none.
 
 `[evidence_level: measured, confidence: high, evidence_source: 2026-11-20 on the iPhone 16 Pro Max over Wi-Fi: file listing 0.9 s, journal copy of 7.2 MB 4.2 s, one full pass 6.6 s; replay of the 2026-11-19 journal printed 39 lines for 1,991 events; 90 s under Monitor with the phone idle printed nothing. Not yet run while the owner tested.]`
 
+## Release status in one command (added 2026-11-20)
+
+```bash
+python3 scripts/release_status.py
+```
+
+A dozen lines, under a second, every one read from a record a tool already writes: the version live and in review, app
+files changed since the last tag, the last build installed on the phone and whether main has moved past it, how
+answers on the phone fared in the last 7 days, the last lifecycle run, UI shots and release health report, and the
+store copy's figures. `zsh -ic 'python3 scripts/release_status.py --asc'` adds the submit gate's first line. Nothing in
+it is typed by hand. Use it to answer "where are we" and at the start of a session on a release.
+
+`[evidence_level: measured, confidence: exact, evidence_source: run 2026-11-20, 0.7 s]`
+
+## Answer quality before and after a change (added 2026-11-20)
+
+```bash
+python3 scripts/paired_run.py pair --before HEAD --after worktree --repeats 2
+```
+
+Stages both builds outside the repository, runs `scripts/bench_answer_modes.sh` for each in turn, and prints percent
+right for each, the questions that flipped, the net change, and whether it is larger than the variation between two
+runs of one build. `pair --before HEAD --after HEAD` measures that variation by itself; `compare <runA> <runB>` reads
+run folders that exist. The `measure-answers` skill has the order of work. It prints the `BenchmarkRuns/LEDGER.md` lines
+and never edits that file. Tests: `python3 scripts/test_paired_run.py` (56).
+
+`[evidence_level: test_verified for the tool; measured for compare, which reproduces the ledger's reading of the two pairs of 2026-11-19 (bind-base-ans against bind-fix-ans: 90% (18 of 20) both, one fixed, one broken). A real pair run from this script has not been made yet.]`
+
+## UI before and after, side by side (added 2026-11-20)
+
+```bash
+python3 scripts/ui_shots.py pair --before HEAD
+```
+
+Runs the screenshot tests (`FiveChecksUITests`, every `testShotsOf...`) on the last commit and on the working tree,
+each on a new iPhone simulator with the clock fixed, and writes each changed screen as one image with before on the
+left and after on the right (`sheet.png` stacks them). Read `Docs/ai/DESIGN.md` first and send the owner the sheet
+before installing a UI change; the `ui-change` skill has the steps. Still iPhone screens only: no motion, Mac, iPad,
+Dark Mode or larger text. Tests: `python3 scripts/test_ui_shots.py` (4, the comparison on drawn images).
+
+## The claims register for the store copy (added 2026-11-20)
+
+```bash
+python3 scripts/check_claims.py
+```
+
+`Docs/ai/CLAIMS.json` holds one entry per figure in the App Store description, promotional text and release notes,
+with the file and exact string that prove it and the arithmetic where the copy shows a percentage. The check fails on a
+number in the copy with no entry and on an entry whose evidence is gone; `scripts/asc_submit_gate.py` runs it and also
+warns when the repository's release notes are not what App Store Connect holds. Tests:
+`python3 scripts/test_check_claims.py` (25). Not covered: Settings text, the in-app guides, the websites, and claims
+with no digit.
+
+`[evidence_level: measured, confidence: exact for the figures, evidence_source: 2026-11-20: 39 entries, 113 evidence items confirmed, 149 numbers in the copy, 0 uncovered; the check does not read sentences (four sentences around right figures were found imprecise by reading, see the 5.8 entry of Docs/Release/APP_STORE_METADATA_HISTORY.md)]`
+
+## Release health, weekly (added 2026-11-20)
+
+```bash
+zsh -ic 'python3 scripts/release_health.py'
+```
+
+Reads the live version on each platform, written reviews, the US rating, Apple's performance figures and regressions
+for iPhone and iPad, and hang, launch and disk-write signatures for the live builds, and prints what is new since the
+last run. `--install` runs a copy every Monday at 09:15 from launchd (`com.gunnarguy.oi-release-health`) and posts a
+notification only when something changed; `--uninstall` stops it; `--show` prints the last report. Reports are in
+`~/.agents/data/oi-release-health/`. Run `--install` again after changing the script. Crash reports are not in this
+API: Xcode's Organizer (`GetTopCrashIssues`) and the phone watch have them. Tests:
+`python3 scripts/test_release_health.py` (3).
+
+`[evidence_level: measured, confidence: exact, evidence_source: 2026-11-20: live 5.7 (build 487) on both platforms, 2 written reviews, US rating 4 from 5, no performance figures and no signatures reported by Apple at this number of users; second run printed "Nothing new"; installed and listed by launchctl]`
+
 ## Lifecycle scenarios: leaving, locking and ending the app (added 2026-11-20)
 
 ```bash

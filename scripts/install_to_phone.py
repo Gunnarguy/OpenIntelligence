@@ -194,7 +194,7 @@ def main():
     entry: dict = dict(state, t=now.isoformat(timespec="seconds"), version=version, build=build, installed=False, launched=False, why="")
 
     sync = ["rsync", "-a", "--delete", "--exclude", ".build", "--exclude", ".git", "--exclude", ".git.nosync",
-            "--exclude", "BenchmarkRuns", "--exclude", ".claude/worktrees", ROOT + "/", mirror + "/"]
+            "--exclude", "BenchmarkRuns", "--exclude", ".claude/worktrees", "--exclude", ".env*", ROOT + "/", mirror + "/"]
     xcodebuild = ["xcodebuild", "build", "-project", "OpenIntelligence.xcodeproj", "-scheme", "OpenIntelligence",
                   "-configuration", "Debug", "-destination", "generic/platform=iOS", "-derivedDataPath", derived,
                   "-jobs", "2", f"MARKETING_VERSION={version}", f"CURRENT_PROJECT_VERSION={build}"]

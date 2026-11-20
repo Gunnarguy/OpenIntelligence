@@ -28,6 +28,8 @@ What each check is based on, with the date it was read:
 - Age rating attributes: AgeRatingDeclaration.Attributes, developer.apple.com, read 2026-11-20. An unanswered
   question fails: Apple's news item of 2026-11-02 ("New age rating content descriptors") says the Shared Location and
   Dating and Relationships declarations must be provided when submitting an app update from 2026-11-16.
+- Figures in the copy: scripts/check_claims.py against Docs/ai/CLAIMS.json, run on the repository's copy; the
+  repo-description and repo-whatsNew checks say when that copy is not what App Store Connect holds.
 - Build commit: an Xcode Cloud run's number is the build number; its `sourceCommit` is read from
   /v1/ciProducts/{id}/buildRuns (the plain /v1/ciBuildRuns collection is not readable, measured 2026-11-20).
 """
@@ -99,14 +101,14 @@ class Connect:
         self._token, self._expires = f"{head}.{body}.{_b64(_raw_signature(der))}", now + 900
         return self._token
 
-    def get(self, path, params=None):
+    def get(self, path, params=None, accept="application/json"):
         url = path if path.startswith("http") else API + path
         if params:
             url += "?" + urllib.parse.urlencode(params)
         last = None
         for attempt in range(4):
             request = urllib.request.Request(url, headers={"Authorization": "Bearer " + self.token(),
-                                                           "Accept": "application/json"})
+                                                           "Accept": accept})
             try:
                 with urllib.request.urlopen(request, timeout=120) as response:
                     return json.loads(response.read())
@@ -154,6 +156,17 @@ def git(*args):
 def read_file(*parts):
     path = os.path.join(ROOT, *parts)
     return open(path, encoding="utf-8").read().strip() if os.path.exists(path) else None
+
+
+def claims_summary():
+    """What scripts/check_claims.py says about the figures in the repository's store copy, or None without it."""
+    try:
+        import check_claims
+        result = check_claims.check(ROOT)
+        return {"failures": [str(f)[:300] for f in result.get("failures", [])],
+                "warnings": [str(w)[:300] for w in result.get("warnings", [])], "counts": result.get("counts", {})}
+    except Exception as e:
+        return {"failures": [], "warnings": [f"check_claims.py could not run: {type(e).__name__}"], "counts": {}}
 
 
 def tag_for(version):
@@ -248,7 +261,10 @@ def collect(version, app=APP_ID, tag=None):
     tag = tag or tag_for(version)
     snap["repo"] = {"tag": tag, "tagCommit": git("rev-parse", "-q", "--verify", tag + "^{commit}"),
                     "description": read_file("fastlane", "metadata", "en-US", "description.txt"),
-                    "keywords": read_file("fastlane", "metadata", "en-US", "keywords.txt")}
+                    "keywords": read_file("fastlane", "metadata", "en-US", "keywords.txt"),
+                    "whatsNew": {"MAC_OS": read_file("fastlane", "metadata", "en-US", "release_notes.txt"),
+                                 "IOS": read_file("fastlane", "metadata-ios", "en-US", "release_notes.txt")},
+                    "claims": claims_summary()}
 
     urls = set()
     for info in infos:
@@ -358,6 +374,16 @@ def check(snap):
     else:
         add("WARN", "APP", "build-commit", f"the build is {next(iter(known))[:8]}; tag {repo.get('tag')} does not exist yet, put it there")
 
+    claims = repo.get("claims")
+    if claims:
+        if claims["failures"]:
+            add("FAIL", "APP", "claims", f"{len(claims['failures'])} figure(s) in the store copy have no evidence on record "
+                f"(python3 scripts/check_claims.py), first: {claims['failures'][0][:160]}")
+        elif claims["warnings"]:
+            add("WARN", "APP", "claims", f"{len(claims['warnings'])} warning(s), first: {claims['warnings'][0][:160]}")
+        else:
+            add("PASS", "APP", "claims", "every figure in the repository's store copy has evidence on record")
+
     # Per platform.
     for platform, e in sorted(platforms.items()):
         state = e["state"]
@@ -446,6 +472,10 @@ def check(snap):
                     local = repo.get(field)
                     if local is not None and local != loc[field].strip():
                         add("WARN", platform, f"repo-{field}", f"fastlane/metadata/en-US/{field}.txt differs from App Store Connect")
+                notes = (repo.get("whatsNew") or {}).get(platform)
+                if notes is not None and notes != loc["whatsNew"].strip():
+                    add("WARN", platform, "repo-whatsNew", "the repository's release notes for this platform differ from App Store "
+                        "Connect, so the claims check read different text from what the store holds")
 
         r = e["review"]
         if not r:

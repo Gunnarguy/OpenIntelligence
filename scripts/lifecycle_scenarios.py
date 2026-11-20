@@ -319,7 +319,7 @@ def stage_and_patch(scratch):
     stage, source = os.path.join(scratch, "oi-life-stage"), os.path.join(scratch, "oi-life-src")
     os.makedirs(source, exist_ok=True)
     r = run("rsync", "-a", "--delete", "--exclude", ".build", "--exclude", ".git", "--exclude", ".git.nosync",
-            "--exclude", "BenchmarkRuns", "--exclude", ".claude/worktrees", ROOT + "/", stage + "/", timeout=1800)
+            "--exclude", "BenchmarkRuns", "--exclude", ".claude/worktrees", "--exclude", ".env*", ROOT + "/", stage + "/", timeout=1800)
     if r.returncode != 0:
         sys.exit("rsync to the stage failed: " + r.stderr[-300:])
     r = run(sys.executable, os.path.join(ROOT, "scripts", "sim_model_copy.py"), stage)

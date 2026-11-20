@@ -32,7 +32,7 @@ SEARCH
 
 ANSWERS
 
-• Deep Think opens with the answer, about 14 seconds sooner at the median, and got 92% of 53 table questions right (49), up from 89% (47).  It checks every claim it lists.
+• Deep Think opens with the answer, about 14 seconds sooner at the median.  Reading more of what its searches cited, at an 8K window, it got 92% of 53 table questions right (49), up from 89% (47).  It checks every claim it lists.
 
 • Maximum reads the source passages themselves: 83% of 30 table values right (25), up from 27% (8), in 79 seconds at the median where it took 117.
 
@@ -51,7 +51,7 @@ YOUR DOCUMENTS
 
 • On Pro and Lifetime a library can watch a folder: new files in it import by themselves.  It checks each time you open the app and never changes your originals.
 
-• The guides have their own Guide library, which doesn't count toward your plan, and your first library is now Library 1.
+• The guides have their own Guide library, which doesn't count toward your plan.
 
 • Several files no longer wait on each other, an import reads Complete once you can search it, and sync never deletes a document it can't place.
 
@@ -60,7 +60,7 @@ ALSO
 
 • No launch freeze from a watched folder or iCloud, the Atlas no longer spends 24 to 61 seconds on every open, Chat no longer turns white, and "Getting search ready" happens once.
 
-• Settings has fewer, fuller pages, small tips show you around, two iPad windows share one engine, plans are compared side by side, and rating is Apple's own sheet.
+• Settings has fewer, fuller pages, small tips show you around, two iPad windows share one engine, and plans are compared side by side.
 
 
 Everything still runs on your device, unless you approve Apple's Private Cloud Compute.

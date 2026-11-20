@@ -1,0 +1,929 @@
+{
+  "version": 1,
+  "about": "Claims register for the App Store copy. Every figure in the five copy files points at the repository file that holds its evidence. Checked by scripts/check_claims.py, which also says what this does not cover. A claim is the exact fragment as the copy prints it. Evidence is a file in this repository and a string that must still be in it; a BenchmarkRuns folder is named without a string because BenchmarkRuns/* is gitignored. A memory note or a file outside the repository is never evidence. Status: verified (evidence found and confirmed), unverified (not found, with a note of where it was looked for), mismatch (the copy disagrees with its evidence).",
+  "not_claims": [
+    {
+      "pattern": "\\b5\\.[78]\\b",
+      "reason": "The app's version number used as a name (5.7, 5.8), not a figure about what the app does. Add the next version here when the copy names it."
+    },
+    {
+      "pattern": "\\bLibrary 1\\b",
+      "reason": "The name of a person's first library (ContainerService.firstLibraryName); the 1 is part of the name, not a quantity."
+    }
+  ],
+  "claims": [
+    {
+      "id": "requirement-devices",
+      "claim": "iPhone 15 Pro or later or an M1-or-later iPad or Mac",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Core/Models/AppleIntelligenceAvailability.swift",
+          "contains": "an iPhone 15 Pro or later (including iPhone Air and iPhone Duo), an iPad mini with A17 Pro or A20 Pro, an iPad with M1 or later, a MacBook Neo, or a Mac with M1 or later"
+        }
+      ],
+      "status": "verified",
+      "note": "The copy says \"like\" and gives a short form of the list the app shows. The app's list is Apple's (support.apple.com/en-us/121115, read 2026-11-16 per the code comment) and also names the iPad mini with A17 Pro or A20 Pro and the MacBook Neo."
+    },
+    {
+      "id": "requirement-os-26",
+      "claim": "iOS/iPadOS/macOS 26",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "OpenIntelligence.xcodeproj/project.pbxproj",
+          "contains": "IPHONEOS_DEPLOYMENT_TARGET = 26.0;"
+        },
+        {
+          "path": "OpenIntelligence.xcodeproj/project.pbxproj",
+          "contains": "MACOSX_DEPLOYMENT_TARGET = 26.0;"
+        },
+        {
+          "path": "Package.swift",
+          "contains": ".iOS(\"26.0\")"
+        },
+        {
+          "path": "Package.swift",
+          "contains": ".macOS(\"26.0\")"
+        }
+      ],
+      "status": "verified",
+      "note": "The two IPHONEOS_DEPLOYMENT_TARGET = 27.0 lines in the project belong to the UI test target (bundle id ending .uitests), not the app."
+    },
+    {
+      "id": "requirement-pcc-os-27",
+      "claim": "iOS, iPadOS or macOS 27",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelCapabilityProvider.swift",
+          "contains": "if #available(iOS 27.0, macOS 27.0, *) {"
+        },
+        {
+          "path": "Docs/PRIVACY_AND_ROUTING.md",
+          "contains": "`FoundationModels.PrivateCloudComputeLanguageModel` on iOS/macOS 27+"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "standard-88-description",
+      "claim": "88% of my 17 mixed test questions answered right in Standard (15 of 17), up from 53% in 5.7",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On 17 mixed test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "5.7 scored 9, 11, 9 and 5.8 at df67ec96"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "scored 15, 14, 14. This is the comparison the release text states."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-14-1112-answer-modes"
+        }
+      ],
+      "derivation": "15/17 = 88.2%; 9/17 = 52.9%",
+      "status": "verified",
+      "note": "One run per mode in the iOS 27 Simulator. The 17 are the 20 test cases without the three lost-in-the-middle cases, whose test scoping changed between the versions (LEDGER entry 2026-11-14-1112-answer-modes)."
+    },
+    {
+      "id": "standard-88-promo",
+      "claim": "Standard right on 88% of test questions (15 of 17), up from 53% in 5.7",
+      "files": [
+        "fastlane/metadata/en-US/promotional_text.txt",
+        "fastlane/metadata-ios/en-US/promotional_text.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "5.7 scored 9, 11, 9 and 5.8 at df67ec96"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-14-1112-answer-modes"
+        }
+      ],
+      "derivation": "15/17 = 88.2%; 9/17 = 52.9%",
+      "status": "verified"
+    },
+    {
+      "id": "notes-17-questions",
+      "claim": "On 17 test questions asked the same way in 5.7 and 5.8",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "count",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On 17 mixed test questions asked the same way in both versions"
+        },
+        {
+          "path": "WHATS_NEW.md",
+          "contains": "On 17 mixed test questions asked the same way in both versions"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "Like for like (the 17 cases outside lost-in-the-middle, whose test scoping changed)"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "notes-standard-53-to-88",
+      "claim": "Standard went from 53% right to 88% (9 to 15 of 17)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "Standard got 15 right where 5.7 got 9"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "5.7 scored 9, 11, 9 and 5.8 at df67ec96"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "scored 15, 14, 14. This is the comparison the release text states."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-14-1112-answer-modes"
+        }
+      ],
+      "derivation": "9/17 = 52.9%; 15/17 = 88.2%",
+      "status": "verified"
+    },
+    {
+      "id": "notes-deep-think-65-to-82",
+      "claim": "Deep Think from 65% to 82% (11 to 14)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "Deep Think 14 where 5.7 got 11"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "5.7 scored 9, 11, 9 and 5.8 at df67ec96"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "scored 15, 14, 14. This is the comparison the release text states."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-14-1112-answer-modes"
+        }
+      ],
+      "derivation": "11/17 = 64.7%; 14/17 = 82.4%",
+      "status": "verified"
+    },
+    {
+      "id": "notes-maximum-53-to-82",
+      "claim": "Maximum from 53% to 82% (9 to 14)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "and Maximum 14 where 5.7 got 9"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "5.7 scored 9, 11, 9 and 5.8 at df67ec96"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "scored 15, 14, 14. This is the comparison the release text states."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-14-1112-answer-modes"
+        }
+      ],
+      "derivation": "9/17 = 52.9%; 14/17 = 82.4%",
+      "status": "verified"
+    },
+    {
+      "id": "notes-measured-in-simulator",
+      "claim": "in the iOS 27 Simulator",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "One run each, in the iOS 27 Simulator with Apple's model."
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "`bash scripts/bench_answer_modes.sh standard deepThink maximum`, iOS 27 Simulator, Apple's model,"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "highlight-89-description",
+      "claim": "89% of cited passages highlighted over most of their length, across 44 PDFs on a Mac, up from 58%",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "passages covering at least 60% of target text increased from 5,852 (58.4%) to 8,920 (88.9%)"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "across 10,029 passages in 44 PDFs"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "Across 44 PDFs, the share of passages marked over most of their length went from 58% to 89%, measured on a Mac."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-10-passage-highlight"
+        }
+      ],
+      "derivation": "8,920/10,029 = 88.9%; 5,852/10,029 = 58.4%",
+      "status": "verified",
+      "note": "\"Most of their length\" is a mark covering at least 60% of the passage's text. Measured with a harness on macOS; scanned pages and on-device drawing were not measured (LEDGER)."
+    },
+    {
+      "id": "highlight-89-notes",
+      "claim": "On 44 PDFs on a Mac, 89% of passages were marked over most of their length, up from 58%",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "passages covering at least 60% of target text increased from 5,852 (58.4%) to 8,920 (88.9%)"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "across 10,029 passages in 44 PDFs"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "contains": "Measured on 10,029 stored passages of 44 PDFs on the Mac (`BenchmarkRuns/2026-11-10-passage-highlight`): marks covering the passage 58.4% before, 88.9% after."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-10-passage-highlight"
+        }
+      ],
+      "derivation": "8,920/10,029 = 88.9%; 5,852/10,029 = 58.4%",
+      "status": "verified"
+    },
+    {
+      "id": "import-checks-85-description",
+      "claim": "85% of 515 import checks passed on my eight test papers (439), up from 67%",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On the eight research papers I test import with, the app now passes 439 of 515 checks, up from 344 when this work began."
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "B searching all words; C removed | 439 | 4 |"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "On 515 image-derived ground-truth checks, passing checks increased from 344 (0.668) in before"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-12-tables"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-08-extraction-fidelity"
+        }
+      ],
+      "derivation": "439/515 = 85.2%; 344/515 = 66.8%",
+      "status": "verified",
+      "note": "439 is run tab-fin of 2026-11-12-tables; 344 is the \"before\" run of 2026-11-08-extraction-fidelity. Both in the patched iOS 27.0 Simulator copy."
+    },
+    {
+      "id": "import-checks-85-notes",
+      "claim": "85% of 515 import checks (439), up from 67% (344)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "the app now passes 439 of 515 checks, up from 344 when this work began"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "B searching all words; C removed | 439 | 4 |"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "On 515 image-derived ground-truth checks, passing checks increased from 344 (0.668) in before"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "contains": "(`BenchmarkRuns/2026-11-12-tables/tab-fin`, 515 checks): 439 against 433 passing"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-12-tables"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-08-extraction-fidelity"
+        }
+      ],
+      "derivation": "439/515 = 85.2%; 344/515 = 66.8%",
+      "status": "verified"
+    },
+    {
+      "id": "numbers-kept-94-description",
+      "claim": "94% of numbers kept, up from 90%",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "mean body number recall improved from 0.898 to 0.941"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "contains": "body number recall 0.898, 0.892, 0.941"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "Measured on eight research papers, the numbers kept went from 90% to 94%"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-08-extraction-fidelity"
+        }
+      ],
+      "derivation": "Body number recall 0.898 is 89.8%, which rounds to 90%; 0.941 is 94.1%, which rounds to 94%.",
+      "status": "verified",
+      "note": "These are the 2026-11-08 figures (before against after8, scored against the PDFs' own text layers). The same LEDGER entry gives the later tree (after18) a number recall of 0.944 and a body number recall of 0.966, so 94% is the older and lower of the figures on record."
+    },
+    {
+      "id": "numbers-kept-94-notes",
+      "claim": "94% of numbers are kept, up from 90%",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "mean body number recall improved from 0.898 to 0.941"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "contains": "body number recall 0.898, 0.892, 0.941"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "Measured on eight research papers, the numbers kept went from 90% to 94%"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-08-extraction-fidelity"
+        }
+      ],
+      "derivation": "Body number recall 0.898 is 89.8%, which rounds to 90%; 0.941 is 94.1%, which rounds to 94%.",
+      "status": "verified"
+    },
+    {
+      "id": "limit-free-documents",
+      "claim": "Free: 5 documents",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let freeDocumentLimit: Int = 5"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-free-libraries",
+      "claim": "1 library",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let freeLibraryLimit: Int = 1"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-free-maximum-daily",
+      "claim": "Maximum 3 times a day",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let freeMaximumModeDailyLimit: Int = 3"
+        },
+        {
+          "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift",
+          "contains": "maximumModePolicy = .meteredDaily(limit: QuotaPolicy.freeMaximumModeDailyLimit)"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-pro-no-maximum-cap",
+      "claim": "Pro: no Maximum cap",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift",
+          "contains": "if resolvedTier != .free {"
+        },
+        {
+          "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift",
+          "contains": "maximumModePolicy = .unlimited"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-pro-documents",
+      "claim": "1,000 documents",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let proDocumentLimit: Int = 1_000"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-pro-libraries",
+      "claim": "10 libraries",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let proLibraryLimit: Int = 10"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-pro-conversations",
+      "claim": "more conversations",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let freeEvidenceThreadLimit: Int = 5"
+        },
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let proEvidenceThreadLimit: Int = 20"
+        }
+      ],
+      "status": "verified",
+      "note": "Conversations in each library: 5 on Free, 20 on Pro."
+    },
+    {
+      "id": "limit-lifetime-unlimited",
+      "claim": "unlimited documents and conversations",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let lifetimeDocumentLimit: Int = unlimitedDocumentLimit"
+        },
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let lifetimeEvidenceThreadLimit: Int = .max"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "limit-lifetime-libraries",
+      "claim": "20 libraries",
+      "files": [
+        "fastlane/metadata/en-US/description.txt"
+      ],
+      "kind": "limit",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+          "contains": "static let lifetimeLibraryLimit: Int = 20"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "mac-icloud-rewrites-per-hour",
+      "claim": "470 to 715 times an hour on my Mac",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "CHANGELOG.md",
+          "contains": "On the owner's Mac the app reloaded its workspace 470 to 715 times an hour while idle"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On my Mac that was 470 to 715 reloads an hour"
+        }
+      ],
+      "status": "verified",
+      "note": "What was counted is reloads of the libraries, 470 to 715 an hour; the Mac copy attaches the figure to the files being rewritten. Each reload followed one sync pass that rewrote two files (CHANGELOG 5.8, 2026-11-18). A corrected sentence (\"which reloaded my Mac's libraries 470 to 715 times an hour\") was refused by App Store Connect on 2026-11-20 because the Mac version was already IN_REVIEW; it goes in if that version becomes editable again, otherwise with 5.9."
+    },
+    {
+      "id": "search-right-document-top-five",
+      "claim": "in the top five for 79% of test questions (15 of 19), up from 53% (10)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "on 15 of 19 Standard test questions, up from 10 (iOS 27 Simulator)"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| Standard 20, 19 | 0.421 to 0.421 | 0.526 to 0.789 |"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-12-full-suite"
+        }
+      ],
+      "derivation": "15/19 = 78.9%; 10/19 = 52.6%",
+      "status": "verified",
+      "note": "Standard's 19 golden retrieval questions, one pass, iOS 27 Simulator, MiniLM against Granite; a hit is a passage from the expected document in the top five."
+    },
+    {
+      "id": "reranker-passage-top-five",
+      "claim": "48% of 246 research-paper questions (119), up from 42% (103), on a Mac",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "QASPER 80 (246 questions over 80 papers with 3,912 passages)"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "48.4% in Core ML 4-bit palettized format"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "MiniLM with TinyBERT achieved 41.9%"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On 246 research-paper questions, the passage holding the answer made the top five 48% of the time with the model the app ships, up from 42%, measured on a Mac."
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-09-reranker-swap/README.md",
+          "contains": "| MiniLM + Granite reranker, Core ML 4-bit palettized (shipped) | 48.4% |"
+        }
+      ],
+      "derivation": "119/246 = 48.4%; 103/246 = 41.9%",
+      "status": "verified",
+      "note": "The sources record the percentages (48.4% and 41.9%), not the counts. 119 and 103 are worked back from them: each is the only whole count of 246 that rounds to its percentage. No tracked file states 119 or 103."
+    },
+    {
+      "id": "deep-think-14-seconds-sooner",
+      "claim": "about 14 seconds sooner at the median",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "timing",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| `answerFirst` off | 45 | 82 |"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| `answerFirst` on | 46 | 68 |"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "about 14 seconds faster at the median, in the iOS 27 Simulator"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-13-answer-first"
+        }
+      ],
+      "derivation": "Median 82 s without the change, 68 s with it: 14 s.",
+      "status": "verified",
+      "note": "53 table questions, one paired run, iOS 27 Simulator; the LEDGER says the seconds were taken while device builds ran beside it."
+    },
+    {
+      "id": "deep-think-table-questions",
+      "claim": "92% of 53 table questions right (49), up from 89% (47)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| window (5,986) | 49/53 | 0 | 96 s |"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| ceiling (3,200) | 47/53 | 0 | 104 s |"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On 53 table questions asked both ways in the iOS 27 Simulator with Apple's model at an 8,192 window, it got 49 right where the old limit got 47"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-17-synthesis-ceiling"
+        }
+      ],
+      "derivation": "49/53 = 92.5%; 47/53 = 88.7%",
+      "status": "verified",
+      "note": "49 against 47 is Deep Think reading up to the window in place of a 3,200-token limit, measured at an 8,192 window (2026-11-17); a 4,096 window is unchanged by construction. The answer-first change scored 46 against 45 of 53 (2026-11-13) and is where the 14 seconds comes from. The iPhone and iPad copy names the window and keeps the two apart since 2026-11-20; the Mac copy still joins them in one sentence, because the Mac version was IN_REVIEW and could not be edited."
+    },
+    {
+      "id": "maximum-table-values",
+      "claim": "83% of 30 table values right (25), up from 27% (8)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "Maximum gives the table's value on 25 of 30 where its notes alone gave it on 8"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "contains": "Maximum right on 8 of 30 without them and 25 of 30 with them"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-13-maximum-passages"
+        }
+      ],
+      "derivation": "25/30 = 83.3%; 8/30 = 26.7%",
+      "status": "verified"
+    },
+    {
+      "id": "maximum-median-seconds",
+      "claim": "in 79 seconds at the median where it took 117",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "timing",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| `maximumSourcePassages` and `answerFirst` off | 8 | 117 |"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| both on | 25 | 79 |"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "contains": "median 117 s against 79 s"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-13-maximum-passages"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "mac-larger-model-8k",
+      "claim": "On M3 or later Macs Apple's larger model has room for 8K tokens (8,192 on my M3 Pro)",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "Docs/PRIVACY_AND_ROUTING.md",
+          "contains": "AFM 3 Core Advanced (20B, 8K, on iPhone Air, 17 Pro, 18 Pro, iPhone Duo, M4 and later iPads, M3 and later Macs, Vision Pro with M5)"
+        },
+        {
+          "path": "Docs/PRIVACY_AND_ROUTING.md",
+          "contains": "The owner's M3 Pro Mac runs AFM 3 Core Advanced at 8,192"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "my M3 Pro Mac runs AFM 3 Core Advanced at 8,192 tokens"
+        }
+      ],
+      "status": "verified",
+      "note": "The device list is Apple's (\"Detecting available Apple Foundation Models\", fetched 2026-11-17 per the doc). The check confirms the repository's record of it, not Apple's page."
+    },
+    {
+      "id": "atlas-24-to-61-seconds",
+      "claim": "24 to 61 seconds",
+      "files": [
+        "fastlane/metadata/en-US/release_notes.txt",
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "timing",
+      "evidence": [
+        {
+          "path": "CHANGELOG.md",
+          "contains": "took 24 to 61 s for 6,000 passages on the owner's iPhone"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "took 24 to 61 seconds on 6,000 passages"
+        }
+      ],
+      "status": "verified",
+      "note": "Measured on the owner's iPhone on a library of 6,000 passages (2026-11-04 to 11-13). No Mac timing is on record; the Mac release notes carry the same figure without saying so (a correction was refused on 2026-11-20, the Mac version being IN_REVIEW)."
+    },
+    {
+      "id": "ios-citations-lost-29",
+      "claim": "29% on my iPhone had lost them (8 of 28)",
+      "files": [
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "CHANGELOG.md",
+          "contains": "On the owner's iPhone 8 of 28 Standard answers from 2026-11-07 to 11-12 had no `[S#]` label"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "on my iPhone that was 8 of 28"
+        }
+      ],
+      "derivation": "8/28 = 28.6%",
+      "status": "verified",
+      "note": "The 28 are Standard answers; none of the Deep Think answers in that period had lost its citations."
+    },
+    {
+      "id": "ios-on-device-window-4k-to-8k",
+      "claim": "room for 4K to 8K tokens",
+      "files": [
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "Docs/PRIVACY_AND_ROUTING.md",
+          "contains": "AFM 3 Core (3B, 4K to 8K)"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "AFM 3 Core has a window of 4K to 8K tokens"
+        }
+      ],
+      "status": "verified",
+      "note": "Apple's figure (\"Detecting available Apple Foundation Models\", fetched 2026-11-17 per the doc). The check confirms the repository's record of it, not Apple's page."
+    },
+    {
+      "id": "ios-larger-model-devices",
+      "claim": "its larger one 8K on iPhone Air, iPhone 17 Pro and 18 Pro, iPhone Duo and M4 or later iPads",
+      "files": [
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "Docs/PRIVACY_AND_ROUTING.md",
+          "contains": "AFM 3 Core Advanced (20B, 8K, on iPhone Air, 17 Pro, 18 Pro, iPhone Duo, M4 and later iPads, M3 and later Macs, Vision Pro with M5)"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "AFM 3 Core Advanced has 8K and runs on iPhone Air, iPhone 17 Pro, iPhone 18 Pro, iPhone Duo, iPads with M4 or later"
+        }
+      ],
+      "status": "verified",
+      "note": "Apple's device list (fetched 2026-11-17 per the doc). The check confirms the repository's record of it, not Apple's page."
+    },
+    {
+      "id": "ios-my-iphone-window",
+      "claim": "My iPhone 16 Pro Max read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1",
+      "files": [
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "measured",
+      "evidence": [
+        {
+          "path": "Docs/PRIVACY_AND_ROUTING.md",
+          "contains": "Its MetricKit reports put every 4,096 reading on iOS 27.0.1 (24A446, last at 2026-11-16 17:08) and every 8,192 reading on 27.2.1 (24B156, from 2026-11-17 08:10)"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "my iPhone 16 Pro Max, on AFM 3 Core, read 4,096 on iOS 27.0.1 and 8,192 on iOS 27.2.1"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "deep-think-window-named",
+      "claim": "at an 8K window",
+      "files": [
+        "fastlane/metadata-ios/en-US/release_notes.txt"
+      ],
+      "kind": "requirement",
+      "evidence": [
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| window (5,986) | 49/53 | 0 | 96 s |"
+        },
+        {
+          "path": "BenchmarkRuns/LEDGER.md",
+          "contains": "| ceiling (3,200) | 47/53 | 0 | 104 s |"
+        },
+        {
+          "path": "Docs/USER_CHANGELOG.md",
+          "contains": "On 53 table questions asked both ways in the iOS 27 Simulator with Apple's model at an 8,192 window, it got 49 right where the old limit got 47"
+        },
+        {
+          "path": "BenchmarkRuns/2026-11-17-synthesis-ceiling"
+        }
+      ],
+      "status": "verified",
+      "note": "Names the window the 92% was measured at (8,192 tokens, LEDGER 2026-11-17-synthesis-ceiling)."
+    }
+  ]
+}

@@ -19,6 +19,10 @@ Return a compact, task-specific briefing. Not a repository encyclopedia.
    If `Last verified commit:` in STATE.md is behind HEAD, say so in the briefing and treat STATE.md
    as a lead rather than a fact.
 
+   For a task on the release itself, `python3 scripts/release_status.py` prints where it stands from
+   records (version live and in review, the build on the phone, the last lifecycle run and UI shots,
+   release health) in under a second; put its lines in the briefing instead of recalling them.
+
 2. **Route the task.** This tells you which docs are binding before you read anything else.
 
    ```bash
