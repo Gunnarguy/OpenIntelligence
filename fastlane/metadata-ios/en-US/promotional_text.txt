@@ -1,1 +1,1 @@
-New in 5.8, the biggest update yet: Standard right on 88% of test questions (15 of 17), up from 53% in 5.7, whole tables and exact citations.  Needs Apple Intelligence.
+New in 5.8: tap a citation to see the exact words, answers keep going when you leave the app, tables stay whole and search runs on a new model.  Needs Apple Intelligence.

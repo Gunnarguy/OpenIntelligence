@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-20 14:57
+Updated: 2026-11-20 20:12
 Branch/worktree: `main`, primary checkout
-Last verified commit: f0596ab5
+Last verified commit: e6bf63a5
 
 ## Objective
 
@@ -19,8 +19,9 @@ table of Standard, Deep Think and Maximum, the questions, and the decision rules
 
 ## Status
 
-**5.8: build 509 (8e148387, tag `v5.8.0`). Mac IN_REVIEW since 2026-11-20 about 11:00 PT, iPhone and iPad
-WAITING_FOR_REVIEW.** Rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link), fixed and resubmitted
+**5.8: build 509 (8e148387, tag `v5.8.0`). Mac LIVE since 2026-11-20 (`READY_FOR_DISTRIBUTION`, recorded by the release
+watcher in e6bf63a5), iPhone and iPad WAITING_FOR_REVIEW.** The iPhone promotional text was rewritten that evening
+without figures at the owner's word; the Mac's live text still carries the percentage. Rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link), fixed and resubmitted
 06:32 PT. No app code has changed since the tag: `python3 scripts/release_status.py` prints "0 app files changed".
 
 Store copy changed on 2026-11-20 while waiting for review, each at the owner's word and read back equal: promotional

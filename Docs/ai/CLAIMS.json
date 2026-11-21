@@ -107,8 +107,7 @@
       "id": "standard-88-promo",
       "claim": "Standard right on 88% of test questions (15 of 17), up from 53% in 5.7",
       "files": [
-        "fastlane/metadata/en-US/promotional_text.txt",
-        "fastlane/metadata-ios/en-US/promotional_text.txt"
+        "fastlane/metadata/en-US/promotional_text.txt"
       ],
       "kind": "measured",
       "evidence": [
