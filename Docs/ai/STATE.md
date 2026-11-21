@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-20 23:42
+Updated: 2026-11-21 02:12
 Branch/worktree: `main`, primary checkout
-Last verified commit: d04c0c5c
+Last verified commit: ce7adeed
 
 ## Objective
 
@@ -125,14 +125,21 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**When the owner says "go"** (and not before): check he is not gaming and that the disk has 15 GiB free, then run
-`python3 scripts/stability_battery.py` in the background (10 runs of about 10 minutes, Standard, iOS 27 Simulator;
-`--dry-run` lists them; it stages `HEAD`, so the commit holding `EvaluationSampling` must be the one checked out). Read
-the first run's log for the line `[AnswerQualityEvaluation] sampling:` to confirm a setting reached the test. When it
-ends, `--report` prints the table: put its ledger lines in `BenchmarkRuns/LEDGER.md`, write the result on the six
-roadmap rows the plan links, and answer him with the table and what the plan's rules say to build. If two `greedy`
-runs differ, run `--arms hashed` and then the golden harnesses before proposing any temperature change. Deep Think
-(`--mode deepThink --arms shipped greedy adaptive`) is hours a run: offer it for overnight with the `overnight` skill.
+**The owner said go on 2026-11-21 ("lets run all of those tests and benchmarks") and the queue is running. Do not
+start a second one.** `~/Library/Developer/OpenIntelligence-evidence/stability-queue/queue.sh` (log `queue.log` beside it,
+one `.out` file per step) makes 26 runs of `scripts/stability_battery.py --max-runs 1`, pinned to commit ce7adeed, one at
+a time through `~/.agents/bin/buildlock`: Standard with all five settings (10 runs), then Deep Think and Maximum as
+shipped and greedy (5 each), then both with adaptive profiles on (3 each). It waits while a game is open, makes a failed
+run again, and skips a step after 3 failures in a row. Check it with `tail queue.log` and `pgrep -f
+stability-queue/queue.sh`; if it is not running and the log does not end `QUEUE DONE`, start the same script again (it
+picks up where it was). A session heartbeat (every 20 minutes, session-only) does this while the starting session lives.
+
+When the log ends `QUEUE DONE`: `python3 scripts/stability_battery.py --report` for `--mode standard`, `deepThink` and
+`maximum` (also saved as `report-<mode>.txt` in the queue folder); put each mode's ledger lines in
+`BenchmarkRuns/LEDGER.md`; write the result on the six roadmap rows the plan links; answer the owner with the tables and
+what the plan's rules say to build. Confirm in one finished run's `<mode>-app.txt` that the line
+`[AnswerQualityEvaluation] sampling:` names its setting. If two `greedy` runs differ, run `--arms hashed` and then the
+golden harnesses before proposing any temperature change.
 
 What was found on the way, all code_verified on 2026-11-20 and in the plan: as installed Standard writes at 0.4 or
 lower, every Deep Think step at 0.5 and Maximum's first sessions at 0.7; the per-kind temperature (0.1 for a lookup) is
