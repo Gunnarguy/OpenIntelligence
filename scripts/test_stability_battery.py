@@ -91,10 +91,15 @@ class Stability(unittest.TestCase):
                                      "2026-01-01-0930-answer-modes-stab-standard-greedy-2"])
             self.assertEqual(battery.folders_for("standard", "cool", runs), [])
             self.assertEqual(battery.run_name("standard", "cool", 3), "stab-standard-cool-3")
-            todo = battery.planned("standard", ["greedy", "cool"], runs_dir=runs)
+            whole = lambda folder, mode: True
+            todo = battery.planned("standard", ["greedy", "cool"], runs_dir=runs, complete=whole)
             self.assertEqual([(arm, n) for arm, _, n in todo], [("cool", 1), ("cool", 2)])  # greedy has its 2
-            self.assertEqual(len(battery.planned("standard", ["greedy", "cool"], 1, runs)), 1)
-            self.assertEqual(battery.planned("standard", ["greedy"], runs_dir=runs), [])
+            self.assertEqual(len(battery.planned("standard", ["greedy", "cool"], 1, runs, whole)), 1)
+            self.assertEqual(battery.planned("standard", ["greedy"], runs_dir=runs, complete=whole), [])
+            # These folders are empty, as a run that failed leaves them: by the real rule none counts, so both are made again.
+            again = battery.planned("standard", ["greedy"], runs_dir=runs)
+            self.assertEqual([(arm, n) for arm, _, n in again], [("greedy", 1), ("greedy", 2)])
+            self.assertIn("2 run folder(s) were cut short", " ".join(battery.report("standard", runs)[1]))
 
 
 if __name__ == "__main__":

@@ -97,6 +97,19 @@ def results_of(folder, mode):
     return results, answers
 
 
+QUESTIONS = 20  # the tiny research suite; a run with fewer scored questions was cut short and does not count
+
+
+def complete(folder, mode):
+    """True when a run folder holds a score for every question. A run that was stopped, or never got past its build,
+    leaves a folder too; counting it would end an arm early and shrink the questions every other run is compared on."""
+    return len(results_of(folder, mode)[0]) >= QUESTIONS
+
+
+def done_for(mode, arm, runs_dir=pr.RUNS, complete=complete):
+    return [f for f in folders_for(mode, arm, runs_dir) if complete(f, mode)]
+
+
 def summarize(runs):
     """One arm's numbers from its runs, each a (results, answers) pair. Pure: the tests feed it invented runs."""
     scored = [r for r, _ in runs if r]
@@ -169,28 +182,33 @@ def reading(by_arm):
     return out or ["Not enough runs yet to say anything."]
 
 
-def planned(mode, arms, max_runs=None, runs_dir=pr.RUNS):
-    """The runs still to make, in order, as (setting, its test settings, run number); at most `max_runs` of them."""
+def planned(mode, arms, max_runs=None, runs_dir=pr.RUNS, complete=complete):
+    """The runs still to make, in order, as (setting, its test settings, run number); at most `max_runs` of them.
+    Only complete runs count as made, so a run that failed is made again (under the same number, in a new folder)."""
     todo = []
     for arm, _, settings, runs in ARMS:
         if arm not in arms:
             continue
-        have = len(folders_for(mode, arm, runs_dir))
+        have = len(done_for(mode, arm, runs_dir, complete))
         todo += [(arm, settings, n) for n in range(have + 1, runs + 1)]
     return todo if max_runs is None else todo[:max_runs]
 
 
 def report(mode, runs_dir=pr.RUNS):
-    by_arm, lines, folders = {}, [], []
+    by_arm, lines, folders, cut_short = {}, [], [], 0
     lines.append("| Setting | What | Runs | Each run | Mean | Questions that changed between runs | Answers word for word the same |")
     lines.append("|---|---|---|---|---|---|---|")
     for arm, what, _, _ in ARMS:
-        found = folders_for(mode, arm, runs_dir)
+        found = done_for(mode, arm, runs_dir)
+        cut_short += len(folders_for(mode, arm, runs_dir)) - len(found)
         folders += found
         s = summarize([results_of(f, mode) for f in found])
         by_arm[arm] = s
         lines.append(row(arm, what, s))
-    return "\n".join(lines), reading(by_arm), folders
+    read = reading(by_arm)
+    if cut_short:
+        read.append(f"{cut_short} run folder(s) were cut short (fewer than {QUESTIONS} scored questions) and are not counted.")
+    return "\n".join(lines), read, folders
 
 
 def ledger(mode, table, read, folders):
