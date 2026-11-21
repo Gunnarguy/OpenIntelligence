@@ -182,3 +182,27 @@ runs' logs (`standard-app.log`), for the question "How many gallons of gasoline 
 - A dump of the exact prompt for one question in two launches, to settle item 2.
 - `--arms hashed` stays worth its 20 minutes; the golden harnesses compare searches on one library and do not cover
   item 1.
+
+### 2026-11-21 07:10, Standard finished (10 runs) and Deep Think as shipped and greedy (5 runs)
+
+| Mode | Setting | Runs | Right, each run | Questions that flipped | Answers word for word the same |
+|---|---|---|---|---|---|
+| Standard | As shipped | 3 | 80%, 90%, 90% (16, 18, 18 of 20) | 2 | 6% (1 of 18) |
+| Standard | Greedy | 2 | 75%, 85% (15, 17) | 2 | 6% (1 of 18) |
+| Standard | Fixed seed | 2 | 95%, 90% (19, 18) | 1 | 17% (3 of 18) |
+| Standard | Temperature 0.1 | 2 | 75%, 85% (15, 17) | 4 | 28% (5 of 18) |
+| Standard | Adaptive profiles on | 3 | 90%, 90%, 85% (18, 18, 17) | 3 | 0% (0 of 18) |
+| Deep Think | As shipped | 3 | 80%, 65%, 85% (16, 13, 17) | 5 | 6% (1 of 18) |
+| Deep Think | Greedy | 2 | 95%, 95% (19, 19) | 0 | 17% (3 of 18) |
+
+`[measured, one build (ce7adeed), iOS 27.0 Simulator, the run folders named stab-standard-* and stab-deepThink-* of 2026-11-21 plus the two noise runs of 2026-11-20; few runs per setting]`
+
+- **Standard: no setting is distinguishable from as shipped, and none makes answers repeat.** Every run landed between
+  15 and 19 of 20 with up to 2 questions between two runs of one setting.
+- **Deep Think as shipped swings more than Standard**: 13 to 17 right across three runs, 5 questions changing sides.
+  Its runs took 26, 40 and 29 minutes against Standard's 7 to 10.
+- **Deep Think with no randomness scored 19 and 19**, above all three as-shipped runs, with no question changing
+  sides. By the rule in the battery (a gap counts only beyond the largest spread seen, here 4) a gap of 3.7 is not
+  yet a result, and two runs are two runs. It is the first number that points at Deep Think's 0.5 as costing right
+  answers, and the Deep Think adaptive runs later in this queue test the same idea with the app's own setting.
+  The answers still differed in wording (3 of 18 the same), as in Standard.
