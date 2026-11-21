@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-21 02:12
+Updated: 2026-11-21 07:13
 Branch/worktree: `main`, primary checkout
-Last verified commit: ce7adeed
+Last verified commit: ad54dbd8
 
 ## Objective
 
@@ -19,10 +19,12 @@ table of Standard, Deep Think and Maximum, the questions, and the decision rules
 
 ## Status
 
-**5.8: build 509 (8e148387, tag `v5.8.0`). Mac LIVE since 2026-11-20 (`READY_FOR_DISTRIBUTION`, recorded by the release
-watcher in e6bf63a5), iPhone and iPad WAITING_FOR_REVIEW.** Both promotional texts were rewritten that evening without
-figures at the owner's word (his pick for iPhone; the Mac's on the live version), read back equal from App Store Connect. Rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link), fixed and resubmitted
-06:32 PT. No app code has changed since the tag: `python3 scripts/release_status.py` prints "0 app files changed".
+**5.8 is live on both platforms: build 509 (8e148387, tag `v5.8.0`), the Mac since 2026-11-20 and iPhone and iPad
+since 2026-11-21 07:00 PT.** The release watcher recorded it (98511cae) and unloaded itself. The go-live lines are in
+`README.md`, `Docs/README.md`, `Docs/HOW_IT_WORKS.md`, `Docs/ROADMAP.md`, `Docs/RELEASE_NOTES.md` and the copy history.
+Both promotional texts were rewritten on 2026-11-20 without figures at the owner's word. Four custom product pages
+were submitted for review on 2026-11-21 03:20 PT (`Docs/Release/CUSTOM_PRODUCT_PAGES.md`). No app code has changed
+since the tag.
 
 Store copy changed on 2026-11-20 while waiting for review, each at the owner's word and read back equal: promotional
 text with percentages, the description as bullets with a `MEASURED IN 5.8` section, both What's New texts rewritten
@@ -147,9 +149,9 @@ the Settings switch `adaptiveInferenceProfiles`, off by default; most `RAGQualit
 Standard's pipeline and seven by nothing. An earlier answer of mine in that session said Deep Think used 0.1 for
 lookups: that holds only with the switch on, and he has been told.
 
-Still standing from before: when Apple approves 5.8 (launchd `com.gunnarguy.oi-release-watch` records it, log
-`~/.agents/data/oi-release-watch/log.txt`), add the release-notes, docs-index and metadata-history lines the 5.7
-commit 3face1fb carried, then file Future Backlog rows in Notion for the continuation trigger on a final list item
-without a period, Apple's background rate limit, Siri scope and open-document, the DHA named-document row, Standard's
-planner model call, and the Mac Dock/Space behaviour of the details sheet. For 5.9, correct the Mac release notes'
-three sentences and re-measure or remove the description's `MEASURED IN 5.8` section.
+Still standing: file Future Backlog rows in Notion for the items under "Known and not fixed in the app" above (the
+continuation trigger on a final list item without a period, Apple's background rate limit, Siri scope and
+open-document, the DHA named-document row, Standard's planner model call, the Mac Dock/Space behaviour of the details
+sheet), after checking each against the existing rows. For 5.9, correct the Mac release notes' three sentences and
+re-measure or remove the description's `MEASURED IN 5.8` section. The next source change needs a `## 5.9` heading in
+`CHANGELOG.md` and his `PROCEED: IMPLEMENT`.

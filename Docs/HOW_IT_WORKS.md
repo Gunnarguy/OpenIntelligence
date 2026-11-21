@@ -57,7 +57,8 @@
 >   default route (Hybrid, with Private Cloud Compute set to "Ask when needed"), when Standard goes to Private Cloud
 >   Compute, what the consent sheet shows, when the checks refuse an answer, which checks compare the answer with the
 >   passages, and how the device backs off under pressure.
-> - **Versions.** 5.7 is the App Store build (live 2026-10-22); 5.6 was live from 2026-10-08. Each behaviour new in 5.7
+> - **Versions.** 5.8 is the App Store build (live on the Mac 2026-11-20, on iPhone and iPad 2026-11-21); 5.7 was live
+>   from 2026-10-22 and 5.6 from 2026-10-08. A behaviour new in 5.8 says "from 5.8" or "since 5.8". Each behaviour new in 5.7
 >   says so, for example the nine checks labelling Deep Think and Maximum answers, which read Not Checked in 5.6.
 > - **Line numbers.** `RAGService.swift` changed throughout the 5.7 work. Its line numbers on this page are
 >   those of 22:11 on 2026-10-20, when it had 22,746 lines, and the larger ranges also name their step or function.

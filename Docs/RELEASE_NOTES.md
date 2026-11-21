@@ -28,6 +28,47 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v5.8 - November 21, 2026
+
+Live on the Mac since 2026-11-20 and on iPhone and iPad since 2026-11-21 (07:00 PT), build 509, released
+automatically on Apple's approval. 5.8 is about answers you can trust and an app that gets out of your way.
+`Docs/USER_CHANGELOG.md` has 143 items in plain words, and `CHANGELOG.md` has one entry per change, each with
+what was read, compiled or tested. Every figure below is the store text's own, and `Docs/ai/CLAIMS.json` ties
+each one to the run that produced it.
+
+- **Search.** A new embedding model, IBM's Granite, replaces MiniLM, whose training data was licensed for
+  research only, and the step that re-scores each search's best candidates uses IBM's Granite reranker. Each library rebuilds its search once, the first time it is
+  opened, and nothing is imported again. Search put the right document in the top five for 15 of 19 test
+  questions where 5.7 managed 10.
+- **Answers.** On 17 test questions asked the same way in both versions, Standard got 15 right where 5.7 got 9,
+  Deep Think 14 where it got 11, and Maximum 14 where it got 9: one run each in the iOS 27 Simulator, and a later
+  measurement found that two runs of one build can differ by 2 questions in 20. Deep Think opens with the answer
+  and reads the passages its searches cited; Maximum reads the source passages themselves. Long answers no longer
+  stop short, every answer keeps its citations, and no answer is blank.
+- **Citations.** Tap a citation and the document opens with the exact words highlighted, in every kind of file.
+  The app says whether the passage was found word for word.
+- **Fact Check.** Each listed claim is checked on its own. A list item's number stays with its subject, a "no"
+  about something else does not count against an answer, and Needs Verification means a claim failed.
+- **Documents.** Tables stay whole under their column names, and faded scans, fine print and other scripts are
+  read. On Pro and Lifetime a library can watch a folder. The guides have their own library, which does not
+  count toward a plan. Sync never deletes a document it cannot place.
+- **Leaving the app (iPhone and iPad).** An answer keeps working after you leave and finishes there when Apple
+  Intelligence allows it, otherwise as soon as you are back. Imports keep going in the background.
+- **On the Mac.** A window with a sidebar (Chat, Documents, Atlas, Database, then libraries and conversations),
+  and Settings in its own window.
+- **Around the app.** Settings has fewer, fuller pages, small tips show the way, plans are compared side by
+  side, and several launch and Chat stalls are gone.
+
+What was and was not seen before release: the last full unit-suite run on record is from 2026-11-14 (1,751
+tests, 20 skipped, 1 failure, an invalid regular expression fixed and rerun green the same morning,
+`BenchmarkRuns/LEDGER.md`); build 509 carried four later fixes found on the owner's iPhone. The submission was
+rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link in the description) and resubmitted the same
+morning with the link. Known and not fixed: answers to the same question still vary between runs, which is
+being measured (`Docs/ai/plans/consistent-answers.md`), and the Mac release notes carry three sentences the
+copy history corrects (`Docs/Release/APP_STORE_METADATA_HISTORY.md`).
+
+`[evidence_level: release_state_verified, confidence: exact for the release state, evidence_source: Docs/SHIPPED_VERSION.json written by the release watcher from App Store Connect on 2026-11-21 (iOS 5.8 and macOS 5.8 READY_FOR_DISTRIBUTION, build 509); App Store lookup currentVersionReleaseDate 2026-11-21T15:00:16Z; the Mac first read live by the watcher at 17:34 PT on 2026-11-20. The feature lines restate fastlane/metadata*/en-US/release_notes.txt and Docs/USER_CHANGELOG.md and were not re-derived from code for this entry]`
+
 ## v5.7 - October 22, 2026
 
 Live on iPhone, iPad and Mac since 2026-10-22, build 487, released automatically on Apple's approval

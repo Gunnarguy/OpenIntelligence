@@ -161,8 +161,8 @@ too. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro Max as 144,247 pass
 
 ## Status
 
-Shipping on the App Store for iPhone, iPad, and Mac. **5.7 is live on both platforms** (released 2026-10-22,
-build 487) and **5.8 is in development**. Private Cloud Compute shipped in 5.2 and execution is confirmed on a
+Shipping on the App Store for iPhone, iPad, and Mac. **5.8 is live on both platforms** (the Mac since 2026-11-20, iPhone
+and iPad since 2026-11-21, build 509). Private Cloud Compute shipped in 5.2 and execution is confirmed on a
 physical device; its edge cases (quota exhaustion, mid-stream network changes, background consent) are tracked as
 open items. Releases are built by Xcode Cloud on Apple's released images, never on the maintainer's Mac. Work is
 planned on a [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)

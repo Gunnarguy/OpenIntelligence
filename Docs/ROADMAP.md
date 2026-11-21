@@ -9,9 +9,23 @@
 > When a release or milestone changes where things stand, update the dated section below and nothing
 > else; `AGENTS.md` rule 14 lists this file for that reason.
 
-## Where things stand (2026-11-02)
+## Where things stand (2026-11-21)
 
-5.8 is in preparation: citations that show their passage in every kind of document, watched folders, and a clearer plans screen.
+- **Live:** 5.8 on the Mac since 2026-11-20 and on iPhone and iPad since 2026-11-21, build 509, released
+  automatically on Apple's approval. `Docs/SHIPPED_VERSION.json` is the per-platform record, and
+  `Docs/RELEASE_NOTES.md` says what it holds: a new search model and reranker, citations that open their passage
+  highlighted in every kind of document, tables kept whole, answers that keep working when you leave the app,
+  watched folders, and a Mac app with a sidebar and its own Settings window.
+- **Open:** nothing in source. The next source change needs a `## 5.9` heading in `CHANGELOG.md` first. Rows that
+  close only on a phone or Mac stay open until they are seen there.
+- **Being measured:** how much an answer varies between two identical runs, and why
+  (`Docs/ai/plans/consistent-answers.md`). Nothing in the app changes until those numbers are in.
+
+`[evidence_level: release_state_verified, confidence: exact, evidence_source: Docs/SHIPPED_VERSION.json (app_store 5.8 on both platforms, written by the release watcher from App Store Connect on 2026-11-21); App Store lookup currentVersionReleaseDate 2026-11-21T15:00:16Z]`
+
+## Where things stood (2026-11-02)
+
+5.8 was in preparation: citations that show their passage in every kind of document, watched folders, and a clearer plans screen.
 
 ## Where things stood (2026-10-26)
 
