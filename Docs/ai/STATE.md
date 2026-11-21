@@ -12,8 +12,8 @@ me ... dont want more hoops"). Nine of the ten are built; the tenth (smaller rel
 submitted and needs nothing by hand until Apple answers.
 
 **Second objective, opened 2026-11-20 by the owner: the same documents and the same question give the same, right
-answer** ("any kind of variation ... defeats the whole purpose of the app"). The measurements are scaffolded and
-**wait for his word "go"** ("wait for me to give you the greenlight on those measurements"). App changes that follow
+answer** ("any kind of variation ... defeats the whole purpose of the app"). He gave the word on 2026-11-21 and the measurements are
+running (Exact Next Action). App changes that follow
 go into 5.9 with his `PROCEED: IMPLEMENT`. Everything is in `Docs/ai/plans/consistent-answers.md`: the side-by-side
 table of Standard, Deep Think and Maximum, the questions, and the decision rules written before the runs.
 
