@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-11-20: 5.8 IS LIVE ON THE MAC (the Mac since 2026-11-20, as first seen by the release watcher ~/.agents/bin/oi_release_watch.py, which reads App Store Connect every 30 minutes). Both records were set to release automatically on approval (AFTER_APPROVAL) with build 509 from 8e14838. app_store stays 5.7, the value that does not overclaim to a visitor on the platform still in review; it moves when both are live.",
     "2026-11-19 (latest, ~15:50 PT): 5.8 IS IN REVIEW AGAIN, NOW WITH BUILD 509. At the owner's word the build-506 submissions were cancelled (both records read DEVELOPER_REJECTED) to carry fixes found on his iPhone after 506: \"[S#]\" placeholders in Deep Think answers (1ce0902b), the app killed when an answer's background task expired (ac4c0cd8), and two scene-update watchdog kills drawing long answers (c3e31d40, 8e148387). Build 509 from 8e148387 (Xcode Cloud #509; #507 and #508 were superseded the same afternoon) was attached and submitted through the API: iOS submission 001409e4-6240-4bc3-995f-da87a11f5fa3, macOS submission f3ea2da1-a3d5-4d47-ac5e-2a3098b738be, both WAITING_FOR_REVIEW, release AFTER_APPROVAL. Text, screenshots and review notes were read back first and matched. app_store stays 5.7 until 5.8 is released.",
     "2026-11-19 (latest, ~13:55 PT): 5.8 IS IN REVIEW ON BOTH PLATFORMS WITH BUILD 506. At the owner's word (\"Submit both\") it was submitted through the API, one reviewSubmission per platform, with build 506 from 950def34 (Xcode Cloud #506; #504 and #505 were built that day and superseded by fixes found on the owner's devices: a Mac layout crash and Deep Think research replacing its answer). iOS submission 03016227-3b8d-49f2-96dd-15d76c3ea80d and macOS submission d77865e9-034e-4e79-b239-91d20270bbee; both records read WAITING_FOR_REVIEW, release AFTER_APPROVAL, afterwards, so each platform goes live as soon as Apple approves it; move app_store per platform then. Release notes, promotional text, description and keywords were read back from App Store Connect first and matched the repo on both platforms; screenshots 3 Mac, 10/10/10 iPhone and 8 iPad; review notes 1,822 characters. app_store stays 5.7 until 5.8 is released.",
     "2026-11-02 (latest): THE 5.8 RECORDS EXIST. The owner created them in App Store Connect: iOS at 16:33:33 and macOS at 16:33:42, both PREPARE_FOR_SUBMISSION, release AFTER_APPROVAL, read back through the API that afternoon. The work is committed in 56225f8 with [ci skip]; no Xcode Cloud build has run for 5.8. app_store stays 5.7 on both platforms and in_review stays empty.",
@@ -79,13 +80,12 @@
   "app_store": "5.7",
   "app_store_by_platform": {
     "ios": "5.7",
-    "macos": "5.7"
+    "macos": "5.8"
   },
   "preparing": "5.8",
   "in_review": {
-    "ios": "5.8 (build 509)",
-    "macos": "5.8 (build 509)"
+    "ios": "5.8 (build 509)"
   },
-  "updated": "2026-11-19",
-  "verified_against": "Read from App Store Connect 2026-10-26 via the API: iOS 5.7 and macOS 5.7 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 487, release AFTER_APPROVAL; iOS released 2026-10-23T03:06:50Z per the App Store lookup."
+  "updated": "2026-11-20",
+  "verified_against": "Read from App Store Connect 2026-11-20 via the API by the release watcher: iOS 5.8 WAITING_FOR_REVIEW (WAITING_FOR_REVIEW), macOS 5.8 READY_FOR_SALE (READY_FOR_DISTRIBUTION), build 509, release AFTER_APPROVAL."
 }
