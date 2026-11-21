@@ -1,1 +1,1 @@
-New in 5.8, the biggest update yet: a Mac app that works like one, and Standard right on 88% of test questions (15 of 17), up from 53% in 5.7.  Needs Apple Intelligence.
+The biggest update yet: a Mac app that works like one.  Tap a citation and your document opens with the exact words highlighted.  Needs Apple Intelligence.

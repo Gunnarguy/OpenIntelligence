@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-20 20:12
+Updated: 2026-11-20 23:42
 Branch/worktree: `main`, primary checkout
-Last verified commit: e6bf63a5
+Last verified commit: d04c0c5c
 
 ## Objective
 
@@ -20,8 +20,8 @@ table of Standard, Deep Think and Maximum, the questions, and the decision rules
 ## Status
 
 **5.8: build 509 (8e148387, tag `v5.8.0`). Mac LIVE since 2026-11-20 (`READY_FOR_DISTRIBUTION`, recorded by the release
-watcher in e6bf63a5), iPhone and iPad WAITING_FOR_REVIEW.** The iPhone promotional text was rewritten that evening
-without figures at the owner's word; the Mac's live text still carries the percentage. Rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link), fixed and resubmitted
+watcher in e6bf63a5), iPhone and iPad WAITING_FOR_REVIEW.** Both promotional texts were rewritten that evening without
+figures at the owner's word (his pick for iPhone; the Mac's on the live version), read back equal from App Store Connect. Rejected once on 2026-11-20 (Guideline 3.1.2, no Terms of Use link), fixed and resubmitted
 06:32 PT. No app code has changed since the tag: `python3 scripts/release_status.py` prints "0 app files changed".
 
 Store copy changed on 2026-11-20 while waiting for review, each at the owner's word and read back equal: promotional

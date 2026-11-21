@@ -104,29 +104,6 @@
       "note": "One run per mode in the iOS 27 Simulator. The 17 are the 20 test cases without the three lost-in-the-middle cases, whose test scoping changed between the versions (LEDGER entry 2026-11-14-1112-answer-modes)."
     },
     {
-      "id": "standard-88-promo",
-      "claim": "Standard right on 88% of test questions (15 of 17), up from 53% in 5.7",
-      "files": [
-        "fastlane/metadata/en-US/promotional_text.txt"
-      ],
-      "kind": "measured",
-      "evidence": [
-        {
-          "path": "Docs/USER_CHANGELOG.md",
-          "contains": "Standard got 15 right where 5.7 got 9, Deep Think 14 where 5.7 got 11, and Maximum 14 where 5.7 got 9"
-        },
-        {
-          "path": "BenchmarkRuns/LEDGER.md",
-          "contains": "5.7 scored 9, 11, 9 and 5.8 at df67ec96"
-        },
-        {
-          "path": "BenchmarkRuns/2026-11-14-1112-answer-modes"
-        }
-      ],
-      "derivation": "15/17 = 88.2%; 9/17 = 52.9%",
-      "status": "verified"
-    },
-    {
       "id": "notes-17-questions",
       "claim": "On 17 test questions asked the same way in 5.7 and 5.8",
       "files": [
