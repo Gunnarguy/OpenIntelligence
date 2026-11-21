@@ -56,7 +56,7 @@ and that an answer is more trustworthy when you can see what it was built from.
 
 | Mode | What it does | Measured accuracy |
 |---|---|---|
-| **Standard** | One retrieval pass and one answer, for lookups and direct questions. | 0.410 exact match across 83 cases from 40 research papers (QASPER), local only. |
+| **Standard** | One retrieval pass and one answer, for lookups and direct questions. | 0.410 exact match across 83 cases from 40 research papers (QASPER), local only, measured in August 2026 with the search models shipped through 5.7. Not measured again on 5.8's models. |
 | **Deep Think** | A chain of evidence sessions over rotating context windows, then a synthesis; research rounds can follow. | 9 of 25 against Standard's 10 of 25 in its largest paired run on the same QASPER pack. 25 cases cannot resolve less than about a four-case swing, so this does not separate the two modes. |
 | **Maximum** | Lifts the session ceiling for questions that span a whole library. | No valid figure yet. |
 
@@ -138,7 +138,7 @@ Which file of a split type holds what is in [the file map](Docs/ai/FILE_MAP.md);
 ## Building
 
 Releases are built with Xcode 27 (Swift 6.4) on Apple silicon; the deployment target is iOS 26.0. With an older SDK
-the iOS and macOS 27 paths, Core AI embeddings and native Private Cloud Compute, compile out. Usable Neural Engine
+the iOS and macOS 27 paths, native Private Cloud Compute among them, compile out. Usable Neural Engine
 throughput needs Apple silicon (M1 or later, A17 Pro or later).
 
 ```bash

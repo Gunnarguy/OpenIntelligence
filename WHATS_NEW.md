@@ -1,4 +1,4 @@
-> **Documentation status:** Current through OpenIntelligence v5.7, live on both platforms since October 22, 2026; the 5.8 section is the release in preparation. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.8, live on the Mac since November 20, 2026 and on iPhone and iPad since November 21, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 

@@ -115,10 +115,11 @@ These are not roadmap gaps. They are the product.
   `OpenIntelligence/Resources/MLModels/ReRankerModel.mlpackage`. `THIRD_PARTY_NOTICES.md` binds it to
   `ibm-granite/granite-embedding-reranker-english-r2`, Apache 2.0 and trained without MS MARCO, by exact path
   (since 5.8; `cross-encoder/ms-marco-TinyBERT-L2-v2` through 5.7).
-- **Core ML and Core AI**, for the bundled sentence embedder, `sentence-transformers/all-MiniLM-L6-v2`, one
-  copy for each framework. From 5.7 a new library uses the Core ML copy on iPhone and iPad and the Core AI
-  copy on macOS 27 (`EmbeddingProviderDefaults` in `EmbeddingService.swift`), and a library keeps the copy
-  it was built with.
+- **Core ML**, for the bundled sentence embedder, `ibm-granite/granite-embedding-small-english-r2`, on every
+  platform since 5.8 (`EmbeddingProviderDefaults.preferredSentenceProviderId` in `EmbeddingService.swift`).
+  Through 5.7 the embedder was `sentence-transformers/all-MiniLM-L6-v2` in a Core ML copy and a Core AI copy;
+  it was retired for its training data's terms, and there is no Core AI copy of the Granite model
+  (`THIRD_PARTY_NOTICES.md`). Corrected 2026-11-21: this entry still described the 5.7 arrangement.
 - **swift-transformers**, vendored locally at `OpenIntelligence/swift-transformers`, for tokenizers.
 - **Vision**, for OCR.
 - **StoreKit 2**, for billing.
