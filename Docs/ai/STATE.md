@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-21 07:13
+Updated: 2026-11-21 12:26
 Branch/worktree: `main`, primary checkout
-Last verified commit: ad54dbd8
+Last verified commit: decd16f4
 
 ## Objective
 
@@ -12,8 +12,8 @@ me ... dont want more hoops"). Nine of the ten are built; the tenth (smaller rel
 submitted and needs nothing by hand until Apple answers.
 
 **Second objective, opened 2026-11-20 by the owner: the same documents and the same question give the same, right
-answer** ("any kind of variation ... defeats the whole purpose of the app"). He gave the word on 2026-11-21 and the measurements are
-running (Exact Next Action). App changes that follow
+answer** ("any kind of variation ... defeats the whole purpose of the app"). He gave the word on 2026-11-21 and the first
+measurements are done (Exact Next Action). App changes that follow
 go into 5.9 with his `PROCEED: IMPLEMENT`. Everything is in `Docs/ai/plans/consistent-answers.md`: the side-by-side
 table of Standard, Deep Think and Maximum, the questions, and the decision rules written before the runs.
 
@@ -127,27 +127,22 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**The owner said go on 2026-11-21 ("lets run all of those tests and benchmarks") and the queue is running. Do not
-start a second one.** `~/Library/Developer/OpenIntelligence-evidence/stability-queue/queue.sh` (log `queue.log` beside it,
-one `.out` file per step) makes 26 runs of `scripts/stability_battery.py --max-runs 1`, pinned to commit ce7adeed, one at
-a time through `~/.agents/bin/buildlock`: Standard with all five settings (10 runs), then Deep Think and Maximum as
-shipped and greedy (5 each), then both with adaptive profiles on (3 each). It waits while a game is open, makes a failed
-run again, and skips a step after 3 failures in a row. Check it with `tail queue.log` and `pgrep -f
-stability-queue/queue.sh`; if it is not running and the log does not end `QUEUE DONE`, start the same script again (it
-picks up where it was). A session heartbeat (every 20 minutes, session-only) does this while the starting session lives.
+**The stability queue is done (2026-11-21 02:11 to 12:24, 26 runs, none failed) and written up.** Tables and the
+reading are in `BenchmarkRuns/LEDGER.md` (three "Stability battery" entries) and at the end of
+`Docs/ai/plans/consistent-answers.md`; the six roadmap rows carry the result, and "Adaptive profiles cannot reach Deep
+Think or Maximum" is Completed (seen in the step logs). The heartbeat is deleted and the scratch copy removed.
 
-When the log ends `QUEUE DONE`: `python3 scripts/stability_battery.py --report` for `--mode standard`, `deepThink` and
-`maximum` (also saved as `report-<mode>.txt` in the queue folder); put each mode's ledger lines in
-`BenchmarkRuns/LEDGER.md`; write the result on the six roadmap rows the plan links; answer the owner with the tables and
-what the plan's rules say to build. Confirm in one finished run's `<mode>-app.txt` that the line
-`[AnswerQualityEvaluation] sampling:` names its setting. If two `greedy` runs differ, run `--arms hashed` and then the
-golden harnesses before proposing any temperature change.
+In short: greedy does not make answers repeat in any mode, so by the rule set before the runs no temperature change
+is proposed. Each run imports the fixtures again and the import's model-made summaries differ, so runs did not ask the
+same library. As shipped: Standard 16, 18, 18 of 20 in 7 to 10 minutes; Deep Think 16, 13, 17 in 26 to 40; Maximum 19,
+17, 18 in 28 to 38. Deep Think with greedy scored 19 and 19, a pointer and not yet a result.
 
-What was found on the way, all code_verified on 2026-11-20 and in the plan: as installed Standard writes at 0.4 or
-lower, every Deep Think step at 0.5 and Maximum's first sessions at 0.7; the per-kind temperature (0.1 for a lookup) is
-the Settings switch `adaptiveInferenceProfiles`, off by default; most `RAGQualityMode` settings are read only by
-Standard's pipeline and seven by nothing. An earlier answer of mine in that session said Deep Think used 0.1 for
-lookups: that holds only with the switch on, and he has been told.
+**Next, when the owner says so (it uses Mac time, and he was asked):** add to the answer test a run that imports once
+and asks every question twice in the same process, as shipped and greedy (test code only, route `tests_only_change`),
+and a dump of the exact prompt for one question in two launches. Then Deep Think as shipped against greedy on one
+imported library, enough runs to clear a spread of 4. The first candidate app change is making the import's summaries
+repeatable; it needs a `## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`. The merge of the two search
+routines has no measurement behind it and stays last.
 
 Still standing: file Future Backlog rows in Notion for the items under "Known and not fixed in the app" above (the
 continuation trigger on a final list item without a period, Apple's background rate limit, Siri scope and

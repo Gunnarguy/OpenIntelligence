@@ -230,3 +230,42 @@ So Deep Think is 0.5 on 83% of its steps (85 of 103), not on every step: one kin
 for call sites on 2026-11-20 missed. Maximum never reached its 0.3 sessions on these questions. And the per-kind
 setting does reach Deep Think's steps when the switch is on, which is what the row "Adaptive profiles cannot reach
 Deep Think or Maximum" has waited to see since September. `[measured from the run logs]`
+
+### 2026-11-21 12:30, the queue is done: 26 runs, none failed
+
+| Mode | Setting | Runs | Right of 20, each run | Mean | Questions that flipped | Answers word for word the same | Minutes a run |
+|---|---|---|---|---|---|---|---|
+| Standard | As shipped | 3 | 16, 18, 18 | 17.3 | 2 | 6% (1 of 18) | 7 to 10 |
+| Standard | Greedy | 2 | 15, 17 | 16.0 | 2 | 6% (1 of 18) | 7 |
+| Standard | Fixed seed | 2 | 19, 18 | 18.5 | 1 | 17% (3 of 18) | 7 |
+| Standard | Temperature 0.1 | 2 | 15, 17 | 16.0 | 4 | 28% (5 of 18) | 7, 13 |
+| Standard | Adaptive on | 3 | 18, 18, 17 | 17.7 | 3 | 0% (0 of 18) | 6 to 10 |
+| Deep Think | As shipped | 3 | 16, 13, 17 | 15.3 | 5 | 6% (1 of 18) | 26, 40, 29 |
+| Deep Think | Greedy | 2 | 19, 19 | 19.0 | 0 | 17% (3 of 18) | 31, 36 |
+| Deep Think | Adaptive on | 3 | 16, 19, 16 | 17.0 | 5 | 6% (1 of 18) | 26, 27, 23 |
+| Maximum | As shipped | 3 | 19, 17, 18 | 18.0 | 2 | 11% (2 of 18) | 28, 38, 31 |
+| Maximum | Greedy | 2 | 18, 19 | 18.5 | 3 | 17% (3 of 18) | 25, 37 |
+| Maximum | Adaptive on | 3 | 18, 19, 19 | 18.7 | 3 | 11% (2 of 18) | 20, 26, 27 |
+
+`[measured; BenchmarkRuns/LEDGER.md, the three "Stability battery" entries of 2026-11-21]`
+
+**What the rules written before the runs lead to.**
+
+- The rule that applies is the third row of "What gets built": greedy runs still differ, so **no temperature change is
+  proposed yet**. What varies before the writing comes first. One cause is found (the import's model-made summaries
+  make each run's library differ) and one is open (the same context drawing different words under greedy).
+- Standard: nothing to change on this evidence. No setting is distinguishable from as shipped.
+- Deep Think is the one mode whose numbers ask for a change: lowest as shipped, widest swing, and 19 and 19 with the
+  randomness off. It needs more runs before it counts (the gap is 3.7 against a spread of 4).
+- Maximum: steady and highest as shipped; nothing to change on this evidence.
+- The merge of the two search routines gets no support from these numbers either way. It stays last, and optional.
+
+**Next measurements, all test code and tooling, none run yet:**
+
+1. Import once, ask every question twice in the same process, as shipped and greedy, in all three modes. This is
+   "the same library, asked twice", the case a user actually meets, and it removes the import from the comparison.
+2. Dump the exact prompt for one question in two launches (settles whether greedy itself repeats).
+3. Deep Think, more runs: as shipped against greedy on one imported library, enough to clear the spread.
+4. Whether the import's summaries can be made repeatable (greedy at import, or kept from the first import) is the
+   first candidate app change, and needs a `## 5.9` heading and the owner's `PROCEED: IMPLEMENT`.
+

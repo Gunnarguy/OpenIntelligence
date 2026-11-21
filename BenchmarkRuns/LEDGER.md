@@ -1833,3 +1833,63 @@ either way from single runs. It is one pair of runs: the true spread may be wide
 Think or Maximum. This is also the first run made through `scripts/paired_run.py` end to end; its scratch folders
 (`/private/tmp/oi-pair`) and both simulators were removed afterwards.
 
+### 2026-11-21 Stability battery, standard: the same 20 questions under several sampling settings (`2026-11-20-1249-answer-modes-noise-before`, `2026-11-20-1306-answer-modes-noise-after`, `2026-11-21-0211-answer-modes-stab-standard-shipped-3`, `2026-11-21-0221-answer-modes-stab-standard-greedy-1`, `2026-11-21-0229-answer-modes-stab-standard-greedy-2`, `2026-11-21-0251-answer-modes-stab-standard-seeded-1`, `2026-11-21-0259-answer-modes-stab-standard-seeded-2`, `2026-11-21-0317-answer-modes-stab-standard-cool-1`, `2026-11-21-0325-answer-modes-stab-standard-cool-2`, `2026-11-21-0341-answer-modes-stab-standard-adaptive-1`, `2026-11-21-0353-answer-modes-stab-standard-adaptive-2`, `2026-11-21-0401-answer-modes-stab-standard-adaptive-3`)
+
+`scripts/stability_battery.py`: one build, the tiny research suite's 20 questions, the app's own model service in the iOS 27.0 Simulator (a scratch copy patched by `scripts/sim_model_copy.py`). The settings are the benchmark-only sampling switches `AppleFoundationLLMService` reads; the app is unchanged. Right and wrong by rule (`scripts/score_answer_eval.py`); "word for word" compares the first 300 characters of each answer.
+`[evidence_level: measured, confidence: low to medium: few runs per setting, one question set]`
+
+| Setting | What | Runs | Each run | Mean | Questions that changed between runs | Answers word for word the same |
+|---|---|---|---|---|---|---|
+| shipped | as the app ships | 3 | 80% (16 of 20), 90% (18 of 20), 90% (18 of 20) | 85% (17 of 20) mean | 2: lost_in_middle_end, lost_in_middle_middle | 6% (1 of 18) |
+| greedy | always the likeliest word | 2 | 75% (15 of 20), 85% (17 of 20) | 80% (16 of 20) mean | 2: exact_service_interval, retrieval_nfcorpus_epsilon | 6% (1 of 18) |
+| seeded | as shipped, the random draws held fixed (seed 42) | 2 | 95% (19 of 20), 90% (18 of 20) | 90% (18 of 20) mean | 1: exact_temperature_limit | 17% (3 of 18) |
+| cool | temperature 0.1 | 2 | 75% (15 of 20), 85% (17 of 20) | 80% (16 of 20) mean | 4: lost_in_middle_end, lost_in_middle_middle, missing_unreleased_battery, retrieval_nfcorpus_epsilon | 28% (5 of 18) |
+| adaptive | the app's adaptive-profiles switch on | 3 | 90% (18 of 20), 90% (18 of 20), 85% (17 of 20) | 90% (18 of 20) mean | 3: exact_temperature_limit, lost_in_middle_end, missing_unreleased_battery | 0% (0 of 18) |
+| hashed | greedy, Swift's hashing held fixed | 0 | not run | | | |
+
+Read: As shipped, 2 of 20 questions changed between right and wrong across 3 runs, and 1 of 18 answers were word for word the same. That is the variation a user can meet today. With no randomness in the writing, 17 of 18 answers still differed between runs. Something before the writing varies (the passages or their order): run `--arms hashed`, then the golden harnesses, before changing any temperature. With the random draws held fixed, 15 of 18 answers still differed between runs. With no randomness in the writing the mean was 16.0 right against 17.3 (-1.3), which is not distinguishable from as shipped (runs of one setting differ by up to 2). 2 questions changed between its runs. With temperature 0.1 the mean was 16.0 right against 17.3 (-1.3), which is not distinguishable from as shipped (runs of one setting differ by up to 2). 4 questions changed between its runs. With the adaptive-profiles switch on the mean was 17.7 right against 17.3 (+0.3), which is not distinguishable from as shipped (runs of one setting differ by up to 2). 3 questions changed between its runs.
+
+### 2026-11-21 Stability battery, deepThink: the same 20 questions under several sampling settings (`2026-11-21-0409-answer-modes-stab-deepThink-shipped-1`, `2026-11-21-0436-answer-modes-stab-deepThink-shipped-2`, `2026-11-21-0518-answer-modes-stab-deepThink-shipped-3`, `2026-11-21-0548-answer-modes-stab-deepThink-greedy-1`, `2026-11-21-0621-answer-modes-stab-deepThink-greedy-2`, `2026-11-21-0944-answer-modes-stab-deepThink-adaptive-1`, `2026-11-21-1012-answer-modes-stab-deepThink-adaptive-2`, `2026-11-21-1041-answer-modes-stab-deepThink-adaptive-3`)
+
+`scripts/stability_battery.py`: one build, the tiny research suite's 20 questions, the app's own model service in the iOS 27.0 Simulator (a scratch copy patched by `scripts/sim_model_copy.py`). The settings are the benchmark-only sampling switches `AppleFoundationLLMService` reads; the app is unchanged. Right and wrong by rule (`scripts/score_answer_eval.py`); "word for word" compares the first 300 characters of each answer.
+`[evidence_level: measured, confidence: low to medium: few runs per setting, one question set]`
+
+| Setting | What | Runs | Each run | Mean | Questions that changed between runs | Answers word for word the same |
+|---|---|---|---|---|---|---|
+| shipped | as the app ships | 3 | 80% (16 of 20), 65% (13 of 20), 85% (17 of 20) | 75% (15 of 20) mean | 5: exact_temperature_limit, lost_in_middle_middle, missing_confidential_price, retrieval_nfcorpus_epsilon, retrieval_trial_beta | 6% (1 of 18) |
+| greedy | always the likeliest word | 2 | 95% (19 of 20), 95% (19 of 20) | 95% (19 of 20) mean | 0 | 17% (3 of 18) |
+| seeded | as shipped, the random draws held fixed (seed 42) | 0 | not run | | | |
+| cool | temperature 0.1 | 0 | not run | | | |
+| adaptive | the app's adaptive-profiles switch on | 3 | 80% (16 of 20), 95% (19 of 20), 80% (16 of 20) | 85% (17 of 20) mean | 5: lost_in_middle_middle, missing_confidential_price, missing_unreleased_battery, retrieval_covid_gamma, retrieval_trial_beta | 6% (1 of 18) |
+| hashed | greedy, Swift's hashing held fixed | 0 | not run | | | |
+
+Read: As shipped, 5 of 20 questions changed between right and wrong across 3 runs, and 1 of 18 answers were word for word the same. That is the variation a user can meet today. With no randomness in the writing, 15 of 18 answers still differed between runs. Something before the writing varies (the passages or their order): run `--arms hashed`, then the golden harnesses, before changing any temperature. With no randomness in the writing the mean was 19.0 right against 15.3 (+3.7), which is not distinguishable from as shipped (runs of one setting differ by up to 4). 0 questions changed between its runs. With the adaptive-profiles switch on the mean was 17.0 right against 15.3 (+1.7), which is not distinguishable from as shipped (runs of one setting differ by up to 4). 5 questions changed between its runs.
+
+### 2026-11-21 Stability battery, maximum: the same 20 questions under several sampling settings (`2026-11-21-0658-answer-modes-stab-maximum-shipped-1`, `2026-11-21-0728-answer-modes-stab-maximum-shipped-2`, `2026-11-21-0807-answer-modes-stab-maximum-shipped-3`, `2026-11-21-0839-answer-modes-stab-maximum-greedy-1`, `2026-11-21-0905-answer-modes-stab-maximum-greedy-2`, `2026-11-21-1106-answer-modes-stab-maximum-adaptive-1`, `2026-11-21-1128-answer-modes-stab-maximum-adaptive-2`, `2026-11-21-1156-answer-modes-stab-maximum-adaptive-3`)
+
+`scripts/stability_battery.py`: one build, the tiny research suite's 20 questions, the app's own model service in the iOS 27.0 Simulator (a scratch copy patched by `scripts/sim_model_copy.py`). The settings are the benchmark-only sampling switches `AppleFoundationLLMService` reads; the app is unchanged. Right and wrong by rule (`scripts/score_answer_eval.py`); "word for word" compares the first 300 characters of each answer.
+`[evidence_level: measured, confidence: low to medium: few runs per setting, one question set]`
+
+| Setting | What | Runs | Each run | Mean | Questions that changed between runs | Answers word for word the same |
+|---|---|---|---|---|---|---|
+| shipped | as the app ships | 3 | 95% (19 of 20), 85% (17 of 20), 90% (18 of 20) | 90% (18 of 20) mean | 2: exact_payload, missing_confidential_price | 11% (2 of 18) |
+| greedy | always the likeliest word | 2 | 90% (18 of 20), 95% (19 of 20) | 90% (18 of 20) mean | 3: missing_unreleased_battery, retrieval_covid_gamma, retrieval_policy_alpha | 17% (3 of 18) |
+| seeded | as shipped, the random draws held fixed (seed 42) | 0 | not run | | | |
+| cool | temperature 0.1 | 0 | not run | | | |
+| adaptive | the app's adaptive-profiles switch on | 3 | 90% (18 of 20), 95% (19 of 20), 95% (19 of 20) | 95% (19 of 20) mean | 3: exact_payload, lost_in_middle_middle, retrieval_trial_beta | 11% (2 of 18) |
+| hashed | greedy, Swift's hashing held fixed | 0 | not run | | | |
+
+Read: As shipped, 2 of 20 questions changed between right and wrong across 3 runs, and 2 of 18 answers were word for word the same. That is the variation a user can meet today. With no randomness in the writing, 15 of 18 answers still differed between runs. Something before the writing varies (the passages or their order): run `--arms hashed`, then the golden harnesses, before changing any temperature. With no randomness in the writing the mean was 18.5 right against 18.0 (+0.5), which is not distinguishable from as shipped (runs of one setting differ by up to 2). 3 questions changed between its runs. With the adaptive-profiles switch on the mean was 18.7 right against 18.0 (+0.7), which is not distinguishable from as shipped (runs of one setting differ by up to 2). 3 questions changed between its runs.
+
+**The three batteries together (26 new runs, 2026-11-21 02:11 to 12:24, queue `~/Library/Developer/OpenIntelligence-evidence/stability-queue/queue.sh`, commit ce7adeed, 0 failed runs).**
+
+| Mode, as shipped | Right of 20, each run | Mean | Minutes a run |
+|---|---|---|---|
+| Standard | 16, 18, 18 | 17.3 | 7 to 10 |
+| Deep Think | 16, 13, 17 | 15.3 | 26 to 40 |
+| Maximum | 19, 17, 18 | 18.0 | 28 to 38 |
+
+**What it settled.** (1) Removing the writing's randomness does not make answers repeat in any mode: with greedy, 1 of 18, 3 of 18 and 3 of 18 answers were word for word the same. (2) In Standard no sampling setting is distinguishable from as shipped. (3) The settings reached the model: `[FM] Benchmark sampling override: strategy=greedy` in the greedy logs, and with the adaptive switch on Deep Think's steps logged 241 at 0.1 and 30 at 0.35 "from the adaptive profile" and none from the default. (4) As shipped, Deep Think's steps log 0.5 from the default on 85 of 103 and 0.3 named by the step on 18; Maximum 0.7 on 33, 0.5 on 56 and none at 0.3.
+
+**What it found and did not settle.** Each run imports the fixtures again and the import writes a model-made summary per document, whose lengths differed between runs (649, 610 and 673 words over 6 summaries in three Standard runs), so the runs did not ask the same library; and with the same assembled context (1 passage, 1,018 input tokens) two greedy runs still wrote different words. Deep Think with greedy scored 19 and 19 against 16, 13 and 17 as shipped: a gap of 3.7 against a largest spread of 4, so not a result by the rule set before the runs, and the first number that points at its 0.5. Not measured: the same library asked twice in one process; a phone; any other question set. `--arms hashed` was not run: with the library itself differing between runs it could not have isolated hashing order.
+`[evidence_level: measured, confidence: medium for the tables (two or three runs a setting, one 20-question set, Simulator); the reading of the logs is from one question in two runs]`
