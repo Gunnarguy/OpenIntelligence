@@ -1,1 +1,1 @@
-New in 5.8: tap a citation to see the exact words, answers keep going when you leave the app, tables stay whole and search runs on a new model.  Needs Apple Intelligence.
+The biggest update yet.  Tap a citation and your document opens with the exact words highlighted.  Leave mid-answer and it keeps working.  Needs Apple Intelligence.
