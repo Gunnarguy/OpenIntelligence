@@ -91,6 +91,10 @@ class Stability(unittest.TestCase):
                                      "2026-01-01-0930-answer-modes-stab-standard-greedy-2"])
             self.assertEqual(battery.folders_for("standard", "cool", runs), [])
             self.assertEqual(battery.run_name("standard", "cool", 3), "stab-standard-cool-3")
+            todo = battery.planned("standard", ["greedy", "cool"], runs_dir=runs)
+            self.assertEqual([(arm, n) for arm, _, n in todo], [("cool", 1), ("cool", 2)])  # greedy has its 2
+            self.assertEqual(len(battery.planned("standard", ["greedy", "cool"], 1, runs)), 1)
+            self.assertEqual(battery.planned("standard", ["greedy"], runs_dir=runs), [])
 
 
 if __name__ == "__main__":

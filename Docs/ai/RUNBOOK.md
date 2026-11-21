@@ -1455,7 +1455,8 @@ python3 scripts/stability_battery.py
 The second command makes the runs that do not exist yet: the answer test's 20 questions in Standard, 3 times as shipped,
 2 with no randomness (`greedy`), 2 with a fixed seed, 2 at temperature 0.1 and 3 with the app's adaptive-profiles
 switch on, about 10 minutes each in the iOS 27 Simulator, one at a time, from one scratch copy of `HEAD` (so commit
-first). A stopped battery picks up where it was; `--report` prints the table from the runs that exist. Two greedy runs
+first). A stopped battery picks up where it was; `--report` prints the table from the runs that exist. `--max-runs 1` makes
+the next run only, for a queue that takes the build lock for one run at a time. Two greedy runs
 that still differ mean something before the writing varies: `--arms hashed` repeats them with Swift's hashing held
 fixed, and the golden harnesses compare the passages. `--mode deepThink --arms shipped greedy adaptive` is the same
 for Deep Think and takes hours (use the `overnight` skill). It prints the `BenchmarkRuns/LEDGER.md` lines and never

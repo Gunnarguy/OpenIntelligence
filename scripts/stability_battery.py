@@ -5,6 +5,7 @@ would remove it. One command, a few hours, no change to the app.
   python3 scripts/stability_battery.py --dry-run     print every run it would make, and run none
   python3 scripts/stability_battery.py               run what is not done yet (a stopped battery picks up where it was)
   python3 scripts/stability_battery.py --report      print the table from the runs that exist, and run none
+  python3 scripts/stability_battery.py --max-runs 1  make the next run only (for a queue that yields between runs)
   python3 scripts/stability_battery.py --mode deepThink --arms shipped   the same question for Deep Think (hours)
 
 Why: on 2026-11-20 two runs of one build in Standard scored 80% (16 of 20) and 90% (18 of 20). The app's promise
@@ -168,6 +169,17 @@ def reading(by_arm):
     return out or ["Not enough runs yet to say anything."]
 
 
+def planned(mode, arms, max_runs=None, runs_dir=pr.RUNS):
+    """The runs still to make, in order, as (setting, its test settings, run number); at most `max_runs` of them."""
+    todo = []
+    for arm, _, settings, runs in ARMS:
+        if arm not in arms:
+            continue
+        have = len(folders_for(mode, arm, runs_dir))
+        todo += [(arm, settings, n) for n in range(have + 1, runs + 1)]
+    return todo if max_runs is None else todo[:max_runs]
+
+
 def report(mode, runs_dir=pr.RUNS):
     by_arm, lines, folders = {}, [], []
     lines.append("| Setting | What | Runs | Each run | Mean | Questions that changed between runs | Answers word for word the same |")
@@ -198,18 +210,15 @@ def main():
     p.add_argument("--mode", default="standard", choices=pr.MODES)
     p.add_argument("--arms", nargs="*", default=DEFAULT_ARMS, help="which settings to run (default: all but hashed)")
     p.add_argument("--ref", default="HEAD", help="the commit to measure (default HEAD)")
+    p.add_argument("--max-runs", type=int, default=None,
+                   help="make at most this many runs and stop (a queue that lets other builds in between runs)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--report", action="store_true")
     p.add_argument("--limit-hours", type=float, default=pr.LIMIT_HOURS)
     a = p.parse_args()
 
     if not a.report:
-        todo = []
-        for arm, what, settings, runs in ARMS:
-            if arm not in a.arms:
-                continue
-            have = len(folders_for(a.mode, arm))
-            todo += [(arm, settings, n) for n in range(have + 1, runs + 1)]
+        todo = planned(a.mode, a.arms, a.max_runs)
         shell = pr.Shell(a.dry_run)
         shell.note(f"Stability battery, {a.mode}, commit {a.ref}: {len(todo)} runs to make"
                    + (" (DRY RUN: no command below is run)" if a.dry_run else ""))
