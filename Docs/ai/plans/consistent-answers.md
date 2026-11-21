@@ -206,3 +206,27 @@ runs' logs (`standard-app.log`), for the question "How many gallons of gasoline 
   yet a result, and two runs are two runs. It is the first number that points at Deep Think's 0.5 as costing right
   answers, and the Deep Think adaptive runs later in this queue test the same idea with the app's own setting.
   The answers still differed in wording (3 of 18 the same), as in Standard.
+
+### 2026-11-21 09:50, Maximum as shipped and greedy (5 runs), and the step temperatures read from the logs
+
+| Mode | Setting | Runs | Right, each run | Questions that flipped | Answers word for word the same | Minutes a run |
+|---|---|---|---|---|---|---|
+| Maximum | As shipped | 3 | 95%, 85%, 90% (19, 17, 18 of 20) | 2 | 11% (2 of 18) | 28, 38, 31 |
+| Maximum | Greedy | 2 | 90%, 95% (18, 19) | 3 | 17% (3 of 18) | 26, 39 |
+
+Maximum as shipped is steadier and higher than Deep Think as shipped (16, 13, 17) on these 20 questions, and greedy
+does not move it.
+
+**The temperatures in the table above are now observed, with one correction.** Counted from the line
+`[Agentic] Step temperature X from ...` in one as-shipped run of each mode (`deepThink-app.log`, `maximum-app.log`):
+
+| Run | Steps at each temperature |
+|---|---|
+| Deep Think, as shipped | 85 at 0.5 from the default, 18 at 0.3 named by the step |
+| Maximum, as shipped | 33 at 0.7 and 26 at 0.5 named by the step, 30 at 0.5 from the default; none at 0.3 |
+| Deep Think, adaptive profiles on (first 2 questions) | 18 at 0.1 from the adaptive profile, 0 from the default |
+
+So Deep Think is 0.5 on 83% of its steps (85 of 103), not on every step: one kind of step names 0.3, which the search
+for call sites on 2026-11-20 missed. Maximum never reached its 0.3 sessions on these questions. And the per-kind
+setting does reach Deep Think's steps when the switch is on, which is what the row "Adaptive profiles cannot reach
+Deep Think or Maximum" has waited to see since September. `[measured from the run logs]`
