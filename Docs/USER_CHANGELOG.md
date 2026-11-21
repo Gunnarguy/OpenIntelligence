@@ -7,7 +7,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v5.8 - unreleased
+## v5.8 - November 21, 2026
 
 5.8 is about answers you can trust and an app that gets out of your way. A new search model and a new reranker find the right passage more often in testing, tables come through whole, every citation opens on its exact words, and the app is steadier from launch to answer.
 
