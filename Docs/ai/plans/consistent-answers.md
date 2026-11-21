@@ -145,3 +145,40 @@ Decided before the runs, so the result cannot bend the rule.
 Not in this plan: a new model, a new question set, or any speed work. The 20-question set is small (2 questions of
 noise is 10 points), so any claim of a gain needs repeats, and the retrieval benchmark and the device stay the final
 word (`measure-answers` and `device-pass` skills).
+
+## Findings while the queue runs
+
+### 2026-11-21 02:50, after 3 as-shipped and 2 greedy runs in Standard
+
+| Setting | Runs | Right | Answers word for word the same |
+|---|---|---|---|
+| As shipped | 3 | 80%, 90%, 90% (16, 18, 18 of 20) | 6% (1 of 18) |
+| Greedy (no randomness in the writing) | 2 | 75%, 85% (15, 17 of 20) | 6% (1 of 18) |
+
+`[measured, BenchmarkRuns/2026-11-20-1249…noise-before, …1306…noise-after, 2026-11-21-0211…shipped-3, …0221…greedy-1, …0229…greedy-2]`
+
+**The greedy runs differ as much as the sampled ones, so the writing's randomness is not the whole cause.** Q2's rule
+applies: no temperature change is proposed until what varies before the writing is found. Read from the two greedy
+runs' logs (`standard-app.log`), for the question "How many gallons of gasoline can the vehicle hold?":
+
+1. **The two runs did not ask the same library.** Each run imports the fixtures again, and the import writes a
+   model-made summary for each document. Their lengths differed (6 summaries, 649 words in one greedy run and 610 in
+   the other, 673 in the as-shipped run), and the library's word count seen by search differed with them (`totalWords`
+   1527 against 1495 for this question). So the battery measures "import, then ask", which is what two people with
+   the same file, or one person who imports it again, would meet. It does not yet measure "ask the same library
+   twice", which is the commoner case. `[measured from the logs; whether the summary call obeys the greedy switch is
+   not checked]`
+2. **With the same context the model still wrote differently.** Both runs assembled 1 passage of 244 characters and
+   sent 1,018 input tokens, and one wrote 79 output tokens ("14.3 US gal ⏎ ⏎ Sources: [S1]", gates passed, confidence
+   0.97) and the other 99 (the citation missing, Gate B failed, the source-only check ran). Either the two prompts
+   differed inside the same token count, or greedy structured generation does not repeat across launches of the app.
+   `[measured; cause not established]`
+3. One greedy run logged the model as "Unavailable" for one call at its start (the Simulator's first minute).
+
+**What this adds to the plan** (after the queue, test code and tooling only):
+
+- A run that imports once and asks every question twice in the same process, as shipped and greedy. That separates
+  "the library changed" from "the answer changed", and is the measurement that matches a user asking twice.
+- A dump of the exact prompt for one question in two launches, to settle item 2.
+- `--arms hashed` stays worth its 20 minutes; the golden harnesses compare searches on one library and do not cover
+  item 1.
