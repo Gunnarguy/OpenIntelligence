@@ -48,7 +48,14 @@ TEST_CLASS = "OpenIntelligenceUITests/LifecycleScenarioUITests"
 # printed, not failed: a new simulator's first launch measured 3.1 s and 8.7 s on 2026-11-20, where the owner's iPhone
 # has a median of 0.3 s for the same moment (99 first launches after an install).
 STALL_FAIL_MS = 10000
-GAMES = "World of Warcraft.app/Contents/MacOS|League of Legends.app/Contents/MacOS"
+GAMES = ("World of Warcraft.app/Contents/MacOS/", "League of Legends.app/Contents/MacOS/")
+
+
+def game_open(executables):
+    """True when a game is running, read from `ps -axo comm=` (each process's executable path, no arguments).
+    `pgrep -f` matched any shell whose command line named the game's folder (2026-11-22: another session's build
+    under /Applications/World of Warcraft made every check read "a game is open")."""
+    return any(g in line for line in executables.splitlines() for g in GAMES)
 # name, the test that drives it, what it is. The order matters (the numbers in the test names set it): the first needs a
 # new install, the second imports the note the answers are asked about, the third warms the model.
 SCENARIOS = [
@@ -409,7 +416,7 @@ def main():
     unknown = set(a.scenarios) - {s[0] for s in SCENARIOS}
     if unknown or not wanted:
         sys.exit("unknown scenario: " + ", ".join(sorted(unknown)))
-    while not a.ignore_games and run("pgrep", "-f", GAMES).stdout.strip():
+    while not a.ignore_games and game_open(run("ps", "-axo", "comm=").stdout):
         print("A game is running; waiting for it to close (checking every 5 minutes).", flush=True)
         time.sleep(300)
     if run("pgrep", "-x", "xcodebuild").stdout.strip():

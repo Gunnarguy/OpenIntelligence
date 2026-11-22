@@ -43,7 +43,9 @@ COMMIT_TEXT="${NAME:-$(git -C "$REPO" rev-parse --short HEAD)}"
 mkdir -p "$OUT"
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$OUT/SUMMARY.md.progress"; }
 
-game_running() { pgrep -f 'World of Warcraft.app/Contents/MacOS|League of Legends.app/Contents/MacOS' > /dev/null; }
+# By the executable's own path (`ps -o comm`), never `pgrep -f`: on 2026-11-22 `pgrep -f` matched another session's
+# shell whose command line only named the World of Warcraft folder, and the check read "a game is open" with none running.
+game_running() { ps -axo comm= | grep -Eq '(World of Warcraft|League of Legends)\.app/Contents/MacOS/'; }
 while game_running && [ "${OI_BENCH_IGNORE_GAMES:-0}" != 1 ]; do
   log "A game is running; waiting for it to close (checking every 5 minutes)."
   sleep 300

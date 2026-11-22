@@ -127,7 +127,8 @@ class ReadingARun(unittest.TestCase):
         self.assertEqual((results, unscored), ({"file_c": False}, ["exact_a"]))  # 299 is whole, 300 may be cut
         swift = os.path.join(pr.ROOT, pr.ANSWER_TEST)
         if os.path.exists(swift):
-            self.assertIn(f"answer.text.prefix({pr.PRINTED})", open(swift, encoding="utf-8").read())
+            # `first` is the first answer's text since 2026-11-22 (the ask-again option keeps it to compare with later asks).
+            self.assertIn(f"first.prefix({pr.PRINTED})", open(swift, encoding="utf-8").read())
 
     def test_a_cut_token_answer_is_never_scored(self):
         results, unscored = pr.score_prefixes([("What is the token?", "T1 " + "x" * pr.PRINTED)], CASES, RULE)

@@ -41,7 +41,14 @@ RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-0"
 EVIDENCE = os.path.expanduser("~/Library/Developer/OpenIntelligence-evidence/ui-shots")
 SHOTS = "/private/tmp/oi-checks-shots"  # where FiveChecksUITests writes
 TEST_CLASS = "OpenIntelligenceUITests/FiveChecksUITests"
-GAMES = "World of Warcraft.app/Contents/MacOS|League of Legends.app/Contents/MacOS"
+GAMES = ("World of Warcraft.app/Contents/MacOS/", "League of Legends.app/Contents/MacOS/")
+
+
+def game_open(executables):
+    """True when a game is running, read from `ps -axo comm=` (each process's executable path, no arguments).
+    `pgrep -f` matched any shell whose command line named the game's folder (2026-11-22: another session's build
+    under /Applications/World of Warcraft made every check read "a game is open")."""
+    return any(g in line for line in executables.splitlines() for g in GAMES)
 STATUS_BAR = 0.065  # the top share of the screen that is ignored: clock, signal, battery
 CHANNEL_NOISE = 24  # a pixel differs when a colour channel moves by more than this (antialiasing moves less)
 CHANGED_SHARE = 0.002  # two shots are identical when no more than 0.2% of their pixels differ
@@ -314,7 +321,7 @@ def stage(ref, scratch):
 
 def take(ref, out, scratch="/private/tmp", ignore_games=False):
     """Builds `ref`, runs the screenshot tests on a new simulator, and copies the screenshots into `out`."""
-    while not ignore_games and run("pgrep", "-f", GAMES).stdout.strip():
+    while not ignore_games and game_open(run("ps", "-axo", "comm=").stdout):
         print("A game is running; waiting for it to close (checking every 5 minutes).", flush=True)
         time.sleep(300)
     if run("pgrep", "-x", "xcodebuild").stdout.strip():
