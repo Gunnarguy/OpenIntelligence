@@ -1466,6 +1466,26 @@ The settings reach the app through `EvaluationSampling` in `AnswerQualityEvaluat
 
 `[evidence_level: test_verified for the script's arithmetic and wording; build_verified for the test hook; --report reproduces the two as-shipped runs of 2026-11-20 (80% and 90%, 1 of 18 answers the same); no battery run made yet, so the settings reaching the model is unobserved, confidence: medium]`
 
+## Does an answer repeat when nothing is imported in between (added 2026-11-22)
+
+```bash
+python3 scripts/ask_twice.py run --mode standard --sampling shipped --repeat 3
+```
+
+```bash
+python3 scripts/ask_twice.py report
+```
+
+One run imports the answer test's fixtures once and asks each of the 20 questions `--repeat` times in the same process
+(`OI_EVAL_REPEAT` in `AnswerQualityEvaluationTests.swift`; the first answer is the graded one, each later one is
+printed whole beside it). `--sampling greedy` takes the randomness out of the writing. The report gives, per ask, how
+many answers are right by rule and how many are word for word the first answer, and which questions changed sides. It
+exists because the stability battery's runs each import the documents again, and the import's model-made summaries
+differ, so they never asked the same library twice. A run that exists and is complete is not made again. Tests:
+`python3 scripts/test_ask_twice.py` (5).
+
+`[evidence_level: test_verified for the script's reading and counting; build_verified for the test option once the commit that adds it says so; no run made when this was written]`
+
 ## UI before and after, side by side (added 2026-11-20)
 
 ```bash

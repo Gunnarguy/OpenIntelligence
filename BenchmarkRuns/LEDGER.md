@@ -1893,3 +1893,18 @@ Read: As shipped, 2 of 20 questions changed between right and wrong across 3 run
 
 **What it found and did not settle.** Each run imports the fixtures again and the import writes a model-made summary per document, whose lengths differed between runs (649, 610 and 673 words over 6 summaries in three Standard runs), so the runs did not ask the same library; and with the same assembled context (1 passage, 1,018 input tokens) two greedy runs still wrote different words. Deep Think with greedy scored 19 and 19 against 16, 13 and 17 as shipped: a gap of 3.7 against a largest spread of 4, so not a result by the rule set before the runs, and the first number that points at its 0.5. Not measured: the same library asked twice in one process; a phone; any other question set. `--arms hashed` was not run: with the library itself differing between runs it could not have isolated hashing order.
 `[evidence_level: measured, confidence: medium for the tables (two or three runs a setting, one 20-question set, Simulator); the reading of the logs is from one question in two runs]`
+
+### 2026-11-18 Five folders from the entity-binding day that had no entry (`2026-11-18-1207-answer-modes-bind-before`, `2026-11-18-1547-answer-modes-bind-after`, `2026-11-18-1608-answer-modes-bind-after`, `2026-11-18-2143-answer-modes-bind-after-2`, `2026-11-18-held-after-5.8`)
+
+Written 2026-11-22 from the folders' own files, to close the ledger's gap. Nothing was re-run.
+
+| Folder | What it holds | What it found |
+|---|---|---|
+| `2026-11-18-1207-answer-modes-bind-before` | One progress line | No run: stopped at the disk guard, 12 GB free against the 15 it needs |
+| `2026-11-18-1547-answer-modes-bind-after` | One progress line | No run: stopped at the disk guard, 2 GB free |
+| `2026-11-18-1608-answer-modes-bind-after` | One progress line | No run: stopped at the disk guard, 10 GB free |
+| `2026-11-18-2143-answer-modes-bind-after-2` | A complete Deep Think and Maximum run of the answer test | Deep Think 80% (16 of 20) in 32 minutes, Maximum 90% (18 of 20) in 36. The entity-binding entry above already reads this run (its "after" column); it was named there without its date prefix |
+| `2026-11-18-held-after-5.8` | Two patches and a test file, not a run | The changes held back from 5.8: Standard's plan without a model call (`standard-plan-without-model.diff`) and the case-insensitive Code and Standard spec patterns (`code-patterns.diff`, `SpecificationDetectorTests.swift`). Their roadmap rows are "Standard waits on a planning model call before every question" and "The Code and Standard spec patterns read any word before a number as a code" |
+
+**What it settled.** Nothing new. The three stopped runs are the disk running short on 2026-11-18, the day another session's build filled it.
+`[evidence_level: measured for the one complete run (its SUMMARY.md); the rest is a reading of each folder's files, confidence: high]`

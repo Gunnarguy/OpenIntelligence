@@ -32,6 +32,8 @@
 //  - `OI_EVAL_SEED` an integer: random sampling with the draws held fixed.
 //  - `OI_EVAL_TEMPERATURE` a number, in place of the mode's own.
 //  - `OI_EVAL_ADAPTIVE` 1: the app's Settings switch for a temperature by the kind of question, on for the run.
+//  - `OI_EVAL_REPEAT` 2 to 5: each question is asked that many times in the same library; the first answer is graded
+//    and each later one is printed beside it (`again pass=N ... same=`), for `scripts/ask_twice.py`.
 //
 
 import Evaluations
@@ -162,7 +164,10 @@ private enum AnswerQualityData {
 
     /// The run's time limit. Standard's 20 questions took minutes; a Deep Think answer took 279 s on the owner's
     /// phone (2026-08-18) and Maximum runs up to 50 sessions, so those get four hours.
-    nonisolated static var minutes: Int { modeName == "standard" ? 30 : 240 }
+    nonisolated static var minutes: Int {
+        let asks = Int(ProcessInfo.processInfo.environment["OI_EVAL_REPEAT"] ?? "").map { min(max($0, 1), 5) } ?? 1
+        return (modeName == "standard" ? 30 : 240) * asks
+    }
 
     /// What the judge compares an answer with. An abstention case has no answer to state.
     static func reference(for evalCase: EvalCase) -> String {
@@ -328,6 +333,11 @@ private struct AnswerQualityEvaluation: Evaluation {
         Int(ProcessInfo.processInfo.environment["OI_EVAL_TOPK"] ?? "").map { min(max($0, 1), 12) } ?? 3
     }
 
+    /// How many times each question is asked: 1, or `OI_EVAL_REPEAT` (TEST_RUNNER_OI_EVAL_REPEAT) from 2 to 5.
+    static var repeats: Int {
+        Int(ProcessInfo.processInfo.environment["OI_EVAL_REPEAT"] ?? "").map { min(max($0, 1), 5) } ?? 1
+    }
+
     /// On the main actor, as the engine and its answer are (the module's default isolation).
     @MainActor
     func subject(from sample: ModelSample<String>) async throws -> ModelSubject<String> {
@@ -357,24 +367,46 @@ private struct AnswerQualityEvaluation: Evaluation {
             let names = Set(evalCase.fixtureNames)
             scope = Set(engine.documents.filter { $0.containerId == library && names.contains($0.filename) }.map(\.id))
         }
-        do {
-            // Passed to the action itself: it sets the scope from its own `documentIds` (nil when not given), which
-            // replaced a scope set round the call, so on 2026-11-14 every run logged `scoped=0` and the three cases
-            // were asked of the whole library again.
-            let outcome = try await AskActionRunner.ask(
+        // Passed to the action itself: it sets the scope from its own `documentIds` (nil when not given), which
+        // replaced a scope set round the call, so on 2026-11-14 every run logged `scoped=0` and the three cases
+        // were asked of the whole library again.
+        func askOnce() async throws -> String {
+            if AnswerQualityData.mode == .maximum {
+                UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: "entitlement.activeTier")
+                UserDefaults.standard.set(0, forKey: "entitlement.maximumMode.usedCount")
+            }
+            return try await AskActionRunner.ask(
                 question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library,
-                documentIds: (scope ?? []).isEmpty ? nil : scope)
+                documentIds: (scope ?? []).isEmpty ? nil : scope
+            ).answer.text
+        }
+        let first: String
+        do {
+            first = try await askOnce()
             print(
-                "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(outcome.answer.text.prefix(300).replacingOccurrences(of: "\n", with: " "))"
+                "[AnswerQualityEvaluation] answered mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) answer=\(first.prefix(300).replacingOccurrences(of: "\n", with: " "))"
             )
-            return ModelSubject(value: outcome.answer.text)
         } catch {
             print(
                 "[AnswerQualityEvaluation] refused mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(started))) question=\(question.prefix(80)) error=\(error)"
             )
             // A refused question is an answer too: an abstention case may end here.
-            return ModelSubject(value: "\(error)")
+            first = "\(error)"
         }
+        // `OI_EVAL_REPEAT` (2026-11-22): the same question again, in the same process and the same library, to see
+        // whether an answer repeats when nothing was imported in between. The first answer is still the one graded;
+        // each later one is printed whole (base64) beside the first for `scripts/ask_twice.py`.
+        if Self.repeats > 1 {
+            for pass in 2...Self.repeats {
+                let begun = Date()
+                let again: String
+                do { again = try await askOnce() } catch { again = "\(error)" }
+                print(
+                    "[AnswerQualityEvaluation] again pass=\(pass) mode=\(AnswerQualityData.modeName) seconds=\(Int(Date().timeIntervalSince(begun))) same=\(again == first) question64=\(Data(question.utf8).base64EncodedString()) first64=\(Data(first.utf8).base64EncodedString()) again64=\(Data(again.utf8).base64EncodedString())"
+                )
+            }
+        }
+        return ModelSubject(value: first)
     }
 
     var evaluators: Evaluators {
