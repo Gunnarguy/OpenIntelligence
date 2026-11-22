@@ -1908,3 +1908,31 @@ Written 2026-11-22 from the folders' own files, to close the ledger's gap. Nothi
 
 **What it settled.** Nothing new. The three stopped runs are the disk running short on 2026-11-18, the day another session's build filled it.
 `[evidence_level: measured for the one complete run (its SUMMARY.md); the rest is a reading of each folder's files, confidence: high]`
+
+### 2026-11-22 Ask twice: one imported library, each question asked several times (`2026-11-22-0231-answer-modes-twice-standard-shipped`, `2026-11-22-0251-answer-modes-twice-standard-greedy`, `2026-11-22-0320-answer-modes-twice-deepThink-shipped`, `2026-11-22-0536-answer-modes-twice-deepThink-greedy`, `2026-11-22-1222-answer-modes-twice-deepThink-greedy`)
+
+`scripts/ask_twice.py`, commit ba1dcd23: the answer test imports its six fixtures once and asks each of the 20 questions
+several times in the same process (`OI_EVAL_REPEAT`); the first answer is graded and each later one is printed whole
+beside it. iOS 27.0 Simulator, 5.8's app code, the app's own model service. Right and wrong by rule
+(`scripts/score_answer_eval.py`'s rule) on the full answers.
+`[evidence_level: measured, confidence: medium: one run a setting, one 20-question set]`
+
+| Mode | Sampling | Asks | Right of 20, each ask | Same words every ask | Questions that changed between right and wrong |
+|---|---|---|---|---|---|
+| Standard | As shipped | 3 | 16, 16, 16 | 50% (10 of 20) | 0 |
+| Standard | Greedy | 3 | 16, 17, 18 | 65% (13 of 20) | 2 |
+| Deep Think | As shipped | 5 | 15, 16, 15, 14, 16 | 5% (1 of 20) | 6 |
+| Deep Think | Greedy | 5 | 18, 17, 16, 16, 16 | 25% (5 of 20) | 4 |
+
+`2026-11-22-0536-answer-modes-twice-deepThink-greedy` is not a result: it was cut short at 12 of 20 questions when the
+session that had started the queue restarted at about 06:45. The run was made again at 12:22 from a Terminal tab.
+Maximum's two runs were still waiting on disk space when this was written.
+
+**What it settled.** Standard is steady when nothing is imported in between (16 on every ask, no question changing
+sides), where separate imports gave 16, 18, 18 and 2 questions changing: most of Standard's variation comes with the
+import. Deep Think varies on one unchanged library (6 questions changing sides over 5 asks). Greedy raises Deep Think by
+1.4 questions on average on one library and steadies it without making it repeat.
+
+**What it did not settle.** Why greedy answers still change within one process; whether a later ask is affected by the
+earlier asks of the same question (Deep Think's greedy scores fell 18 to 16 over five asks); Maximum.
+

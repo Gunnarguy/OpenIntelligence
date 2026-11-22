@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-21 12:26
+Updated: 2026-11-22 14:28
 Branch/worktree: `main`, primary checkout
-Last verified commit: decd16f4
+Last verified commit: 92f719e8
 
 ## Objective
 
@@ -127,22 +127,25 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**The stability queue is done (2026-11-21 02:11 to 12:24, 26 runs, none failed) and written up.** Tables and the
-reading are in `BenchmarkRuns/LEDGER.md` (three "Stability battery" entries) and at the end of
-`Docs/ai/plans/consistent-answers.md`; the six roadmap rows carry the result, and "Adaptive profiles cannot reach Deep
-Think or Maximum" is Completed (seen in the step logs). The heartbeat is deleted and the scratch copy removed.
+**The owner is to answer the "Proposal for 5.9" at the end of `Docs/ai/plans/consistent-answers.md`.** Five items,
+none done: (1) write a document's summary with fixed sampling (`DocumentSummaryService.swift:344` calls
+`session.respond(to:)` with no options, so the same file imports differently each time); (2) lower Deep Think's default
+step temperature from 0.5 (`RAGService+Agentic.swift:175`), after choosing the value with `ask_twice.py` at 0.2 and 0.1
+through `OI_EVAL_TEMPERATURE`; (3) remove or wire the mode settings nothing reads; (4) the privacy policy's version
+line; (5) an answer test that imports once, and a multi-document question set. Items 1 to 4 are app code: they need a
+`## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`. Item 5 and the temperature runs are test code.
 
-In short: greedy does not make answers repeat in any mode, so by the rule set before the runs no temperature change
-is proposed. Each run imports the fixtures again and the import's model-made summaries differ, so runs did not ask the
-same library. As shipped: Standard 16, 18, 18 of 20 in 7 to 10 minutes; Deep Think 16, 13, 17 in 26 to 40; Maximum 19,
-17, 18 in 28 to 38. Deep Think with greedy scored 19 and 19, a pointer and not yet a result.
+**Still running:** the ask-twice queue, in the app's Terminal tab "OI ask-twice queue"
+(`~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue.sh ba1dcd235e13a406eada4ff971132265e3f01016`, log
+`queue.log` beside it). Standard and Deep Think are done and in the ledger ("Ask twice", 2026-11-22). Maximum as shipped
+and greedy (2 asks each, about an hour a run) wait until the disk reads 16 GiB free; other sessions' simulators and
+builds hold the space. If the tab is gone and the log does not end `QUEUE DONE`, start the same command again in a
+Terminal tab (it picks up where it was). When it ends: `python3 scripts/ask_twice.py report`, add Maximum's rows to the
+ledger entry and the plan's table, delete the "OI ask twice" simulator and `/private/tmp/oi-twice`.
 
-**Next, when the owner says so (it uses Mac time, and he was asked):** add to the answer test a run that imports once
-and asks every question twice in the same process, as shipped and greedy (test code only, route `tests_only_change`),
-and a dump of the exact prompt for one question in two launches. Then Deep Think as shipped against greedy on one
-imported library, enough runs to clear a spread of 4. The first candidate app change is making the import's summaries
-repeatable; it needs a `## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`. The merge of the two search
-routines has no measurement behind it and stays last.
+Results in short: on one imported library Standard scored 16, 16, 16 with no question changing sides, so its variation
+came with re-importing; Deep Think as shipped scored 15, 16, 15, 14, 16 and with greedy 18, 17, 16, 16, 16. The four
+custom product pages were approved by Apple (read 2026-11-22).
 
 Still standing: file Future Backlog rows in Notion for the items under "Known and not fixed in the app" above (the
 continuation trigger on a final list item without a period, Apple's background rate limit, Siri scope and

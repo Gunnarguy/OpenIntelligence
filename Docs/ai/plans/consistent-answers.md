@@ -280,11 +280,11 @@ several times in the same process. iOS 27.0 Simulator, 5.8's app code, the app's
 | Standard | As shipped | 3 | 16, 16, 16 | 50% (10 of 20) | 0 |
 | Standard | Greedy | 3 | 16, 17, 18 | 65% (13 of 20) | 2 (exact_temperature_limit, lost_in_middle_middle) |
 | Deep Think | As shipped | 5 | 15, 16, 15, 14, 16 | 5% (1 of 20) | 6 |
-| Deep Think | Greedy | 5 | being run (started 2026-11-22 12:22) | | |
-| Maximum | As shipped | 2 | queued | | |
-| Maximum | Greedy | 2 | queued | | |
+| Deep Think | Greedy | 5 | 18, 17, 16, 16, 16 | 25% (5 of 20) | 4 (retrieval_policy_alpha, retrieval_trial_beta, lost_in_middle_end, missing_confidential_price) |
+| Maximum | As shipped | 2 | waiting on disk space (2026-11-22 14:25) | | |
+| Maximum | Greedy | 2 | waiting on disk space | | |
 
-`[measured; folders 2026-11-22-0231-answer-modes-twice-standard-shipped, 2026-11-22-0251-answer-modes-twice-standard-greedy, 2026-11-22-0320-answer-modes-twice-deepThink-shipped]`
+`[measured; folders 2026-11-22-0231-answer-modes-twice-standard-shipped, 2026-11-22-0251-answer-modes-twice-standard-greedy, 2026-11-22-0320-answer-modes-twice-deepThink-shipped, 2026-11-22-1222-answer-modes-twice-deepThink-greedy]`
 
 What the first three runs say, against the 2026-11-21 runs that imported again each time:
 
@@ -301,3 +301,42 @@ What the first three runs say, against the 2026-11-21 runs that imported again e
 The first attempt at the Deep Think greedy run (folder `2026-11-22-0536-answer-modes-twice-deepThink-greedy`) was cut
 short at 12 of 20 questions when the session that started the queue restarted at about 06:45; it is not counted, and
 the run was started again at 12:22 from a Terminal tab.
+
+### Deep Think on one library, as shipped against greedy (2026-11-22 14:25)
+
+| Deep Think, 5 asks of each question | Right of 20, each ask | Mean | Same words every ask | Questions that changed sides |
+|---|---|---|---|---|
+| As shipped (0.5 on most steps) | 15, 16, 15, 14, 16 | 15.2 | 5% (1 of 20) | 6 |
+| Greedy | 18, 17, 16, 16, 16 | 16.6 | 25% (5 of 20) | 4 |
+
+Greedy is 1.4 questions higher on average, and every greedy ask scored at least as high as the best as-shipped ask
+(16). Together with the runs that imported again (19, 19 against 16, 13, 17), all 7 greedy Deep Think runs or asks so
+far scored 16 or more, and 7 of the 8 as-shipped ones scored 16 or less. It is still one question set. Greedy did not
+make Deep Think repeat: 15 of 20 answers changed wording at least once, and its score fell from 18 to 16 over the five
+asks, which a later ask seeing the earlier ones (conversation memory) could explain and has not been checked.
+`[measured; the conversation-memory reading is a guess]`
+
+### Why the import differs each time: one call with no sampling options
+
+`DocumentSummaryService.generateSummaryWithFoundationModels` (`DocumentSummaryService.swift:331-345`) writes each
+document's summary with `session.respond(to: prompt)` and no `GenerationOptions`, on a session of its own. So it uses
+the model's default sampling, it does not pass through the app's model service, and the benchmark's greedy switch never
+reached it, which is why the summaries differed even in the greedy runs. The older path below it sets temperature 0.3
+(`:292-293`) and is used only when the first is unavailable. `[code_verified 2026-11-22]`
+
+## Proposal for 5.9
+
+Nothing here is done. Each item needs the owner's `PROCEED: IMPLEMENT` and a `## 5.9` heading in `CHANGELOG.md` first;
+none touches a hard-boundary file as far as read.
+
+| # | Change | Where | Evidence | How it is proven |
+|---|---|---|---|---|
+| 1 | Write a document's summary with fixed sampling (greedy), so the same file always gives the same summary | `DocumentSummaryService.swift:344`, one call | Summaries of the same six files came to 673, 649 and 610 words in three imports; Standard on one library scored 16, 16, 16 with no question changing sides, against 16, 18, 18 and 2 changing across imports | Import the fixtures twice and compare the stored text; then the stability battery's as-shipped runs again |
+| 2 | Lower Deep Think's default step temperature from 0.5 | `RAGService+Agentic.swift:175` | Greedy 16.6 against 15.2 on one library; 19, 19 against 16, 13, 17 across imports | First, with no app change: `ask_twice.py` for Deep Think at 0.2 and 0.1 through `OI_EVAL_TEMPERATURE`, to choose the value. Then the change, and the same run on the built app |
+| 3 | Remove the mode settings nothing reads, and make Deep Think and Maximum read or drop the rest | `RAGQualityMode.swift` | 7 settings read by nothing, 12 read only by Standard | The golden harnesses record the same results before and after |
+| 4 | The privacy policy's version line | in-app policy text | It says 5.7 in the 5.8 build | Read it in the 5.9 build |
+| 5 | The answer test imports once for every run it compares, and a small set of questions that need several documents | test code only | Each run's library differed; no test covers what Deep Think and Maximum are for | The noise measured again; the three modes on the new set |
+
+Not proposed: merging the two search routines (no measurement shows the split costing answers), and a temperature
+change for Standard or Maximum (no setting beat as shipped). Items 1 to 4 are app code; item 5 can start now.
+
