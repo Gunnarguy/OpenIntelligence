@@ -269,3 +269,35 @@ Deep Think or Maximum" has waited to see since September. `[measured from the ru
 4. Whether the import's summaries can be made repeatable (greedy at import, or kept from the first import) is the
    first candidate app change, and needs a `## 5.9` heading and the owner's `PROCEED: IMPLEMENT`.
 
+
+## Ask twice: one imported library, each question asked several times (2026-11-22)
+
+`scripts/ask_twice.py` (commit ba1dcd23): the answer test imports the fixtures once and asks each of the 20 questions
+several times in the same process. iOS 27.0 Simulator, 5.8's app code, the app's own model service.
+
+| Mode | Sampling | Asks | Right of 20, each ask | Same words every ask | Questions that changed between right and wrong |
+|---|---|---|---|---|---|
+| Standard | As shipped | 3 | 16, 16, 16 | 50% (10 of 20) | 0 |
+| Standard | Greedy | 3 | 16, 17, 18 | 65% (13 of 20) | 2 (exact_temperature_limit, lost_in_middle_middle) |
+| Deep Think | As shipped | 5 | 15, 16, 15, 14, 16 | 5% (1 of 20) | 6 |
+| Deep Think | Greedy | 5 | being run (started 2026-11-22 12:22) | | |
+| Maximum | As shipped | 2 | queued | | |
+| Maximum | Greedy | 2 | queued | | |
+
+`[measured; folders 2026-11-22-0231-answer-modes-twice-standard-shipped, 2026-11-22-0251-answer-modes-twice-standard-greedy, 2026-11-22-0320-answer-modes-twice-deepThink-shipped]`
+
+What the first three runs say, against the 2026-11-21 runs that imported again each time:
+
+- **Standard is steady when nothing is imported in between.** As shipped it scored 16 on all three asks, no question
+  changed sides, and half its answers were word for word the same; across separate imports the same setting gave
+  16, 18, 18 with 2 questions changing sides and 1 of 18 answers the same. So most of Standard's variation came with
+  the import, as the summaries finding suggested.
+- **Greedy does not make one sitting repeat.** With no randomness in the writing and the same library, 7 of 20 answers
+  still changed wording and 2 questions changed sides. Something other than sampling varies inside one process: the
+  search, the prompt, or the model. The prompt dump for one question in two asks is still to do.
+- **Deep Think varies by itself.** On one library, as shipped, 6 questions changed sides across five asks and 1 of 20
+  answers kept its wording. Its instability does not need a new import.
+
+The first attempt at the Deep Think greedy run (folder `2026-11-22-0536-answer-modes-twice-deepThink-greedy`) was cut
+short at 12 of 20 questions when the session that started the queue restarted at about 06:45; it is not counted, and
+the run was started again at 12:22 from a Terminal tab.

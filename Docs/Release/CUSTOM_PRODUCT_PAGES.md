@@ -167,3 +167,11 @@ contact sheet. Not done: a page for research papers and tables (it needs a table
 a page; the links are not yet used anywhere (a site, a post or an ad is the owner's to place). Not verified: how the
 pages look on the App Store itself, which only exists after approval.
 `[evidence_level: measured, confidence: exact for ids and states read from the API at 03:53 PT on 2026-11-21]`
+
+## 8. Approved (read 2026-11-22 12:18 PT)
+
+Apple approved all four pages. The review submission `08fd4f85-b2b7-4ac7-ac30-fe0965071f79` reads `COMPLETE` and its
+four items `APPROVED`, so each link in section 7 now opens its page. The pages are not used anywhere yet: a post, a
+site link or an ad is the owner's to place.
+`[evidence_level: measured, confidence: exact, evidence_source: GET /v1/reviewSubmissions/08fd4f85...?include=items, 2026-11-22 12:18 PT; the pages were not opened in the App Store by this session]`
+
