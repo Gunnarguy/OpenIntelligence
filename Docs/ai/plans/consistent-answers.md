@@ -340,3 +340,33 @@ none touches a hard-boundary file as far as read.
 Not proposed: merging the two search routines (no measurement shows the split costing answers), and a temperature
 change for Standard or Maximum (no setting beat as shipped). Items 1 to 4 are app code; item 5 can start now.
 
+
+## Which questions each mode gets wrong (2026-11-22, from every run so far)
+
+Counted from the 26 stability runs, the two noise runs and the four complete ask-twice runs: 44 tries of each question
+(Standard 18, Deep Think 18, Maximum 8), all sampling settings together, right and wrong by the scorer's rule.
+
+| Question | All tries | Standard | Deep Think | Maximum |
+|---|---|---|---|---|
+| lost_in_middle_middle | 48% (21 of 44) | 10 of 18 | 7 of 18 | 4 of 8 |
+| exact_capex | 59% (26 of 44) | 0 of 18 | 18 of 18 | 8 of 8 |
+| lost_in_middle_end | 64% (28 of 44) | 9 of 18 | 11 of 18 | 8 of 8 |
+| missing_unreleased_battery | 68% (30 of 44) | 13 of 18 | 10 of 18 | 7 of 8 |
+| exact_temperature_limit | 70% (31 of 44) | 6 of 18 | 17 of 18 | 8 of 8 |
+| missing_confidential_price | 70% (31 of 44) | 18 of 18 | 7 of 18 | 6 of 8 |
+| retrieval_covid_gamma | 77% (34 of 44) | 18 of 18 | 9 of 18 | 7 of 8 |
+| retrieval_nfcorpus_epsilon | 77% (34 of 44) | 16 of 18 | 10 of 18 | 8 of 8 |
+| retrieval_trial_beta | 77% (34 of 44) | 18 of 18 | 9 of 18 | 7 of 8 |
+| exact_payload | 93% (41 of 44) | 18 of 18 | 18 of 18 | 5 of 8 |
+| the other 10 questions | 98% to 100% | | | |
+
+The modes do not miss at random: each has its own questions. Standard never got `exact_capex` and got
+`exact_temperature_limit` a third of the time, both of which Deep Think and Maximum answer. Deep Think named the right
+document only about half the time on three "which document" questions that Standard gets, and failed the rule on
+`missing_confidential_price` (a question the documents cannot answer) 11 times in 18. A fact in the middle of a long
+document is found about half the time in every mode. `[measured by rule; the wrong answers have not been read, and the
+rule is known to fail a right refusal that goes on to list a dollar amount, which may be part of Deep Think's
+missing_confidential_price figure]`
+
+This is the list to work from: read the wrong answers for these nine questions, find the layer that caused each, and fix
+that layer for every document (the owner's rule 6), measuring on every benchmark set.
