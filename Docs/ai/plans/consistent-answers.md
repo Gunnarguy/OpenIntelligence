@@ -375,8 +375,11 @@ passages, so it treats an earlier answer as the truth.
   the token is LITM-MIDDLE-42 instead of LITM-BEGINNING-42" (line 12500), and the rewrite replaced the right answer with
   the wrong one (line 12546). The passage the model was given held only the right token, intact (1,828 chars, line
   12717). `[measured]`
-- Every one of the 34 wrong middle and end answers across all runs names another document's token (Standard 15 of 32
-  asks, Deep Think 15 of 36, Maximum 4 of 16); 7 of the 34 were right until the checker rewrote them. Deep Think's "This
+- Every one of the 34 wrong middle and end answers across all runs names another document's token (in Standard runs 15
+  of 32 asks, in Deep Think runs 15 of 36, in Maximum runs 4 of 16). A scoped ask always runs Standard's path
+  (`RAGAppIntents.swift:238`), so all of these are Standard-path answers whatever the run's mode; a sweep of all 940
+  asks by Antigravity (Gemini 4 Hydrogen, counts checked against two logs) found every token ask logged mode=standard,
+  scoped=1, one passage of 1,819 to 1,837 chars; 7 of the 34 were right until the checker rewrote them. Deep Think's "This
   token has been repeatedly confirmed across multiple queries" is the model-written summary of earlier turns, which goes
   into memory. After Standard's invented warranty answer (below), the next question's answers repeat it. `[measured]`
 - It is also the likeliest reason answers change between asks with no randomness and no new import: the memory text
