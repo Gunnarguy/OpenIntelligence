@@ -505,5 +505,33 @@ Maximum greedy's two misses on both asks were "$1,577 million" for the payload (
 answer") and LITM-MIDDLE-42 for the end document (an earlier answer's token): one cause the labels remove and one the
 memory change removes from the test. Its two other first-ask misses were "which document" questions.
 
-Still to do for item 8's proof: the three modes run again under the new rules (`ask_twice.py --tag item8`), which is
-also the first build of the changed test.
+### The three modes under the corrected test (2026-11-23, commit a67ae343)
+
+Each mode as shipped, every question asked twice in one imported library, memory emptied before every ask
+(`ask_twice.py --tag item8`). iOS 27.0 Simulator, 5.8's app code, the app's own model service.
+
+| Mode | Right of 20, each ask | Same words both asks | Questions that changed sides | Before, same test re-scored (one library) |
+|---|---|---|---|---|
+| Standard | 20, 18 | 40% (8 of 20) | 2 (multi_hop_project_m2, m4) | 15, 15, 15 |
+| Deep Think | 18, 17 | 15% (3 of 20) | 1 (retrieval_covid_gamma) | 17, 18, 16, 15, 18 |
+| Maximum | 20, 20 | 20% (4 of 20) | 0 | 19, 19 |
+
+`[measured; folders 2026-11-23-0836-answer-modes-twice-standard-shipped-item8, 2026-11-23-0852-answer-modes-twice-deepThink-shipped-item8, 2026-11-23-1327-answer-modes-twice-maximum-shipped-item8; one run a mode]`
+
+- **The memory change held.** Every turn the app recorded found the memory empty (116 of 116 log lines "Added turn.
+  Recent: 1"); 4 asks recorded no turn (two in Deep Think, two in Maximum, each answered in 4 to 14 s), so the test's
+  10 s wait ran out and cleared an empty memory. The middle and end tokens were right on every ask in every mode,
+  against about half before.
+- **The labels removed Standard's two table misses.** FY2018 capital expenditure ($1,577 million) and the charging
+  temperature (45 C) were right on both asks; they had been right 0 and 6 times in 18. The battery warranty, which no
+  document holds, was refused on both asks ("not specified in the provided context"), where Standard had stated
+  "45 C" in 4 of 18 asks: the label now says what 45 C is.
+- **What is left is the app.** Standard's two second-ask misses say a multi-hop deadline is "not specified" when it is
+  (a real miss, one ask in two). Deep Think's three misses are all "which document" questions (item 4: its long
+  answers mention other files, so the file-name fix does not add the right one). Maximum missed nothing.
+- So the gap between the modes on this set was mostly the test: with it corrected, Standard (19 of 20 on average) and
+  Maximum (20) are level, and Deep Think (17.5) is behind only on the "which document" questions. One question set,
+  one run a mode; greedy and phone runs not made.
+
+Item 8 is done. Items 1 to 3 change the app and wait for the owner's `PROCEED: IMPLEMENT`; item 1 is measured with
+`TEST_RUNNER_OI_EVAL_MEMORY=keep` (the old way) before and after the change.

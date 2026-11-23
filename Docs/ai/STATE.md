@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-11-23 08:35
+Updated: 2026-11-23 14:25
 Branch/worktree: `main`, primary checkout
 Last verified commit: a67ae343
 
@@ -127,18 +127,14 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**Item 8 is built (2026-11-23, commit a67ae343), its proof is running.** At the owner's word ("go ahead and start item
-8 once greedy finishes"): the scoring rule corrected, the five exact-value fixtures labelled, and each test ask starts
-with conversation memory empty (`OI_EVAL_MEMORY=keep` for the old way). Re-scored over the 1,360 saved answers:
-Standard 82 to 80%, Deep Think 80 to 85%, Maximum 87 to 89% (`Docs/ai/plans/consistent-answers.md`, "Item 8 done";
-ledger entries of 2026-11-23). Maximum's two ask-twice runs were made first, from ba1dcd23: greedy 18 and 18 of 20 with
-no question changing sides.
-
-Running: the three modes again under the new test, as shipped, each question asked twice (`ask_twice.py --tag item8`),
-from a Terminal tab: `caffeinate -dimsu bash ~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue-item8.sh
-a67ae343`, log `queue.log` in that folder, started 08:26. Its first build is also the first compile of the changed
-answer test. When it ends: `python3 scripts/ask_twice.py report --tag item8`, record the table in the plan and the
-ledger, and compare with the re-scored rows (the labels and the memory change can only show in these runs).
+**Item 8 is done (2026-11-23, commit a67ae343).** At the owner's word ("go ahead and start item 8 once greedy
+finishes"): the scoring rule corrected, the five exact-value fixtures labelled, and each test ask starts with
+conversation memory empty (`OI_EVAL_MEMORY=keep` for the old way). Re-scored over the 1,360 saved answers: Standard 82 to
+80%, Deep Think 80 to 85%, Maximum 87 to 89%. Its proof run, each mode as shipped and each question asked twice under
+the new test: Standard 20 and 18 of 20, Deep Think 18 and 17, Maximum 20 and 20; memory empty before all 116 recorded
+turns; the remaining misses are Standard's multi-hop deadline on one ask and Deep Think's "which document" answers
+(`Docs/ai/plans/consistent-answers.md`, "Item 8 done"; ledger entries of 2026-11-23). Maximum's two old-test runs were
+made first, from ba1dcd23: greedy 18 and 18 with no question changing sides.
 
 **Next, decided by the owner, not started: items 1 to 3** (conversation memory reaching a scoped ask and the checker
 rewriting a right answer; Standard stating a number that does not answer the question; the source-only re-check). They

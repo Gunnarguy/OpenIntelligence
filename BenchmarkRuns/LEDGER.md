@@ -1975,3 +1975,25 @@ the 1,360 saved answers of the 44 stability, noise and ask-twice runs to date, e
 The scores in the entries above stay as they were measured by the rule of their date; this entry is the corrected
 reading of the same answers. The fixtures' labels and the memory change take effect only in runs made from the commit
 that carries them.
+
+### 2026-11-23 Ask twice under the corrected test (item 8) (`2026-11-23-0836-answer-modes-twice-standard-shipped-item8`, `2026-11-23-0852-answer-modes-twice-deepThink-shipped-item8`, `2026-11-23-1327-answer-modes-twice-maximum-shipped-item8`)
+
+Commit a67ae343: the corrected scoring rule, the five exact-value fixtures labelled, conversation memory emptied before
+every ask. Each mode as shipped, each question asked twice in one imported library. iOS 27.0 Simulator, 5.8's app code,
+the app's own model service. The Maximum run waited from 09:42 to 13:27 for the build lock (SilentStorm's TestFlight
+builds, at that session's request, and an OpenResponses test) and for disk space.
+`[evidence_level: measured, confidence: medium: one run a mode, one 20-question set]`
+
+| Mode | Right of 20, each ask | Same words both asks | Questions that changed sides |
+|---|---|---|---|
+| Standard | 20, 18 | 40% (8 of 20) | 2 |
+| Deep Think | 18, 17 | 15% (3 of 20) | 1 |
+| Maximum | 20, 20 | 20% (4 of 20) | 0 |
+
+**What it settled.** Memory was empty before every recorded turn (116 of 116 "Recent: 1"), and every middle and end
+token was right in every mode. With the fixtures labelled, Standard answered the two table values it had never or
+rarely answered and refused the warranty question on both asks. The remaining misses are app defects: Standard's
+multi-hop deadline on one ask in two; Deep Think's "which document" answers (item 4).
+
+**What it did not settle.** Greedy under the new test; how much of the memory defect a user meets (item 1, measured
+with `OI_EVAL_MEMORY=keep`); a phone; any other question set.
