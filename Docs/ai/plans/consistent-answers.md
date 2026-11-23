@@ -324,23 +324,6 @@ the model's default sampling, it does not pass through the app's model service, 
 reached it, which is why the summaries differed even in the greedy runs. The older path below it sets temperature 0.3
 (`:292-293`) and is used only when the first is unavailable. `[code_verified 2026-11-22]`
 
-## Proposal for 5.9
-
-Nothing here is done. Each item needs the owner's `PROCEED: IMPLEMENT` and a `## 5.9` heading in `CHANGELOG.md` first;
-none touches a hard-boundary file as far as read.
-
-| # | Change | Where | Evidence | How it is proven |
-|---|---|---|---|---|
-| 1 | Write a document's summary with fixed sampling (greedy), so the same file always gives the same summary | `DocumentSummaryService.swift:344`, one call | Summaries of the same six files came to 673, 649 and 610 words in three imports; Standard on one library scored 16, 16, 16 with no question changing sides, against 16, 18, 18 and 2 changing across imports | Import the fixtures twice and compare the stored text; then the stability battery's as-shipped runs again |
-| 2 | Lower Deep Think's default step temperature from 0.5 | `RAGService+Agentic.swift:175` | Greedy 16.6 against 15.2 on one library; 19, 19 against 16, 13, 17 across imports | First, with no app change: `ask_twice.py` for Deep Think at 0.2 and 0.1 through `OI_EVAL_TEMPERATURE`, to choose the value. Then the change, and the same run on the built app |
-| 3 | Remove the mode settings nothing reads, and make Deep Think and Maximum read or drop the rest | `RAGQualityMode.swift` | 7 settings read by nothing, 12 read only by Standard | The golden harnesses record the same results before and after |
-| 4 | The privacy policy's version line | in-app policy text | It says 5.7 in the 5.8 build | Read it in the 5.9 build |
-| 5 | The answer test imports once for every run it compares, and a small set of questions that need several documents | test code only | Each run's library differed; no test covers what Deep Think and Maximum are for | The noise measured again; the three modes on the new set |
-
-Not proposed: merging the two search routines (no measurement shows the split costing answers), and a temperature
-change for Standard or Maximum (no setting beat as shipped). Items 1 to 4 are app code; item 5 can start now.
-
-
 ## Which questions each mode gets wrong (2026-11-22, from every run so far)
 
 Counted from the 26 stability runs, the two noise runs and the four complete ask-twice runs: 44 tries of each question
@@ -370,3 +353,109 @@ missing_confidential_price figure]`
 
 This is the list to work from: read the wrong answers for these nine questions, find the layer that caused each, and fix
 that layer for every document (the owner's rule 6), measuring on every benchmark set.
+
+## What the wrong answers show (2026-11-22)
+
+Read from the answers and app logs of every run so far (840 answers: 360 Deep Think, 160 Maximum, 320 Standard), by
+three read-only investigations, each finding checked by the main session against the code or the log line named.
+
+### 1. Earlier answers override the document: conversation memory, and a checker that trusts it
+
+The app keeps a conversation memory per library and puts the last few turns in front of every question. Nothing about a
+scoped ask ("Ask About a Document", a Siri or Shortcuts ask on one document) limits it: scope narrows the search, not the
+memory. The memory goes to the model and to the "does it answer the question" checker, and that checker is given no
+passages, so it treats an earlier answer as the truth.
+
+- Injection: `RAGService+QueryAnswer.swift:693-707`, gated only by the `enableConversationMemory` setting (on by
+  default). `RAGQualityMode.usesConversationMemory` is true for every mode. `[code_verified]`
+- The checker: `RAGService+AnswerResponsiveness.swift:55-69` passes the earlier turns along "for reference only"; the
+  judge sees the question and the answer, never the passages. `[code_verified]`
+- Seen happening: in `2026-11-22-0231-answer-modes-twice-standard-shipped/standard-app.log` the model answered the
+  middle document's question correctly with LITM-MIDDLE-42, the checker replied "missing: The answer incorrectly states
+  the token is LITM-MIDDLE-42 instead of LITM-BEGINNING-42" (line 12500), and the rewrite replaced the right answer with
+  the wrong one (line 12546). The passage the model was given held only the right token, intact (1,828 chars, line
+  12717). `[measured]`
+- Every one of the 34 wrong middle and end answers across all runs names another document's token (Standard 15 of 32
+  asks, Deep Think 15 of 36, Maximum 4 of 16); 7 of the 34 were right until the checker rewrote them. Deep Think's "This
+  token has been repeatedly confirmed across multiple queries" is the model-written summary of earlier turns, which goes
+  into memory. After Standard's invented warranty answer (below), the next question's answers repeat it. `[measured]`
+- It is also the likeliest reason answers change between asks with no randomness and no new import: the memory text
+  differs ask to ask (737, 838, 900 chars for one question), ranked partly by wall-clock recency, and written by
+  background tasks that race the next ask. Not proven sufficient. `[measured, cause inferred]`
+- The model session is not reused between asks (`AppleFoundationLLMService.swift:459` sets it to nil); the "Transcript
+  history ~N tokens" log line describes the discarded session. That part of the first guess was wrong. `[code_verified]`
+- A user meets it: ask about lease A in Chat, then "Ask About a Document" on lease B, or two Siri asks in a row. The
+  memory is the same shared store the test used; the test did not create the problem. `[code_verified]`
+
+### 2. Standard invents an answer when a passage holds a number but not the thing asked
+
+"What is the warranty coverage for the unreleased 2032 prototype battery pack?" (no document holds it): Standard
+answered "defined by the primary answer in the battery_limits.md document, which states: 45 C [S20]" in 4 of 18 asks
+and leaned that way in 2 more; Deep Think and Maximum refused in all 52 of theirs. Every safeguard either did not run
+or checked only that the number exists:
+
+| Safeguard | What it did | Where |
+|---|---|---|
+| Low-relevance prompt (Evidence-First) | Fired, but lacks the normal prompt's "If a specific value is not in the excerpts, state that clearly" | `RAGService+QueryAnswer.swift:578` against `:586-596` `[code_verified]` |
+| Source-only re-check | Runs only for extractive or precise-value questions; this one was classed as a definition | `:411` `[code_verified]` |
+| Gate B, evidence coverage | Counts a word as found if it is in the question, so "warranty coverage" passed because the user typed it | `VerificationGateService.swift:1900-1902` `[code_verified]` |
+| Gate C, numbers | Found "45 C" in a passage and passed | `VerificationGateService.swift:565-628` (read by the investigation) |
+| Responsiveness | By design does not look at the passages | `AnswerResponsivenessJudge.swift:82-84` (read by the investigation) |
+
+### 3. Deep Think's "which document" answers: the 5.8 file-name fix has a guard bug
+
+5.8 writes the cited file's name into a "which document" answer, on every mode (`RAGService+AnswerFinishing.swift:347`,
+`RAGService+AgenticQuery.swift:813`). But it skips the answer if it names *any* source's file
+(`RAGService+AnswerHeadline.swift:193-198`), and Deep Think's 2,000 to 3,700-character answers always mention the
+distractor files. So all 26 of Deep Think's failures on these three questions name another file and never the right
+one; Standard fails 2 of 48, Maximum 2 of 24. The model is shown `[S1] (retrieval_beta.md)` and chooses the shared title
+"Retrieval Fixture". 8 of the 26 also say the target "is not present" when it is. `[code_verified, measured]` The release
+note '"which document" gets the file's name' holds for Standard and Maximum, not reliably for Deep Think.
+
+### 4. Deep Think writes long answers to one-line questions, and sometimes its instructions leak
+
+- Its final step asks for "one comprehensive, well-written answer" with ### headers whatever the question
+  (`AgenticOrchestrator+ReasoningChain.swift:1263-1266`, `:1485-1489`); intent is detected as lookup and not used.
+  Median 2,856 characters on the "which document" questions, against Standard's 246. `[code_verified, measured]`
+- 13 of 360 Deep Think answers begin with the instruction's own words: "the exact value, name or finding, written as the
+  source writes it, with its label" (`answerFirstInstruction`, `:1520-1521`, sent twice in Deep Think). Maximum and
+  Standard: 0. `[measured]`
+
+### 5. The test itself, corrected
+
+- **Refusals:** all 19 of Deep Think's and 3 of Maximum's "wrong" answers to the two missing-evidence questions are
+  correct refusals that the scoring rule failed because they later mention an unrelated dollar figure or use wording
+  it does not know ("cannot be fulfilled"). None of the 52 invents a value. Standard's 5 failures there are real.
+- **The exact-value fixtures never say what their value is** ("| Primary answer | $1,577 million |" for capital
+  expenditure). Standard's capex misses are a search miss (it was only ever shown the file's heading), and Deep Think's
+  correct-looking "$1,577 million" is a guess; the same move produced "45 C". The comparison of the modes on these
+  questions rewards guessing.
+- **The test shares one conversation memory across all 20 questions**, so earlier answers contaminate later ones in
+  every run. That is the defect in 1; the test should keep it visible in a dedicated case and clear memory elsewhere.
+
+### What this changes about the modes
+
+Corrected for the scorer, on these 20 questions Deep Think refuses correctly where Standard sometimes invents, and loses
+mainly on the file-name bug and on memory. Standard's lead was partly the scorer and partly guess-proof table questions.
+Maximum is ahead or level everywhere. The temperature finding stands (greedy helps Deep Think), but it is no longer the
+largest lever: memory and the checks are.
+
+## Proposal for 5.9 (revised 2026-11-22 after reading the wrong answers)
+
+Nothing here is done. App changes need the owner's `PROCEED: IMPLEMENT` and a `## 5.9` heading in `CHANGELOG.md`.
+
+| # | Change | Kind | Fixes | How it is proven |
+|---|---|---|---|---|
+| 1 | A scoped ask neither reads nor records conversation memory (`RAGService+QueryAnswer.swift:693-722`, `RAGService+AnswerFinishing.swift:410-421`) | App | Earlier documents' answers in "Ask About a Document" | Unit test: a scoped prompt is the bare question; ask-twice Standard: middle and end right on every ask |
+| 2 | The responsiveness checker gets earlier turns only when the question points back to them, or gets the passages (`RAGService+AnswerResponsiveness.swift:55-69`) | App | The checker rewriting a right answer into a wrong one | Replay the logged middle answer with memory holding the other token: verdict "full" |
+| 3 | A value counts as supported only when its passage or table row names what the question asks about (Gate B `VerificationGateService.swift:1897-1903`, Gate C `:547`), and the source-only re-check also runs when Evidence-First fired | App | "45 C" as warranty coverage | Unit test both ways (unlabelled table fails, labelled passes); answer test with repeats: 0 invented answers; retrieval benchmark unchanged |
+| 4 | The file-name guard looks at the cited source, not any source (`RAGService+AnswerHeadline.swift:193-198`) | App | Deep Think's "which document" answers | Unit case with a distractor file named; Deep Think on the three questions |
+| 5 | Deep Think's final step takes its length from the question's intent, and the answer-first instruction loses its copyable lead-in and is sent once | App | 2,900-character lookups; 13 leaked instructions | Leak count 0 of 100; length by intent; every benchmark set no worse (accuracy first) |
+| 6 | A document's summary is written with fixed sampling (`DocumentSummaryService.swift:344`) | App | The same file imports differently | Import twice, compare the stored text |
+| 7 | Deep Think's default step temperature lowered from 0.5, value chosen by runs at 0.2 and 0.1 first (`RAGService+Agentic.swift:175`) | App | Deep Think's variation | Ask-twice Deep Think before and after |
+| 8 | The scoring rule stops failing correct refusals and stops passing a value named only to say it does not apply; the exact-value fixtures label their values; memory is cleared between test questions except in one case that tests it | Test only | Scores that reward guessing and miss real refusals | Re-score the existing runs; rerun the three modes |
+| 9 | Remove or wire the mode settings nothing reads; the privacy policy's version line | App | Code that claims what it does not do | Golden harnesses identical before and after |
+
+Order: 8 first (no app change; every later number depends on it), then 1 to 3 (they change what a user sees most and
+together cover every invented or overridden answer found), then 4 and 5, then 6 and 7, then 9.
+

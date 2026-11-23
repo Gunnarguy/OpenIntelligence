@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-22 14:28
+Updated: 2026-11-22 17:21
 Branch/worktree: `main`, primary checkout
-Last verified commit: 92f719e8
+Last verified commit: b2e2df43
 
 ## Objective
 
@@ -127,13 +127,14 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**The owner is to answer the "Proposal for 5.9" at the end of `Docs/ai/plans/consistent-answers.md`.** Five items,
-none done: (1) write a document's summary with fixed sampling (`DocumentSummaryService.swift:344` calls
-`session.respond(to:)` with no options, so the same file imports differently each time); (2) lower Deep Think's default
-step temperature from 0.5 (`RAGService+Agentic.swift:175`), after choosing the value with `ask_twice.py` at 0.2 and 0.1
-through `OI_EVAL_TEMPERATURE`; (3) remove or wire the mode settings nothing reads; (4) the privacy policy's version
-line; (5) an answer test that imports once, and a multi-document question set. Items 1 to 4 are app code: they need a
-`## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`. Item 5 and the temperature runs are test code.
+**The owner is to answer the "Proposal for 5.9 (revised 2026-11-22 after reading the wrong answers)" at the end of
+`Docs/ai/plans/consistent-answers.md`.** Nine items, none done, each with its proof. Item 8 is test-only and goes first
+(the scoring rule fails correct refusals; the exact-value fixtures never label their values; one conversation memory
+runs across all 20 questions). Items 1 to 3 are the largest app defects found: conversation memory reaches a scoped
+"Ask About a Document" and the answer checker rewrites a right answer to match an earlier one; Standard can state a
+number that does not answer the question ("45 C" as warranty coverage) because no check asks whether the passage is
+about what was asked; the 5.8 file-name fix skips Deep Think's answers. Rows filed 2026-11-22 in Notion carry each.
+App items need a `## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`.
 
 **Still running:** the ask-twice queue, in the app's Terminal tab "OI ask-twice queue"
 (`~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue.sh ba1dcd235e13a406eada4ff971132265e3f01016`, log
