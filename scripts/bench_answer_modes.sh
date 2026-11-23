@@ -55,8 +55,10 @@ if pgrep -x xcodebuild > /dev/null && [ "${OI_BENCH_ALLOW_PARALLEL:-0}" != 1 ]; 
   exit 1
 fi
 FREE_GB=$(df -g / | awk 'NR==2 {print $4}')
-if [ "${FREE_GB:-0}" -lt 15 ]; then
-  log "Only ${FREE_GB} GB free on the internal disk; the build and simulator need about 15. Stopping."
+# OI_BENCH_MIN_FREE_GB lowers the floor when other sessions hold the disk (scripts/ask_twice.py's queue, 2026-11-23:
+# one run measured at about 6 GB at its peak, with a stop at 3 GB free watched from outside).
+if [ "${FREE_GB:-0}" -lt "${OI_BENCH_MIN_FREE_GB:-15}" ]; then
+  log "Only ${FREE_GB} GB free on the internal disk; the build and simulator need about ${OI_BENCH_MIN_FREE_GB:-15}. Stopping."
   exit 1
 fi
 

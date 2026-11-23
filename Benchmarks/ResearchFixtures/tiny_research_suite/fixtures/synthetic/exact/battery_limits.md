@@ -4,7 +4,7 @@
 
                 | Field | Value |
                 | --- | --- |
-                | Primary answer | 45 C |
+                | Maximum charging temperature | 45 C |
                 | Control value | 88 units |
 
-                The primary answer is intentionally explicit for exact-value retrieval.
+                Values are as recorded in the source table.

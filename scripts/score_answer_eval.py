@@ -12,8 +12,18 @@ word ("Owner-2A ... Q2 review gate", "LITM-END-42") and passed one that gave ano
       lost-in-the-middle case no other case's token is given;
   retrieval_only cases ("Which document mentions ..."): their reference is the phrase in the question, so the answer
       must name the expected document (its file name or its name with spaces for underscores);
-  abstain cases: the answer says in its opening that the documents don't hold it, and states no amount of money or
-      term it could have made up.
+  abstain cases: the answer says, in its first 600 characters, that the documents don't hold it, and states no
+      number of its own (one the question does not contain) before the end of that sentence.
+
+Two corrections of 2026-11-23 (item 8 of the 5.9 proposal in `Docs/ai/plans/consistent-answers.md`), checked by
+reading every answer whose score they change across the 1,360 answers of the runs to that date:
+  - a refusal that goes on to list other documents' values, or says it as "cannot be fulfilled", "remains
+    undetermined" or "no document provides", is a refusal (27 of Deep Think's, 10 of Maximum's were failed);
+  - an answer whose first sentence says the documents do not hold the value, and then names the expected value as
+    something else ("not specified in the excerpts ... 45 C, but these pertain to other metrics"), did not answer
+    (10 of Standard's were passed).
+The text is read without the verification banner, headings, emphasis, citation marks or the leaked answer-first
+instruction ("The exact value, name or finding, written as the source writes it, with its label:").
 
 Prints one line per case (rule, judge) and the totals. The judge's verdict stays as a second column, not the score.
 """
@@ -29,11 +39,54 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 MANIFEST = REPO / "Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json"
 DECLINES = re.compile(
-    r"(not (contain|include|provide|mention|specif|list|stat|available|found|present|establish|determin)\w*"
+    r"(not (fully |explicitly |directly )?(contain|include|provide|mention|specif|list|stat|available|found|present"
+    r"|establish|determin|disclos|given|detail|cover|address)\w*"
     r"|no (information|data|mention|record|detail|figure|value|evidence)"
-    r"|absence of|cannot be (found|determined|established)|could ?n.t find|unable to find|isn.t (in|available))",
+    r"|\b(no|nothing)\b[^.]{0,80}\b(is|are) (provided|mentioned|present|given|available|stated|listed|specified|included|found)"
+    r"|\bno (document|source|passage|excerpt)s? (provides|contains|mentions|states|lists|includes|gives)"
+    r"|\b(undetermined|omitted|unavailable)\b"
+    r"|absence of|cannot be (found|determined|established|fulfilled|answered|provided|identified)"
+    r"|could ?n.t find|unable to (find|determine|locate)|isn.t (in|available|stated|given|listed))",
     re.I,
 )
+BANNER = re.compile(r"^\W*\[?needs verification\]?.*?evidence:\s*", re.I | re.S)
+LEAD = re.compile(r"^the exact value, name or finding, written as the source writes it, with its label(, is)?\s*:\s*", re.I)
+CITES = re.compile(r"\[(S?\d+)(,\s*S?\d+)*\]")
+SENTENCE_END = re.compile(r"(?<!\d)[.!?](\s|$)")
+
+
+def cleaned(answer):
+    """The answer as a reader takes it in: no verification banner, headings, emphasis, citation marks or leaked
+    answer-first instruction (13 of 360 Deep Think answers began with it, 2026-11-22)."""
+    text = answer.replace("\u26a0\ufe0f", "")
+    if "needs verification" in text[:80].lower():
+        text = BANNER.sub("", text.strip())
+    lines = [line for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+    text = re.sub(r"\*+|`|__", "", " ".join(lines))
+    return LEAD.sub("", CITES.sub("", text).strip())
+
+
+def sentence_end(text, at):
+    m = SENTENCE_END.search(text, at)
+    return m.start() + 1 if m else len(text)
+
+
+def opening(answer):
+    """The answer's first sentence, cleaned."""
+    text = cleaned(answer)
+    return text[: sentence_end(text, 0)]
+
+
+def declined_part(answer):
+    """The cleaned answer up to the end of the sentence that first says the documents do not hold it, when that is
+    in its first 600 characters; None when it never says so there."""
+    text = cleaned(answer)
+    m = DECLINES.search(text[:600])
+    return text[: sentence_end(text, m.end())] if m else None
+
+
+def numbers(text):
+    return set(re.findall(r"\d[\d,.]*", text))
 
 
 def reports(paths):
@@ -61,18 +114,21 @@ def case_for(prompt, expected, cases):
 
 
 def rule(case, answer, cases):
+    first = opening(answer)
     if case.get("expected_behavior") == "abstain":
-        # Declines in its opening, and states no amount of money or warranty term it could have made up (an answer
-        # that declines and then lists unrelated values from other documents still declined).
-        bare = re.sub(r"\[(S\d+|\d+)(,\s*S?\d+)*\]", "", answer)
-        made_up = re.search(r"(\$\s?\d|\d[\d,.]*\s*(dollars|usd|years?|months?)\b)", bare, re.I)
-        return bool(DECLINES.search(bare[:500])) and not made_up
+        # Says the documents don't hold it, and offers no number of its own before saying so: an answer that declines
+        # and then lists other documents' values still declined; one that gives "45 C" first did not.
+        part = declined_part(answer)
+        return part is not None and not (numbers(part) - numbers(case["query"]))
     if case["category"] == "retrieval_only":
         name = case["expected_source"]["filename"]
         stem = Path(name).stem
         text = answer.lower()
         return name.lower() in text or stem.lower() in text or stem.replace("_", " ").lower() in text
     if not all(re.search(p, answer) for p in case.get("expected_answer_patterns", [])):
+        return False
+    # A value named only after the answer said the documents do not hold it is not an answer to the question.
+    if DECLINES.search(first) and not any(re.search(p, first) for p in case.get("expected_answer_patterns", [])):
         return False
     if case["category"] == "lost_in_middle":
         others = [p for c in cases if c["category"] == "lost_in_middle" and c["id"] != case["id"]

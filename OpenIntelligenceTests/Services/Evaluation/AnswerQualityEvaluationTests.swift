@@ -35,6 +35,12 @@
 //  - `OI_EVAL_REPEAT` 2 to 5: each question is asked that many times in the same library; the first answer is graded
 //    and each later one is printed beside it (`again pass=N ... same=`), for `scripts/ask_twice.py`.
 //
+//  Since 2026-11-23, every ask starts with the library's conversation memory empty (`forgetEarlierAsks`), and
+//  `OI_EVAL_MEMORY=keep` asks the old way, each question after the earlier ones' answers. Through 2026-11-22 every
+//  run kept them, and earlier answers overrode the document: another document's token in 34 of the wrong
+//  lost-in-the-middle answers (Docs/ai/plans/consistent-answers.md, "Earlier answers override the document").
+//  That is a defect of the app, item 1 of the 5.9 proposal; `keep` is how it is measured.
+//
 
 import Evaluations
 import Foundation
@@ -200,6 +206,9 @@ private actor EvaluationLibrary {
         if let made { return made.library }
         if making == nil {
             print("[AnswerQualityEvaluation] sampling: \(EvaluationSampling.apply())")
+            print(
+                "[AnswerQualityEvaluation] memory: \(AnswerQualityEvaluation.keepsMemory ? "kept across asks" : "emptied before each ask")"
+            )
             making = Task { try await Self.make() }
         }
         let new = try await making!.value
@@ -338,6 +347,34 @@ private struct AnswerQualityEvaluation: Evaluation {
         Int(ProcessInfo.processInfo.environment["OI_EVAL_REPEAT"] ?? "").map { min(max($0, 1), 5) } ?? 1
     }
 
+    /// `OI_EVAL_MEMORY=keep` (TEST_RUNNER_OI_EVAL_MEMORY): each question is asked after the earlier ones' answers,
+    /// as every run through 2026-11-22 was. Otherwise each ask starts with the memory empty.
+    nonisolated static var keepsMemory: Bool { ProcessInfo.processInfo.environment["OI_EVAL_MEMORY"] == "keep" }
+
+    /// Whether an ask has run in this process, so its turn may still be on its way into the memory.
+    @MainActor private static var askedBefore = false
+
+    /// Empties the library's conversation memory before an ask (2026-11-23). The last ask's turn is recorded by a
+    /// detached task (`RAGService+AnswerFinishing.swift`, `addTurn`), so it is waited for first, up to 10 s: a turn
+    /// landing after the clear would be in front of this ask. A summary still being written is discarded by
+    /// `clearMemory` itself. An ask that threw records no turn, and then the wait runs out.
+    @MainActor
+    static func forgetEarlierAsks(in library: UUID) async {
+        let memory = ConversationMemoryService.shared
+        if askedBefore {
+            var waited = 0
+            while memory.memory(for: library).recentTurns.isEmpty && waited < 100 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            if waited == 100 {
+                print("[AnswerQualityEvaluation] memory: the last ask's turn did not arrive in 10 s; cleared anyway")
+            }
+        }
+        memory.clearMemory(for: library)
+        askedBefore = true
+    }
+
     /// On the main actor, as the engine and its answer are (the module's default isolation).
     @MainActor
     func subject(from sample: ModelSample<String>) async throws -> ModelSubject<String> {
@@ -374,6 +411,9 @@ private struct AnswerQualityEvaluation: Evaluation {
             if AnswerQualityData.mode == .maximum {
                 UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: "entitlement.activeTier")
                 UserDefaults.standard.set(0, forKey: "entitlement.maximumMode.usedCount")
+            }
+            if !Self.keepsMemory {
+                await Self.forgetEarlierAsks(in: library)
             }
             return try await AskActionRunner.ask(
                 question, mode: AnswerQualityData.mode, topK: Self.passages, libraryId: library,
@@ -442,9 +482,10 @@ struct AnswerQualityEvaluationTests {
         #expect(AnswerQualityData.cases.count == 20, "the dataset has \(AnswerQualityData.cases.count) cases")
         // A floor, not a target: the figure itself is what the run is for, and it is in the report. Measured in the
         // iOS 27.0 Simulator on 2026-10-21: 0.3 with the action's 3 passages, 0.25 with 12. Most misses are the
-        // dataset's: the five synthetic exact fixtures never say what their value measures ("| Primary answer |
-        // 14.3 US gal |" for "How many gallons of gasoline can the vehicle hold?"), so a grounded "the excerpts do not
-        // say" is graded wrong, and the four "which document" references are bare keys ("ALPHA-17"). The floor catches
+        // dataset's: until 2026-11-23 the five synthetic exact fixtures never said what their value measures ("| Primary
+        // answer | 14.3 US gal |" for "How many gallons of gasoline can the vehicle hold?"; now "| Fuel tank capacity |"),
+        // so a grounded "the excerpts do not say" was graded wrong, and the four "which document" references are bare
+        // keys ("ALPHA-17"). The floor catches
         // a run that produces no answers, as the first two runs that night did (-1.0); raise it when cases with real
         // reference answers replace these (row https://app.notion.com/p/3b549a74d54f814cbb06fa629417b657).
         #expect(correct >= 0.2, "\(result.groupedSummary)")

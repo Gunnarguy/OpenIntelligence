@@ -37,15 +37,17 @@ AGAIN = re.compile(r"\] again pass=(\d+) mode=\S+ seconds=(\d+) same=(true|false
 QUESTIONS = 20
 
 
-def run_name(mode, sampling):
-    return f"twice-{mode}-{sampling}"
+def run_name(mode, sampling, tag=""):
+    """`tag` names a set of runs made under other test rules ("item8", 2026-11-23: the corrected scoring rule, the
+    labelled fixtures and memory emptied before each ask), so they are made again instead of found done."""
+    return f"twice-{mode}-{sampling}" + (f"-{tag}" if tag else "")
 
 
-def folders_for(mode, sampling, runs_dir=pr.RUNS):
+def folders_for(mode, sampling, runs_dir=pr.RUNS, tag=""):
     if not os.path.isdir(runs_dir):
         return []
     return [os.path.join(runs_dir, f) for f in sorted(os.listdir(runs_dir))
-            if f.endswith(f"-answer-modes-{run_name(mode, sampling)}")]
+            if f.endswith(f"-answer-modes-{run_name(mode, sampling, tag)}")]
 
 
 def text(b64):
@@ -110,14 +112,14 @@ def row(mode, sampling, s, cache_hits):
     return (f"| {mode} | {sampling} | {s['passes']} | {rights} | {same} | {pr.pct(s['all_same'], n)} | {flipped} | {cache_hits} |")
 
 
-def report(runs_dir=pr.RUNS):
+def report(runs_dir=pr.RUNS, tag=""):
     cases = json.loads(scorer.MANIFEST.read_text())["cases"]
     lines = ["| Mode | Sampling | Asks of each question | Right, each ask | Same words as the first ask, each later ask | "
              "Same words every ask | Questions that changed between right and wrong | Search-cache lines |", "|---|---|---|---|---|---|---|---|"]
     folders = []
     for mode in pr.MODES:
         for sampling in SAMPLING:
-            found = folders_for(mode, sampling, runs_dir)
+            found = folders_for(mode, sampling, runs_dir, tag)
             s, hits, used = None, 0, None
             for folder in found:  # the newest complete one
                 log = pr.read_text(os.path.join(folder, f"{mode}-app.txt")) or ""
@@ -132,9 +134,9 @@ def report(runs_dir=pr.RUNS):
     return "\n".join(lines), folders
 
 
-def complete(mode, sampling, runs_dir=pr.RUNS):
+def complete(mode, sampling, runs_dir=pr.RUNS, tag=""):
     cases = json.loads(scorer.MANIFEST.read_text())["cases"]
-    for folder in folders_for(mode, sampling, runs_dir):
+    for folder in folders_for(mode, sampling, runs_dir, tag):
         log = pr.read_text(os.path.join(folder, f"{mode}-app.txt")) or ""
         got = summarize(parse(log.splitlines()), cases)
         if got and got["questions"] >= QUESTIONS:
@@ -152,34 +154,39 @@ def main():
     r.add_argument("--ref", default="HEAD")
     r.add_argument("--dry-run", action="store_true")
     r.add_argument("--limit-hours", type=float, default=pr.LIMIT_HOURS)
-    sub.add_parser("report")
+    r.add_argument("--tag", default="", help="names runs made under other test rules (folder suffix)")
+    rp = sub.add_parser("report")
+    rp.add_argument("--tag", default="")
     a = p.parse_args()
 
     if a.command == "report":
-        table, folders = report()
+        table, folders = report(tag=a.tag)
         print(f"\nAsk twice, {len(folders)} runs\n\n{table}\n")
         print("Folders: " + ", ".join(f"`{os.path.basename(f)}`" for f in folders))
         return
-    if complete(a.mode, a.sampling):
-        print(f"{run_name(a.mode, a.sampling)} exists and is complete; not made again")
+    if complete(a.mode, a.sampling, tag=a.tag):
+        print(f"{run_name(a.mode, a.sampling, a.tag)} exists and is complete; not made again")
         return
     shell = pr.Shell(a.dry_run)
     stage = os.path.join(SCRATCH, "stage")
-    env = {"OI_BENCH_PRESTAGED": stage, "OI_BENCH_NAME": run_name(a.mode, a.sampling),
+    env = {"OI_BENCH_PRESTAGED": stage, "OI_BENCH_NAME": run_name(a.mode, a.sampling, a.tag),
            "OI_BENCH_SRC": os.path.join(SCRATCH, "src"), "OI_BENCH_DD": os.path.join(SCRATCH, "dd"),
            "OI_BENCH_SIM": SIM_NAME, "TEST_RUNNER_OI_EVAL_REPEAT": str(a.repeat)}
     env.update({"TEST_RUNNER_" + k: v for k, v in SAMPLING[a.sampling].items()})
     if a.dry_run:
         shell.show(f"python3 scripts/paired_run.py stage {a.ref} {stage}")
     else:
-        if shutil.disk_usage("/System/Volumes/Data").free / 2 ** 30 < 15:
-            sys.exit("under 15 GiB free on the internal disk: not running (~/.agents/STORAGE.md)")
+        # A run takes about 6 GiB at its peak (measured 2026-11-23: 17 GiB free fell to 11). OI_TWICE_MIN_FREE_GIB
+        # lowers the floor when other sessions hold the disk; the queue then watches for under 3 GiB and stops.
+        floor = float(os.environ.get("OI_TWICE_MIN_FREE_GIB", "15"))
+        if shutil.disk_usage("/System/Volumes/Data").free / 2 ** 30 < floor:
+            sys.exit(f"under {floor:g} GiB free on the internal disk: not running (~/.agents/STORAGE.md)")
         shutil.rmtree(stage, ignore_errors=True)
         os.makedirs(SCRATCH, exist_ok=True)
         pr.stage(a.ref, stage, shell)
     code = pr.run_bench(env, [a.mode], shell, a.limit_hours)
     if code not in (None, 0):
-        sys.exit(f"run {run_name(a.mode, a.sampling)} ended with exit {code}")
+        sys.exit(f"run {run_name(a.mode, a.sampling, a.tag)} ended with exit {code}")
 
 
 if __name__ == "__main__":

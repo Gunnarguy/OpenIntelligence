@@ -4,7 +4,7 @@
 
                 | Field | Value |
                 | --- | --- |
-                | Primary answer | 7,500 miles |
+                | Normal service interval | 7,500 miles |
                 | Control value | 88 units |
 
-                The primary answer is intentionally explicit for exact-value retrieval.
+                Values are as recorded in the source table.

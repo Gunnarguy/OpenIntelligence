@@ -163,13 +163,22 @@ class SyntheticTinyAdapter:
         cases: list[PreparedCase] = []
 
         exact_specs = [
-            ("exact_fuel_capacity", "vehicle_specs.md", "14.3 US gal", "How many gallons of gasoline can the vehicle hold?"),
-            ("exact_capex", "finance_cash_flow.md", "$1,577 million", "What was the FY2018 capital expenditure amount?"),
-            ("exact_payload", "equipment_table.md", "1,240 lb", "What is the maximum payload in the specification table?"),
-            ("exact_service_interval", "service_schedule.md", "7,500 miles", "What is the normal service interval?"),
-            ("exact_temperature_limit", "battery_limits.md", "45 C", "What is the maximum charging temperature limit?"),
+            # Each value carries the label a real table would give it (2026-11-23). Until then every one was
+            # "Primary answer", so no file said what its value measured: a model that answered "the excerpts do not
+            # say" was right and was scored wrong, and one that answered with any file's "Primary answer" was
+            # guessing ("$1,577 million" as a payload, "45 C" as a battery warranty).
+            ("exact_fuel_capacity", "vehicle_specs.md", "Fuel tank capacity", "14.3 US gal",
+             "How many gallons of gasoline can the vehicle hold?"),
+            ("exact_capex", "finance_cash_flow.md", "Capital expenditure, FY2018", "$1,577 million",
+             "What was the FY2018 capital expenditure amount?"),
+            ("exact_payload", "equipment_table.md", "Maximum payload", "1,240 lb",
+             "What is the maximum payload in the specification table?"),
+            ("exact_service_interval", "service_schedule.md", "Normal service interval", "7,500 miles",
+             "What is the normal service interval?"),
+            ("exact_temperature_limit", "battery_limits.md", "Maximum charging temperature", "45 C",
+             "What is the maximum charging temperature limit?"),
         ]
-        for case_id, filename, answer, query in exact_specs:
+        for case_id, filename, label, answer, query in exact_specs:
             path = fixtures / "exact" / filename
             write_text(
                 path,
@@ -180,10 +189,10 @@ class SyntheticTinyAdapter:
 
                 | Field | Value |
                 | --- | --- |
-                | Primary answer | {answer} |
+                | {label} | {answer} |
                 | Control value | 88 units |
 
-                The primary answer is intentionally explicit for exact-value retrieval.
+                Values are as recorded in the source table.
                 """,
             )
             cases.append(

@@ -1482,9 +1482,27 @@ printed whole beside it). `--sampling greedy` takes the randomness out of the wr
 many answers are right by rule and how many are word for word the first answer, and which questions changed sides. It
 exists because the stability battery's runs each import the documents again, and the import's model-made summaries
 differ, so they never asked the same library twice. A run that exists and is complete is not made again. Tests:
-`python3 scripts/test_ask_twice.py` (5).
+`python3 scripts/test_ask_twice.py` (6).
 
-`[evidence_level: test_verified for the script's reading and counting; build_verified for the test option once the commit that adds it says so; no run made when this was written]`
+`[evidence_level: test_verified for the script's reading and counting; measured: six runs made 2026-11-22 and 11-23, BenchmarkRuns/LEDGER.md]`
+
+Since 2026-11-23 (item 8 of the 5.9 proposal) the answer test empties the library's conversation memory before every
+ask; `TEST_RUNNER_OI_EVAL_MEMORY=keep` asks the old way, each question after the earlier answers, which is how the
+memory defect (item 1) is measured. The five exact-value fixtures label their values, and `scripts/score_answer_eval.py`
+counts a refusal that goes on to list other values as right and a value named after "not specified" as wrong (tests:
+`python3 scripts/test_score_answer_eval.py`, 11). Runs under these rules carry a tag, so the older folders do not count
+as done:
+
+```bash
+python3 scripts/ask_twice.py run --mode standard --sampling shipped --repeat 2 --tag item8
+```
+
+```bash
+python3 scripts/ask_twice.py report --tag item8
+```
+
+When other sessions hold the disk, `OI_TWICE_MIN_FREE_GIB=12 OI_BENCH_MIN_FREE_GB=12` lowers the start floor from 15 GiB;
+a run took about 6 GiB at its peak (17 GiB free fell to 11, 2026-11-23), so watch for under 3 GiB and stop it there.
 
 ## UI before and after, side by side (added 2026-11-20)
 

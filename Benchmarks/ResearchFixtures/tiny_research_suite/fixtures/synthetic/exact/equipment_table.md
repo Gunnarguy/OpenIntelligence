@@ -4,7 +4,7 @@
 
                 | Field | Value |
                 | --- | --- |
-                | Primary answer | 1,240 lb |
+                | Maximum payload | 1,240 lb |
                 | Control value | 88 units |
 
-                The primary answer is intentionally explicit for exact-value retrieval.
+                Values are as recorded in the source table.

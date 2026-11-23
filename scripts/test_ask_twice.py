@@ -76,6 +76,17 @@ class AskTwice(unittest.TestCase):
             self.assertEqual(found, ["2026-01-01-0900-answer-modes-twice-standard-greedy"])
             self.assertEqual(twice.run_name("deepThink", "shipped"), "twice-deepThink-shipped")
 
+    def test_a_tagged_run_is_not_found_done_by_an_untagged_one_or_the_reverse(self):
+        with tempfile.TemporaryDirectory() as runs:
+            for name in ("2026-01-01-0900-answer-modes-twice-standard-shipped",
+                         "2026-01-02-0900-answer-modes-twice-standard-shipped-item8"):
+                os.makedirs(os.path.join(runs, name))
+            self.assertEqual([os.path.basename(f) for f in twice.folders_for("standard", "shipped", runs, "item8")],
+                             ["2026-01-02-0900-answer-modes-twice-standard-shipped-item8"])
+            self.assertEqual([os.path.basename(f) for f in twice.folders_for("standard", "shipped", runs)],
+                             ["2026-01-01-0900-answer-modes-twice-standard-shipped"])
+            self.assertEqual(twice.run_name("maximum", "greedy", "item8"), "twice-maximum-greedy-item8")
+
 
 if __name__ == "__main__":
     unittest.main()

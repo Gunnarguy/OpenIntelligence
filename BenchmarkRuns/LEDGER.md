@@ -1936,3 +1936,42 @@ import. Deep Think varies on one unchanged library (6 questions changing sides o
 **What it did not settle.** Why greedy answers still change within one process; whether a later ask is affected by the
 earlier asks of the same question (Deep Think's greedy scores fell 18 to 16 over five asks); Maximum.
 
+
+### 2026-11-23 Ask twice, Maximum (`2026-11-23-0021-answer-modes-twice-maximum-shipped`, `2026-11-23-0654-answer-modes-twice-maximum-greedy`)
+
+The two Maximum runs of the 2026-11-22 ask-twice queue, made from the same commit (ba1dcd23) after the disk had stopped
+the queue; each question asked twice in one imported library. iOS 27.0 Simulator, 5.8's app code, the app's own model
+service. The greedy run waited from 01:24 to 06:54 for disk space held by other sessions and then ran with the start
+floor lowered to 12 GiB (`OI_TWICE_MIN_FREE_GIB`, `OI_BENCH_MIN_FREE_GB`); free space stayed above 11 GiB.
+`[evidence_level: measured, confidence: medium: one run a setting, one 20-question set]`
+
+| Sampling | Right of 20, each ask (rule of 2026-11-22) | Same rule corrected (item 8, below) | Same words both asks | Questions that changed sides |
+|---|---|---|---|---|
+| As shipped | 18, 17 | 19, 19 | 25% (5 of 20) | 3 by the old rule, 2 by the corrected one |
+| Greedy | 18, 18 | 18, 18 | 55% (11 of 20) | 0 |
+
+**What it settled.** Maximum scores highest of the three modes on one library, and with greedy it repeated itself: no
+question changed sides and 11 of 20 answers kept their words. Greedy's misses were the same on both asks: the payload
+answered with another file's unlabelled "Primary answer" ($1,577 million) and the end document's token answered with
+the middle one's (LITM-MIDDLE-42), an earlier answer carried in by conversation memory.
+
+**What it did not settle.** Whether Maximum as shipped is lower than greedy (19, 19 against 18, 18 corrected is within
+one question); a phone.
+
+### 2026-11-23 Re-score: the test corrected (item 8), no new runs
+
+`scripts/score_answer_eval.py`'s rule corrected (Docs/ai/plans/consistent-answers.md, "Item 8 done"): a refusal that
+goes on to list other documents' values, or uses wordings the old rule did not know, is right; an answer whose first
+sentence says the documents do not hold the value, and that names the expected value only later, is wrong. Applied to
+the 1,360 saved answers of the 44 stability, noise and ask-twice runs to date, every changed answer read.
+`[evidence_level: measured, confidence: high for the counts; the rule's judgement was checked by reading the changed answers]`
+
+| Mode | Answers | Old rule | Corrected rule |
+|---|---|---|---|
+| Standard | 520 | 82% (425) | 80% (414) |
+| Deep Think | 480 | 80% (383) | 85% (410) |
+| Maximum | 360 | 87% (312) | 89% (322) |
+
+The scores in the entries above stay as they were measured by the rule of their date; this entry is the corrected
+reading of the same answers. The fixtures' labels and the memory change take effect only in runs made from the commit
+that carries them.

@@ -281,10 +281,14 @@ several times in the same process. iOS 27.0 Simulator, 5.8's app code, the app's
 | Standard | Greedy | 3 | 16, 17, 18 | 65% (13 of 20) | 2 (exact_temperature_limit, lost_in_middle_middle) |
 | Deep Think | As shipped | 5 | 15, 16, 15, 14, 16 | 5% (1 of 20) | 6 |
 | Deep Think | Greedy | 5 | 18, 17, 16, 16, 16 | 25% (5 of 20) | 4 (retrieval_policy_alpha, retrieval_trial_beta, lost_in_middle_end, missing_confidential_price) |
-| Maximum | As shipped | 2 | waiting on disk space (2026-11-22 14:25) | | |
-| Maximum | Greedy | 2 | waiting on disk space | | |
+| Maximum | As shipped | 2 | 18, 17 | 25% (5 of 20) | 3 (retrieval_policy_alpha, lost_in_middle_middle, missing_unreleased_battery) |
+| Maximum | Greedy | 2 | 18, 18 | 55% (11 of 20) | 0 |
 
-`[measured; folders 2026-11-22-0231-answer-modes-twice-standard-shipped, 2026-11-22-0251-answer-modes-twice-standard-greedy, 2026-11-22-0320-answer-modes-twice-deepThink-shipped, 2026-11-22-1222-answer-modes-twice-deepThink-greedy]`
+`[measured; folders 2026-11-22-0231-answer-modes-twice-standard-shipped, 2026-11-22-0251-answer-modes-twice-standard-greedy, 2026-11-22-0320-answer-modes-twice-deepThink-shipped, 2026-11-22-1222-answer-modes-twice-deepThink-greedy, 2026-11-23-0021-answer-modes-twice-maximum-shipped, 2026-11-23-0654-answer-modes-twice-maximum-greedy]`
+
+The two Maximum rows were made on 2026-11-23 (00:21 and 06:54) from the same commit, after the disk had stopped the
+queue on 2026-11-22; scored by the rule of that date. Re-scored by the corrected rule of item 8 below, every row of
+this table is in "Item 8 done" further down.
 
 What the first three runs say, against the 2026-11-21 runs that imported again each time:
 
@@ -462,3 +466,44 @@ Nothing here is done. App changes need the owner's `PROCEED: IMPLEMENT` and a `#
 Order: 8 first (no app change; every later number depends on it), then 1 to 3 (they change what a user sees most and
 together cover every invented or overridden answer found), then 4 and 5, then 6 and 7, then 9.
 
+
+## Item 8 done: the test, corrected (2026-11-23)
+
+Test and tooling only; no app code changed. At the owner's word ("go ahead and start item 8 once greedy finishes").
+
+| Part | What changed | Where |
+|---|---|---|
+| Scoring rule | A refusal counts when it says, in its first 600 characters, that the documents do not hold it, and offers no number of its own before the end of that sentence; it may go on to list other documents' values, and wordings such as "cannot be fulfilled", "remains undetermined", "no document provides" count. An answer whose first sentence says the documents do not hold the value, and that names the expected value only later as something else, is wrong. Banner, headings, emphasis, citation marks and the leaked answer-first instruction are read past. | `scripts/score_answer_eval.py`, tests `scripts/test_score_answer_eval.py` (11) |
+| Fixtures | The five exact-value files label their values ("Fuel tank capacity", "Capital expenditure, FY2018", "Maximum payload", "Normal service interval", "Maximum charging temperature") instead of "Primary answer", made by the generator; nothing else in the pack changed | `scripts/prepare_rag_research_fixtures.py`, `Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact/` |
+| Memory | Each ask starts with the library's conversation memory empty, after waiting up to 10 s for the last ask's turn to land; `OI_EVAL_MEMORY=keep` asks the old way, which is how item 1 is measured. The one case that tests memory is item 1's own unit test rather than a 21st question, because a question that needs memory kept would also need every question before it kept | `AnswerQualityEvaluationTests.swift` (`forgetEarlierAsks`) |
+| Runs | `ask_twice.py --tag` names runs made under these rules, so the old folders do not count as done; `OI_TWICE_MIN_FREE_GIB` and `OI_BENCH_MIN_FREE_GB` lower the disk floor when other sessions hold the disk (a run takes about 6 GiB at its peak) | `scripts/ask_twice.py`, `scripts/bench_answer_modes.sh` |
+
+**Re-scored, every answer read where the score changed** (1,360 answers from the 44 stability, noise and ask-twice runs to
+2026-11-23 08:06):
+
+| Mode | Answers | Old rule | Corrected rule | What changed |
+|---|---|---|---|---|
+| Standard | 520 | 82% (425) | 80% (414) | 10 answers said the temperature limit is "not specified in the excerpts" and only then named 45 C as another metric; 1 gave "45 C" as the warranty |
+| Deep Think | 480 | 80% (383) | 85% (410) | 27 correct refusals had been failed |
+| Maximum | 360 | 87% (312) | 89% (322) | 10 correct refusals had been failed |
+
+The only refusals still wrong are Standard's 6 that state or lean on "45 C" as a warranty, the defect of item 3.
+`[measured: scripts/score_answer_eval.py over the saved answers of each run's .xcresult and its "again" lines]`
+
+The ask-twice runs, re-scored (right of 20, each ask):
+
+| Mode | Sampling | Old rule | Corrected rule |
+|---|---|---|---|
+| Standard | As shipped | 16, 16, 16 | 15, 15, 15 |
+| Standard | Greedy | 16, 17, 18 | 16, 17, 17 |
+| Deep Think | As shipped | 15, 16, 15, 14, 16 | 17, 18, 16, 15, 18 |
+| Deep Think | Greedy | 18, 17, 16, 16, 16 | 18, 17, 17, 17, 16 |
+| Maximum | As shipped | 18, 17 | 19, 19 |
+| Maximum | Greedy | 18, 18 | 18, 18 |
+
+Maximum greedy's two misses on both asks were "$1,577 million" for the payload (another file's unlabelled "Primary
+answer") and LITM-MIDDLE-42 for the end document (an earlier answer's token): one cause the labels remove and one the
+memory change removes from the test. Its two other first-ask misses were "which document" questions.
+
+Still to do for item 8's proof: the three modes run again under the new rules (`ask_twice.py --tag item8`), which is
+also the first build of the changed test.

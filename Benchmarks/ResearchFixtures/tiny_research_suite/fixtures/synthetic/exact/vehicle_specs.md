@@ -4,7 +4,7 @@
 
                 | Field | Value |
                 | --- | --- |
-                | Primary answer | 14.3 US gal |
+                | Fuel tank capacity | 14.3 US gal |
                 | Control value | 88 units |
 
-                The primary answer is intentionally explicit for exact-value retrieval.
+                Values are as recorded in the source table.
