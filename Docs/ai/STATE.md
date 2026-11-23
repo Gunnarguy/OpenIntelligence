@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-22 17:38
+Updated: 2026-11-22 18:01
 Branch/worktree: `main`, primary checkout
-Last verified commit: 16a4d71f
+Last verified commit: 1b12da70
 
 ## Objective
 
@@ -139,13 +139,12 @@ number that does not answer the question ("45 C" as warranty coverage) because n
 about what was asked; the 5.8 file-name fix skips Deep Think's answers. Rows filed 2026-11-22 in Notion carry each.
 App items need a `## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`.
 
-**Still running:** the ask-twice queue, in the app's Terminal tab "OI ask-twice queue"
-(`~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue.sh ba1dcd235e13a406eada4ff971132265e3f01016`, log
-`queue.log` beside it). Standard and Deep Think are done and in the ledger ("Ask twice", 2026-11-22). Maximum as shipped
-and greedy (2 asks each, about an hour a run) wait until the disk reads 16 GiB free; other sessions' simulators and
-builds hold the space. If the tab is gone and the log does not end `QUEUE DONE`, start the same command again in a
-Terminal tab (it picks up where it was). When it ends: `python3 scripts/ask_twice.py report`, add Maximum's rows to the
-ledger entry and the plan's table, delete the "OI ask twice" simulator and `/private/tmp/oi-twice`.
+**Stopped 2026-11-22 17:45, not finished:** the ask-twice queue was stopped and its scratch folder
+(`/private/tmp/oi-twice`, 3.7 GB) deleted when the disk fell to 657 MiB free (swap had grown to 18 GB with several
+sessions building at once). Standard and Deep Think are done and in the ledger; Maximum's two one-library runs were
+never made. Restart them only after item 8 of the proposal (the test fixes), since they would be scored by the old
+rule: `caffeinate -dimsu bash ~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue.sh <commit>` in a
+Terminal tab, with 16 GiB free.
 
 Results in short: on one imported library Standard scored 16, 16, 16 with no question changing sides, so its variation
 came with re-importing; Deep Think as shipped scored 15, 16, 15, 14, 16 and with greedy 18, 17, 16, 16, 16. The four
