@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-22 18:01
+Updated: 2026-11-23 08:35
 Branch/worktree: `main`, primary checkout
-Last verified commit: 1b12da70
+Last verified commit: a67ae343
 
 ## Objective
 
@@ -127,28 +127,30 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**Decided 2026-11-22, not started: the owner chose item 8, then items 1 to 3, of the "Proposal for 5.9 (revised
-2026-11-22 after reading the wrong answers)" at the end of `Docs/ai/plans/consistent-answers.md`** ("i want to do the 8
-then 1-3 like you said, but not right now"). Wait for his word to start, tonight or the next day; when he gives it,
-open `## 5.9` in `CHANGELOG.md` before the first app edit (items 1 to 3), and if he is going to bed run it the
-overnight way (a Terminal-tab queue, not inside the session). Nine items, none done, each with its proof. Item 8 is test-only and goes first
-(the scoring rule fails correct refusals; the exact-value fixtures never label their values; one conversation memory
-runs across all 20 questions). Items 1 to 3 are the largest app defects found: conversation memory reaches a scoped
-"Ask About a Document" and the answer checker rewrites a right answer to match an earlier one; Standard can state a
-number that does not answer the question ("45 C" as warranty coverage) because no check asks whether the passage is
-about what was asked; the 5.8 file-name fix skips Deep Think's answers. Rows filed 2026-11-22 in Notion carry each.
-App items need a `## 5.9` heading in `CHANGELOG.md` and his `PROCEED: IMPLEMENT`.
+**Item 8 is built (2026-11-23, commit a67ae343), its proof is running.** At the owner's word ("go ahead and start item
+8 once greedy finishes"): the scoring rule corrected, the five exact-value fixtures labelled, and each test ask starts
+with conversation memory empty (`OI_EVAL_MEMORY=keep` for the old way). Re-scored over the 1,360 saved answers:
+Standard 82 to 80%, Deep Think 80 to 85%, Maximum 87 to 89% (`Docs/ai/plans/consistent-answers.md`, "Item 8 done";
+ledger entries of 2026-11-23). Maximum's two ask-twice runs were made first, from ba1dcd23: greedy 18 and 18 of 20 with
+no question changing sides.
 
-**Stopped 2026-11-22 17:45, not finished:** the ask-twice queue was stopped and its scratch folder
-(`/private/tmp/oi-twice`, 3.7 GB) deleted when the disk fell to 657 MiB free (swap had grown to 18 GB with several
-sessions building at once). Standard and Deep Think are done and in the ledger; Maximum's two one-library runs were
-never made. Restart them only after item 8 of the proposal (the test fixes), since they would be scored by the old
-rule: `caffeinate -dimsu bash ~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue.sh <commit>` in a
-Terminal tab, with 16 GiB free.
+Running: the three modes again under the new test, as shipped, each question asked twice (`ask_twice.py --tag item8`),
+from a Terminal tab: `caffeinate -dimsu bash ~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue-item8.sh
+a67ae343`, log `queue.log` in that folder, started 08:26. Its first build is also the first compile of the changed
+answer test. When it ends: `python3 scripts/ask_twice.py report --tag item8`, record the table in the plan and the
+ledger, and compare with the re-scored rows (the labels and the memory change can only show in these runs).
 
-Results in short: on one imported library Standard scored 16, 16, 16 with no question changing sides, so its variation
-came with re-importing; Deep Think as shipped scored 15, 16, 15, 14, 16 and with greedy 18, 17, 16, 16, 16. The four
-custom product pages were approved by Apple (read 2026-11-22).
+**Next, decided by the owner, not started: items 1 to 3** (conversation memory reaching a scoped ask and the checker
+rewriting a right answer; Standard stating a number that does not answer the question; the source-only re-check). They
+are app changes: open `## 5.9` in `CHANGELOG.md` first, and they need his `PROCEED: IMPLEMENT` with the plan in front of
+him. Measure item 1 with `TEST_RUNNER_OI_EVAL_MEMORY=keep` before and after.
+
+The Mac is kept awake by `caffeinate -dimsu` in its own Terminal tab at the owner's word ("keep my mac awake ... until i
+say otherwise"); stop that tab only when he says so.
+
+Results in short (rule of 2026-11-22): on one imported library Standard scored 16, 16, 16 with no question changing
+sides, so its variation came with re-importing; Deep Think as shipped 15, 16, 15, 14, 16 and greedy 18, 17, 16, 16, 16;
+Maximum as shipped 18, 17 and greedy 18, 18. The four custom product pages were approved by Apple (read 2026-11-22).
 
 Still standing: file Future Backlog rows in Notion for the items under "Known and not fixed in the app" above (the
 continuation trigger on a final list item without a period, Apple's background rate limit, Siri scope and
