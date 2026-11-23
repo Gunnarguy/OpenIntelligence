@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-22 17:21
+Updated: 2026-11-22 17:38
 Branch/worktree: `main`, primary checkout
-Last verified commit: b2e2df43
+Last verified commit: 16a4d71f
 
 ## Objective
 
@@ -127,8 +127,11 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**The owner is to answer the "Proposal for 5.9 (revised 2026-11-22 after reading the wrong answers)" at the end of
-`Docs/ai/plans/consistent-answers.md`.** Nine items, none done, each with its proof. Item 8 is test-only and goes first
+**Decided 2026-11-22, not started: the owner chose item 8, then items 1 to 3, of the "Proposal for 5.9 (revised
+2026-11-22 after reading the wrong answers)" at the end of `Docs/ai/plans/consistent-answers.md`** ("i want to do the 8
+then 1-3 like you said, but not right now"). Wait for his word to start, tonight or the next day; when he gives it,
+open `## 5.9` in `CHANGELOG.md` before the first app edit (items 1 to 3), and if he is going to bed run it the
+overnight way (a Terminal-tab queue, not inside the session). Nine items, none done, each with its proof. Item 8 is test-only and goes first
 (the scoring rule fails correct refusals; the exact-value fixtures never label their values; one conversation memory
 runs across all 20 questions). Items 1 to 3 are the largest app defects found: conversation memory reaches a scoped
 "Ask About a Document" and the answer checker rewrites a right answer to match an earlier one; Standard can state a
