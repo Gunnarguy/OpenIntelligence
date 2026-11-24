@@ -190,6 +190,6 @@
       {"from": "StoreKitBillingService", "type": "depends_on", "to": "BillingProduct", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Billing/StoreKitBillingService.swift", "line": 10, "match": "private(set) var products: [BillingProduct: Product] = [:]"}]},
       {"from": "StoreKitBillingService", "type": "depends_on", "to": "BillingEvent", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Billing/StoreKitBillingService.swift", "line": 21, "match": "let events: AsyncStream<BillingEvent>"}]}
     ],
-    "edges_omitted": 52
+    "edges_omitted": 54
   }
 }
