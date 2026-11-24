@@ -185,22 +185,28 @@ extension RAGService {
     /// be tapped, but the answer never says the document's name, the one thing asked for (5 of 20 cases of the answer
     /// test failed on it in 5.7 and 5.8). When the question asks which document and the answer names none of its
     /// sources' files, the file of the first source it cites is written after that citation: "[S1] (lease.pdf)".
-    /// `sourceNames` are the answer's sources in label order. An answer with no citation, or one that already names a
-    /// file, is left as it is.
+    /// `sourceNames` are the answer's sources in label order. An answer with no citation, or one that already names the
+    /// cited file, is left as it is.
+    ///
+    /// Since 5.9 only the cited source's name counts as already named (2026-11-23). The guard looked for any source's
+    /// file, and Deep Think's long answers always mention the distractor files, so all 26 of its failures on the three
+    /// "which document" questions of the answer test named other files and never the cited one
+    /// (`Docs/ai/plans/consistent-answers.md`, item 4).
     nonisolated static func namingTheCitedDocument(_ text: String, question: String, sourceNames: [String]) -> String {
-        guard asksWhichDocument(question), !sourceNames.isEmpty else { return text }
-        let lower = text.lowercased()
-        let alreadyNamed = Set(sourceNames).contains { name in
-            let whole = name.lowercased()
-            let stem = (name as NSString).deletingPathExtension.lowercased()
-            return !stem.isEmpty && (lower.contains(whole) || lower.contains(stem) || lower.contains(stem.replacingOccurrences(of: "_", with: " ")))
-        }
-        guard !alreadyNamed,
+        guard asksWhichDocument(question), !sourceNames.isEmpty,
             let marker = try? NSRegularExpression(pattern: #"\[S(\d+)(?:\s*[,;]\s*S?\d+)*\]"#),
             let first = marker.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
             let labelRange = Range(first.range(at: 1), in: text), let label = Int(text[labelRange]),
             label >= 1, label <= sourceNames.count, let whole = Range(first.range, in: text)
         else { return text }
+        let cited = sourceNames[label - 1]
+        let lower = text.lowercased()
+        let stem = (cited as NSString).deletingPathExtension.lowercased()
+        let alreadyNamed =
+            !stem.isEmpty
+            && (lower.contains(cited.lowercased()) || lower.contains(stem)
+                || lower.contains(stem.replacingOccurrences(of: "_", with: " ")))
+        guard !alreadyNamed else { return text }
         var result = text
         result.insert(contentsOf: " (\(sourceNames[label - 1]))", at: whole.upperBound)
         return result

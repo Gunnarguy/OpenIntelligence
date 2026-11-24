@@ -172,7 +172,7 @@ extension RAGService {
         // intent-derived ceiling applied to all of them would truncate mid-chain work that has
         // nothing to do with how long the final answer should be.
         let profile = await MainActor.run { self.activeAdaptiveProfile }
-        let effectiveTemperature = temperature ?? profile?.temperature ?? 0.5
+        let effectiveTemperature = temperature ?? profile?.temperature ?? Self.agenticDefaultTemperature(qualityMode)
         // Which of the three this step used. Until 5.7 nothing recorded a step's temperature, so
         // nothing showed the profile reaching a generation (roadmap row "Adaptive profiles cannot
         // reach Deep Think or Maximum").
@@ -384,5 +384,19 @@ extension RAGService {
             text: response.text, tokensPerSecond: response.tokensPerSecond,
             streamedToChat: LLMStreamingContext.handler != nil)
         return response
+    }
+}
+
+extension RAGService {
+    /// The temperature of a Deep Think or Maximum step that names none and has no adaptive profile (5.9). It was 0.5 for
+    /// both: counted from an as-shipped run's `[Agentic] Step temperature` lines on 2026-11-21, 85 of Deep Think's 103
+    /// steps ran at it. `benchmarkAgenticDefaultTemperature` (set by the answer test's `OI_EVAL_STEP_TEMPERATURE`)
+    /// replaces it for a measurement run, and only it: a step's own value, the profile and the final write-up's
+    /// temperature stay (`Docs/ai/plans/consistent-answers.md`, item 7).
+    nonisolated static func agenticDefaultTemperature(_ qualityMode: RAGQualityMode) -> Float {
+        if let measured = UserDefaults.standard.object(forKey: "benchmarkAgenticDefaultTemperature") as? Double {
+            return Float(measured)
+        }
+        return 0.5
     }
 }

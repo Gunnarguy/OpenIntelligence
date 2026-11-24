@@ -453,6 +453,14 @@ extension RAGService {
         #endif
     }
 
+    /// The rule both of Standard's answer prompts carry (5.9, 2026-11-23): a value answers only when its excerpt names
+    /// it as the thing asked. Asked for the warranty coverage of a battery pack no document describes, Standard
+    /// answered "45 C [S20]" in 4 of 18 asks, a value its table gave as "Primary answer"; the Evidence-First prompt it
+    /// was given also lacked the sentence saying to state when a value is not in the excerpts
+    /// (`Docs/ai/plans/consistent-answers.md`, item 3).
+    nonisolated static let valueMustBeNamedRule =
+        "A value answers the question only when its excerpt names it as the thing asked (its label, table row or sentence says so). A value an excerpt gives for something else is not the answer: say the excerpts do not state what was asked."
+
     /// Whether a lookup question gets the "State the exact count FIRST" instruction: "how many" only (5.8). "How much"
     /// asks for an amount, and with the count instruction the on-device model opened all three of the owner's answers
     /// to "How much lysine is present?" on 2026-11-09 with a count: "1. **Value not specified**", "1", "**ONE**".
@@ -577,6 +585,7 @@ extension RAGService {
             \(intentSpecificInstructions)
             Rules: Cite sources [S1]/[S2] using the minimum citations needed to support the answer. Copy values VERBATIM. Answer exactly what was asked; be complete for the request, not exhaustive. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
             CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
+            \(Self.valueMustBeNamedRule)
             ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
             Format: Write naturally and match format to the question. Use ### headers only for multi-topic answers or explicit summaries. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications the user asked to enumerate. Write prose paragraphs for direct explanations and factual lookups. Combine overlapping excerpts into unified sentences — never repeat the same fact. For direct factual questions, prefer concise prose over sections or lists, but include all materially supported details. When multiple grounded facts are needed, use 2-4 sentences rather than a one-line reply.
             \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
@@ -587,7 +596,8 @@ extension RAGService {
             genConfig.systemPrompt = """
                 EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
                 \(intentSpecificInstructions)
-                Rules: Cite only the minimum supporting sources needed for each grounded point. Copy values VERBATIM. Answer exactly what was asked. Do NOT fill gaps with assumptions. NEVER invent numbers.
+                Rules: Cite only the minimum supporting sources needed for each grounded point. Copy values VERBATIM. Answer exactly what was asked. Do NOT fill gaps with assumptions. NEVER invent numbers. If a specific value is not in the excerpts, state that clearly.
+                \(Self.valueMustBeNamedRule)
                 ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
                 For procedures: preserve exact order, never omit steps, include feedback indicators.
                 Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, stay concise but include all materially supported details. Do not force a one-line answer when the evidence supports a fuller grounded explanation.
@@ -670,6 +680,14 @@ extension RAGService {
     func buildGenerationPrompt(
         selectedId: UUID, question: String, retrievalConfig: RetrievalConfig, qualityModeRequiresCitations: Bool
     ) -> (promptForGeneration: String, requiresCitations: Bool) {
+        let requiresCitations =
+            retrievalConfig.requireExplicitCitations
+            || qualityModeRequiresCitations
+        // A scoped ask goes alone: no memory and no chat history (5.9, `ConversationContextRules.usesConversation`).
+        guard ConversationContextRules.usesConversation(scope: RAGQueryScope.documentIds) else {
+            Log.info("[ConversationMemory] Scoped ask: the question goes without earlier turns", category: .retrieval)
+            return (promptForGeneration: question, requiresCitations: requiresCitations)
+        }
         // Inject conversational history to support follow-up questions
         // e.g. "What is it?" uses history to resolve "it"
         let history = chatHistory(for: selectedId)
@@ -700,7 +718,8 @@ extension RAGService {
             let memoryContext = ConversationMemoryService.shared.contextInjection(
                 for: selectedId, query: question, documentsChangedAt: documentsChangedAt)
             if !memoryContext.isEmpty {
-                historyContext = Self.earlierTurnsFraming + Self.withoutHeadingMarks(memoryContext) + "\nCURRENT QUESTION: "
+                historyContext =
+                    Self.earlierTurnsFraming + Self.withoutHeadingMarks(memoryContext) + "\nCURRENT QUESTION: "
                 Log.debug(
                     "[ConversationMemory] Injected memory context (\(memoryContext.count) chars)",
                     category: .retrieval)
@@ -720,9 +739,6 @@ extension RAGService {
                 }.joined(separator: "\n") + "\n\nCURRENT QUESTION: "
         }
 
-        let requiresCitations =
-            retrievalConfig.requireExplicitCitations
-            || qualityModeRequiresCitations
         // System prompt already contains citation and format instructions
         // Don't add conflicting instructions that cause overly brief responses
         let promptForGeneration: String = historyContext + question

@@ -325,8 +325,11 @@ extension RAGService {
             // Build conversation context for pronoun resolution
             // Use ConversationMemoryService for enhanced entity-aware context if available
             // Respect both quality mode toggle and user settings
+            // A scoped ask is rewritten against nothing earlier (5.9, `ConversationContextRules.usesConversation`).
+            let usesConversation = ConversationContextRules.usesConversation(scope: RAGQueryScope.documentIds)
             let conversationMemoryEnabled =
-                qualityModeUsesConversationMemory && (settingsStore?.enableConversationMemory ?? true)
+                usesConversation && qualityModeUsesConversationMemory
+                && (settingsStore?.enableConversationMemory ?? true)
             var recentTurns: [ConversationTurn] = []
             // No refused answer and nothing from before the library's documents last changed (5.8,
             // `ConversationContextRules`): the rewritten question is what retrieval and the gates then see.
@@ -355,7 +358,7 @@ extension RAGService {
             }
 
             // Fallback to raw chat history if memory didn't provide context
-            if recentTurns.isEmpty {
+            if recentTurns.isEmpty, usesConversation {
                 let conversationHistory = chatHistory(for: selectedId)
                 recentTurns =
                     ConversationContextRules.usableEarlierMessages(

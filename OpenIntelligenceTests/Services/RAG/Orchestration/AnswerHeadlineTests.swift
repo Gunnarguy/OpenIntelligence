@@ -69,10 +69,18 @@ final class AnswerHeadlineTests: XCTestCase {
         let prompt = "PREVIOUS CONVERSATION:\nUser: How many participants received the creatine mix?\nAssistant: 16 [S3]\n\nCURRENT QUESTION: " + question
         let judged = RAGService.judgedQuestion(prompt: prompt, question: question)
         XCTAssertTrue(judged.hasPrefix(question), "the question comes first, alone")
-        XCTAssertTrue(judged.contains("for reference only"))
-        XCTAssertTrue(judged.contains("creatine mix"), "a follow-up can still be read against the turns before it")
-        XCTAssertFalse(judged.contains("CURRENT QUESTION"))
+        // Since 5.9 a question that stands alone is judged alone (`ConversationContextRules.pointsBack`).
+        XCTAssertEqual(judged, question)
         XCTAssertEqual(RAGService.judgedQuestion(prompt: question, question: question), question)
+        let followUp = "And how many of them dropped out?"
+        let followUpPrompt =
+            "PREVIOUS CONVERSATION:\nUser: How many participants received the creatine mix?\nAssistant: 16 [S3]\n\nCURRENT QUESTION: "
+            + followUp
+        let judgedFollowUp = RAGService.judgedQuestion(prompt: followUpPrompt, question: followUp)
+        XCTAssertTrue(judgedFollowUp.hasPrefix(followUp), "the question comes first, alone")
+        XCTAssertTrue(judgedFollowUp.contains("for reference only"))
+        XCTAssertTrue(judgedFollowUp.contains("creatine mix"), "a follow-up can still be read against the turns before it")
+        XCTAssertFalse(judgedFollowUp.contains("CURRENT QUESTION"))
     }
 
     func testAPapersOwnReferenceNumbersComeOutOfAnAnswer() {

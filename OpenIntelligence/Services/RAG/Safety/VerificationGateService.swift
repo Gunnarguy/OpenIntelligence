@@ -1864,6 +1864,13 @@ actor VerificationGateService {
         }
     }
 
+    /// Whether a sentence states a value the numeric gate counts, other than a plain year (5.9).
+    nonisolated static func statesValue(_ text: String) -> Bool {
+        NumericValueExtractor.mentions(inAnswer: text).contains {
+            NumericValueExtractor.isCountedByGate($0) && !isYear($0)
+        }
+    }
+
     /// Check if claim text appears in corpus (fuzzy matching)
     func isClaimCovered(claim: String, inCorpus corpus: String, query: String) -> Bool {
         // Extract key terms from claim (nouns, numbers, codes)
@@ -1881,20 +1888,26 @@ actor VerificationGateService {
             return true
         }
 
-        // Also extract numbers
-        keyTerms.append(contentsOf: extractNumbers(from: claim))
-
         // A sentence the tagger finds no nouns in (a language it does not tag, or a tagger that tags nothing, as the
         // iOS 27 Simulator's did for "The security deposit is two months of rent.") is checked on its content words
-        // instead of passing as covered with nothing compared (5.7).
+        // instead of passing as covered with nothing compared (5.7). Since 5.9 also when the tagger found only
+        // numbers: such a sentence was judged on its number alone, so "The warranty coverage for the battery pack is
+        // 45 C." was covered by any passage holding 45.
         // Not for a script written without spaces: its "words" would be whole clauses, found only in a verbatim copy.
-        if keyTerms.isEmpty && !Self.usesUnspacedScript(claim) {
+        if !keyTerms.contains(where: { $0.contains(where: \.isLetter) }) && !Self.usesUnspacedScript(claim) {
             keyTerms = Self.contentWordTerms(in: claim)
         }
+
+        // Also extract numbers
+        keyTerms.append(contentsOf: extractNumbers(from: claim))
         guard !keyTerms.isEmpty else { return true }  // No words at all to compare
 
-        // Extract query terms as a set
-        let queryTerms = Set(extractQueryAnchorTerms(from: query))
+        // The question's words count as found only in a claim that states no value (5.9, 2026-11-23). A claim that
+        // states one must find in the passages the words that say what the value is: "The warranty coverage for the
+        // battery pack is 45 C [S20]" was covered because "warranty" and "coverage" were in the question, while the
+        // passage gave 45 C as a table's "Primary answer" (`Docs/ai/plans/consistent-answers.md`, item 3). A claim
+        // without a value, such as a restated question in a refusal, keeps the question's words.
+        let queryTerms = Self.statesValue(claim) ? Set<String>() : Set(extractQueryAnchorTerms(from: query))
 
         // Require majority of key terms to appear in corpus or query
         let foundCount = keyTerms.filter { term in

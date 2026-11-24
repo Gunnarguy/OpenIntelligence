@@ -271,7 +271,6 @@ extension RAGService {
         let qualityModeUsesParentDocRetrieval = qualityMode.usesParentDocumentRetrieval
         let qualityModeMaxSiblingChunks = qualityMode.maxSiblingChunks
         let qualityModeUsesContextualCompression = qualityMode.usesContextualCompression
-        let _ = qualityMode.specificationBoostWeight  // Reserved for future spec-table boosting
         let qualityModeUsesConversationMemory = qualityMode.usesConversationMemory
         let qualityModeMaxConversationTurns = qualityMode.maxConversationTurns
 

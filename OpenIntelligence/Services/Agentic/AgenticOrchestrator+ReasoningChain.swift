@@ -1482,7 +1482,7 @@ extension AgenticOrchestrator {
             NOTES FROM EACH READING PASS (written by the model while reading; they can be wrong):
             \(notesBlock)
 
-            \(RetrievalAblation.isOff(.answerFirst) ? "" : Self.answerFirstInstruction)Write a comprehensive, detailed answer to: "\(query)"
+            Write a comprehensive, detailed answer to: "\(query)"
             Take every number, name, date and value from the SOURCE PASSAGES, written exactly as it appears there. Use the notes to see what each pass found and where; when a note and a passage differ, the passage is right.
             If the passages do not answer part of the question, say so for that part instead of guessing.\(RetrievalAblation.isOff(.answerFirst) ? "" : " " + Self.noFalseAbsenceInstruction)
             Write in flowing prose with complete sentences and full paragraphs. Use ### section headers to organize topics. Use **bold** sparingly for key terms only. Use bullets only for actual sequential steps or specification lists.
@@ -1517,8 +1517,14 @@ extension AgenticOrchestrator {
 extension AgenticOrchestrator {
     /// The first thing Deep Think's final step is told (5.8, `RetrievalAblation.answerFirst`): the answer comes first,
     /// then the full, detailed explanation, which keeps its depth. Ends with a line break, as the next line opens.
+    ///
+    /// Reworded in 5.9 (2026-11-23), and sent once, in the system prompt; the source-passages prompt also carried it.
+    /// Its 5.8 wording ended in a colon and a noun phrase ("...directly: the exact value, name or finding, written as
+    /// the source writes it, with its [S#] label."), and 13 of 360 Deep Think answers in the answer test began with
+    /// that phrase as if it were a label. Maximum, which has it once, had none (`Docs/ai/plans/consistent-answers.md`,
+    /// item 5).
     nonisolated static let answerFirstInstruction =
-        "Begin your answer with one sentence that answers the question directly: the exact value, name or finding, written as the source writes it, with its [S#] label. After that sentence comes the full answer below.\n"
+        "Begin your answer with one sentence that answers the question directly and cites its [S#] label, with any value or name in it written as the source writes it. After that sentence comes the full answer below.\n"
     /// No value called missing that a passage gives (5.8): 19 of 53 table answers said a value was absent or not
     /// stated, some while giving it, one while its own sources held it.
     nonisolated static let noFalseAbsenceInstruction =

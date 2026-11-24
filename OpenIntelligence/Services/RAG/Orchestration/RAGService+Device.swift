@@ -515,7 +515,6 @@ enum RAGServiceError: LocalizedError {
     case routingAbstained
 
     case noRelevantContext
-    case maximumModeQuotaReached(limit: Int)
     case cloudConsentDenied(provider: CloudProvider)
     case cloudConsentUnavailable(provider: CloudProvider)
     /// An import named a library that has been deleted since (5.8). It is not put in the open library instead.
@@ -541,8 +540,6 @@ enum RAGServiceError: LocalizedError {
         case .rebuildBlockedByQueue(let blocked):
             return
                 "Could not rebuild the search index: \(blocked) document(s) are still being processed. Try again once the import queue is clear."
-        case .maximumModeQuotaReached(let limit):
-            return "Maximum mode is limited to \(limit) uses per day on the free tier"
         case .cloudConsentDenied(let provider):
             return "Cloud transmission denied for \(provider.shortName)"
         case .cloudConsentUnavailable(let provider):

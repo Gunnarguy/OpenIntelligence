@@ -127,26 +127,6 @@ enum RAGQualityMode: String, Identifiable, Sendable {
         }
     }
 
-    /// Configuration for iterative retrieval
-    var iterativeRetrievalConfig: IterativeRetrievalConfig {
-        switch canonical {
-        case .standard: return .thorough // High quality
-        case .deepThink: return .thorough // Max quality per step
-        case .maximum: return .thorough // Max quality
-        default: return .thorough
-        }
-    }
-
-    /// Maximum iterations for iterative retrieval
-    var maxRetrievalIterations: Int {
-        switch canonical {
-        case .standard: return 2
-        case .deepThink: return 5 // Orchestrator controls overall flow
-        case .maximum: return 20 // Unlimited mode
-        default: return 2
-        }
-    }
-
     /// Whether to use the AgenticOrchestrator for multi-session reasoning
     var usesAgenticOrchestrator: Bool {
         canonical == .deepThink || canonical == .maximum
@@ -155,23 +135,6 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     /// Whether this is the unlimited "Maximum" mode
     var isUnlimitedMode: Bool {
         canonical == .maximum
-    }
-
-    /// Whether this mode benefits from RAPTOR-lite summaries
-    /// Standard mode benefits most from summary-first retrieval for overview queries
-    /// Deep Think/Maximum use summaries as starting points but still do deep retrieval
-    var benefitsFromSummaries: Bool {
-        true // All modes benefit - summaries provide faster initial context
-    }
-
-    /// Whether to suggest using summaries for overview queries in this mode
-    var preferSummariesForOverview: Bool {
-        switch canonical {
-        case .standard: return true   // Strongly prefer summaries (massive token savings)
-        case .deepThink: return true  // Use summaries as starting point
-        case .maximum: return true    // Even Maximum benefits from summary context
-        default: return true
-        }
     }
 
     /// Agentic orchestrator configuration
@@ -204,16 +167,6 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     /// MMR balances relevance with diversity to avoid redundant chunks
     var usesMMR: Bool {
         true // All modes benefit from diversity
-    }
-
-    /// MMR lambda parameter (0.0 = max diversity, 1.0 = max relevance)
-    var mmrLambda: Float {
-        switch canonical {
-        case .standard: return 0.60  // Balanced relevance/diversity
-        case .deepThink: return 0.55 // Slightly more diversity for multi-hop
-        case .maximum: return 0.50   // Maximum diversity for comprehensive coverage
-        default: return 0.60
-        }
     }
 
     /// Whether to run verification gates after generation
@@ -283,17 +236,6 @@ enum RAGQualityMode: String, Identifiable, Sendable {
         }
     }
 
-    /// Boost weight for specification-heavy chunks (tables, numbered lists)
-    /// Higher = prefer structured/spec content for lookup queries
-    var specificationBoostWeight: Float {
-        switch canonical {
-        case .standard: return 1.2   // Moderate boost
-        case .deepThink: return 1.3  // Stronger preference for specs
-        case .maximum: return 1.5    // Maximum spec preference
-        default: return 1.2
-        }
-    }
-
     /// Whether to use conversation memory for multi-turn context
     var usesConversationMemory: Bool {
         true // All modes benefit from conversation context
@@ -307,34 +249,5 @@ enum RAGQualityMode: String, Identifiable, Sendable {
         case .maximum: return 20     // Maximum context
         default: return 5
         }
-    }
-
-    // MARK: - Feature Configuration Summary
-
-    /// Returns a dictionary of all feature toggles for logging/debugging
-    var featureToggles: [String: Any] {
-        [
-            "usesHyDE": usesHyDE,
-            "usesReRanking": usesReRanking,
-            "usesMMR": usesMMR,
-            "mmrLambda": mmrLambda,
-            "usesVerificationGates": usesVerificationGates,
-            "verificationConfidenceThreshold": verificationConfidenceThreshold,
-            "usesQueryExpansion": usesQueryExpansion,
-            "maxQueryExpansions": maxQueryExpansions,
-            "usesContainerVocabulary": usesContainerVocabulary,
-            "usesParentDocumentRetrieval": usesParentDocumentRetrieval,
-            "maxSiblingChunks": maxSiblingChunks,
-            "usesContextualCompression": usesContextualCompression,
-            "specificationBoostWeight": specificationBoostWeight,
-            "usesConversationMemory": usesConversationMemory,
-            "maxConversationTurns": maxConversationTurns,
-            "usesQueryRewriting": usesQueryRewriting,
-            "usesIterativeRetrieval": usesIterativeRetrieval,
-            "usesAgenticOrchestrator": usesAgenticOrchestrator,
-            "initialTopK": initialTopK,
-            "minSimilarity": minSimilarity,
-            "temperature": temperature,
-        ]
     }
 }

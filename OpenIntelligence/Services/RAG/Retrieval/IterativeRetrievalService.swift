@@ -79,13 +79,6 @@ struct IterativeRetrievalConfig: Sendable {
         minChunks: 3,
         useLLMRefinement: false
     )
-
-    nonisolated static let thorough = IterativeRetrievalConfig(
-        maxIterations: 4,
-        confidenceThreshold: 0.75,
-        minChunks: 8,
-        useLLMRefinement: true
-    )
 }
 
 /// Service for multi-pass retrieval with self-correction.

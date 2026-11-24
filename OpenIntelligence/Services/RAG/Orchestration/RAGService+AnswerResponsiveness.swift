@@ -52,13 +52,21 @@ extension RAGService {
     /// question before it), so a good answer was called incomplete and rewritten into "The provided sources do not
     /// contain information regarding participants receiving a creatine mix" under a "Recent Conversation" heading.
     /// The earlier turns stay, for a follow-up that points back ("And the second one?"), marked as context.
+    ///
+    /// Since 5.9 they stay only for such a follow-up (`ConversationContextRules.pointsBack`). Given them for a question
+    /// that stands alone, the judge checked the answer's facts against them and called a right token wrong, and the
+    /// rewrite put the earlier answer's token in its place (2026-11-22).
     nonisolated static func judgedQuestion(prompt: String, question: String) -> String {
         let asked = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !asked.isEmpty, !ConversationContextRules.pointsBack(asked) { return asked }
         let whole = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !asked.isEmpty, whole != asked, whole.hasSuffix(asked) else { return whole.isEmpty ? asked : whole == asked ? asked : whole }
+        guard !asked.isEmpty, whole != asked, whole.hasSuffix(asked) else {
+            return whole.isEmpty ? asked : whole == asked ? asked : whole
+        }
         var earlier = String(whole.dropLast(asked.count)).trimmingCharacters(in: .whitespacesAndNewlines)
         if earlier.uppercased().hasSuffix("CURRENT QUESTION:") {
-            earlier = String(earlier.dropLast("CURRENT QUESTION:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            earlier = String(earlier.dropLast("CURRENT QUESTION:".count)).trimmingCharacters(
+                in: .whitespacesAndNewlines)
         }
         guard !earlier.isEmpty else { return asked }
         return """
@@ -121,7 +129,8 @@ extension RAGService {
             judged = ResponsivenessJudgment(verdict: .none, askedFor: "", missing: "", seconds: 0)
         } else {
             judged = await judgeResponsiveness(
-                question: Self.judgedQuestion(prompt: question, question: currentQuestion), answer: responseText, stage: "generated")
+                question: Self.judgedQuestion(prompt: question, question: currentQuestion), answer: responseText,
+                stage: "generated")
         }
         guard let first = judged else { return nil }
         guard first.verdict != .full else { return first }
@@ -162,7 +171,8 @@ extension RAGService {
         let candidate = cleanupResponseText(regenerated.text)
         guard
             let second = await judgeResponsiveness(
-                question: Self.judgedQuestion(prompt: question, question: currentQuestion), answer: candidate, stage: "rewritten"),
+                question: Self.judgedQuestion(prompt: question, question: currentQuestion), answer: candidate,
+                stage: "rewritten"),
             Self.responsivenessRank(second.verdict) > Self.responsivenessRank(first.verdict)
         else {
             Log.warning(

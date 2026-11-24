@@ -1504,6 +1504,18 @@ python3 scripts/ask_twice.py report --tag item8
 When other sessions hold the disk, `OI_TWICE_MIN_FREE_GIB=12 OI_BENCH_MIN_FREE_GB=12` lowers the start floor from 15 GiB;
 a run took about 6 GiB at its peak (17 GiB free fell to 11, 2026-11-23), so watch for under 3 GiB and stop it there.
 
+**Unattended, several runs (2026-11-23).** `scripts/ask_twice_queue.sh REF TAG "ENV=VAL ..." mode:sampling:repeat ...`
+runs each step under the build lock, skips a step already complete, waits while a game is open or under 10 GiB is free,
+tries each step three times, and logs to `~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/queue.log`
+(`OI_QUEUE_DIR` moves it). `FIXTURES_FROM=a67ae343^` in its environment runs on 5.8's unlabelled exact-value tables
+(`ask_twice.py run --fixtures-from`). Start it in a Terminal tab, not with `nohup`. Unit test classes run the same way on a
+copy outside iCloud: `scripts/unit_on_copy.sh LABEL Class ...` (summary in `unit-LABEL/summary.txt` there). Never edit
+either script while it runs; bash reads a script as it goes.
+
+```bash
+bash scripts/ask_twice_queue.sh HEAD mytag "TEST_RUNNER_OI_EVAL_MEMORY=keep" standard:shipped:2
+```
+
 ## UI before and after, side by side (added 2026-11-20)
 
 ```bash

@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-11-23: preparing MOVES TO 5.9. At the owner's word (\"Proceed: implement until this is all said and done\") CHANGELOG.md now carries '## 5.9 <!-- unreleased -->' and 5.8's heading is dated November 21, 2026. No 5.9 record exists in App Store Connect yet (the owner creates it) and no Xcode Cloud build has run. app_store stays 5.8 on both platforms and in_review stays empty.",
     "2026-11-21: 5.8 IS LIVE ON BOTH PLATFORMS (the Mac since 2026-11-20, iPhone and iPad since 2026-11-21, as first seen by the release watcher ~/.agents/bin/oi_release_watch.py, which reads App Store Connect every 30 minutes). Both records were set to release automatically on approval (AFTER_APPROVAL) with build 509 from 8e14838. app_store and both per-platform values are 5.8 and in_review is empty. preparing stays 5.8 because no next version is open; the next source change needs a 5.9 heading in CHANGELOG.md first.",
     "2026-11-20: 5.8 IS LIVE ON THE MAC (the Mac since 2026-11-20, as first seen by the release watcher ~/.agents/bin/oi_release_watch.py, which reads App Store Connect every 30 minutes). Both records were set to release automatically on approval (AFTER_APPROVAL) with build 509 from 8e14838. app_store stays 5.7, the value that does not overclaim to a visitor on the platform still in review; it moves when both are live.",
     "2026-11-19 (latest, ~15:50 PT): 5.8 IS IN REVIEW AGAIN, NOW WITH BUILD 509. At the owner's word the build-506 submissions were cancelled (both records read DEVELOPER_REJECTED) to carry fixes found on his iPhone after 506: \"[S#]\" placeholders in Deep Think answers (1ce0902b), the app killed when an answer's background task expired (ac4c0cd8), and two scene-update watchdog kills drawing long answers (c3e31d40, 8e148387). Build 509 from 8e148387 (Xcode Cloud #509; #507 and #508 were superseded the same afternoon) was attached and submitted through the API: iOS submission 001409e4-6240-4bc3-995f-da87a11f5fa3, macOS submission f3ea2da1-a3d5-4d47-ac5e-2a3098b738be, both WAITING_FOR_REVIEW, release AFTER_APPROVAL. Text, screenshots and review notes were read back first and matched. app_store stays 5.7 until 5.8 is released.",
@@ -83,8 +84,8 @@
     "ios": "5.8",
     "macos": "5.8"
   },
-  "preparing": "5.8",
+  "preparing": "5.9",
   "in_review": {},
-  "updated": "2026-11-21",
+  "updated": "2026-11-23",
   "verified_against": "Read from App Store Connect 2026-11-21 via the API by the release watcher: iOS 5.8 READY_FOR_SALE (READY_FOR_DISTRIBUTION), macOS 5.8 READY_FOR_SALE (READY_FOR_DISTRIBUTION), build 509, release AFTER_APPROVAL."
 }

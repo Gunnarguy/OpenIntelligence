@@ -144,6 +144,29 @@ def complete(mode, sampling, runs_dir=pr.RUNS, tag=""):
     return False
 
 
+EXACT_FIXTURES = "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact"
+
+
+def swap_fixtures(ref, stage):
+    """Writes `ref`'s exact-value fixture files over the staged ones, and nothing else: the manifest and every other
+    file stay as staged. Measures a change against tables whose rows do not say what their value is."""
+    import subprocess
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    names = subprocess.run(["git", "ls-tree", "--name-only", f"{ref}:{EXACT_FIXTURES}"], cwd=root,
+                           capture_output=True, text=True, check=True).stdout.split()
+    if not names:
+        sys.exit(f"{ref} has no files under {EXACT_FIXTURES}")
+    for name in names:
+        body = subprocess.run(["git", "show", f"{ref}:{EXACT_FIXTURES}/{name}"], cwd=root, capture_output=True,
+                              check=True).stdout
+        target = os.path.join(stage, EXACT_FIXTURES, name)
+        if not os.path.isfile(target):
+            sys.exit(f"the staged copy has no {EXACT_FIXTURES}/{name}")
+        with open(target, "wb") as f:
+            f.write(body)
+    print(f"exact-value fixtures from {ref}: {', '.join(names)}", flush=True)
+
+
 def main():
     p = argparse.ArgumentParser(description="Ask every question several times in one imported library.")
     sub = p.add_subparsers(dest="command", required=True)
@@ -155,6 +178,8 @@ def main():
     r.add_argument("--dry-run", action="store_true")
     r.add_argument("--limit-hours", type=float, default=pr.LIMIT_HOURS)
     r.add_argument("--tag", default="", help="names runs made under other test rules (folder suffix)")
+    r.add_argument("--fixtures-from", default="", help="a git ref whose exact-value fixtures replace the staged ones "
+                   "(item 3, 2026-11-23: the unlabelled tables of 5.8, a67ae343^)")
     rp = sub.add_parser("report")
     rp.add_argument("--tag", default="")
     a = p.parse_args()
@@ -184,6 +209,8 @@ def main():
         shutil.rmtree(stage, ignore_errors=True)
         os.makedirs(SCRATCH, exist_ok=True)
         pr.stage(a.ref, stage, shell)
+        if a.fixtures_from:
+            swap_fixtures(a.fixtures_from, stage)
     code = pr.run_bench(env, [a.mode], shell, a.limit_hours)
     if code not in (None, 0):
         sys.exit(f"run {run_name(a.mode, a.sampling, a.tag)} ended with exit {code}")

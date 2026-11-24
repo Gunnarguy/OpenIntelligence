@@ -150,6 +150,60 @@ struct MemoryTurn: Codable, Sendable, Identifiable {
 /// person who re-imported fixed documents and kept getting refusals in the open chat until Clear Chat (2026-11-15):
 /// a refused answer never goes back into a prompt, and nothing from before the library's documents last changed does.
 nonisolated enum ConversationContextRules {
+    /// Whether a question reads and records the library's conversation (its memory and its chat history) (5.9,
+    /// 2026-11-23). A scoped ask ("Ask About a Document", a Siri or Shortcuts ask on named documents, `RAGQueryScope`)
+    /// answers from those documents alone and offers no follow-up, so it neither reads earlier turns nor leaves one.
+    /// Until 5.9 it did both, and an earlier answer about one document overrode the next document's own text: in the
+    /// answer test every wrong answer to the middle and end documents' token questions named another document's
+    /// token (34 of 34), and 7 had been right until the responsiveness check, given the earlier turns, rewrote them
+    /// (`Docs/ai/plans/consistent-answers.md`, "What the wrong answers show").
+    static func usesConversation(scope: Set<UUID>?) -> Bool {
+        scope?.isEmpty ?? true
+    }
+
+    /// Whether a question points back at earlier turns, so that it cannot be read without them (5.9, 2026-11-23):
+    /// it opens as a follow-up ("And the deposit?", "What about Project M2?"), names an earlier turn ("you
+    /// mentioned", "the other one"), has three words or fewer ("Why?"), or uses a pronoun before naming anything
+    /// itself ("When is it due?", "What does that mean?"). A pronoun after a name points inside the question: "Who
+    /// owns Project M1 and what is its reporting deadline?" does not point back.
+    ///
+    /// The answer check reads earlier turns only for such a question. Given them for a question that stands alone,
+    /// it judged the facts against them: it called LITM-MIDDLE-42, the one token in the passage it was answered from,
+    /// "incorrect ... instead of LITM-BEGINNING-42", an earlier answer's, and the rewrite replaced it
+    /// (`BenchmarkRuns/2026-11-22-0231-answer-modes-twice-standard-shipped`, app log lines 12500 and 12546).
+    static func pointsBack(_ question: String) -> Bool {
+        let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = text.lowercased()
+        let words = lower.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).map(String.init)
+        guard !words.isEmpty else { return false }
+        if words.count <= 3 { return true }
+        let leads = ["and ", "also ", "but ", "so ", "then ", "what about", "how about", "what else", "anything else"]
+        if leads.contains(where: lower.hasPrefix) { return true }
+        let references = [
+            "you said", "you mention", "you mentioned", "you just", "mentioned earlier", "said earlier",
+            "mentioned before",
+            "the previous", "previous answer", "your answer", "the last answer", "above", "the same one",
+            "the other one",
+            "the former", "the latter", "that one", "this one", "the first one", "the second one", "the last one",
+        ]
+        if references.contains(where: { lower.range(of: "\\b\($0)\\b", options: .regularExpression) != nil }) {
+            return true
+        }
+        let pronouns: Set<String> = [
+            "it", "its", "it's", "this", "that", "these", "those", "they", "them", "their", "he", "she", "him", "his",
+            "her",
+        ]
+        // A pronoun counts only before the question names something itself: a capitalised word after the first, or a
+        // word with a digit ("M1", "2032").
+        let tokens = text.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).map(String.init)
+        for (index, token) in tokens.enumerated() {
+            if pronouns.contains(token.lowercased()) { return true }
+            let names = index > 0 && (token.first?.isUppercase ?? false) || token.contains(where: \.isNumber)
+            if names { return false }
+        }
+        return false
+    }
+
     /// The gating decisions only a refusal records. "no_documents" is not one: an answer given without passages
     /// records it too. A refusal with that decision is caught by `StructuredAnswer.refuse` instead.
     static let refusalDecisions: Set<String> = [

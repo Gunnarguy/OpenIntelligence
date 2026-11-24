@@ -407,8 +407,10 @@ extension RAGService {
 
         // Record conversation turn for memory service (enables multi-turn context)
         // IMPORTANT: Fire-and-forget to avoid blocking response delivery
+        // A scoped ask leaves no turn (5.9, `ConversationContextRules.usesConversation`).
+        let usesConversation = ConversationContextRules.usesConversation(scope: RAGQueryScope.documentIds)
         let useConversationMemory = await MainActor.run { settingsStore?.enableConversationMemory ?? true }
-        if #available(iOS 26.0, *), useConversationMemory {
+        if #available(iOS 26.0, *), useConversationMemory, usesConversation {
             // A refusal is recorded as one and never given to the model again (5.8, `ConversationContextRules`).
             let refused = ConversationContextRules.isRefusal(
                 structuredAnswer: finalResponse.structuredAnswer,

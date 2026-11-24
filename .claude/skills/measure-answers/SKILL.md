@@ -17,6 +17,13 @@ Measured 2026-11-20 on the code of build 509: two runs of the same build in Stan
 before and one run after cannot show a change of 2 questions or fewer; use `--repeats 2` or more, and do not count
 those two questions as evidence. One pair of runs measured this, so the real spread may be wider.
 
+**Since 2026-11-23 the test itself is corrected** (item 8 of `Docs/ai/plans/consistent-answers.md`): the scoring rule
+counts a refusal that goes on to list other values as right and a value named after "not specified" as wrong, the
+exact-value fixtures label their values, and each ask starts with conversation memory empty. Under it, on 5.8's app
+code, each question asked twice in one library: Standard 20 and 18 of 20, Deep Think 18 and 17, Maximum 20 and 20.
+Compare a new run with runs made under the same rules: an old folder is re-scored by `scripts/score_answer_eval.py`,
+but its memory and fixtures were the old ones.
+
 ## The order
 
 1. **Baseline first, before the first edit.** `python3 scripts/paired_run.py pair --before HEAD --after HEAD`
@@ -40,6 +47,34 @@ python3 scripts/paired_run.py pair --before HEAD --after worktree --repeats 2
 
 `python3 scripts/paired_run.py compare <runA> <runB> [--noise <another run of A's build>]` compares run folders that
 already exist. `--dry-run` on `pair` prints every command and runs none.
+
+## Asking each question twice in one library (the default since 2026-11-23)
+
+`scripts/ask_twice.py run --mode <mode> --sampling shipped --repeat 2 --tag <name>` imports the fixtures once and asks
+every question twice in that one library, so it measures accuracy and whether an answer repeats in one run. `--tag`
+names runs made under other rules so old folders do not count as done; `report --tag <name>` prints the table. For
+several runs unattended, in a Terminal tab (it survives the session):
+
+```bash
+bash scripts/ask_twice_queue.sh <ref> <tag> "TEST_RUNNER_OI_EVAL_MEMORY=keep" standard:shipped:2 deepThink:shipped:2
+```
+
+Knobs the answer test reads (each with `TEST_RUNNER_` in front when set for a run): `OI_EVAL_MEMORY=keep` (asks the
+old way, each question after the earlier answers; how a memory change is measured), `OI_EVAL_STEP_TEMPERATURE` (only
+the 0.5 a Deep Think or Maximum step takes when it names none), `OI_EVAL_TEMPERATURE`, `OI_EVAL_SAMPLING`,
+`OI_EVAL_SEED`, `OI_EVAL_ADAPTIVE`. `ask_twice.py run --fixtures-from a67ae343^` measures on 5.8's unlabelled tables,
+where a value's row does not say what it is (how a change to value checks is measured).
+
+Durations measured 2026-11-23, two asks a question: Standard about 15 minutes, Deep Think and Maximum about 50. A run
+takes about 6 GiB of disk at its peak; under 10 GiB free the queue waits.
+
+Unit tests before any of this, on a copy outside iCloud and under the build lock:
+
+```bash
+bash scripts/unit_on_copy.sh <label> EarlierTurnsAndNamedValuesTests AnswerHeadlineTests
+```
+
+Never edit a shell script while it runs: bash reads it as it goes, and a run of 2026-11-23 ended with exit 127.
 
 ## When the question is "why do two runs differ", not "did my change help"
 

@@ -522,53 +522,6 @@ extension AgenticOrchestrator {
         return truncated + "…"
     }
 
-    /// Honest synthesis when confidence is low - acknowledges limitations
-    /// Uses proper consent flow for PCC
-    private func executeHonestSynthesis(
-        query: String,
-        searchResults: String,
-        confidence: RetrievalQuality,
-        ragService: RAGService
-    ) async throws -> ThinkingStep {
-        let __spSynthesisHonest = PipelineSignposts.synthesis.beginInterval("SynthesisHonest")
-        defer { PipelineSignposts.synthesis.endInterval("SynthesisHonest", __spSynthesisHonest) }
-        let startTime = Date()
-
-        // Truncate to fit in 4096 token budget
-        // Enhanced prompt ~250 tokens, query ~50, output ~800 = 1100 overhead
-        // Remaining: 4096 - 1100 = 2996 tokens ≈ 4200 chars, use 3000 for safety
-        let truncatedResults = String(searchResults.prefix(3000))
-
-        // Even for low-confidence, extract maximum value from available excerpts
-        let systemPrompt = """
-            The available excerpts may not directly answer the query, but extract MAXIMUM value:
-            - Cite sources [S1], [S2] for everything mentioned
-            - Include ANY procedures, specifications, or actions found
-            - Note related topics that might help the user
-            - Be specific about what the excerpts DO cover
-            - Include all technical details found, even if tangential
-            - ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions
-            """
-
-        let response = try await ragService.generateWithProperConsent(
-            prompt: query,
-            context: truncatedResults,
-            systemPrompt: systemPrompt,
-            maxTokens: 800,
-            disableTools: true
-        )
-
-        return ThinkingStep(
-            id: UUID(),
-            type: .synthesizing,
-            input: query,
-            output: response.text,
-            tokensUsed: response.tokensGenerated,
-            duration: Date().timeIntervalSince(startTime),
-            timestamp: startTime
-        )
-    }
-
     /// Decomposed pipeline for genuinely multi-faceted questions
     func executeDecomposedPipeline(
         query: String,

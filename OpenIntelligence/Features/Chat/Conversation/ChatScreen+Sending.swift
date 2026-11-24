@@ -673,18 +673,6 @@ extension ChatScreen {
                         return
                     }
 
-                    if case RAGServiceError.maximumModeQuotaReached(let limit) = error {
-                        self.stage = .idle
-                        self.resetStreamingState()
-                        self.generationStart = nil
-                        self.maximumModeLimitDialogMessage =
-                            "Free users get \(limit) Maximum runs per day. Switch to Standard or Deep Think, or upgrade for unlimited Maximum mode."
-                        self.showMaximumModeLimitDialog = true
-                        self.toastManager.clearAll()
-                        self.pushToast("Maximum capped for today", icon: "flame.fill", tint: .orange)
-                        return
-                    }
-
                     let friendlyMessage = userFacingErrorMessage(error)
                     self.toastManager.clearAll()
                     if !self.isAppeared {

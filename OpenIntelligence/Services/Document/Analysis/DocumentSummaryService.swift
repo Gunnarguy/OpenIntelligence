@@ -179,7 +179,10 @@ actor DocumentSummaryService {
             )
         }
 
-        Log.info("[DocumentSummary] Generated \(summaryText.split(separator: " ").count)-word summary", category: .pipeline)
+        // The fingerprint says whether two imports of one file wrote the same summary (5.9, item 6), without the text.
+        Log.info(
+            "[DocumentSummary] Generated \(summaryText.split(separator: " ").count)-word summary "
+                + "(fingerprint \(Self.fingerprint(summaryText)))", category: .pipeline)
 
         return summaryChunk
     }
@@ -324,6 +327,16 @@ actor DocumentSummaryService {
         }
     }
 
+    /// A stable 64-bit FNV-1a hash of the text, as 16 hex digits. Swift's own `hashValue` changes on every launch.
+    nonisolated static func fingerprint(_ text: String) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return String(format: "%016llx", hash)
+    }
+
     #if canImport(FoundationModels)
         @available(iOS 26.0, *)
         private func generateSummaryWithFoundationModels(prompt: String) async throws -> String {
@@ -341,7 +354,10 @@ actor DocumentSummaryService {
             await AnswerModelPriority.waitWhileAnswering(job: "documentSummary")
             return try await withThrowingTaskGroup(of: String.self) { group in
                 group.addTask {
-                    let response = try await session.respond(to: prompt)
+                    // Fixed sampling (5.9, 2026-11-23): with the framework's default the same file imported twice
+                    // got two summaries, which are stored and searched, so two imports of one library never answered
+                    // alike (`Docs/ai/plans/consistent-answers.md`, item 6). The house form, as in `HyDEService`.
+                    let response = try await session.respond(to: prompt, options: GenerationOptions(samplingMode: .greedy))
                     let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else {
                         throw DocumentSummaryError.emptyResponse

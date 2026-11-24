@@ -446,7 +446,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 > the search depth (step 3, usually 30 or more), not five, and packing decides how many reach the model. Through 5.6
 > this step changed nothing: the store hands passages back without their vectors, so MMR found every pair 0 alike.
 > 5.7 loads the stored vectors first.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryRetrieval.swift:906-949, RAGService+ToolHandler.swift:337-348, RAGService+IndexHealth.swift:308-314, KnowledgeContainer.swift:262-305]` `[evidence_level: grep_verified, confidence: exact, evidence_source: RAGQualityMode.mmrLambda is read only into featureToggles (RAGQualityMode.swift:320), which nothing reads, grep run 2026-10-20]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryRetrieval.swift:906-949, RAGService+ToolHandler.swift:337-348, RAGService+IndexHealth.swift:308-314, KnowledgeContainer.swift:262-305]` `[evidence_level: grep_verified, confidence: exact, evidence_source: RAGQualityMode.mmrLambda is read only into featureToggles (RAGQualityMode.swift:320), which nothing reads, grep run 2026-10-20]` Both were deleted in 5.9 (2026-11-23).
 
 ### Phase D · Arrange the desk
 

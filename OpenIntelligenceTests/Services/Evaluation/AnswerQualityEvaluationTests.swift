@@ -31,6 +31,8 @@
 //  - `OI_EVAL_SAMPLING` greedy, topk or topp. Greedy always takes the likeliest word and ignores temperature.
 //  - `OI_EVAL_SEED` an integer: random sampling with the draws held fixed.
 //  - `OI_EVAL_TEMPERATURE` a number, in place of the mode's own.
+//  - `OI_EVAL_STEP_TEMPERATURE` a number, in place of the 0.5 that a Deep Think or Maximum step naming no temperature
+//    takes (`RAGService.agenticDefaultTemperature`, 5.9 item 7); nothing else changes.
 //  - `OI_EVAL_ADAPTIVE` 1: the app's Settings switch for a temperature by the kind of question, on for the run.
 //  - `OI_EVAL_REPEAT` 2 to 5: each question is asked that many times in the same library; the first answer is graded
 //    and each later one is printed beside it (`again pass=N ... same=`), for `scripts/ask_twice.py`.
@@ -85,6 +87,7 @@ enum EvaluationSampling {
     static let strategyKey = "benchmarkSamplingStrategy"
     static let seedKey = "benchmarkSamplingSeed"
     static let temperatureKey = "benchmarkTemperature"
+    static let stepTemperatureKey = "benchmarkAgenticDefaultTemperature"
     /// The app's own Settings switch "adaptive profiles" (off by default): a temperature by the kind of question.
     static let adaptiveKey = "adaptiveInferenceProfiles"
 
@@ -107,6 +110,10 @@ enum EvaluationSampling {
             defaults.set(temperature, forKey: temperatureKey)
             said.append("temperature \(temperature)")
         }
+        if let temperature = environment["OI_EVAL_STEP_TEMPERATURE"].flatMap(Double.init) {
+            defaults.set(temperature, forKey: stepTemperatureKey)
+            said.append("default step temperature \(temperature)")
+        }
         if environment["OI_EVAL_ADAPTIVE"] == "1" {
             defaults.set(true, forKey: adaptiveKey)
             said.append("adaptive profiles on")
@@ -115,7 +122,7 @@ enum EvaluationSampling {
     }
 
     static func clear(defaults: UserDefaults = .standard) {
-        for key in [strategyKey, seedKey, temperatureKey, adaptiveKey] { defaults.removeObject(forKey: key) }
+        for key in [strategyKey, seedKey, temperatureKey, stepTemperatureKey, adaptiveKey] { defaults.removeObject(forKey: key) }
     }
 }
 
