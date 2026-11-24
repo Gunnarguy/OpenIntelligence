@@ -56,7 +56,9 @@
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "role": "shared", "blob": "10a5b31d9789e70391950c6c29620a8c64e3c629"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+TablePassages.swift", "role": "primary", "blob": "8b86955861519a977a7424c2e868116f8347cf71"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SummaryContextTests.swift", "role": "test", "blob": "323864304343bef15f7d730db1bbda0192836c35"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RerankerModelLocation.swift", "role": "primary", "blob": "d92d494795e96c8b4c30b369bb68b03d03930eb4"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RerankerModelLocation.swift", "role": "primary", "blob": "d92d494795e96c8b4c30b369bb68b03d03930eb4"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AnswerHeadline.swift", "role": "primary", "blob": "d1d971e313b1cba171afc466bc6556b1378ea001"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/EarlierTurnsAndNamedValuesTests.swift", "role": "test", "blob": "d440e28f8cd37cc79b9a98cb8eef3a6774453954"}
   ],
   "nodes": [
     {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 31, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},
@@ -214,15 +216,15 @@
       {"from": "RAGService", "type": "depends_on", "to": "VectorStoreAudit", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 342, "match": "func runVectorAudit(for containerId: UUID? = nil) async -> VectorStoreAudit? {"}]},
       {"from": "RAGService", "type": "depends_on", "to": "RetrievalLogEntry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 744, "match": "@MainActor @Published var retrievalHistory: [RetrievalLogEntry] = []"}]},
       {"from": "RAGService", "type": "depends_on", "to": "RAGAuditSnapshot", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 772, "match": "@MainActor @Published var lastAuditSnapshot: RAGAuditSnapshot?"}]},
-      {"from": "RAGService", "type": "depends_on", "to": "RetrievedChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1249, "match": ") async throws -> [RetrievedChunk] {"}]},
-      {"from": "RAGService", "type": "depends_on", "to": "RAGServiceError", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1251, "match": "guard !trimmed.isEmpty else { throw RAGServiceError.emptyQuery }"}]},
-      {"from": "RAGService", "type": "depends_on", "to": "RAGEngine", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1262, "match": "let engine = RAGEngine.shared"}]},
+      {"from": "RAGService", "type": "depends_on", "to": "RetrievedChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1253, "match": ") async throws -> [RetrievedChunk] {"}]},
+      {"from": "RAGService", "type": "depends_on", "to": "RAGServiceError", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1255, "match": "guard !trimmed.isEmpty else { throw RAGServiceError.emptyQuery }"}]},
+      {"from": "RAGService", "type": "depends_on", "to": "RAGEngine", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1266, "match": "let engine = RAGEngine.shared"}]},
       {"from": "RAGQueryScope", "type": "depends_on", "to": "RetrievedChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGQueryScope.swift", "line": 24, "match": "static func apply(to chunks: [RetrievedChunk]) -> [RetrievedChunk] {"}]},
       {"from": "RAGService", "type": "depends_on", "to": "ResponseMetadata", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 238, "match": "let metadata = ResponseMetadata("}]},
       {"from": "RAGService", "type": "depends_on", "to": "RAGQueryScope", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 280, "match": "let allChunks = RAGQueryScope.apply(to: try await db.readableChunks())  // narrowed when the question names documents"}]},
       {"from": "RAGService", "type": "depends_on", "to": "QueryRuntimeContext", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 373, "match": "runtimeContext: QueryRuntimeContext"}]},
-      {"from": "RAGService", "type": "depends_on", "to": "RAGAuditFeatureFlags", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 727, "match": "featureFlags: RAGAuditFeatureFlags("}]},
-      {"from": "RAGService", "type": "depends_on", "to": "ReembedProgress", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 400, "match": "progressHandler: (@MainActor (ReembedProgress) -> Void)? = nil"}]},
+      {"from": "RAGService", "type": "depends_on", "to": "RAGAuditFeatureFlags", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 736, "match": "featureFlags: RAGAuditFeatureFlags("}]},
+      {"from": "RAGService", "type": "depends_on", "to": "ReembedProgress", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 410, "match": "progressHandler: (@MainActor (ReembedProgress) -> Void)? = nil"}]},
       {"from": "RAGService", "type": "depends_on", "to": "RAGQuery", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "line": 32, "match": "ragQuery: RAGQuery,"}]},
       {"from": "RAGService", "type": "depends_on", "to": "RAGQueryScopeEmptyError", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "line": 451, "match": "throw RAGQueryScopeEmptyError()"}]},
       {"from": "RetrievalLogEntry", "type": "depends_on", "to": "RetrievedChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "line": 66, "match": "let chunks: [RetrievedChunk]"}]},
@@ -241,6 +243,6 @@
       {"from": "RAGService", "type": "tested_by", "to": "test:ConversationMemoryServiceTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/ConversationMemoryServiceTests.swift", "line": 307, "match": "for answer in [RAGService.notFoundAnswer, RAGService.plannerAbstention] {"}]},
       {"from": "ResponseMetadata", "type": "tested_by", "to": "test:ConversationMemoryServiceTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/ConversationMemoryServiceTests.swift", "line": 208, "match": "metadata: ResponseMetadata("}]}
     ],
-    "edges_omitted": 158
+    "edges_omitted": 167
   }
 }

@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-23 14:25
+Updated: 2026-11-23 21:30
 Branch/worktree: `main`, primary checkout
-Last verified commit: a67ae343
+Last verified commit: af080bd5
 
 ## Objective
 
@@ -127,19 +127,30 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
-**Item 8 is done (2026-11-23, commit a67ae343).** At the owner's word ("go ahead and start item 8 once greedy
-finishes"): the scoring rule corrected, the five exact-value fixtures labelled, and each test ask starts with
-conversation memory empty (`OI_EVAL_MEMORY=keep` for the old way). Re-scored over the 1,360 saved answers: Standard 82 to
-80%, Deep Think 80 to 85%, Maximum 87 to 89%. Its proof run, each mode as shipped and each question asked twice under
-the new test: Standard 20 and 18 of 20, Deep Think 18 and 17, Maximum 20 and 20; memory empty before all 116 recorded
-turns; the remaining misses are Standard's multi-hop deadline on one ask and Deep Think's "which document" answers
-(`Docs/ai/plans/consistent-answers.md`, "Item 8 done"; ledger entries of 2026-11-23). Maximum's two old-test runs were
-made first, from ba1dcd23: greedy 18 and 18 with no question changing sides.
+**5.9 is open and items 1 to 7 and 9 of the 5.9 proposal are built (b2d121fc, pushed), at the owner's word
+("Proceed: implement until this is all said and done").** `## 5.9` is open in `CHANGELOG.md` (5.8's heading dated
+November 21, 2026); `Docs/SHIPPED_VERSION.json` preparing is 5.9; no 5.9 record exists in App Store Connect and no
+Xcode Cloud build has run (every commit `[ci skip]`). What each item changed, and what was left out on purpose
+(Deep Think's length by intent, by his rule that its answers stay as long; the source-only re-check after
+Evidence-First; the privacy policy's version line), is in `Docs/ai/plans/consistent-answers.md`, "5.9: items 1 to 7
+and 9 built". Roadmap rows on `v5.9`, all In Progress until a check on his iPhone: items 1 to 6 (six rows filed
+2026-11-23) and item 9 on row 40049a74d54f81ad96e4d16a98c9a80d; item 7 on 41e49a74d54f81babdece4a65cd789c9.
 
-**Next, decided by the owner, not started: items 1 to 3** (conversation memory reaching a scoped ask and the checker
-rewriting a right answer; Standard stating a number that does not answer the question; the source-only re-check). They
-are app changes: open `## 5.9` in `CHANGELOG.md` first, and they need his `PROCEED: IMPLEMENT` with the plan in front of
-him. Measure item 1 with `TEST_RUNNER_OI_EVAL_MEMORY=keep` before and after.
+Measured so far (ask twice, ledger entry "2026-11-23 The 5.9 fixes, ask twice"): Standard 20, 20; Standard with memory
+kept 18, 18 before and 20, 20 after; Standard on 5.8's unlabelled tables 17, 18 before and 19, 19 after; Deep Think
+20, 20 (5.8: 18, 17). 234 unit tests pass on the Simulator. Xcode Cloud run 510: two `FiveChecksSimulatorTests` fail
+only in the cloud (they pass on this Mac at ff449e9d and b2d121fc); worth a Future Backlog row.
+
+**Running unattended at the owner's word ("Make this autonomous ... go go go"; "Silent Storm and ProtPhone first,
+then the rest of OpenIntelligence"):** `~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/resume-59c.sh`
+in a Terminal tab holds until the files `go-silentstorm` and `go-protphone` exist in that folder (written when those
+sessions say their builds are through; ProtPhone's own limit is 21:50), then runs Deep Think at step temperature 0.2
+(tag `step02`), 0.1 (`step01`) and Maximum (`59a`) on b2d121fc. A session heartbeat (every 20 minutes) restarts a
+stalled step. When `ALL 5.9 QUEUES DONE` is in `queue.log`: set Deep Think's default in
+`RAGService.agenticDefaultTemperature` by the rule in the script's header (most right, then fewest flips, then most
+same words, else keep 0.5; Deep Think only), its unit test, the ledger, the plan, the item 7 changelog entry and the
+Notion rows, then commit `[ci skip]` and push. After that: each row's check on his iPhone (`device-pass`), the
+retrieval benchmark and golden harnesses for his rule 6, and item 6's proof (two imports, same summary fingerprints).
 
 The Mac is kept awake by `caffeinate -dimsu` in its own Terminal tab at the owner's word ("keep my mac awake ... until i
 say otherwise"); stop that tab only when he says so.

@@ -1997,3 +1997,41 @@ multi-hop deadline on one ask in two; Deep Think's "which document" answers (ite
 
 **What it did not settle.** Greedy under the new test; how much of the memory defect a user meets (item 1, measured
 with `OI_EVAL_MEMORY=keep`); a phone; any other question set.
+
+### 2026-11-23 The 5.9 fixes, ask twice (`2026-11-23-1602-answer-modes-twice-standard-shipped-keepbefore`, `2026-11-23-1832-answer-modes-twice-standard-shipped-59a`, `2026-11-23-1848-answer-modes-twice-standard-shipped-keepafter`, `2026-11-23-1904-answer-modes-twice-standard-shipped-unlabelledbefore`, `2026-11-23-1918-answer-modes-twice-standard-shipped-unlabelledafter`, `2026-11-23-1941-answer-modes-twice-deepThink-shipped-59a`)
+
+Before: ff449e9d (5.8's app code, corrected test). After: b2d121fc (items 1 to 7 and 9 of the 5.9 proposal,
+`Docs/ai/plans/consistent-answers.md`). Each question asked twice in one imported library, as shipped. "Memory kept"
+is `TEST_RUNNER_OI_EVAL_MEMORY=keep` (each ask after the earlier answers, as a user meets it); "unlabelled" is
+`ask_twice.py --fixtures-from a67ae343^` (5.8's exact-value tables, whose rows say "Primary answer"). iOS 27.0
+Simulator, the app's own model service. `[evidence_level: measured, confidence: medium: one run each, one 20-question
+set]`
+
+| Run | Code | Right of 20, each ask | Same words both asks | Changed sides | Misses | Median s an ask |
+|---|---|---|---|---|---|---|
+| Standard | after | 20, 20 | 40% (8) | 0 | none | 15 |
+| Standard, memory kept | before | 18, 18 | 70% (14) | 0 | lost_in_middle_end both asks (another document's token), multi_hop_project_m1 both | 15 |
+| Standard, memory kept | after | 20, 20 | 55% (11) | 0 | none | 14.5 |
+| Standard, unlabelled tables | before | 17, 18 | 50% (10) | 1 | exact_capex both ("not specified"), retrieval_nfcorpus_epsilon both, multi_hop_project_m2 once | 13 |
+| Standard, unlabelled tables | after | 19, 19 | 40% (8) | 0 | exact_capex both ("not specified") | 14 |
+| Deep Think | after | 20, 20 | 15% (3) | 0 | none | 66 |
+
+**What it settled.** Item 1: with memory kept, the end document's token went from wrong on both asks to right on both;
+the after run's log shows all 6 scoped asks with no earlier turns ("Scoped ask: the question goes without earlier
+turns"), while memory still grew for the unscoped ones (up to "Recent: 9"). Item 4: Deep Think named every "which
+document" file right on both asks (5.8 under the same test: 18, 17). Item 5: no answer in any run began with the
+instruction's words (0 of 240). Speed: Standard's median was 15 s in the before run of the same evening too, so the
+fixes cost no measurable time (the 13 s of the morning's item-8 run is the time of day).
+
+**What it did not settle.** Item 3's own case did not occur: on the unlabelled tables the before code refused the
+warranty question on both asks this time, where it had stated "45 C" in 4 of 18 asks on 2026-11-21 and 22, so the gate
+change is shown by its unit tests, not by this run. Capex on the unlabelled table is now refused ("not specified")
+rather than guessed; that is the honest answer for a row that says "Primary answer". Item 6 (summaries repeat) needs
+two imports compared by their `[DocumentSummary] ... fingerprint` lines. Maximum and the step-temperature runs are
+queued. One question set; no phone.
+
+### 2026-11-23 Deep Think at step temperature 0.2, stopped (`2026-11-23-2041-answer-modes-twice-deepThink-shipped-step02`)
+
+Stopped by hand about 3 minutes in, at the owner's word, so his ProtPhone and SilentStorm archives could build first.
+It holds no answers. The queue makes the run again under the same tag. `[evidence_level: measured (the folder holds
+only the start of a build log)]`

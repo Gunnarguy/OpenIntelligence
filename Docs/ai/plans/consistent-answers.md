@@ -535,3 +535,39 @@ Each mode as shipped, every question asked twice in one imported library, memory
 
 Item 8 is done. Items 1 to 3 change the app and wait for the owner's `PROCEED: IMPLEMENT`; item 1 is measured with
 `TEST_RUNNER_OI_EVAL_MEMORY=keep` (the old way) before and after the change.
+
+## 5.9: items 1 to 7 and 9 built (2026-11-23)
+
+At the owner's word ("Proceed: implement until this is all said and done"), commit b2d121fc. `## 5.9` is open in
+`CHANGELOG.md`; roadmap rows on `v5.9`.
+
+| # | What was built | Where | Left out, and why |
+|---|---|---|---|
+| 1 | A scoped ask neither reads nor records the conversation: bare prompt, no rewrite against earlier turns, no turn added | `ConversationContextRules.usesConversation(scope:)`, used in `buildGenerationPrompt`, `rewriteQueryWithModel`, `finalizeResponse` | Unscoped Chat asks still get memory in the prompt: a follow-up with no pronoun ("What did the study conclude?") needs it |
+| 2 | The answer check gets earlier turns only when the question points back at them | `ConversationContextRules.pointsBack`, read by `RAGService.judgedQuestion` | |
+| 3 | A value-stating claim needs the words saying what the value is in the passages (Gate B); content-word fallback when the tagger finds only numbers; both Standard prompts carry `valueMustBeNamedRule`; Evidence-First says to state a missing value | `VerificationGateService.isClaimCovered`, `statesValue`; `RAGService+QueryAnswer.swift` | The source-only re-check after Evidence-First: its own guards decline a non-extractive question and keep any non-precision abstention, so it would cost a model call and change nothing on the measured case. A lexical row-label verdict in Gate C: it would fail right answers whose question shares no word with the row ("gallons of gasoline" against "Fuel tank capacity") |
+| 4 | Only the cited source's file counts as already named | `RAGService.namingTheCitedDocument` | |
+| 5 | The answer-first instruction reworded with no colon-led phrase, sent once (system prompt) | `AgenticOrchestrator.answerFirstInstruction` | Deep Think's length by intent: the owner's rule is that Deep Think answers stay as long |
+| 6 | Import summaries with fixed sampling; a fingerprint of each in its log line | `DocumentSummaryService` | |
+| 7 | One function for the agentic default step temperature, and a test-only override of it (`OI_EVAL_STEP_TEMPERATURE`) | `RAGService.agenticDefaultTemperature` | The value is chosen by the runs, by the rule written in the queue script's header before they ran: most right answers, then fewest flips, then most same words, else keep 0.5 |
+| 9 | Unread mode settings and dead paths deleted (160 lines) | `RAGQualityMode.swift` and six others | The privacy policy's "This policy describes version 5.7": its text is shared with the public page on gunndamental.com, so it changes after a read of what 5.8 and 5.9 send |
+
+Tests: 234 on the iOS 27 Simulator, 0 failures (14 new in `EarlierTurnsAndNamedValuesTests`). Xcode Cloud run 510
+(full suite, three devices): 1,926 to 1,927 passed a device; two `FiveChecksSimulatorTests` failed there that pass on
+this Mac on both ff449e9d and b2d121fc, so they fail only in the cloud environment (they were added after run 498, the
+last cloud test run). `[test_verified]`
+
+### Measured (ask twice; the ledger entry "2026-11-23 The 5.9 fixes, ask twice" has every folder)
+
+| Run | Before (ff449e9d) | After (b2d121fc) |
+|---|---|---|
+| Standard | 20, 18 (item 8's run) | **20, 20** |
+| Standard, memory kept | 18, 18 (end token from another document, both asks) | **20, 20** |
+| Standard, unlabelled tables | 17, 18 | **19, 19** (capex refused, "not specified") |
+| Deep Think | 18, 17 (item 8's run) | **20, 20** |
+| Maximum | 20, 20 (item 8's run) | queued |
+| Deep Think, step temperature 0.2 and 0.1 | | queued |
+
+Standard's median is 15 s an ask before and after on the same evening. No answer began with the instruction's words.
+Item 3's own case did not occur in the before run this time (it refused the warranty on both asks), so item 3 rests on
+its unit tests. `[measured; one run each, one 20-question set; no phone]`
