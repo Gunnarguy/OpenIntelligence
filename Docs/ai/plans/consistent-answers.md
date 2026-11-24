@@ -565,9 +565,15 @@ last cloud test run). `[test_verified]`
 | Standard, memory kept | 18, 18 (end token from another document, both asks) | **20, 20** |
 | Standard, unlabelled tables | 17, 18 | **19, 19** (capex refused, "not specified") |
 | Deep Think | 18, 17 (item 8's run) | **20, 20** |
-| Maximum | 20, 20 (item 8's run) | queued |
-| Deep Think, step temperature 0.2 and 0.1 | | queued |
+| Maximum | 20, 20 (item 8's run) | 19, 20: the miss is a correct refusal that opens with another document's summary (Future Backlog) |
+| Deep Think, step temperature 0.2 and 0.1 | | 20, 20 at both; same words 10% and 15% (15% at 0.5); slower (72 and 73 s against 66). By the rule, 0.5 stays |
 
 Standard's median is 15 s an ask before and after on the same evening. No answer began with the instruction's words.
 Item 3's own case did not occur in the before run this time (it refused the warranty on both asks), so item 3 rests on
 its unit tests. `[measured; one run each, one 20-question set; no phone]`
+
+Item 6 measured: every model-written import summary had the same fingerprint in all six runs of b2d121fc; the only
+differences were three 30-second-timeout fallbacks in one run, so the timeout under load is what is left (Future
+Backlog). Item 7: by the written rule 0.5 stays (all three temperatures 20 and 20, no flips; same words 3, 2, 3).
+All runs of the queue are done; what remains is each row's check on the owner's iPhone, the retrieval benchmark and
+golden harnesses for rule 6, and the Future Backlog rows filed 2026-11-24.

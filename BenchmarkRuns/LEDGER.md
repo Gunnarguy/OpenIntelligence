@@ -2035,3 +2035,46 @@ queued. One question set; no phone.
 Stopped by hand about 3 minutes in, at the owner's word, so his ProtPhone and SilentStorm archives could build first.
 It holds no answers. The queue makes the run again under the same tag. `[evidence_level: measured (the folder holds
 only the start of a build log)]`
+
+### 2026-11-23 Deep Think's default step temperature, 0.2 and 0.1 (item 7) (`2026-11-23-2203-answer-modes-twice-deepThink-shipped-step02`, `2026-11-23-2329-answer-modes-twice-deepThink-shipped-step01`)
+
+b2d121fc, Deep Think as shipped except `TEST_RUNNER_OI_EVAL_STEP_TEMPERATURE` (`RAGService.agenticDefaultTemperature`,
+only the steps that name no temperature and have no adaptive profile). The logs show the override reached those steps:
+174 `[Agentic] Step temperature 0.2 from the default` lines in the first run, 165 at 0.1 in the second. Each question
+asked twice in one library. The run at 0.5 is `2026-11-23-1941-answer-modes-twice-deepThink-shipped-59a`.
+`[evidence_level: measured, confidence: medium: one run each, one 20-question set]`
+
+| Default step temperature | Right of 20, each ask | Same words both asks | Changed sides | Median s an ask |
+|---|---|---|---|---|
+| 0.5 (as shipped) | 20, 20 | 15% (3) | 0 | 66 |
+| 0.2 | 20, 20 | 10% (2) | 0 | 71.5 |
+| 0.1 | 20, 20 | 15% (3) | 0 | 73 |
+
+**Decision, by the rule written in the queue script before the runs** (most right, then fewest flips, then most same
+words, else keep 0.5): every step ties between 0.5 and 0.1, so 0.5 stays. No code changes. A lower temperature made
+Deep Think neither more accurate nor more repeatable here, and slower. What varies between Deep Think's two asks is the
+wording, not the facts: no question changed between right and wrong at any temperature.
+
+### 2026-11-24 Maximum with the 5.9 fixes, and item 6's proof (`2026-11-24-0048-answer-modes-twice-maximum-shipped-59a`)
+
+b2d121fc, Maximum as shipped, each question asked twice in one library. `[evidence_level: measured, confidence: medium:
+one run, one 20-question set]`
+
+| Mode | Right of 20, each ask | Same words both asks | Changed sides | Median s an ask | Slowest |
+|---|---|---|---|---|---|
+| Maximum, after | 19, 20 | 10% (2) | 1: missing_unreleased_battery | 59.5 | 308 s |
+| Maximum, before (item 8's run) | 20, 20 | 20% (4) | 0 | 63 | 306 s |
+
+**The one miss is a refusal with junk in front, not an invented value.** The first ask's answer ends "No information
+regarding warranty coverage for the unreleased 2032 prototype battery pack is present in the documents [S33]", but
+opens with a paragraph summarising another document ("A central passage specifies that the required validation token
+is LITM-MIDDLE-42 ..."), so the rule, which looks for the refusal in the first 600 characters with no number of its
+own before it, failed it. The second ask refused at once. The defect is Maximum leading with an unrelated document's
+summary; it is filed as Future Backlog.
+
+**Item 6: import summaries now repeat.** Across the six complete runs of b2d121fc that night (Standard twice, Deep Think
+three times, Maximum), every summary the model wrote had the same fingerprint in every run: 18 documents, no
+difference. Three differed in one run (`...-1848-...-keepafter`), and all three are the 30-second timeout's extractive
+fallback ("Apple FM summary timed out/failed ... timedOut(seconds: 30), using extractive fallback"), written while the
+Mac was loaded. So the remaining source of two different imports is the timeout, not sampling.
+`[measured: the "[DocumentSummary] Generated N-word summary (fingerprint ...)" lines of each run's app log]`

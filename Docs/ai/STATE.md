@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-11-23 21:30
+Updated: 2026-11-24 02:00
 Branch/worktree: `main`, primary checkout
 Last verified commit: af080bd5
 
@@ -141,16 +141,22 @@ kept 18, 18 before and 20, 20 after; Standard on 5.8's unlabelled tables 17, 18 
 20, 20 (5.8: 18, 17). 234 unit tests pass on the Simulator. Xcode Cloud run 510: two `FiveChecksSimulatorTests` fail
 only in the cloud (they pass on this Mac at ff449e9d and b2d121fc); worth a Future Backlog row.
 
-**Running unattended at the owner's word ("Make this autonomous ... go go go"; "Silent Storm and ProtPhone first,
-then the rest of OpenIntelligence"):** `~/Library/Developer/OpenIntelligence-evidence/ask-twice-queue/resume-59c.sh`
-in a Terminal tab holds until the files `go-silentstorm` and `go-protphone` exist in that folder (written when those
-sessions say their builds are through; ProtPhone's own limit is 21:50), then runs Deep Think at step temperature 0.2
-(tag `step02`), 0.1 (`step01`) and Maximum (`59a`) on b2d121fc. A session heartbeat (every 20 minutes) restarts a
-stalled step. When `ALL 5.9 QUEUES DONE` is in `queue.log`: set Deep Think's default in
-`RAGService.agenticDefaultTemperature` by the rule in the script's header (most right, then fewest flips, then most
-same words, else keep 0.5; Deep Think only), its unit test, the ledger, the plan, the item 7 changelog entry and the
-Notion rows, then commit `[ci skip]` and push. After that: each row's check on his iPhone (`device-pass`), the
-retrieval benchmark and golden harnesses for his rule 6, and item 6's proof (two imports, same summary fingerprints).
+**The overnight queue is done (2026-11-24 01:37), run after Silent Storm and ProtPhone at the owner's word.** Every
+mode with the 5.9 fixes, each question asked twice (ledger entries of 2026-11-23 and 24): Standard 20, 20; Deep Think
+20, 20; Maximum 19, 20, whose one miss is a correct refusal opened by an unrelated document's summary (Future Backlog
+row filed). Item 7: Deep Think at step temperature 0.5, 0.2 and 0.1 all 20, 20 with no flips, so by the rule written
+before the runs 0.5 stays and no code changed. Item 6: every model-written import summary had the same fingerprint in
+all six imports; the only differences were 30-second-timeout fallbacks under load (Future Backlog). Three Future
+Backlog rows were filed 2026-11-24: that Maximum lead, the timeout fallback, and the two `FiveChecksSimulatorTests`
+that fail only in Xcode Cloud.
+
+**Next, in this order:** (1) the owner's iPhone check for each 5.9 row (`device-pass` skill: one Ask About a Document
+after a chat about another document; a follow-up "And when is it due?"; a table question that should read Verified; a
+Deep Think "which document" question; two imports of one file with matching fingerprints in the log); (2) his rule 6:
+the retrieval benchmark and the golden harnesses on b2d121fc against ff449e9d (`Docs/ai/RUNBOOK.md`); (3) the privacy
+policy's "describes version 5.7" line, after reading what 5.8 and 5.9 send, here and on gunndamental.com (Gunzino);
+(4) What's New and `Docs/USER_CHANGELOG.md` for 5.9 in his voice when he is ready to submit; a 5.9 record in App Store
+Connect is his to create.
 
 The Mac is kept awake by `caffeinate -dimsu` in its own Terminal tab at the owner's word ("keep my mac awake ... until i
 say otherwise"); stop that tab only when he says so.
