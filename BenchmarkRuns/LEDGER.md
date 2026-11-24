@@ -1958,6 +1958,11 @@ the middle one's (LITM-MIDDLE-42), an earlier answer carried in by conversation 
 **What it did not settle.** Whether Maximum as shipped is lower than greedy (19, 19 against 18, 18 corrected is within
 one question); a phone.
 
+The folder `2026-11-23-0222-answer-modes-twice-maximum-greedy` is the greedy run's first start, which stopped before
+building: its only file, `SUMMARY.md.progress`, reads "Only 12 GB free on the internal disk; the build and simulator
+need about 15. Stopping." (02:22). It holds no answers; the greedy result above is the 06:54 run.
+`[evidence_level: measured, confidence: high: the folder's one file]`
+
 ### 2026-11-23 Re-score: the test corrected (item 8), no new runs
 
 `scripts/score_answer_eval.py`'s rule corrected (Docs/ai/plans/consistent-answers.md, "Item 8 done"): a refusal that
