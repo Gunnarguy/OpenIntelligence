@@ -447,6 +447,8 @@ Compute". Nothing else in the policy changed. `[evidence_level: code_verified, c
 
 *2026-11-17:* Model & Privacy shows the permission as a row of three buttons under the heading "Private Cloud Compute", with no "When to allow it" label, so the same two places now say "Settings, Model & Privacy, Private Cloud Compute" (`PrivacyPolicyView` and `scripts/privacy_policy.py`, edited by hand; the script was not run, so the Gunzino copies still say the older wording until it is). The three choices keep their names. `[evidence_level: code_verified, confidence: high]`
 
+*2026-11-24:* The text describes versions 5.8 and 5.9 (it said 5.7), gained a Conversations line under Storage and retention (5.8: deleting a library deletes its conversation memory, `ContainerService.deleteContainer` calling `ConversationMemoryService.removeMemory`; 5.9: a question about named documents neither reads nor adds to it, `ConversationContextRules.usesConversation`) and a clause on what a question about named documents sends to Private Cloud Compute (no earlier conversation, from 5.9), and Your controls names Settings, Model & Privacy, Private Cloud Compute. This time the script was run, so the Gunzino copies carry the 2026-11-16 and 11-17 wording too. `[evidence_level: code_verified, confidence: high]`
+
 Each statement in the text was checked against the code on 2026-10-15:
 
 - No advertising or tracking code: no `AdSupport`, `AppTrackingTransparency`, `SKAdNetwork` or `AdAttributionKit`

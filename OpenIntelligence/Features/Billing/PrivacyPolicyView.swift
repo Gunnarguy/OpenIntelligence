@@ -13,7 +13,7 @@ struct PrivacyPolicyView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, DSSpacing.sm)
 
-                    Text("Last updated: October 17, 2026")
+                    Text("Last updated: November 24, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
                     // does not have and a Settings → Privacy that does not exist, with one sentence cut off.
                     Group {
                         section(title: "Overview", content: """
-OpenIntelligence reads, indexes, searches and answers from your documents on your device. It sends passages from your documents to Apple's Private Cloud Compute only when you allow it, under the setting you chose. Libraries you set to iCloud Sync copy their files, passages, embeddings and conversations to your own iCloud. The app has no server of its own, and no third-party AI service, analytics, advertising or tracking code. This policy describes version 5.7, and says where earlier versions differ.
+OpenIntelligence reads, indexes, searches and answers from your documents on your device. It sends passages from your documents to Apple's Private Cloud Compute only when you allow it, under the setting you chose. Libraries you set to iCloud Sync copy their files, passages, embeddings and conversations to your own iCloud. The app has no server of its own, and no third-party AI service, analytics, advertising or tracking code. This policy describes versions 5.8 and 5.9, and says where earlier versions differ.
 """)
                         section(title: "What Stays on Your Device", content: """
 • Importing a document: reading its text, recognizing text in scans and pictures, transcribing audio, cutting it into passages, and the embeddings used to search it.
@@ -34,7 +34,7 @@ OpenIntelligence reads, indexes, searches and answers from your documents on you
 • The app's own diagnostics and timings.
 """)
                         section(title: "What Can Leave Your Device, and When", content: """
-**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context, the passages chosen as evidence with their document names and page numbers, and the app's instructions to the model. Only when you allow it, under Settings, Model & Privacy, Private Cloud Compute (Never use, Ask when needed, or Allow without asking, which versions before 5.7 call "Allow for Deep Think and Maximum"). When it asks, Show Details on the prompt says why and how much would be sent. With Private Cloud Compute chosen in the model picker, answers are written there whenever it can be reached, and Deep Think's and Maximum's reasoning steps can go there too, each behind the same permission. With Hybrid (Automatic), an answer goes there when its passages don't fit in the on-device model's window, and a Deep Think or Maximum answer also goes there when it draws on more than one document. With On-Device, nothing goes there. A question asked through Siri or Shortcuts follows the same rule; when it would need your permission first, the app opens to ask (from 5.7; earlier versions write that answer on your device). The answer shows which route it used. On iOS and macOS 26, answers are always written on your device. Apple states that Private Cloud Compute deletes your data once the answer is returned, keeps none of it, and that no one but you can access it, not even Apple.
+**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context (from 5.9, a question about documents you name goes without it), the passages chosen as evidence with their document names and page numbers, and the app's instructions to the model. Only when you allow it, under Settings, Model & Privacy, Private Cloud Compute (Never use, Ask when needed, or Allow without asking, which versions before 5.7 call "Allow for Deep Think and Maximum"). When it asks, Show Details on the prompt says why and how much would be sent. With Private Cloud Compute chosen in the model picker, answers are written there whenever it can be reached, and Deep Think's and Maximum's reasoning steps can go there too, each behind the same permission. With Hybrid (Automatic), an answer goes there when its passages don't fit in the on-device model's window, and a Deep Think or Maximum answer also goes there when it draws on more than one document. With On-Device, nothing goes there. A question asked through Siri or Shortcuts follows the same rule; when it would need your permission first, the app opens to ask (from 5.7; earlier versions write that answer on your device). The answer shows which route it used. On iOS and macOS 26, answers are always written on your device. Apple states that Private Cloud Compute deletes your data once the answer is returned, keeps none of it, and that no one but you can access it, not even Apple.
 
 **iCloud Sync (Pro and Lifetime, per library):** a library's files, passages, embeddings and conversations, copied to your own iCloud so your other devices signed in to the same Apple Account see the same library. Only for libraries you set to iCloud Sync; libraries are Local Only unless you change them.
 
@@ -54,11 +54,12 @@ Apple's own privacy policy covers Private Cloud Compute, iCloud, Handoff and the
 """)
                         section(title: "Storage and Retention", content: """
 • **Documents and their passages:** on your device, and in your iCloud for libraries set to iCloud Sync, until you delete them. Deleting a library removes its embeddings and keyword index.
+• **Conversations:** your questions and the answers, and a memory of each library's recent questions and answers that a follow-up question can use, are kept on your device, and in your iCloud for libraries set to iCloud Sync, until you delete them. From 5.8, deleting a library also deletes its conversation memory; in earlier versions it stayed on the device. From 5.9, a question about documents you name (Ask About a Document, or Siri and Shortcuts on named documents) neither reads nor adds to that memory.
 • **Search cache:** past questions and the passages found for them are kept in the app's database on your device, so a question asked again is answered faster. From version 5.7 they're deleted whenever a document is added or deleted and when the app is updated. In earlier versions they stay until the app is removed.
 • **Backups:** your device's iCloud backup may include the app's data if backups are on.
 """)
                         section(title: "Your Controls", content: """
-• Settings, Model & Privacy: Never use, Ask when needed, or Allow without asking.
+• Settings, Model & Privacy, Private Cloud Compute: Never use, Ask when needed, or Allow without asking.
 • Each library: Local Only or iCloud Sync, in the library's settings.
 • Settings: Spotlight Indexing on or off.
 • Delete documents, libraries and conversations in the app, or remove the app.

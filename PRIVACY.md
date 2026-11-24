@@ -32,6 +32,10 @@ In short:
   report holds the app and system versions, the device model and the part of the app's code that was
   running, and none of your documents, questions or answers. It leaves the device only if you send it, or share it
   from Settings, About.
+- From 5.8, deleting a library also deletes its conversation memory (the library's recent questions and answers
+  that a follow-up question can use); in earlier versions it stayed on the device.
+- From 5.9, a question about documents you name (Ask About a Document, or Siri and Shortcuts on named documents)
+  neither reads nor adds to the conversation memory, and goes to Private Cloud Compute without earlier conversation.
 - The app contains no third-party analytics, advertising or tracking code. Its only package dependency is
   swift-tokenizers.
 
@@ -41,3 +45,4 @@ In short:
 The summary this file carried until 2026-09-29 made statements the code contradicts, among them that
 Private Cloud Compute ran as a local simulation. It is kept as a record at
 `Docs/Archive/PRIVACY_summary_2026-02.md`.
+`[evidence_level: test_verified, confidence: high, evidence_source: the 5.8 and 5.9 lines, added 2026-11-24: ConversationMemoryService.removeMemory (5.8); ConversationContextRules.usesConversation, RAGService+QueryAnswer.buildGenerationPrompt and RAGService+AnswerFinishing (5.9), EarlierTurnsAndNamedValuesTests]`

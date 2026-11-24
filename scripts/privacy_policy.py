@@ -9,7 +9,7 @@
 # statement is true of) is in Docs/ai/RUNBOOK.md, "Changing the privacy policy". Added 2026-10-15.
 import html, os, re, subprocess, sys
 OI, GZ = sys.argv[1], sys.argv[2]
-DATE = "October 17, 2026"
+DATE = "November 24, 2026"
 
 INTRO = ("This policy describes how OpenIntelligence handles information. OpenIntelligence is an on-device RAG app built "
          "on Apple Intelligence: your documents are read, indexed, searched and answered from on your device unless you "
@@ -24,7 +24,7 @@ SECTIONS = [
         "your documents to Apple's Private Cloud Compute only when you allow it, under the setting you chose. Libraries you "
         "set to iCloud Sync copy their files, passages, embeddings and conversations to your own iCloud. The app has no "
         "server of its own, and no third-party AI service, analytics, advertising or tracking code. This policy "
-        "describes version 5.7, and says where earlier versions differ.",
+        "describes versions 5.8 and 5.9, and says where earlier versions differ.",
     ]),
     ("What stays on your device", [
         "- Importing a document: reading its text, recognizing text in scans and pictures, transcribing audio, cutting "
@@ -36,7 +36,8 @@ SECTIONS = [
         "- The app's own diagnostics and timings.",
     ]),
     ("What can leave your device, and when", [
-        "**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context, the "
+        "**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context (from 5.9, a question about "
+        "documents you name goes without it), the "
         "passages chosen as evidence with their document names and page numbers, and the app's instructions to the model. "
         "Only when you allow it, under Settings, Model & Privacy, Private Cloud Compute (Never use, Ask when needed, "
         "or Allow without asking, which versions before 5.7 call \"Allow for Deep Think and Maximum\"). When it asks, Show Details on the prompt says why and how much would be sent. With Private Cloud Compute "
@@ -75,13 +76,18 @@ SECTIONS = [
     ("Storage and retention", [
         "- **Documents and their passages:** on your device, and in your iCloud for libraries set to iCloud Sync, until "
         "you delete them. Deleting a library removes its embeddings and keyword index.",
+        "- **Conversations:** your questions and the answers, and a memory of each library's recent questions and "
+        "answers that a follow-up question can use, are kept on your device, and in your iCloud for libraries set to "
+        "iCloud Sync, until you delete them. From 5.8, deleting a library also deletes its conversation memory; in "
+        "earlier versions it stayed on the device. From 5.9, a question about documents you name (Ask About a "
+        "Document, or Siri and Shortcuts on named documents) neither reads nor adds to that memory.",
         "- **Search cache:** past questions and the passages found for them are kept in the app's database on your "
         "device, so a question asked again is answered faster. From version 5.7 they're deleted whenever a document "
         "is added or deleted and when the app is updated. In earlier versions they stay until the app is removed.",
         "- **Backups:** your device's iCloud backup may include the app's data if backups are on.",
     ]),
     ("Your controls", [
-        "- Settings, Model & Privacy: Never use, Ask when needed, or Allow without asking.",
+        "- Settings, Model & Privacy, Private Cloud Compute: Never use, Ask when needed, or Allow without asking.",
         "- Each library: Local Only or iCloud Sync, in the library's settings.",
         "- Settings: Spotlight Indexing on or off.",
         "- Delete documents, libraries and conversations in the app, or remove the app.",
@@ -187,7 +193,9 @@ swift_sections = [
 rel = "OpenIntelligence/Features/Billing/PrivacyPolicyView.swift"
 s = subprocess.check_output(["git", "show", f"HEAD:{rel}"], cwd=OI, text=True)
 start = s.index('                    Text("Last updated:')
-end_marker = "                    }\n                }\n                .padding(24)"
+# The view's padding became DSSpacing in 5.8's restyle (2026-11-16); either form ends the text block.
+end_marker = next(m for m in ("                    }\n                }\n                .padding(.horizontal, DSSpacing.lg)",
+                               "                    }\n                }\n                .padding(24)") if m in s)
 assert s.count(end_marker) == 1
 end = s.index(end_marker)
 new_block = (f'                    Text("Last updated: {DATE}")\n'
