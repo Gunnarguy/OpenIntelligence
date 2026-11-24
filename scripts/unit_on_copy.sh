@@ -2,10 +2,10 @@
 # Unit test classes on a scratch copy of the checkout (outside iCloud, so codesign works), on a simulator of their own,
 # under the machine's build lock (2026-11-23). The copy is made once the lock is held, so it holds every edit made
 # while the run waited. Never edit this file while it runs: bash reads a script as it goes.
-# usage: bash scripts/unit_on_copy.sh LABEL Class1 Class2 ...   (summary in $OI_QUEUE_DIR/unit-LABEL/summary.txt)
+# usage: bash scripts/unit_on_copy.sh LABEL Class1 Class2 ...   OI_UNIT_REF=<commit> tests that commit instead   (summary in $OI_QUEUE_DIR/unit-LABEL/summary.txt)
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="$1"; shift
-ROOT=/private/tmp/oi-unit
+ROOT=/private/tmp/oi-unit${OI_UNIT_REF:+-ref}
 SRC=$ROOT/src; DD=$ROOT/dd
 OUT="${OI_QUEUE_DIR:-$HOME/Library/Developer/OpenIntelligence-evidence/ask-twice-queue}/unit-$LABEL"
 mkdir -p "$ROOT" "$OUT"
