@@ -40,6 +40,12 @@ echo "=== ci_post_xcodebuild: release gates ==="
 echo "action:  ${CI_XCODEBUILD_ACTION:-<unset>}"
 echo "archive: ${CI_ARCHIVE_PATH:-<unset>}"
 
+# The cloud Mac model probe (2026-11-25): in the manual test workflow only, never in a release build, and it cannot
+# fail the action (ci_scripts/cloud_mac_model_probe.sh says why it exists).
+if [ "${CI_WORKFLOW:-}" = "Tests (manual)" ] && [ "${CI_XCODEBUILD_ACTION:-}" != "archive" ]; then
+    sh "$(dirname "$0")/cloud_mac_model_probe.sh" || true
+fi
+
 # Only archives ship. Builds and tests have no artifact to police, so skip
 # without failing -- but say so, so a silent skip is never mistaken for a pass.
 if [ "${CI_XCODEBUILD_ACTION:-}" != "archive" ]; then
