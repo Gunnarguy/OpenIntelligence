@@ -1,0 +1,1 @@
+ia,pdf,document,ocr,transcription,résumé,recherche,privé,local,offline,internet,llm,cours,assistant

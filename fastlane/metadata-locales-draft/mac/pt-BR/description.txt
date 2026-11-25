@@ -1,0 +1,71 @@
+Pergunte a seus PDFs, contratos, aulas gravadas ou código e receba a resposta com o trecho exato de origem. Nada que você importa sai do dispositivo sem sua permissão. Grátis para começar, sem conta nem chave de API.
+
+AS RESPOSTAS VÊM DOS SEUS ARQUIVOS
+
+Não da imaginação de um chatbot.
+
+- OpenIntelligence busca primeiro na sua biblioteca e extrai os trechos exatos que importam.
+- Só então escreve, em linguagem simples, com Apple Intelligence no dispositivo.
+- Citações no texto ligam cada resposta a páginas e trechos de apoio, a um toque da fonte.
+- Se seus arquivos não têm a resposta, ele avisa em vez de chutar.
+- Requer um dispositivo com Apple Intelligence, como iPhone 15 Pro ou posterior, ou iPad ou Mac com M1 ou posterior, e iOS/iPadOS/macOS 26.
+
+Seu dispositivo já tinha a inteligência. Isto lhe dá seu conhecimento e regras de prova.
+
+MEDIDO NA 5.8
+
+- 88% das minhas 17 perguntas de teste mistas acertadas no Standard (15 de 17), antes 53% na 5.7. Uma rodada de cada.
+- 89% dos trechos citados destacados em sua maior parte, em 44 PDFs num Mac, antes 58%.
+- 85% de 515 checagens de importação aprovadas nos meus 8 artigos de teste (439), antes 67%, e 94% dos números mantidos, antes 90%.
+
+O QUE VOCÊ PODE FAZER
+
+- Resumir documentos longos, gravações ou bibliotecas inteiras.
+- Comparar afirmações e detalhes entre fontes.
+- Encontrar fatos exatos, datas, especificações, medidas e valores de tabela.
+- Continuar perguntando sem perder as fontes nem o fio.
+- Escolher Standard para fatos rápidos, Deep Think para perguntas de várias etapas ou Maximum para sintetizar mais evidências.
+
+TRAGA SEU MATERIAL
+
+- PDFs, documentos do Office, texto e Markdown, CSVs e código.
+- Imagens e digitalizações, com OCR do Vision quando preciso.
+- Áudio e vídeo, transcritos.
+- Pages, Numbers e Keynote: exporte para PDF antes.
+
+COMO AS RESPOSTAS SÃO FEITAS
+
+- A busca exata por palavras-chave e a semântica acham juntas esses trechos.
+- Os Apple Foundation Models os redigem em linguagem natural.
+- Depois o app confere a própria resposta com os trechos que de fato usou.
+- Se as fontes não sustentam a resposta, aponta apoio fraco ou se abstém. Sem enrolação com cara de certeza.
+- Os detalhes mostram trechos de fontes, qualidade de recuperação, avisos de verificação, tempos e a rota usada.
+
+PARA ONDE SEUS ARQUIVOS VÃO (E NÃO VÃO)
+
+- Ler e pesquisar seus arquivos e escolher o que citar acontece no dispositivo, antes de escrever algo.
+- As respostas no dispositivo não precisam de conexão nenhuma. Num avião, sem sinal ou num escritório com a rede fechada, sua biblioteca continua funcionando.
+- Para perguntas longas com muitas evidências no iOS, iPadOS ou macOS 27, você pode deixar o Apple Private Cloud Compute escrever. O app mostra quanto seria enviado e por quê, e pergunta antes. Segundo a Apple, seus servidores não guardam nada depois.
+- Seu material nunca vai a um provedor de IA de terceiros.
+
+BIBLIOTECAS PARA SEU TRABALHO
+
+- Bibliotecas separadas, cada uma com seu índice de busca, por assunto, projeto ou cliente.
+- Local Only ou iCloud Drive (planos pagos) por biblioteca.
+- Conversas salvas para pesquisas em curso.
+- Ações da Siri e Atalhos para tarefas comuns de documentos e bibliotecas.
+
+PLANOS
+
+Todos os planos usam o mesmo modelo: Apple Intelligence no dispositivo, Deep Think e Private Cloud Compute após você aprovar o que será enviado.
+
+- Free: 5 documentos, 1 biblioteca, Maximum 3 vezes ao dia.
+- Pro: Maximum sem limite, 1.000 documentos, 10 bibliotecas, mais conversas, pastas monitoradas.
+- Lifetime, pagamento único: documentos e conversas ilimitados, 20 bibliotecas, pastas monitoradas.
+
+Crio e mantenho o OpenIntelligence sozinho. Pro e Lifetime financiam diretamente sua continuidade. A todos que já apoiam o app: obrigado. Tem sido uma jornada e tanto.
+
+Por enquanto, a interface está em inglês.
+
+Política de Privacidade: gunndamental.com/openintelligence/privacy/
+Termos de Uso (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

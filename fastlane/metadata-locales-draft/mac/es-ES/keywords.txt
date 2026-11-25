@@ -1,0 +1,1 @@
+ia,pdf,documentos,buscar,resumir,ocr,transcribir,audio,privada,local,apuntes,contratos,internet,leer
