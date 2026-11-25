@@ -90,6 +90,29 @@ above; none is a step of its own:
 - Mac step 6: Open <document> from Spotlight.
 - Not on the pass: the TestFlight purchase check (needs the TestFlight build).
 
+### 5.9 (2026-11-25): the same steps, with the 5.9 checks first
+
+The owner asked for the 5.8 pass turned into a 5.9 pass. The 5.8 phone steps were never run, so their rows are still
+open and the steps stay; 5.9 adds no step of its own. The checklist page is https://claude.ai/artifact/G5EBhnCH3MfXeGmAdp9XDW
+(source in the session scratchpad, `pass59/index.html`; ticks in its own shared doc `pass/checks59`). The 5.9 checks sit
+at the top of its Prompts tab, in the 5.8 Check library (files in iCloud Drive › OpenIntelligence 5.8 check), in order:
+
+1. Standard: the Lisbon seats (23A, 23B), which sets up check 4.
+2. Standard: the monthly rent, then "And the late charge?" in the same chat (a follow-up still reads the earlier turn).
+3. Siri: "Ask OpenIntelligence about Juniper Flats Lease - Unit 4B", question "What is my parking space number?": #17,
+   not a number from the itinerary (a scoped ask reads no earlier turns). Proven by the trace line
+   `[ConversationMemory] Scoped ask: the question goes without earlier turns` (phone_evidence rule, 5.9).
+4. Standard: the interest on the security deposit: the documents don't state it (a value counts only where named).
+5. Deep Think: which document gives the airline confirmation code: the itinerary, QK7PZM, named; the first sentence
+   answers directly (rule: `absent_trace` of the old instruction words).
+6. Maximum: the late charges ($75, then $10 a day, capped at $150).
+7. Import "Small model study notes.md" into a second library: the two `[DocumentSummary] ... (fingerprint X)` lines must
+   match (rule proves the lines exist; compare the two fingerprints by hand).
+
+Phone step 4 also opens Settings › About › Privacy Policy (versions 5.8 and 5.9, the Conversations line). The phone and
+Mac builds come from `BenchmarkRuns/2026-11-24-59-suite/device_builds.sh` (install_to_phone.py, then the Mac build into
+/Applications), run under the build lock between benchmark units.
+
 ## When he says "done"
 
 ```bash

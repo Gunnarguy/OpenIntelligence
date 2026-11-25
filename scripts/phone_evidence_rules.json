@@ -1,5 +1,5 @@
 {
-  "_comment": "Rules for scripts/phone_evidence.py (5.8). Each names a roadmap row (its title and URL) and the events in verification_events.jsonl that close it. A rule is written from the row's closing condition; where the condition also needs a judgement (how something looks), `needs` says so and the rule only proves the mechanism ran. Event names and fields are VerificationJournal.record calls in the app. Conditions may compare with >=N, <=N or !=X, may name the line's own os and ms, and a rule's `absent` lists events that must not appear (phone_evidence.py's docstring).",
+  "_comment": "Rules for scripts/phone_evidence.py (5.8). Each names a roadmap row (its title and URL) and the events in verification_events.jsonl that close it. A rule is written from the row's closing condition; where the condition also needs a judgement (how something looks), `needs` says so and the rule only proves the mechanism ran. Event names and fields are VerificationJournal.record calls in the app. Conditions may compare with >=N, <=N or !=X, may name the line's own os and ms, and a rule's `absent` lists events that must not appear (phone_evidence.py's docstring). 5.9 rules added 2026-11-25 (rows of the v5.9 device pass), proven from pipeline_trace.log lines the 5.9 code writes.",
   "rules": [
     {
       "row": "Interactive Deep Think Live Activities (Stop keeps the written text)",
@@ -2228,6 +2228,33 @@
             "withSources": ">=1"
           }
         }
+      ]
+    },
+    {
+      "row": "5.9: Ask About a Document read earlier answers about other documents, and they overrode the document",
+      "url": "https://app.notion.com/p/42249a74d54f81638011c788f7abbfad",
+      "needs": "Right after a chat about the Lisbon itinerary, ask about the lease by name (Siri: 'Ask OpenIntelligence about Juniper Flats Lease', or the Shortcuts action Ask About a Document): the parking space is #17, not a seat or flight number.",
+      "trace": [
+        "\\[ConversationMemory\\] Scoped ask: the question goes without earlier turns"
+      ]
+    },
+    {
+      "row": "5.9: Deep Think's answers began with the words of its own instruction",
+      "url": "https://app.notion.com/p/42249a74d54f81f48763e6f29f52b2cb",
+      "needs": "Ask any Deep Think question; the answer opens with a direct sentence.",
+      "trace": [
+        "\\[ReasoningChain\\] Deep Think synthesis"
+      ],
+      "absent_trace": [
+        "the exact value, name or finding, written as the source writes it"
+      ]
+    },
+    {
+      "row": "5.9: One file imported twice got two different summaries",
+      "url": "https://app.notion.com/p/42249a74d54f810b832ee2991caf88fd",
+      "needs": "Import the same file into two libraries; the two fingerprints in the trace must be equal (read them off the PASS proof).",
+      "trace": [
+        "\\[DocumentSummary\\] Generated \\d+-word summary \\(fingerprint [0-9a-f]{16}\\)"
       ]
     }
   ]
