@@ -1,1 +1,1 @@
-ia,pdf,documentos,pesquisa,resumo,ocr,transcrever,áudio,privada,local,apostila,contratos,internet
+ia,pdf,documentos,pesquisa,resumo,ocr,transcrever,áudio,privada,local,apostila,contratos,buscar

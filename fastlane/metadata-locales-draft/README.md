@@ -14,3 +14,8 @@ each language; every figure is checked against `Docs/ai/CLAIMS.json`; a reviewer
 English for any change of meaning; and Apple's 4,000 limit is confirmed as characters (es-ES and pt-BR are 3,994
 characters but over 4,000 bytes). Every locale keeps the offline claim at full strength and says the app's interface is
 in English. `apple` and `intelligence` are left out of the new keyword lists as a trademark precaution.
+
+Keywords were checked on 2026-11-24 against Apple Ads search popularity (`~/ASC/keywords-2026-11-24/`): the local word
+for AI leads every storefront (ki, ia, ai), then pdf and document words, and every offline or privacy phrase in the
+local language scored the floor of 5, so the offline claim sells in the subtitle and description, not the keyword field.
+pt-BR took `buscar` (70) for `internet`. Words for "free" and brand names are left out.
