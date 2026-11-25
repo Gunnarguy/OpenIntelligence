@@ -18,4 +18,6 @@ in English. `apple` and `intelligence` are left out of the new keyword lists as 
 Keywords were checked on 2026-11-24 against Apple Ads search popularity (`~/ASC/keywords-2026-11-24/`): the local word
 for AI leads every storefront (ki, ia, ai), then pdf and document words, and every offline or privacy phrase in the
 local language scored the floor of 5, so the offline claim sells in the subtitle and description, not the keyword field.
-pt-BR took `buscar` (70) for `internet`. Words for "free" and brand names are left out.
+pt-BR took `buscar` (70) for `internet`. Each locale has its word for "free" (owner, 2026-11-24: "use the free words in the keywords"): kostenlos, gratuit,
+gratis, grátis, 無料, 免费, 免費. Apple names no rule against "free" in keywords; guideline 2.3.7 bars "pricing information"
+used to game search, and the app is free to download. Brand names stay out.
