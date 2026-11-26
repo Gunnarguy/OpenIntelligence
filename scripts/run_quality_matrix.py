@@ -684,8 +684,12 @@ def run_one(
             staged.append(str(dest))
         inputs = staged
 
+    # `--console-pty`, not `--console` (2026-11-25): with `--console` the app's long report stopped part way (at a
+    # retrieved passage's text), so the app never reached `exit(0)` and every QASPER case in the iOS 27 Simulator timed
+    # out at 600 s and again at 2400 s with its answer unread. Through a pseudo-terminal the same case printed its whole
+    # report and exited in 61 s. Text mode turns the terminal's CRLF line ends into LF.
     launcher = (
-        ["xcrun", "simctl", "launch", "--console", "--terminate-running-process", SIM_UDID, SIM_BUNDLE]
+        ["xcrun", "simctl", "launch", "--console-pty", "--terminate-running-process", SIM_UDID, SIM_BUNDLE]
         if SIM_UDID else [str(app_bin)]
     )
     cmd = [
