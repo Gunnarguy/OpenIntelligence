@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-11-24 (after 1627b8c4)
+Updated: 2026-11-27 (after d5bdb7a0; the 5.9 suite)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 1627b8c4
+Last verified commit: d5bdb7a0
 
 ## Objective
 
@@ -127,6 +127,18 @@ correction (409, already IN_REVIEW); the three sentences concerned are in the 5.
 
 ## Exact Next Action
 
+**The 5.9 suite is done (2026-11-24 to 11-27; ledger entry "2026-11-24 to 11-27 The 5.9 suite"; detail in
+`BenchmarkRuns/2026-11-24-59-suite/findings.md`).** 5.8 (ff449e9d) against 5.9 (b2d121fc), iOS 27 Simulator, Apple's
+model: retrieval golden 330 of 330 identical, parsing 13 of 13, import identical apart from two picture passages;
+Standard on 158 table questions 135 = 135; QASPER 3 papers 48 against 45 (p = 0.45) and 10 papers 37 against 34
+(p = 0.63). **One regression: Deep Think on table values, 139 against 131 of 158 (+2 / -10, p = 0.04)**, read by hand
+as 6 values under another label and 2 "No. (%)" cells answered as the percentage alone; filed as a 5.9 row. A fix
+(Deep Think's answer-first sentence asks again for the exact whole value with its label, plus the value-must-be-named
+rule; `deepthink-label-fix.diff` in that folder) reached 137 but failed two of the three clauses written before the
+runs (+3 / -5 against 5.8; Maximum ask twice 19, 18 against 19, 20), so no app code changed. Next for that row, in a
+fresh session: restore 5.8's answer-first wording as one sentence without the colon, measure Deep Think and Maximum
+separately (Maximum shares the sentence), and look at the "No. (%)" partial in both modes.
+
 **5.9 is open and items 1 to 7 and 9 of the 5.9 proposal are built (b2d121fc, pushed), at the owner's word
 ("Proceed: implement until this is all said and done").** `## 5.9` is open in `CHANGELOG.md` (5.8's heading dated
 November 21, 2026); `Docs/SHIPPED_VERSION.json` preparing is 5.9; no 5.9 record exists in App Store Connect and no
@@ -152,8 +164,7 @@ that fail only in Xcode Cloud.
 
 **Next, in this order:** (1) the owner's iPhone check for each 5.9 row (`device-pass` skill: one Ask About a Document
 after a chat about another document; a follow-up "And when is it due?"; a table question that should read Verified; a
-Deep Think "which document" question; two imports of one file with matching fingerprints in the log); (2) his rule 6:
-the retrieval benchmark and the golden harnesses on b2d121fc against ff449e9d (`Docs/ai/RUNBOOK.md`); (3) the privacy
+Deep Think "which document" question; two imports of one file with matching fingerprints in the log); (2) done 2026-11-27: the 5.9 suite above; (3) the privacy
 policy's "describes version 5.7" line, after reading what 5.8 and 5.9 send, here and on gunndamental.com (Gunzino);
 (4) What's New and `Docs/USER_CHANGELOG.md` for 5.9 in his voice when he is ready to submit; a 5.9 record in App Store
 Connect is his to create.

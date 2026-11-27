@@ -2083,3 +2083,73 @@ difference. Three differed in one run (`...-1848-...-keepafter`), and all three 
 fallback ("Apple FM summary timed out/failed ... timedOut(seconds: 30), using extractive fallback"), written while the
 Mac was loaded. So the remaining source of two different imports is the timeout, not sampling.
 `[measured: the "[DocumentSummary] Generated N-word summary (fingerprint ...)" lines of each run's app log]`
+
+### 2026-11-24 to 11-27 The 5.9 suite, 5.8 (ff449e9d) against 5.9 (b2d121fc), and a Deep Think fix measured (`2026-11-24-59-suite`, `2026-11-24-59-qasper3-before`, `2026-11-24-59-qasper3-before-t2400`, `2026-11-24-59-qasper3-before-pty`, `2026-11-24-59-qasper3-after-pty`, `2026-11-24-59-qasper3-after-pty6`, `2026-11-24-59-qasper10-before-pty`, `2026-11-24-59-qasper10-after-pty`, `2026-11-27-0648-answer-modes-twice-deepThink-shipped-59fix`, `2026-11-27-0748-answer-modes-twice-maximum-shipped-59fix`)
+
+Both builds were patched demo copies (`scripts/sim_model_copy.py`) built for testing into `/private/tmp/oi59-{before,after}-dd`,
+run in iOS 27.0 Simulators on this Mac with Apple's on-device model, window 8,192. `[evidence_level: measured]`
+
+| Set | 5.8 | 5.9 | Changed | Confidence |
+|---|---|---|---|---|
+| Retrieval golden | | | 330 of 330 identical | high |
+| Parsing golden | | | 13 of 13 identical | high |
+| Import golden | | | identical apart from two picture passages (model warm-up; the recorder does not hold picture descriptions fixed) | high |
+| Standard golden | | | not comparable: the library changes at every launch (below) | n/a |
+| Table questions, Standard, slices 0-2 (119) | 102 | 102 | +2 / -2 | medium |
+| Table questions, Standard, slice 3 (39) | 33 | 33 | +0 / -0; with a citation 38 -> 36 | medium |
+| Table questions, Deep Think, slice 0 (40) | 37 | 34 | +0 / -3, sign test p=0.25 | low: within Deep Think's run-to-run spread |
+| Table questions, Deep Think, the other 118 (eighths 1, 5, 2, 6, 3, 7) | 102 | 97 | +1 / -7 | medium |
+| Table questions, Deep Think, all 158 | 139 | 131 | +2 / -10, sign test p = 0.04; by hand 6 values under another label, 2 "No. (%)" cells as the percentage alone | medium |
+| QASPER, Standard, 3 papers a case (83) | 48 correct (58%), 33% abstained, 4 hallucinated, 58.5 s a case | 45 correct (54%), 33% abstained, 4 hallucinated, 57.5 s a case | +2 / -5, p = 0.45 | medium |
+| QASPER, Standard, 10 papers a case (83) | 37 correct (45%), 4 hallucinated | 34 correct (41%), 5 hallucinated | +7 / -10, p = 0.63 | medium |
+
+**The losses, read one by one.** Standard's two losses in slices 0-2: one partial answer (slice 1, "Incident MCI or
+dementia, No. (%) under No ADHD", cell "6259 (3.4)": 5.9 answered "3.4", the percentage of the right cell without its
+count) and one in slice 0. Deep Think's three in slice 0: one passage never retrieved, and two values taken under the
+wrong label, the pattern 5.9 fixed for Standard only (`RAGService.valueMustBeNamedRule`); the candidate fix is in the
+suite's `findings.md`. Over all 158 Deep Think table questions 5.9 lost 10 and gained 2 (one of the gains a scorer
+false positive); read by hand the losses are 6 values under another label, 2 "No. (%)" cells answered as the percentage
+alone, 1 row never retrieved and 1 where both builds were wrong. A regression in an advertised capability (Deep Think's
+exact values with citations), so it is filed against 5.9.
+
+**Recorder defects found, not 5.9 defects.**
+- `StandardPipelineGoldenTests` never holds its library still: recorded three times in a row in one new Simulator
+  (5.8, 5.8, 5.9), the library digest changed at every launch (5f89898fda70/2204, 2d67dcb08690/2200, e17430aa6574/2200);
+  the second launch spent half an hour on 22 documents' deferred enrichments. Comparisons across Simulators or
+  containers were also invalid ("-2" renames from re-importing into a filled container, last-bit Core ML drift).
+- QASPER under `run_quality_matrix.py --simulator` timed out on every case (`2026-11-24-59-qasper3-before` at 600 s,
+  `-t2400` at 2,400 s): launched with `simctl launch --console`, the app stopped part way through its long report and
+  never reached exit(0). With `--console-pty` the same case printed its whole report and exited in 61 s and scored
+  PASS (fixed in d5bdb7a0). Both timeout folders are kept as the record.
+
+**What interrupted the runs.**
+- The Mac restarted at 08:04 on 2026-11-25 and cleared `/private/tmp`: fixtures were rebuilt from the PDFs in the
+  owner's app library and `golden_compare prepare` run again.
+- Games: the guard (`game_guard.sh`) stopped the suite's tests whenever World of Warcraft or League opened (18:26 cut
+  5.9's table slice 3, rerun after). Three stops in all: 11-25 18:26, 11-26 13:15 and 22:16, each resumed from its checkpoint.
+- CoreDeviceService (DeviceHub and devicectl, not this suite) shut the 5.9 Simulator down at 11-26 22:14:33, so the last
+  6 cases of `-qasper3-after-pty` have no answer; that folder is kept, and `-qasper3-after-pty6` holds its 77 answered
+  rows plus the 6 run again (the 5.9 QASPER 3 figure above is that folder).
+- Other sessions compiled beside these tests (the build and test locks split on 2026-11-25), and ProtPhone's UI tests
+  shared the test lock. Answer time-limit fallbacks in the finished table logs (8 slices to 19:00): 0. The two "timed out" lines there are an Xcode diagnostics collection (before-s1) and an image provider (before-s3), not an answer. Not counted for the Deep Think eighths: "fallback" appears in routine log lines there (3,972 matches), so no figure is claimed.
+
+**The Deep Think label fix, measured and not kept.** `deepthink-label-fix.diff` in the suite folder: Deep Think's
+answer-first sentence asks again for the exact value written whole with its label, and its final step carries
+`RAGService.valueMustBeNamedRule`; built on b2d121fc (commit 96af1a02, on no branch, for the ask-twice runs).
+
+| | 5.8 | 5.9 | 5.9 + fix |
+|---|---|---|---|
+| Deep Think, 158 table questions | 139 | 131 | 137 (against 5.9 +10 / -4, p = 0.18; against 5.8 +3 / -5, p = 0.73) |
+| Ask twice, Deep Think (20, two asks) | | 20, 20 | 20, 20 |
+| Ask twice, Maximum (20, two asks) | | 19, 20 | 19, 18 |
+
+By the rule written before the runs (right on at least as many as 5.9, no more losses than gains against 5.8, and
+Maximum and Deep Think at least as right as 59a), the fix fails two of three clauses and no code changed. It wins back
+6 of the 10 questions 5.9 lost, but adds hedged and range answers ("varies depending on the spiking level"; a range
+where the cell holds one value) and leaves the "No. (%)" partial; Maximum, which shares the sentence, moved the wrong
+way. The regression stays open on the roadmap. `[evidence_level: measured, confidence: medium: one run per build]`
+
+**Scorer change, committed with this entry.** `scripts/evidence_reach.py` counts a grouped label ("[S2, S10]", which
+5.9 writes) as a citation; the old pattern undercounted both builds (Standard answers with a citation, 158 questions:
+5.8 157, 5.9 154 after the change). A second limit is recorded, not changed: `holds` finds the cell anywhere in a long
+write-up, so a wrong stated value can pass when the answer quotes raw table text (two such cases here, both 5.8's).

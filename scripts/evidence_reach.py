@@ -290,7 +290,9 @@ def answers(out, paths):
             line += f"  on the {len(both)} both answered: +{won}/-{lost} p={sign_p(won, lost):.2f}"
         print(line)
     # Standard answers (path "s" with the real model): right, and how many carry an inline [S#] label.
-    cite = re.compile(r"\[S\d+\]")
+    # A grouped label ("[S2, S10]", which 5.9's Standard writes) is a citation too (2026-11-26: the plain pattern counted
+    # one such answer in table slice 3 as uncited).
+    cite = re.compile(r"\[S\d+(?:\s*,\s*S?\d+)*\]")
     std = [(name, rows) for name, rows in
            ((Path(p).stem, {r["qid"]: r for r in json.loads(Path(p).read_text())["results"]
                             if r["qid"] in gold and "answer" in r}) for p in paths) if rows]
